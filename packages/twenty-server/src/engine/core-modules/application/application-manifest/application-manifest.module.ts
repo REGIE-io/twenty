@@ -3,6 +3,7 @@ import { Module } from '@nestjs/common';
 import { ApplicationModule } from 'src/engine/core-modules/application/application.module';
 import { ApplicationManifestMigrationService } from 'src/engine/core-modules/application/application-manifest/application-manifest-migration.service';
 import { ApplicationManifestResolver } from 'src/engine/core-modules/application/application-manifest/application-manifest.resolver';
+import { InternalWorkspaceMetadataMigrationController } from 'src/engine/core-modules/application/application-manifest/internal-workspace-metadata-migration.controller';
 import { ComputeApplicationManifestAllUniversalFlatEntityMapsService } from 'src/engine/core-modules/application/application-manifest/services/compute-application-manifest-all-universal-flat-entity-maps.service';
 import { ApplicationSyncService } from 'src/engine/core-modules/application/application-manifest/application-sync.service';
 import { ApplicationVariableEntityModule } from 'src/engine/core-modules/application/application-variable/application-variable.module';
@@ -34,6 +35,7 @@ import { WorkspaceMigrationModule } from 'src/engine/workspace-manager/workspace
     ComputeApplicationManifestAllUniversalFlatEntityMapsService,
     WorkspaceMigrationGraphqlApiExceptionInterceptor,
   ],
+  controllers: [InternalWorkspaceMetadataMigrationController],
   exports: [ApplicationManifestMigrationService, ApplicationSyncService],
 })
 export class ApplicationManifestModule {}
