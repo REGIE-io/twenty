@@ -13,6 +13,7 @@ import { ConnectionProviderModule } from 'src/engine/core-modules/application/co
 import { ApplicationConnectionsModule } from 'src/engine/core-modules/application/connection-provider/connections/application-connections.module';
 import { GoogleAPIsAuthController } from 'src/engine/core-modules/auth/controllers/google-apis-auth.controller';
 import { GoogleAuthController } from 'src/engine/core-modules/auth/controllers/google-auth.controller';
+import { InternalWorkspaceProvisioningController } from 'src/engine/core-modules/auth/controllers/internal-workspace-provisioning.controller';
 import { MicrosoftAPIsAuthController } from 'src/engine/core-modules/auth/controllers/microsoft-apis-auth.controller';
 import { MicrosoftAuthController } from 'src/engine/core-modules/auth/controllers/microsoft-auth.controller';
 import { OAuthPropagatorController } from 'src/engine/core-modules/auth/controllers/oauth-propagator.controller';
@@ -135,6 +136,7 @@ import { JwtAuthStrategy } from './strategies/jwt.auth.strategy';
     MicrosoftAuthController,
     GoogleAPIsAuthController,
     MicrosoftAPIsAuthController,
+    InternalWorkspaceProvisioningController,
     OAuthPropagatorController,
     SSOAuthController,
     ConnectionProviderOAuthController,
