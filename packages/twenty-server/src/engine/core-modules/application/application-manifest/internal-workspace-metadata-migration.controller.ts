@@ -1,6 +1,7 @@
 import {
   BadRequestException,
   Body,
+  ConflictException,
   Controller,
   Headers,
   InternalServerErrorException,
@@ -56,10 +57,9 @@ export class InternalWorkspaceMetadataMigrationController {
       throw new BadRequestException('Request body must include a Twenty manifest');
     }
 
-    const { workspaceCustomFlatApplication } =
-      await this.applicationService.findWorkspaceTwentyStandardAndCustomApplicationOrThrow(
-        { workspaceId },
-      );
+    const { workspaceCustomFlatApplication } = await this.getWorkspaceApplications(
+      workspaceId,
+    );
 
     const result = await this.applicationManifestMigrationService
       .syncMetadataFromManifest({
@@ -86,4 +86,34 @@ export class InternalWorkspaceMetadataMigrationController {
       actionCount: result.workspaceMigration.actions.length,
     };
   }
+
+  private async getWorkspaceApplications(workspaceId: string) {
+    try {
+      return await this.applicationService.findWorkspaceTwentyStandardAndCustomApplicationOrThrow(
+        { workspaceId },
+      );
+    } catch (error) {
+      if (isWorkspaceMetadataNotReadyError(error)) {
+        throw new ConflictException({
+          code: 'workspace_not_ready',
+          message: 'Workspace metadata is not initialized yet',
+        });
+      }
+
+      throw error;
+    }
+  }
+}
+
+function isWorkspaceMetadataNotReadyError(error: unknown) {
+  if (!(error instanceof Error)) {
+    return false;
+  }
+
+  return (
+    error.message.includes('Could not find workspace Standard applicationId') ||
+    error.message.includes(
+      'Could not find workspace custom and standard applications',
+    )
+  );
 }

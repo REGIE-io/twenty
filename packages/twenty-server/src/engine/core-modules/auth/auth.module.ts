@@ -62,6 +62,7 @@ import { UserEntity } from 'src/engine/core-modules/user/user.entity';
 import { UserModule } from 'src/engine/core-modules/user/user.module';
 import { WorkspaceInvitationModule } from 'src/engine/core-modules/workspace-invitation/workspace-invitation.module';
 import { WorkspaceEntity } from 'src/engine/core-modules/workspace/workspace.entity';
+import { WorkspaceModule } from 'src/engine/core-modules/workspace/workspace.module';
 import { CalendarChannelEntity } from 'src/engine/metadata-modules/calendar-channel/entities/calendar-channel.entity';
 import { ConnectedAccountEntity } from 'src/engine/metadata-modules/connected-account/entities/connected-account.entity';
 import { ConnectedAccountTokenEncryptionModule } from 'src/engine/metadata-modules/connected-account/services/connected-account-token-encryption.module';
@@ -107,6 +108,7 @@ import { JwtAuthStrategy } from './strategies/jwt.auth.strategy';
     MessagingCommonModule,
     MessagingFolderSyncManagerModule,
     WorkspaceSSOModule,
+    WorkspaceModule,
     FeatureFlagModule,
     WorkspaceInvitationModule,
     EmailVerificationModule,

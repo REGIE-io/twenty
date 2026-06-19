@@ -4,12 +4,15 @@ import {
   Controller,
   Headers,
   InternalServerErrorException,
+  NotFoundException,
+  Param,
   Post,
   UnauthorizedException,
 } from '@nestjs/common';
 
 import { SignInUpService } from 'src/engine/core-modules/auth/services/sign-in-up.service';
 import { UserService } from 'src/engine/core-modules/user/services/user.service';
+import { WorkspaceService } from 'src/engine/core-modules/workspace/services/workspace.service';
 
 type InternalWorkspaceProvisioningBody = {
   name?: string;
@@ -23,6 +26,7 @@ export class InternalWorkspaceProvisioningController {
   constructor(
     private readonly signInUpService: SignInUpService,
     private readonly userService: UserService,
+    private readonly workspaceService: WorkspaceService,
   ) {}
 
   @Post()
@@ -77,6 +81,11 @@ export class InternalWorkspaceProvisioningController {
           },
       { displayName, subdomain },
     );
+    const workspace =
+      (await this.workspaceService.activateWorkspace(
+        result.user,
+        result.workspace,
+      )) ?? result.workspace;
     const workspaceUrl =
       body.primaryDomain ??
       (process.env.FRONT_BASE_URL
@@ -85,11 +94,64 @@ export class InternalWorkspaceProvisioningController {
 
     return {
       ok: true,
-      id: result.workspace.id,
-      workspaceId: result.workspace.id,
+      id: workspace.id,
+      workspaceId: workspace.id,
       workspaceUrl,
-      workspaceName: result.workspace.displayName,
-      workspaceSubdomain: result.workspace.subdomain,
+      workspaceName: workspace.displayName,
+      workspaceSubdomain: workspace.subdomain,
+    };
+  }
+
+  @Post(':workspaceId/activate')
+  async activateWorkspace(
+    @Param('workspaceId') workspaceId: string,
+    @Headers('x-internal-token') internalToken: string | string[] | undefined,
+    @Headers('authorization') authorization: string | string[] | undefined,
+  ) {
+    const expectedToken =
+      process.env.REGIE_INTERNAL_METADATA_TOKEN ??
+      process.env.TWENTY_INTERNAL_METADATA_TOKEN;
+
+    if (!expectedToken) {
+      throw new InternalServerErrorException(
+        'Internal workspace provisioning token is not configured',
+      );
+    }
+
+    const actualHeader = Array.isArray(internalToken)
+      ? internalToken[0]
+      : internalToken;
+    const actualBearer = readBearerToken(authorization);
+    const actualToken = actualHeader ?? actualBearer;
+
+    if (actualToken !== expectedToken) {
+      throw new UnauthorizedException('Invalid internal workspace token');
+    }
+
+    const serviceUserEmail =
+      process.env.REGIE_WORKSPACE_PROVISIONING_USER_EMAIL ??
+      'twenty-workspace-provisioning@regie.ai';
+    const user = await this.userService.findUserByEmail(serviceUserEmail);
+    const workspace = await this.workspaceService.findOneWorkspaceById(workspaceId);
+
+    if (!user) {
+      throw new NotFoundException('Workspace provisioning user was not found');
+    }
+
+    if (!workspace) {
+      throw new NotFoundException('Workspace was not found');
+    }
+
+    const activatedWorkspace =
+      (await this.workspaceService.activateWorkspace(user, workspace)) ??
+      workspace;
+
+    return {
+      ok: true,
+      id: activatedWorkspace.id,
+      workspaceId: activatedWorkspace.id,
+      workspaceName: activatedWorkspace.displayName,
+      workspaceSubdomain: activatedWorkspace.subdomain,
     };
   }
 }
