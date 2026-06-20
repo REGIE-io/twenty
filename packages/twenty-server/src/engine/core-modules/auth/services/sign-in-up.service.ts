@@ -514,7 +514,7 @@ export class SignInUpService {
       );
     }
 
-    await this.assertWorkspaceCreationAllowed(userData);
+    // await this.assertWorkspaceCreationAllowed(userData);
 
     const displayName = options?.displayName?.trim();
 
