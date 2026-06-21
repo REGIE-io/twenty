@@ -10,6 +10,7 @@ import {
   UnauthorizedException,
 } from '@nestjs/common';
 
+import { ApiKeyService } from 'src/engine/core-modules/api-key/services/api-key.service';
 import { SignInUpService } from 'src/engine/core-modules/auth/services/sign-in-up.service';
 import { UserService } from 'src/engine/core-modules/user/services/user.service';
 import { WorkspaceService } from 'src/engine/core-modules/workspace/services/workspace.service';
@@ -21,12 +22,18 @@ type InternalWorkspaceProvisioningBody = {
   serviceUserEmail?: string;
 };
 
+type InternalWorkspaceApiKeyBody = {
+  name?: string;
+  expiresAt?: string;
+};
+
 @Controller('internal/workspaces')
 export class InternalWorkspaceProvisioningController {
   constructor(
     private readonly signInUpService: SignInUpService,
     private readonly userService: UserService,
     private readonly workspaceService: WorkspaceService,
+    private readonly apiKeyService: ApiKeyService,
   ) {}
 
   @Post()
@@ -153,6 +160,61 @@ export class InternalWorkspaceProvisioningController {
       workspaceName: activatedWorkspace.displayName,
       workspaceSubdomain: activatedWorkspace.subdomain,
     };
+  }
+
+  @Post(':workspaceId/api-keys')
+  async createWorkspaceApiKey(
+    @Param('workspaceId') workspaceId: string,
+    @Headers('x-internal-token') internalToken: string | string[] | undefined,
+    @Headers('authorization') authorization: string | string[] | undefined,
+    @Body() body: InternalWorkspaceApiKeyBody,
+  ) {
+    assertInternalToken(internalToken, authorization);
+
+    const name = body.name?.trim() || 'regie-crm-api';
+    const workspace = await this.workspaceService.findOneWorkspaceById(workspaceId);
+
+    if (!workspace) {
+      throw new NotFoundException('Workspace was not found');
+    }
+
+    const apiKey = await this.apiKeyService.createWorkspaceAdminApiKeyToken({
+      workspaceId,
+      name,
+      expiresAt: body.expiresAt,
+    });
+
+    return {
+      ok: true,
+      workspaceId,
+      apiKey: apiKey.token,
+      apiKeyId: apiKey.apiKeyId,
+    };
+  }
+}
+
+function assertInternalToken(
+  internalToken: string | string[] | undefined,
+  authorization: string | string[] | undefined,
+) {
+  const expectedToken =
+    process.env.REGIE_INTERNAL_METADATA_TOKEN ??
+    process.env.TWENTY_INTERNAL_METADATA_TOKEN;
+
+  if (!expectedToken) {
+    throw new InternalServerErrorException(
+      'Internal workspace provisioning token is not configured',
+    );
+  }
+
+  const actualHeader = Array.isArray(internalToken)
+    ? internalToken[0]
+    : internalToken;
+  const actualBearer = readBearerToken(authorization);
+  const actualToken = actualHeader ?? actualBearer;
+
+  if (actualToken !== expectedToken) {
+    throw new UnauthorizedException('Invalid internal workspace token');
   }
 }
 

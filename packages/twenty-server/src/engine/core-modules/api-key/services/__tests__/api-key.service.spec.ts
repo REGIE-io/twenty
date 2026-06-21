@@ -14,12 +14,14 @@ import { JwtTokenTypeEnum } from 'src/engine/core-modules/auth/types/jwt-token-t
 import { JwtWrapperService } from 'src/engine/core-modules/jwt/services/jwt-wrapper.service';
 import { RoleTargetEntity } from 'src/engine/metadata-modules/role-target/role-target.entity';
 import { RoleTargetService } from 'src/engine/metadata-modules/role-target/services/role-target.service';
+import { RoleEntity } from 'src/engine/metadata-modules/role/role.entity';
 import { getWorkspaceScopedRepositoryToken } from 'src/engine/twenty-orm/workspace-scoped-repository/get-workspace-scoped-repository-token.util';
 import { WorkspaceCacheService } from 'src/engine/workspace-cache/services/workspace-cache.service';
 
 describe('ApiKeyService', () => {
   let service: ApiKeyService;
   let mockApiKeyRepository: any;
+  let mockRoleRepository: any;
   let mockroleTargetRepository: any;
   let mockJwtWrapperService: any;
   let mockApiKeyRoleService: any;
@@ -61,6 +63,10 @@ describe('ApiKeyService', () => {
       update: jest.fn(),
     };
 
+    mockRoleRepository = {
+      findOne: jest.fn(),
+    };
+
     mockroleTargetRepository = {
       delete: jest.fn(),
       save: jest.fn(),
@@ -91,6 +97,10 @@ describe('ApiKeyService', () => {
         {
           provide: getWorkspaceScopedRepositoryToken(ApiKeyEntity),
           useValue: mockApiKeyRepository,
+        },
+        {
+          provide: getWorkspaceScopedRepositoryToken(RoleEntity),
+          useValue: mockRoleRepository,
         },
         {
           provide: JwtWrapperService,
@@ -206,6 +216,33 @@ describe('ApiKeyService', () => {
 
       expect(mockApiKeyRepository.save).toHaveBeenCalled();
       expect(mockRoleTargetService.create).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('createWorkspaceAdminApiKeyToken', () => {
+    it('creates an admin API key and returns a token', async () => {
+      mockRoleRepository.findOne.mockResolvedValue({ id: 'admin-role-id' });
+      mockApiKeyRepository.save.mockResolvedValue(mockApiKey);
+      mockApiKeyRepository.findOne.mockResolvedValue(mockApiKey);
+      mockRoleTargetService.create.mockResolvedValue(undefined);
+      mockJwtWrapperService.signAsyncOrThrow.mockResolvedValue('signed-token');
+
+      const result = await service.createWorkspaceAdminApiKeyToken({
+        workspaceId: mockWorkspaceId,
+        name: 'regie-crm-api',
+        expiresAt: new Date('2030-12-31'),
+      });
+
+      expect(mockRoleRepository.findOne).toHaveBeenCalledWith(mockWorkspaceId, {
+        where: {
+          universalIdentifier: '20202020-02c2-43f2-b94d-cab1f2b532eb',
+        },
+      });
+      expect(mockApiKeyRepository.save).toHaveBeenCalledWith(mockWorkspaceId, {
+        name: 'regie-crm-api',
+        expiresAt: new Date('2030-12-31'),
+      });
+      expect(result).toEqual({ apiKeyId: mockApiKey.id, token: 'signed-token' });
     });
   });
 
