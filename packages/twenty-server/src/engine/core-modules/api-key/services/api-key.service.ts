@@ -226,6 +226,7 @@ export class ApiKeyService {
   private async invalidateApiKeyCache(workspaceId: string): Promise<void> {
     await this.workspaceCacheService.invalidateAndRecompute(workspaceId, [
       'apiKeyMap',
+      'apiKeyRoleMap',
     ]);
   }
 }

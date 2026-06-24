@@ -27,6 +27,7 @@ describe('ApiKeyService', () => {
   let mockApiKeyRoleService: any;
   let mockRoleTargetService: any;
   let mockDataSource: any;
+  let mockWorkspaceCacheService: any;
 
   const mockWorkspaceId = 'workspace-123';
   const mockApiKeyId = 'api-key-456';
@@ -91,6 +92,10 @@ describe('ApiKeyService', () => {
       transaction: jest.fn(),
     };
 
+    mockWorkspaceCacheService = {
+      invalidateAndRecompute: jest.fn(),
+    };
+
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         ApiKeyService,
@@ -124,9 +129,7 @@ describe('ApiKeyService', () => {
         },
         {
           provide: WorkspaceCacheService,
-          useValue: {
-            invalidateAndRecompute: jest.fn(),
-          },
+          useValue: mockWorkspaceCacheService,
         },
       ],
     }).compile();
@@ -173,6 +176,10 @@ describe('ApiKeyService', () => {
         },
         workspaceId: mockWorkspaceId,
       });
+      expect(mockWorkspaceCacheService.invalidateAndRecompute).toHaveBeenCalledWith(
+        mockWorkspaceId,
+        ['apiKeyMap', 'apiKeyRoleMap'],
+      );
       expect(result).toEqual(mockApiKey);
     });
 
