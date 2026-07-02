@@ -1,0 +1,163 @@
+{
+  "family": "twenty-crm-dev-server",
+  "networkMode": "awsvpc",
+  "requiresCompatibilities": [
+    "FARGATE"
+  ],
+  "cpu": "1024",
+  "memory": "2048",
+  "executionRoleArn": "arn:aws:iam::841229410010:role/twenty-crm-dev-execution",
+  "taskRoleArn": "arn:aws:iam::841229410010:role/twenty-crm-dev-task",
+  "runtimePlatform": {
+    "cpuArchitecture": "ARM64",
+    "operatingSystemFamily": "LINUX"
+  },
+  "containerDefinitions": [
+    {
+      "name": "server",
+      "image": "IMAGE_URI_PLACEHOLDER",
+      "essential": true,
+      "portMappings": [
+        {
+          "containerPort": 3000,
+          "hostPort": 3000,
+          "protocol": "tcp"
+        }
+      ],
+      "environment": [
+        {
+          "name": "NODE_ENV",
+          "value": "production"
+        },
+        {
+          "name": "NODE_PORT",
+          "value": "3000"
+        },
+        {
+          "name": "PORT",
+          "value": "3000"
+        },
+        {
+          "name": "SERVER_URL",
+          "value": "https://twenty-dev.regieai.com"
+        },
+        {
+          "name": "FRONTEND_URL",
+          "value": "https://twenty-dev.regieai.com"
+        },
+        {
+          "name": "FRONT_AUTO_BASE_URL",
+          "value": "true"
+        },
+        {
+          "name": "PG_SSL_ALLOW_SELF_SIGNED",
+          "value": "true"
+        },
+        {
+          "name": "STORAGE_TYPE",
+          "value": "s3"
+        },
+        {
+          "name": "STORAGE_S3_REGION",
+          "value": "us-east-1"
+        },
+        {
+          "name": "STORAGE_S3_NAME",
+          "value": "twenty-crm-dev-files-841229410010"
+        },
+        {
+          "name": "STORAGE_S3_ENDPOINT",
+          "value": ""
+        },
+        {
+          "name": "IS_MULTIWORKSPACE_ENABLED",
+          "value": "true"
+        },
+        {
+          "name": "DEFAULT_SUBDOMAIN",
+          "value": "app"
+        },
+        {
+          "name": "IS_BILLING_ENABLED",
+          "value": "false"
+        },
+        {
+          "name": "IS_WORKSPACE_CREATION_LIMITED_TO_SERVER_ADMINS",
+          "value": "false"
+        },
+        {
+          "name": "IS_CONFIG_VARIABLES_IN_DB_ENABLED",
+          "value": "false"
+        },
+        {
+          "name": "EXCEPTION_HANDLER_DRIVER",
+          "value": "sentry"
+        },
+        {
+          "name": "SENTRY_ENVIRONMENT",
+          "value": "dev"
+        },
+        {
+          "name": "APP_VERSION",
+          "value": "APP_VERSION_PLACEHOLDER"
+        },
+        {
+          "name": "DISABLE_DB_MIGRATIONS",
+          "value": "false"
+        },
+        {
+          "name": "DISABLE_CRON_JOBS_REGISTRATION",
+          "value": "false"
+        }
+      ],
+      "secrets": [
+        {
+          "name": "PG_DATABASE_URL",
+          "valueFrom": "TWENTY_RUNTIME_ENV_SECRET_ARN:PG_DATABASE_URL::"
+        },
+        {
+          "name": "REDIS_URL",
+          "valueFrom": "TWENTY_RUNTIME_ENV_SECRET_ARN:REDIS_URL::"
+        },
+        {
+          "name": "APP_SECRET",
+          "valueFrom": "TWENTY_RUNTIME_ENV_SECRET_ARN:APP_SECRET::"
+        },
+        {
+          "name": "ENCRYPTION_KEY",
+          "valueFrom": "TWENTY_RUNTIME_ENV_SECRET_ARN:ENCRYPTION_KEY::"
+        },
+        {
+          "name": "TWENTY_INTERNAL_METADATA_TOKEN",
+          "valueFrom": "TWENTY_RUNTIME_ENV_SECRET_ARN:TWENTY_INTERNAL_METADATA_TOKEN::"
+        },
+        {
+          "name": "SENTRY_DSN",
+          "valueFrom": "TWENTY_RUNTIME_ENV_SECRET_ARN:SENTRY_DSN::"
+        },
+        {
+          "name": "SENTRY_FRONT_DSN",
+          "valueFrom": "TWENTY_RUNTIME_ENV_SECRET_ARN:SENTRY_FRONT_DSN::"
+        }
+      ],
+      "logConfiguration": {
+        "logDriver": "awslogs",
+        "options": {
+          "awslogs-group": "/ecs/twenty-crm-dev-server",
+          "awslogs-region": "us-east-1",
+          "awslogs-stream-prefix": "server"
+        }
+      },
+      "healthCheck": {
+        "command": [
+          "CMD-SHELL",
+          "curl --fail http://127.0.0.1:3000/healthz || exit 1"
+        ],
+        "interval": 30,
+        "timeout": 10,
+        "retries": 5,
+        "startPeriod": 180
+      }
+    }
+  ]
+}

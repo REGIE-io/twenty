@@ -2,29 +2,387 @@ name: CD deploy main
 
 permissions:
   contents: read
+  id-token: write
 
 on:
   push:
     branches:
       - main
+  workflow_dispatch:
+
+concurrency:
+  group: cd-deploy-main-twenty-dev
+  cancel-in-progress: false
 
 jobs:
-  deploy-main:
-    timeout-minutes: 3
-    runs-on: ubuntu-latest
-    steps:
-      - name: Mint twenty-infra dispatch token
-        id: app-token
-        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
-        with:
-          client-id: ${{ vars.TWENTY_WORKFLOW_DISPATCHER_CLIENT_ID }}
-          private-key: ${{ secrets.TWENTY_WORKFLOW_DISPATCHER_PRIVATE_KEY }}
-          owner: twentyhq
-          repositories: twenty-infra
-          permission-actions: write
+  deploy-dev:
+    name: Deploy dev ECS
+    environment: twenty-dev
+    timeout-minutes: 90
+    runs-on: ubuntu-latest-8-cores
+    env:
+      AWS_ACCOUNT_ID: ${{ vars.AWS_ACCOUNT_ID || '841229410010' }}
+      AWS_REGION: ${{ vars.AWS_REGION || 'us-east-1' }}
+      AWS_ROLE_TO_ASSUME: ${{ vars.AWS_ROLE_TO_ASSUME || 'arn:aws:iam::841229410010:role/github-actions-twenty-dev-deploy' }}
+      ECR_REPOSITORY: ${{ vars.ECR_REPOSITORY || 'twenty-crm-dev/twenty' }}
+      ECS_CLUSTER: ${{ vars.ECS_CLUSTER || 'twenty-crm-dev' }}
+      ECS_SERVER_SERVICE: ${{ vars.ECS_SERVER_SERVICE || 'twenty-crm-dev-server' }}
+      ECS_WORKER_SERVICE: ${{ vars.ECS_WORKER_SERVICE || 'twenty-crm-dev-worker' }}
+      SERVER_CONTAINER_NAME: ${{ vars.SERVER_CONTAINER_NAME || 'server' }}
+      WORKER_CONTAINER_NAME: ${{ vars.WORKER_CONTAINER_NAME || 'worker' }}
+      SENTRY_ORG: ${{ vars.SENTRY_ORG || 'regieai' }}
+      SENTRY_PROJECT: ${{ vars.SENTRY_PROJECT || 'wren-crm' }}
+      TWENTY_DEV_BASE_URL: ${{ vars.TWENTY_DEV_BASE_URL || 'https://twenty-dev.regieai.com' }}
+      TWENTY_RUNTIME_ENV_SECRET_NAME: ${{ vars.TWENTY_RUNTIME_ENV_SECRET_NAME || 'twenty-crm-dev/twenty-runtime-env' }}
+      DOCKER_PLATFORM: ${{ vars.DOCKER_PLATFORM || 'linux/arm64' }}
 
-      - name: Trigger twenty-infra deploy
-        env:
-          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+
+      - name: Install dependencies
+        uses: ./.github/actions/yarn-install
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@c7c53464625b32c7a7e944ae62b3e17d2b600130 # v3.7.0
+        with:
+          platforms: arm64
+
+      - name: Resolve app version
         run: |
-          gh workflow run auto-deploy-main.yaml --repo twentyhq/twenty-infra --ref main
+          set -euo pipefail
+
+          TWENTY_CURRENT_VERSION="$(node <<'NODE'
+          const fs = require('node:fs');
+          const source = fs.readFileSync(
+            'packages/twenty-server/src/engine/core-modules/upgrade/constants/twenty-current-version.constant.ts',
+            'utf8',
+          );
+          const match = source.match(/TWENTY_CURRENT_VERSION = '([^']+)'/);
+          if (!match) {
+            throw new Error('TWENTY_CURRENT_VERSION not found');
+          }
+          process.stdout.write(match[1]);
+          NODE
+          )"
+          SHORT_SHA="${GITHUB_SHA::7}"
+          APP_VERSION="${TWENTY_CURRENT_VERSION}+${SHORT_SHA}"
+
+          APP_VERSION="${APP_VERSION}" node -e "const semver = require('semver'); if (!semver.valid(process.env.APP_VERSION)) process.exit(1);" \
+            || { echo "::error::APP_VERSION is not valid semver: ${APP_VERSION}"; exit 1; }
+
+          echo "APP_VERSION=${APP_VERSION}" >> "${GITHUB_ENV}"
+          echo "SHORT_SHA=${SHORT_SHA}" >> "${GITHUB_ENV}"
+          echo "Resolved APP_VERSION=${APP_VERSION}"
+
+      - name: Build server and frontend sourcemaps
+        run: |
+          set -euo pipefail
+
+          npx nx reset:env twenty-server
+          npx nx build twenty-server
+          npx nx reset:env twenty-front
+          npx nx build:sourcemaps twenty-front
+
+      - name: Configure AWS credentials
+        run: |
+          set -euo pipefail
+
+          if [ -z "${ACTIONS_ID_TOKEN_REQUEST_TOKEN:-}" ] || [ -z "${ACTIONS_ID_TOKEN_REQUEST_URL:-}" ]; then
+            echo "::error::GitHub OIDC token request variables are not available"
+            exit 1
+          fi
+
+          OIDC_RESPONSE="$(
+            curl -fsSL \
+              -H "Authorization: bearer ${ACTIONS_ID_TOKEN_REQUEST_TOKEN}" \
+              "${ACTIONS_ID_TOKEN_REQUEST_URL}&audience=sts.amazonaws.com"
+          )"
+          WEB_IDENTITY_TOKEN="$(jq -r '.value' <<< "${OIDC_RESPONSE}")"
+          if [ -z "${WEB_IDENTITY_TOKEN}" ] || [ "${WEB_IDENTITY_TOKEN}" = "null" ]; then
+            echo "::error::GitHub OIDC token response did not include a token"
+            exit 1
+          fi
+
+          CREDS_JSON="$(
+            aws sts assume-role-with-web-identity \
+              --role-arn "${AWS_ROLE_TO_ASSUME}" \
+              --role-session-name "twenty-dev-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}" \
+              --web-identity-token "${WEB_IDENTITY_TOKEN}" \
+              --duration-seconds 3600
+          )"
+
+          AWS_ACCESS_KEY_ID="$(jq -r '.Credentials.AccessKeyId' <<< "${CREDS_JSON}")"
+          AWS_SECRET_ACCESS_KEY="$(jq -r '.Credentials.SecretAccessKey' <<< "${CREDS_JSON}")"
+          AWS_SESSION_TOKEN="$(jq -r '.Credentials.SessionToken' <<< "${CREDS_JSON}")"
+
+          echo "::add-mask::${AWS_ACCESS_KEY_ID}"
+          echo "::add-mask::${AWS_SECRET_ACCESS_KEY}"
+          echo "::add-mask::${AWS_SESSION_TOKEN}"
+
+          {
+            echo "AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}"
+            echo "AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}"
+            echo "AWS_SESSION_TOKEN=${AWS_SESSION_TOKEN}"
+          } >> "${GITHUB_ENV}"
+
+      - name: Preflight AWS targets
+        run: |
+          set -euo pipefail
+
+          ACCOUNT_ID="$(aws sts get-caller-identity --query Account --output text)"
+          if [ "${ACCOUNT_ID}" != "${AWS_ACCOUNT_ID}" ]; then
+            echo "::error::Assumed AWS account ${ACCOUNT_ID}, expected ${AWS_ACCOUNT_ID}"
+            exit 1
+          fi
+
+          aws ecr describe-repositories \
+            --repository-names "${ECR_REPOSITORY}" \
+            >/dev/null
+
+          TWENTY_RUNTIME_ENV_SECRET_ARN="$(
+            aws secretsmanager describe-secret \
+              --secret-id "${TWENTY_RUNTIME_ENV_SECRET_NAME}" \
+              --query ARN \
+              --output text
+          )"
+          echo "TWENTY_RUNTIME_ENV_SECRET_ARN=${TWENTY_RUNTIME_ENV_SECRET_ARN}" >> "${GITHUB_ENV}"
+
+          SERVICE_DESCRIPTION_JSON="$(
+            aws ecs describe-services \
+              --cluster "${ECS_CLUSTER}" \
+              --services "${ECS_SERVER_SERVICE}" "${ECS_WORKER_SERVICE}"
+          )"
+          MISSING_SERVICES="$(jq -r '.failures[]?.arn // empty' <<< "${SERVICE_DESCRIPTION_JSON}")"
+          if [ -n "${MISSING_SERVICES}" ]; then
+            echo "::error::Missing ECS service(s): ${MISSING_SERVICES}"
+            exit 1
+          fi
+
+          jq -r \
+            '.services[] | [.serviceName, .status, .runningCount, .desiredCount, .taskDefinition] | @tsv' \
+            <<< "${SERVICE_DESCRIPTION_JSON}"
+
+      - name: Login to ECR
+        run: |
+          set -euo pipefail
+
+          ECR_REGISTRY="${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com"
+          echo "ECR_REGISTRY=${ECR_REGISTRY}" >> "${GITHUB_ENV}"
+          aws ecr get-login-password --region "${AWS_REGION}" \
+            | docker login --username AWS --password-stdin "${ECR_REGISTRY}"
+
+      - name: Build and push image
+        run: |
+          set -euo pipefail
+
+          IMAGE_URI="${ECR_REGISTRY}/${ECR_REPOSITORY}:${GITHUB_SHA}"
+          LATEST_URI="${ECR_REGISTRY}/${ECR_REPOSITORY}:dev-latest"
+
+          echo "IMAGE_URI=${IMAGE_URI}" >> "${GITHUB_ENV}"
+
+          docker buildx create --name twenty-builder --use 2>/dev/null \
+            || docker buildx use twenty-builder
+          docker buildx inspect --bootstrap
+          docker buildx build \
+            --platform "${DOCKER_PLATFORM}" \
+            --target twenty \
+            --build-arg "APP_VERSION=${APP_VERSION}" \
+            -f packages/twenty-docker/twenty/Dockerfile \
+            -t "${IMAGE_URI}" \
+            -t "${LATEST_URI}" \
+            --push \
+            .
+
+      - name: Upload Sentry release artifacts
+        env:
+          SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
+        run: |
+          set -euo pipefail
+
+          if [ -z "${SENTRY_AUTH_TOKEN:-}" ]; then
+            echo "SENTRY_AUTH_TOKEN is not configured; skipping release/source-map upload."
+            exit 0
+          fi
+
+          npx --yes @sentry/cli@2 releases new "${APP_VERSION}" \
+            --org "${SENTRY_ORG}" \
+            --project "${SENTRY_PROJECT}" \
+            || true
+          npx --yes @sentry/cli@2 releases set-commits "${APP_VERSION}" \
+            --org "${SENTRY_ORG}" \
+            --auto \
+            --ignore-missing
+          npx --yes @sentry/cli@2 sourcemaps upload packages/twenty-front/build \
+            --org "${SENTRY_ORG}" \
+            --project "${SENTRY_PROJECT}" \
+            --release "${APP_VERSION}" \
+            --dist "${GITHUB_SHA}" \
+            --url-prefix "~/"
+          npx --yes @sentry/cli@2 releases finalize "${APP_VERSION}" \
+            --org "${SENTRY_ORG}"
+
+      - name: Render ECS task definitions
+        run: |
+          set -euo pipefail
+
+          mkdir -p "${RUNNER_TEMP}/ecs"
+
+          render_task_definition() {
+            local template_path="$1"
+            local output_path="$2"
+            local container_name="$3"
+
+            jq \
+              --arg image "${IMAGE_URI}" \
+              --arg appVersion "${APP_VERSION}" \
+              --arg secretArn "${TWENTY_RUNTIME_ENV_SECRET_ARN}" \
+              --arg containerName "${container_name}" \
+              '
+                (.containerDefinitions[] | select(.name == $containerName).image) = $image
+                | (.containerDefinitions[] | select(.name == $containerName).environment[] | select(.name == "APP_VERSION").value) = $appVersion
+                | (.containerDefinitions[] | select(.name == $containerName).secrets[] | .valueFrom) |= sub("TWENTY_RUNTIME_ENV_SECRET_ARN"; $secretArn)
+              ' \
+              "${template_path}" > "${output_path}"
+
+            if grep -q 'TWENTY_RUNTIME_ENV_SECRET_ARN\|APP_VERSION_PLACEHOLDER\|IMAGE_URI_PLACEHOLDER' "${output_path}"; then
+              echo "::error::Unresolved placeholder left in ${output_path}"
+              exit 1
+            fi
+          }
+
+          render_task_definition \
+            .github/ecs/dev/server-task-definition.json \
+            "${RUNNER_TEMP}/ecs/server-task-definition.json" \
+            "${SERVER_CONTAINER_NAME}"
+
+          render_task_definition \
+            .github/ecs/dev/worker-task-definition.json \
+            "${RUNNER_TEMP}/ecs/worker-task-definition.json" \
+            "${WORKER_CONTAINER_NAME}"
+
+          echo "SERVER_TASK_DEFINITION=${RUNNER_TEMP}/ecs/server-task-definition.json" >> "${GITHUB_ENV}"
+          echo "WORKER_TASK_DEFINITION=${RUNNER_TEMP}/ecs/worker-task-definition.json" >> "${GITHUB_ENV}"
+
+      - name: Register and deploy ECS tasks
+        run: |
+          set -euo pipefail
+
+          dump_service_diagnostics() {
+            local service="$1"
+            local log_group="$2"
+
+            echo "Recent ECS events for ${service}:"
+            aws ecs describe-services \
+              --cluster "${ECS_CLUSTER}" \
+              --services "${service}" \
+              --query 'services[0].events[:10].[createdAt,message]' \
+              --output table \
+              || true
+
+            echo "Recent CloudWatch logs for ${log_group}:"
+            local streams
+            streams="$(
+              aws logs describe-log-streams \
+                --log-group-name "${log_group}" \
+                --order-by LastEventTime \
+                --descending \
+                --max-items 3 \
+                --query 'logStreams[].logStreamName' \
+                --output text \
+                || true
+            )"
+
+            for stream in ${streams}; do
+              echo "Log stream: ${stream}"
+              aws logs get-log-events \
+                --log-group-name "${log_group}" \
+                --log-stream-name "${stream}" \
+                --limit 50 \
+                --query 'events[].message' \
+                --output text \
+                || true
+            done
+          }
+
+          deploy_and_wait() {
+            local service="$1"
+            local task_definition_arn="$2"
+            local log_group="$3"
+
+            aws ecs update-service \
+              --cluster "${ECS_CLUSTER}" \
+              --service "${service}" \
+              --task-definition "${task_definition_arn}" \
+              >/dev/null
+
+            if ! aws ecs wait services-stable --cluster "${ECS_CLUSTER}" --services "${service}"; then
+              dump_service_diagnostics "${service}" "${log_group}"
+              exit 1
+            fi
+          }
+
+          SERVER_TASK_DEFINITION_ARN="$(
+            aws ecs register-task-definition \
+              --cli-input-json "file://${SERVER_TASK_DEFINITION}" \
+              --query 'taskDefinition.taskDefinitionArn' \
+              --output text
+          )"
+          WORKER_TASK_DEFINITION_ARN="$(
+            aws ecs register-task-definition \
+              --cli-input-json "file://${WORKER_TASK_DEFINITION}" \
+              --query 'taskDefinition.taskDefinitionArn' \
+              --output text
+          )"
+
+          echo "Registered server task definition ${SERVER_TASK_DEFINITION_ARN}"
+          echo "Registered worker task definition ${WORKER_TASK_DEFINITION_ARN}"
+
+          deploy_and_wait "${ECS_SERVER_SERVICE}" "${SERVER_TASK_DEFINITION_ARN}" "/ecs/twenty-crm-dev-server"
+
+          TARGET_GROUP_ARN="$(
+            aws ecs describe-services \
+              --cluster "${ECS_CLUSTER}" \
+              --services "${ECS_SERVER_SERVICE}" \
+              --query 'services[0].loadBalancers[0].targetGroupArn' \
+              --output text
+          )"
+
+          if [ -n "${TARGET_GROUP_ARN}" ] && [ "${TARGET_GROUP_ARN}" != "None" ]; then
+            for attempt in {1..30}; do
+              HEALTHY_TARGETS="$(
+                aws elbv2 describe-target-health \
+                  --target-group-arn "${TARGET_GROUP_ARN}" \
+                  --query 'length(TargetHealthDescriptions[?TargetHealth.State==`healthy`])' \
+                  --output text
+              )"
+              if [ "${HEALTHY_TARGETS}" -gt 0 ]; then
+                echo "Server target group has ${HEALTHY_TARGETS} healthy target(s)."
+                break
+              fi
+              if [ "${attempt}" -eq 30 ]; then
+                echo "::error::No healthy targets in ${TARGET_GROUP_ARN}"
+                dump_service_diagnostics "${ECS_SERVER_SERVICE}" "/ecs/twenty-crm-dev-server"
+                exit 1
+              fi
+              sleep 10
+            done
+          fi
+
+          deploy_and_wait "${ECS_WORKER_SERVICE}" "${WORKER_TASK_DEFINITION_ARN}" "/ecs/twenty-crm-dev-worker"
+
+      - name: Verify client Sentry config
+        run: |
+          set -euo pipefail
+
+          CLIENT_CONFIG_JSON="$(curl -fsSL "${TWENTY_DEV_BASE_URL}/client-config")"
+          if ! jq -e \
+            --arg appVersion "${APP_VERSION}" \
+            '.sentry.release == $appVersion and (.sentry.dsn | type == "string" and length > 0)' \
+            <<< "${CLIENT_CONFIG_JSON}" \
+            >/dev/null; then
+            echo "::error::Client config did not expose expected Sentry release/DSN"
+            exit 1
+          fi
+
+          echo "Client config exposes Sentry release ${APP_VERSION} and a non-empty DSN."
