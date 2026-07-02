@@ -41,9 +41,6 @@ export class ExceptionHandlerSentryDriver implements ExceptionHandlerDriverInter
       if (options?.user) {
         scope.setUser({
           id: options.user.id,
-          email: options.user.email,
-          firstName: options.user.firstName,
-          lastName: options.user.lastName,
         });
       }
 
