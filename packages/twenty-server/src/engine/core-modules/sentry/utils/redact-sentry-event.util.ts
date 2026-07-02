@@ -17,8 +17,10 @@ const SENSITIVE_KEY_PARTS = [
   'internal_token',
 ];
 
-export const redactSentryEvent = (event: Event): Event => {
-  return redactValue(event) as Event;
+export const redactSentryEvent = <TEvent extends Event>(
+  event: TEvent,
+): TEvent => {
+  return redactValue(event) as TEvent;
 };
 
 const redactValue = (value: unknown): unknown => {
@@ -53,7 +55,7 @@ const redactEntry = (key: string, value: unknown): unknown => {
 };
 
 const isSensitiveKey = (key: string): boolean => {
-  const normalizedKey = key.replaceAll('-', '_').toLowerCase();
+  const normalizedKey = key.split('-').join('_').toLowerCase();
 
   return SENSITIVE_KEY_PARTS.some((sensitiveKeyPart) =>
     normalizedKey.includes(sensitiveKeyPart),
