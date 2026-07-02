@@ -23,7 +23,7 @@ jobs:
     name: Check build
     if: github.event_name == 'pull_request'
     timeout-minutes: 90
-    runs-on: ubuntu-latest-8-cores
+    runs-on: ubuntu-latest
     env:
       DOCKER_PLATFORM: ${{ vars.DOCKER_PLATFORM || 'linux/arm64' }}
 
