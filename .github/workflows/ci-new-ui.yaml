@@ -2,6 +2,9 @@ name: CI New UI
 
 on:
   pull_request:
+    paths-ignore:
+      - '.github/workflows/**'
+      - '.github/ecs/**'
   push:
     branches: [main]
 

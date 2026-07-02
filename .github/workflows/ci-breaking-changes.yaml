@@ -1,7 +1,10 @@
 name: GraphQL and OpenAPI Breaking Changes Detection
 
 on:
- pull_request:
+  pull_request:
+    paths-ignore:
+      - '.github/workflows/**'
+      - '.github/ecs/**'
     types: [opened, synchronize, edited]
     branches:
       - main

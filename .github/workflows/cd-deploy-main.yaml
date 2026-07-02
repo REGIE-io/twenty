@@ -5,18 +5,94 @@ permissions:
   id-token: write
 
 on:
+  pull_request:
+    paths:
+      - .github/workflows/cd-deploy-main.yaml
+      - .github/ecs/dev/**
   push:
     branches:
       - main
   workflow_dispatch:
 
 concurrency:
-  group: cd-deploy-main-twenty-dev
-  cancel-in-progress: false
+  group: cd-deploy-main-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
-  deploy-dev:
-    name: Deploy dev ECS
+  check-build:
+    name: Check build
+    if: github.event_name == 'pull_request'
+    timeout-minutes: 90
+    runs-on: ubuntu-latest-8-cores
+    env:
+      DOCKER_PLATFORM: ${{ vars.DOCKER_PLATFORM || 'linux/arm64' }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+
+      - name: Install dependencies
+        uses: ./.github/actions/yarn-install
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@c7c53464625b32c7a7e944ae62b3e17d2b600130 # v3.7.0
+        with:
+          platforms: arm64
+
+      - name: Resolve app version
+        run: |
+          set -euo pipefail
+
+          TWENTY_CURRENT_VERSION="$(node <<'NODE'
+          const fs = require('node:fs');
+          const source = fs.readFileSync(
+            'packages/twenty-server/src/engine/core-modules/upgrade/constants/twenty-current-version.constant.ts',
+            'utf8',
+          );
+          const match = source.match(/TWENTY_CURRENT_VERSION = '([^']+)'/);
+          if (!match) {
+            throw new Error('TWENTY_CURRENT_VERSION not found');
+          }
+          process.stdout.write(match[1]);
+          NODE
+          )"
+          SHORT_SHA="${GITHUB_SHA::7}"
+          APP_VERSION="${TWENTY_CURRENT_VERSION}+${SHORT_SHA}"
+
+          APP_VERSION="${APP_VERSION}" node -e "const semver = require('semver'); if (!semver.valid(process.env.APP_VERSION)) process.exit(1);" \
+            || { echo "::error::APP_VERSION is not valid semver: ${APP_VERSION}"; exit 1; }
+
+          echo "APP_VERSION=${APP_VERSION}" >> "${GITHUB_ENV}"
+          echo "Resolved APP_VERSION=${APP_VERSION}"
+
+      - name: Build server and frontend sourcemaps
+        run: |
+          set -euo pipefail
+
+          npx nx reset:env twenty-server
+          npx nx build twenty-server
+          npx nx reset:env twenty-front
+          npx nx build:sourcemaps twenty-front
+
+      - name: Check Docker image build
+        run: |
+          set -euo pipefail
+
+          docker buildx create --name twenty-builder --use 2>/dev/null \
+            || docker buildx use twenty-builder
+          docker buildx inspect --bootstrap
+          docker buildx build \
+            --platform "${DOCKER_PLATFORM}" \
+            --target twenty \
+            --build-arg "APP_VERSION=${APP_VERSION}" \
+            -f packages/twenty-docker/twenty/Dockerfile \
+            -t "twenty-dev-check:${GITHUB_SHA}" \
+            --load \
+            .
+
+  deploy:
+    name: Deploy
+    if: github.event_name != 'pull_request'
     environment: twenty-dev
     timeout-minutes: 90
     runs-on: ubuntu-latest-8-cores

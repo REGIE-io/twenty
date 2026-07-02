@@ -2,6 +2,9 @@ name: PR Review Dispatch
 
 on:
   pull_request_target:
+    paths-ignore:
+      - '.github/workflows/**'
+      - '.github/ecs/**'
     types: [ready_for_review, synchronize]
 
 permissions: {}

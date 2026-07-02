@@ -9,6 +9,9 @@ on:
       - main
 
   pull_request:
+    paths-ignore:
+      - '.github/workflows/**'
+      - '.github/ecs/**'
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}

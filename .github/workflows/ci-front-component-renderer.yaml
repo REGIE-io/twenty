@@ -2,6 +2,9 @@ name: CI Front Component Renderer
 
 on:
   pull_request:
+    paths-ignore:
+      - '.github/workflows/**'
+      - '.github/ecs/**'
 
 permissions:
   contents: read
