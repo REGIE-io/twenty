@@ -2,6 +2,9 @@ name: Auto-Draft External PRs
 
 on:
   pull_request_target:
+    paths-ignore:
+      - '.github/workflows/**'
+      - '.github/ecs/**'
     types: [opened]
 
 permissions: {}
