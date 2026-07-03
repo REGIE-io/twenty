@@ -16,6 +16,7 @@ import { NodeEnvironment } from 'src/engine/core-modules/twenty-config/interface
 
 import { ExceptionHandlerDriver } from 'src/engine/core-modules/exception-handler/interfaces';
 import { MeterDriver } from 'src/engine/core-modules/metrics/types/meter-driver.type';
+import { redactSentryEvent } from 'src/engine/core-modules/sentry/utils/redact-sentry-event.util';
 import { parseArrayEnvVar } from 'src/utils/parse-array-env-var';
 
 const meterDrivers = parseArrayEnvVar(
@@ -36,15 +37,24 @@ if (process.env.EXCEPTION_HANDLER_DRIVER === ExceptionHandlerDriver.SENTRY) {
       Sentry.graphqlIntegration(),
       Sentry.postgresIntegration(),
       Sentry.vercelAIIntegration({
-        recordInputs: true,
-        recordOutputs: true,
+        recordInputs: false,
+        recordOutputs: false,
       }),
       nodeProfilingIntegration(),
     ],
     tracesSampleRate: 0.1,
     profilesSampleRate: 0.3,
-    sendDefaultPii: true,
+    sendDefaultPii: false,
     debug: process.env.NODE_ENV === NodeEnvironment.DEVELOPMENT,
+    initialScope: {
+      tags: {
+        runtime: 'twenty',
+        ...(process.env.SENTRY_SERVICE && {
+          service: process.env.SENTRY_SERVICE,
+        }),
+      },
+    },
+    beforeSend: redactSentryEvent,
     beforeSendSpan: (span) => {
       const twentyContext = Sentry.getIsolationScope().getScopeData().contexts
         ?.twenty as
