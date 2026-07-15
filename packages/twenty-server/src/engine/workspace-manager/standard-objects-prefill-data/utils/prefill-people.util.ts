@@ -58,6 +58,9 @@ export const prefillPeople = async (
         phonesPrimaryPhoneNumber: '123456789',
         phonesPrimaryPhoneCallingCode: '+1',
         companyId: AIRBNB_ID,
+        city: 'San Francisco',
+        state: 'CA',
+        country: 'United States',
       },
       {
         id: DARIO_AMODEI_ID,
@@ -76,6 +79,9 @@ export const prefillPeople = async (
         phonesPrimaryPhoneNumber: '555123456',
         phonesPrimaryPhoneCallingCode: '+1',
         companyId: ANTHROPIC_ID,
+        city: 'San Francisco',
+        state: 'CA',
+        country: 'United States',
       },
       {
         id: PATRICK_COLLISON_ID,
@@ -94,6 +100,9 @@ export const prefillPeople = async (
         phonesPrimaryPhoneNumber: '987625341',
         phonesPrimaryPhoneCallingCode: '+1',
         companyId: STRIPE_ID,
+        city: 'Dublin',
+        state: null,
+        country: 'Ireland',
       },
       {
         id: DYLAN_FIELD_ID,
@@ -112,6 +121,9 @@ export const prefillPeople = async (
         phonesPrimaryPhoneNumber: '098822619',
         phonesPrimaryPhoneCallingCode: '+1',
         companyId: FIGMA_ID,
+        city: 'San Francisco',
+        state: 'CA',
+        country: 'United States',
       },
       {
         id: IVAN_ZHAO_ID,
@@ -130,6 +142,9 @@ export const prefillPeople = async (
         phonesPrimaryPhoneNumber: '882261739',
         phonesPrimaryPhoneCallingCode: '+1',
         companyId: NOTION_ID,
+        city: 'San Francisco',
+        state: 'CA',
+        country: 'United States',
       },
     ])
     .returning('*')
