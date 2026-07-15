@@ -11,6 +11,7 @@ import { type FlatWebhook } from 'src/engine/metadata-modules/flat-webhook/types
 import { CallWebhookJob } from 'src/engine/metadata-modules/webhook/jobs/call-webhook.job';
 import { type CallMetadataWebhookJobData } from 'src/engine/metadata-modules/webhook/types/webhook-job-data.type';
 import { WorkspaceCacheService } from 'src/engine/workspace-cache/services/workspace-cache.service';
+import { TwentyConfigService } from 'src/engine/core-modules/twenty-config/twenty-config.service';
 
 const WEBHOOK_JOBS_CHUNK_SIZE = 20;
 
@@ -20,10 +21,15 @@ export class CallWebhookJobsForMetadataJob {
     @InjectMessageQueue(MessageQueue.webhookQueue)
     private readonly messageQueueService: MessageQueueService,
     private readonly workspaceCacheService: WorkspaceCacheService,
+    private readonly twentyConfigService: TwentyConfigService,
   ) {}
 
   @Process(CallWebhookJobsForMetadataJob.name)
   async handle(metadataEventBatch: MetadataEventBatch): Promise<void> {
+    if (!this.twentyConfigService.get('IS_WEBHOOKS_ENABLED')) {
+      return;
+    }
+
     const eventName = metadataEventBatch.name;
     const metadataName = metadataEventBatch.metadataName;
     const operation = metadataEventBatch.type;

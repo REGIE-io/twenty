@@ -91,6 +91,15 @@ export class ConfigVariables {
 
   @ConfigVariablesMetadata({
     group: ConfigVariablesGroup.ADVANCED_SETTINGS,
+    description: 'Enable or disable outbound webhooks',
+    isEnvOnly: true,
+    type: ConfigVariableType.BOOLEAN,
+  })
+  @IsOptional()
+  IS_WEBHOOKS_ENABLED = true;
+
+  @ConfigVariablesMetadata({
+    group: ConfigVariablesGroup.ADVANCED_SETTINGS,
     description:
       'Lock workspace schema DDL changes (for hot upgrades). Blocks sign-up, workspace deletion, and all metadata schema changes.',
     isEnvOnly: true,

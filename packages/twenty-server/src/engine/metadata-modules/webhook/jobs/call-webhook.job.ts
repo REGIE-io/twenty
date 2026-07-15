@@ -11,6 +11,7 @@ import { MetricsService } from 'src/engine/core-modules/metrics/metrics.service'
 import { MetricsKeys } from 'src/engine/core-modules/metrics/types/metrics-keys.type';
 import { SecureHttpClientService } from 'src/engine/core-modules/secure-http-client/secure-http-client.service';
 import { type WebhookJobData } from 'src/engine/metadata-modules/webhook/types/webhook-job-data.type';
+import { TwentyConfigService } from 'src/engine/core-modules/twenty-config/twenty-config.service';
 
 @Processor(MessageQueue.webhookQueue)
 export class CallWebhookJob {
@@ -18,6 +19,7 @@ export class CallWebhookJob {
     private readonly eventLogEmitterService: EventLogEmitterService,
     private readonly metricsService: MetricsService,
     private readonly secureHttpClientService: SecureHttpClientService,
+    private readonly twentyConfigService: TwentyConfigService,
   ) {}
 
   private generateSignature(
@@ -33,6 +35,10 @@ export class CallWebhookJob {
 
   @Process(CallWebhookJob.name)
   async handle(webhookJobEvents: WebhookJobData[]): Promise<void> {
+    if (!this.twentyConfigService.get('IS_WEBHOOKS_ENABLED')) {
+      return;
+    }
+
     await Promise.all(
       webhookJobEvents.map(
         async (webhookJobEvent) => await this.callWebhook(webhookJobEvent),

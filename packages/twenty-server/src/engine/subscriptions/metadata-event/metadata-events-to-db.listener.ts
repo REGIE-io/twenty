@@ -13,6 +13,7 @@ import { WorkspaceCacheService } from 'src/engine/workspace-cache/services/works
 import { type WorkspaceCacheKeyName } from 'src/engine/workspace-cache/types/workspace-cache-key.type';
 import { MetadataEventPublisher } from 'src/engine/subscriptions/metadata-event/metadata-event-publisher';
 import { type AllMetadataEventType } from 'src/engine/workspace-manager/workspace-migration/workspace-migration-runner/types/metadata-event';
+import { TwentyConfigService } from 'src/engine/core-modules/twenty-config/twenty-config.service';
 
 @Injectable()
 export class MetadataEventsToDbListener {
@@ -21,6 +22,7 @@ export class MetadataEventsToDbListener {
     private readonly webhookQueueService: MessageQueueService,
     private readonly metadataEventPublisher: MetadataEventPublisher,
     private readonly workspaceCacheService: WorkspaceCacheService,
+    private readonly twentyConfigService: TwentyConfigService,
   ) {}
 
   @OnEvent('metadata.*.created')
@@ -50,11 +52,13 @@ export class MetadataEventsToDbListener {
       AllMetadataEventType
     >,
   ): Promise<void> {
-    await this.webhookQueueService.add<
-      MetadataEventBatch<AllMetadataName, AllMetadataEventType>
-    >(CallWebhookJobsForMetadataJob.name, metadataEventBatch, {
-      retryLimit: 3,
-    });
+    if (this.twentyConfigService.get('IS_WEBHOOKS_ENABLED')) {
+      await this.webhookQueueService.add<
+        MetadataEventBatch<AllMetadataName, AllMetadataEventType>
+      >(CallWebhookJobsForMetadataJob.name, metadataEventBatch, {
+        retryLimit: 3,
+      });
+    }
 
     if (metadataEventBatch.events.length > 0) {
       const cacheKeyName = getMetadataFlatEntityMapsKey(

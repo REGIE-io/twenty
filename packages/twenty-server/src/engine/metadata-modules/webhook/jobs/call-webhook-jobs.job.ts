@@ -15,6 +15,7 @@ import { type CallWebhookJobData } from 'src/engine/metadata-modules/webhook/typ
 import { transformEventBatchToWebhookEvents } from 'src/engine/metadata-modules/webhook/utils/transform-event-batch-to-webhook-events';
 import { WorkspaceCacheService } from 'src/engine/workspace-cache/services/workspace-cache.service';
 import { WorkspaceEventBatch } from 'src/engine/workspace-event-emitter/types/workspace-event-batch.type';
+import { TwentyConfigService } from 'src/engine/core-modules/twenty-config/twenty-config.service';
 
 const WEBHOOK_JOBS_CHUNK_SIZE = 20;
 
@@ -25,12 +26,17 @@ export class CallWebhookJobsJob {
     @InjectMessageQueue(MessageQueue.webhookQueue)
     private readonly messageQueueService: MessageQueueService,
     private readonly workspaceCacheService: WorkspaceCacheService,
+    private readonly twentyConfigService: TwentyConfigService,
   ) {}
 
   @Process(CallWebhookJobsJob.name)
   async handle(
     workspaceEventBatch: WorkspaceEventBatch<ObjectRecordEvent>,
   ): Promise<void> {
+    if (!this.twentyConfigService.get('IS_WEBHOOKS_ENABLED')) {
+      return;
+    }
+
     // If you change that function, double check it does not break Zapier
     // trigger in packages/twenty-zapier/src/triggers/trigger_record.ts
     // Also change the openApi schema for webhooks
