@@ -26,11 +26,7 @@ export class ConsoleListener {
   release() {
     Object.keys(this.originalConsole).forEach((method) => {
       // @ts-expect-error legacy noImplicitAny
-      // oxlint-disable-next-line typescript/no-explicit-any
-      console[method] = (...args: any[]) => {
-        // @ts-expect-error legacy noImplicitAny
-        this.originalConsole[method](...args);
-      };
+      console[method] = this.originalConsole[method];
     });
   }
 }
