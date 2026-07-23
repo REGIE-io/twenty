@@ -20,6 +20,9 @@ import { type UniversalFlatIndexFieldMetadata } from 'src/engine/workspace-manag
 export type CreateStandardIndexOptions<O extends AllStandardObjectName> = {
   indexName: AllStandardObjectIndexName<O>;
   relatedFieldNames: AllStandardObjectFieldName<O>[];
+  subFieldNamesByFieldName?: Partial<
+    Record<AllStandardObjectFieldName<O>, string>
+  >;
 } & Partial<
   Pick<FlatIndexMetadata, 'indexType' | 'indexWhereClause' | 'isUnique'>
 >;
@@ -39,6 +42,7 @@ export const createStandardIndexFlatMetadata = <
   context: {
     indexName,
     relatedFieldNames,
+    subFieldNamesByFieldName,
     indexType = IndexType.BTREE,
     indexWhereClause = null,
     isUnique = false,
@@ -67,6 +71,9 @@ export const createStandardIndexFlatMetadata = <
   const relatedFieldIds = relatedFieldNames.map(
     (fieldName) =>
       standardObjectMetadataRelatedEntityIds[objectName].fields[fieldName].id,
+  );
+  const relatedSubFieldNames = relatedFieldNames.map(
+    (fieldName) => subFieldNamesByFieldName?.[fieldName] ?? null,
   );
 
   const objectMetadataUniversalIdentifier =
@@ -109,7 +116,7 @@ export const createStandardIndexFlatMetadata = <
           ) => ({
             createdAt: now,
             order: index,
-            subFieldName: null,
+            subFieldName: relatedSubFieldNames[index] ?? null,
             updatedAt: now,
             fieldMetadataUniversalIdentifier,
             indexMetadataUniversalIdentifier:
@@ -132,7 +139,7 @@ export const createStandardIndexFlatMetadata = <
         id: v4(),
         indexMetadataId: indexId,
         order: index,
-        subFieldName: null,
+        subFieldName: relatedSubFieldNames[index] ?? null,
         updatedAt: now,
         workspaceId,
       }),
