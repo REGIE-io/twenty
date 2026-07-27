@@ -8,6 +8,7 @@ import { compositeTypeDefinitions, RelationType } from 'twenty-shared/types';
 import { capitalize, isDefined } from 'twenty-shared/utils';
 
 import { MAX_RELATION_FILTER_DEPTH } from 'src/engine/api/common/common-args-processors/filter-arg-processor/constants/max-relation-filter-depth.constant';
+import { parseOneToManyRelationFilter } from 'src/engine/api/common/utils/parse-one-to-many-relation-filter.util';
 import { type ObjectRecordFilter } from 'src/engine/api/graphql/workspace-query-builder/interfaces/object-record.interface';
 import {
   GraphqlQueryRunnerException,
@@ -263,21 +264,17 @@ export class GraphqlQueryFilterFieldParser {
       );
     }
 
-    const entries = Object.entries(filterValue);
-    const [operator, targetFilter] = entries[0] ?? [];
+    const parsedCollectionFilter = parseOneToManyRelationFilter(filterValue);
 
-    if (
-      entries.length !== 1 ||
-      (operator !== 'some' && operator !== 'none') ||
-      typeof targetFilter !== 'object' ||
-      targetFilter === null
-    ) {
+    if (!parsedCollectionFilter) {
       throw new GraphqlQueryRunnerException(
         `One-to-many relation filter "${fieldMetadata.name}" must contain exactly one of "some" or "none"`,
         GraphqlQueryRunnerExceptionCode.INVALID_QUERY_INPUT,
         { userFriendlyMessage: msg`Invalid relation list filter` },
       );
     }
+
+    const { operator, targetFilter } = parsedCollectionFilter;
 
     if (
       !isDefined(this.flatObjectMetadataMaps) ||

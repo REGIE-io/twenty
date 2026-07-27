@@ -12,6 +12,7 @@ import { computeMorphOrRelationFieldJoinColumnName } from 'src/engine/metadata-m
 import { type ObjectRecordFilter } from 'src/engine/api/graphql/workspace-query-builder/interfaces/object-record.interface';
 
 import { MAX_RELATION_FILTER_DEPTH } from 'src/engine/api/common/common-args-processors/filter-arg-processor/constants/max-relation-filter-depth.constant';
+import { parseOneToManyRelationFilter } from 'src/engine/api/common/utils/parse-one-to-many-relation-filter.util';
 import { validateAndTransformOperatorAndValue } from 'src/engine/api/common/common-args-processors/filter-arg-processor/utils/validate-and-transform-operator-and-value.util';
 import {
   CommonQueryRunnerException,
@@ -222,14 +223,9 @@ export class FilterArgProcessorService {
     let relationCollectionOperator: 'some' | 'none' | undefined;
 
     if (relationType === RelationType.ONE_TO_MANY) {
-      const entries = Object.entries(filterValue);
+      const parsedCollectionFilter = parseOneToManyRelationFilter(filterValue);
 
-      if (
-        entries.length !== 1 ||
-        !['some', 'none'].includes(entries[0][0]) ||
-        typeof entries[0][1] !== 'object' ||
-        entries[0][1] === null
-      ) {
+      if (!parsedCollectionFilter) {
         throw new CommonQueryRunnerException(
           `One-to-many relation filter "${key}" must contain exactly one of "some" or "none"`,
           CommonQueryRunnerExceptionCode.INVALID_ARGS_FILTER,
@@ -239,8 +235,8 @@ export class FilterArgProcessorService {
         );
       }
 
-      relationCollectionOperator = entries[0][0] as 'some' | 'none';
-      filterValue = entries[0][1] as ObjectRecordFilter;
+      relationCollectionOperator = parsedCollectionFilter.operator;
+      filterValue = parsedCollectionFilter.targetFilter as ObjectRecordFilter;
     }
 
     const targetObjectMetadataId = fieldMetadata.relationTargetObjectMetadataId;
