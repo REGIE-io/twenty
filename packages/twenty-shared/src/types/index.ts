@@ -233,6 +233,7 @@ export type {
   IsFilter,
   UUIDFilter,
   RelationFilter,
+  RelationCollectionFilter,
   BooleanFilter,
   StringFilter,
   RatingFilter,

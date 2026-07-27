@@ -18,6 +18,11 @@ export type RelationFilter = {
   in?: UUIDFilterValue[];
 };
 
+export type RelationCollectionFilter = {
+  some?: RecordGqlOperationFilter;
+  none?: RecordGqlOperationFilter;
+};
+
 export type BooleanFilter = {
   eq?: boolean;
   is?: IsFilter;

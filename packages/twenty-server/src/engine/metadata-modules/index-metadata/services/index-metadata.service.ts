@@ -193,7 +193,7 @@ export class IndexMetadataService {
 
     validateNoDuplicateUniqueIndexOrThrow({
       proposed: {
-        isUnique: false,
+        isUnique: createIndexInput.isUnique,
         fields: resolvedInputs.map(({ flatField, subFieldName }) => ({
           fieldMetadataId: flatField.id,
           subFieldName,
@@ -242,7 +242,7 @@ export class IndexMetadataService {
           // WHERE clause is system-only — see CreateIndexInput for rationale.
           indexWhereClause: null,
           isCustom: true,
-          isUnique: false,
+          isUnique: createIndexInput.isUnique,
           isSystemSideEffect: false,
           objectMetadataUniversalIdentifier:
             flatObjectMetadata.universalIdentifier,

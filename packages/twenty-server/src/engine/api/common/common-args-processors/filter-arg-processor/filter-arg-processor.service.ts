@@ -200,7 +200,12 @@ export class FilterArgProcessorService {
     flatFieldMetadataMaps: FlatEntityMaps<FlatFieldMetadata>,
     depth: number,
   ): ObjectRecordFilter {
-    if (fieldMetadata.settings?.relationType !== RelationType.MANY_TO_ONE) {
+    const relationType = fieldMetadata.settings?.relationType;
+
+    if (
+      relationType !== RelationType.MANY_TO_ONE &&
+      relationType !== RelationType.ONE_TO_MANY
+    ) {
       throw new CommonQueryRunnerException(
         `Cannot filter by relation field "${key}"`,
         CommonQueryRunnerExceptionCode.INVALID_ARGS_FILTER,
@@ -212,6 +217,30 @@ export class FilterArgProcessorService {
 
     if (typeof filterValue !== 'object' || filterValue === null) {
       throwUseJoinColumnInstead(key);
+    }
+
+    let relationCollectionOperator: 'some' | 'none' | undefined;
+
+    if (relationType === RelationType.ONE_TO_MANY) {
+      const entries = Object.entries(filterValue);
+
+      if (
+        entries.length !== 1 ||
+        !['some', 'none'].includes(entries[0][0]) ||
+        typeof entries[0][1] !== 'object' ||
+        entries[0][1] === null
+      ) {
+        throw new CommonQueryRunnerException(
+          `One-to-many relation filter "${key}" must contain exactly one of "some" or "none"`,
+          CommonQueryRunnerExceptionCode.INVALID_ARGS_FILTER,
+          {
+            userFriendlyMessage: msg`Invalid relation list filter`,
+          },
+        );
+      }
+
+      relationCollectionOperator = entries[0][0] as 'some' | 'none';
+      filterValue = entries[0][1] as ObjectRecordFilter;
     }
 
     const targetObjectMetadataId = fieldMetadata.relationTargetObjectMetadataId;
@@ -251,7 +280,7 @@ export class FilterArgProcessorService {
       targetObjectMetadata,
     );
 
-    return this.validateAndTransformFilter(
+    const transformedTargetFilter = this.validateAndTransformFilter(
       filterValue,
       targetObjectMetadata,
       flatObjectMetadataMaps,
@@ -260,6 +289,10 @@ export class FilterArgProcessorService {
       targetFieldIdByJoinColumnName,
       depth + 1,
     );
+
+    return isDefined(relationCollectionOperator)
+      ? { [relationCollectionOperator]: transformedTargetFilter }
+      : transformedTargetFilter;
   }
 
   private validateAndTransformFieldFilter(

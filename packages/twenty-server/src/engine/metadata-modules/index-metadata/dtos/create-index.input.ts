@@ -5,6 +5,7 @@ import {
   ArrayMinSize,
   ArrayNotEmpty,
   IsArray,
+  IsBoolean,
   IsEnum,
   IsUUID,
   ValidateNested,
@@ -32,6 +33,14 @@ export class CreateIndexInput {
   @IsEnum(IndexType)
   @Field(() => IndexType, { defaultValue: IndexType.BTREE })
   indexType!: IndexType;
+
+  // Index creation was originally only exposed by the settings UI, which
+  // creates non-unique performance indexes. Metadata provisioners also need
+  // to express datastore-enforced uniqueness (for example, an idempotency
+  // key), so keep the safe default while allowing that explicit contract.
+  @IsBoolean()
+  @Field(() => Boolean, { defaultValue: false })
+  isUnique = false;
 
   // indexWhereClause is not exposed: the validator only allows a hardcoded
   // allowlist, so a free-text field on the user-facing API would mislead.

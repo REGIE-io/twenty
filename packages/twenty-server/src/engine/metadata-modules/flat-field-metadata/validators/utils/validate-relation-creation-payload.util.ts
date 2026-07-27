@@ -31,7 +31,7 @@ export const validateRelationCreationPayload = async ({
   const relationCreationPayload =
     trimAndRemoveDuplicatedWhitespacesFromObjectStringProperties(
       rawRelationCreationPayload,
-      ['targetFieldIcon', 'targetFieldLabel', 'targetObjectMetadataId', 'type'],
+      ['targetFieldIcon', 'targetFieldLabel', 'targetFieldName', 'targetObjectMetadataId', 'type'],
     );
 
   try {

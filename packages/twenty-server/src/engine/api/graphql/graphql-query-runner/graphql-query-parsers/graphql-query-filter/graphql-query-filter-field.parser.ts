@@ -113,6 +113,21 @@ export class GraphqlQueryFilterFieldParser {
       );
     }
 
+    if (
+      isFilterKeyARelation &&
+      isMorphOrRelationFlatFieldMetadata(fieldMetadata) &&
+      fieldMetadata.settings?.relationType === RelationType.ONE_TO_MANY
+    ) {
+      return this.parseRelationCollectionSubFilter(
+        queryBuilder,
+        outerQueryBuilder,
+        objectNameSingular,
+        fieldMetadata,
+        filterValue,
+        isFirst,
+      );
+    }
+
     if (isCompositeFieldMetadataType(fieldMetadata.type)) {
       return this.parseCompositeFieldForFilter(
         queryBuilder,
@@ -227,6 +242,109 @@ export class GraphqlQueryFilterFieldParser {
       queryBuilder.where(subBrackets);
     } else {
       queryBuilder.andWhere(subBrackets);
+    }
+  }
+
+  private parseRelationCollectionSubFilter(
+    queryBuilder: WhereExpressionBuilder,
+    outerQueryBuilder: WorkspaceSelectQueryBuilder<ObjectLiteral>,
+    parentAlias: string,
+    fieldMetadata: FlatFieldMetadata,
+    filterValue: Partial<ObjectRecordFilter>,
+    isFirst: boolean,
+  ): void {
+    if (this.depth >= MAX_RELATION_FILTER_DEPTH) {
+      throw new GraphqlQueryRunnerException(
+        `Relation filter nesting deeper than ${MAX_RELATION_FILTER_DEPTH} hop is not supported`,
+        GraphqlQueryRunnerExceptionCode.INVALID_QUERY_INPUT,
+        {
+          userFriendlyMessage: msg`Relation filters can only traverse one relation deep`,
+        },
+      );
+    }
+
+    const entries = Object.entries(filterValue);
+    const [operator, targetFilter] = entries[0] ?? [];
+
+    if (
+      entries.length !== 1 ||
+      (operator !== 'some' && operator !== 'none') ||
+      typeof targetFilter !== 'object' ||
+      targetFilter === null
+    ) {
+      throw new GraphqlQueryRunnerException(
+        `One-to-many relation filter "${fieldMetadata.name}" must contain exactly one of "some" or "none"`,
+        GraphqlQueryRunnerExceptionCode.INVALID_QUERY_INPUT,
+        { userFriendlyMessage: msg`Invalid relation list filter` },
+      );
+    }
+
+    if (
+      !isDefined(this.flatObjectMetadataMaps) ||
+      !isDefined(fieldMetadata.relationTargetObjectMetadataId) ||
+      !isDefined(fieldMetadata.relationTargetFieldMetadataId)
+    ) {
+      throw new GraphqlQueryRunnerException(
+        `Relation filter on "${fieldMetadata.name}" is misconfigured`,
+        GraphqlQueryRunnerExceptionCode.INVALID_QUERY_INPUT,
+        { userFriendlyMessage: msg`Relation filter is misconfigured` },
+      );
+    }
+
+    const targetObjectMetadata =
+      findFlatEntityByIdInFlatEntityMaps<FlatObjectMetadata>({
+        flatEntityId: fieldMetadata.relationTargetObjectMetadataId,
+        flatEntityMaps: this.flatObjectMetadataMaps,
+      });
+    const inverseRelationFieldMetadata =
+      findFlatEntityByIdInFlatEntityMaps<FlatFieldMetadata>({
+        flatEntityId: fieldMetadata.relationTargetFieldMetadataId,
+        flatEntityMaps: this.flatFieldMetadataMaps,
+      });
+    const inverseJoinColumnName =
+      inverseRelationFieldMetadata?.settings?.joinColumnName;
+
+    if (!isDefined(targetObjectMetadata) || !isDefined(inverseJoinColumnName)) {
+      throw new GraphqlQueryRunnerException(
+        `Relation filter on "${fieldMetadata.name}" is misconfigured`,
+        GraphqlQueryRunnerExceptionCode.INVALID_QUERY_INPUT,
+        { userFriendlyMessage: msg`Relation filter is misconfigured` },
+      );
+    }
+
+    const relationAlias = `${parentAlias}_${fieldMetadata.name}_filter`;
+    const subQuery = outerQueryBuilder
+      .subQuery()
+      .select('1')
+      .from(targetObjectMetadata.nameSingular, relationAlias)
+      .where(
+        `"${relationAlias}"."${inverseJoinColumnName}" = "${parentAlias}"."id"`,
+      );
+    const childConditionParser = new GraphqlQueryFilterConditionParser(
+      targetObjectMetadata,
+      this.flatFieldMetadataMaps,
+      this.flatObjectMetadataMaps,
+      this.depth + 1,
+    );
+
+    subQuery.andWhere(
+      new Brackets((subQueryBrackets) => {
+        childConditionParser.applyFilterEntriesToWhereBrackets(
+          subQueryBrackets,
+          outerQueryBuilder,
+          relationAlias,
+          targetFilter as ObjectRecordFilter,
+        );
+      }),
+    );
+
+    const condition = `${operator === 'some' ? 'EXISTS' : 'NOT EXISTS'} (${subQuery.getQuery()})`;
+    const params = subQuery.getParameters();
+
+    if (isFirst) {
+      queryBuilder.where(condition, params);
+    } else {
+      queryBuilder.andWhere(condition, params);
     }
   }
 
