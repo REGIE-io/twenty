@@ -6,6 +6,7 @@ import { fieldMetadataConfigByFieldName } from 'src/engine/api/common/common-arg
 import { FilterArgProcessorService } from 'src/engine/api/common/common-args-processors/filter-arg-processor/filter-arg-processor.service';
 import { type FlatEntityMaps } from 'src/engine/metadata-modules/flat-entity/types/flat-entity-maps.type';
 import { type FlatFieldMetadata } from 'src/engine/metadata-modules/flat-field-metadata/types/flat-field-metadata.type';
+import { isMorphOrRelationFlatFieldMetadata } from 'src/engine/metadata-modules/flat-field-metadata/utils/is-morph-or-relation-flat-field-metadata.util';
 import { type FlatObjectMetadata } from 'src/engine/metadata-modules/flat-object-metadata/types/flat-object-metadata.type';
 
 import { failingFilterInputsByFieldMetadataType } from './constants/failing-filter-inputs-by-field-metadata-type.constant';
@@ -421,6 +422,13 @@ describe('FilterArgProcessorService', () => {
       const relation =
         flatFieldMetadataMaps.byUniversalIdentifier['relation-field-uid'];
 
+      if (
+        relation === undefined ||
+        !isMorphOrRelationFlatFieldMetadata(relation)
+      ) {
+        throw new Error('Expected relation fixture');
+      }
+
       relation.settings.relationType = RelationType.ONE_TO_MANY;
 
       const result = filterArgProcessorService.process({
@@ -443,6 +451,13 @@ describe('FilterArgProcessorService', () => {
       } = createRelationFixture();
       const relation =
         flatFieldMetadataMaps.byUniversalIdentifier['relation-field-uid'];
+
+      if (
+        relation === undefined ||
+        !isMorphOrRelationFlatFieldMetadata(relation)
+      ) {
+        throw new Error('Expected relation fixture');
+      }
 
       relation.settings.relationType = RelationType.ONE_TO_MANY;
 

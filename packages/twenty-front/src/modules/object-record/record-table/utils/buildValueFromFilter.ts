@@ -279,8 +279,6 @@ const computeValueFromFilterRelation = (
       return undefined; // todo
     }
     case ViewFilterOperand.IS_NOT:
-    case ViewFilterOperand.IS_IN_LIST:
-    case ViewFilterOperand.IS_NOT_IN_LIST:
     case ViewFilterOperand.IS_NOT_EMPTY: // todo
     case ViewFilterOperand.IS_EMPTY:
       return undefined;

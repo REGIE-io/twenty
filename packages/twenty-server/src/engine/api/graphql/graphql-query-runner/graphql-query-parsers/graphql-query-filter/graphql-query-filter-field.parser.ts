@@ -298,8 +298,20 @@ export class GraphqlQueryFilterFieldParser {
         flatEntityId: fieldMetadata.relationTargetFieldMetadataId,
         flatEntityMaps: this.flatFieldMetadataMaps,
       });
+
+    if (
+      !isDefined(inverseRelationFieldMetadata) ||
+      !isMorphOrRelationFlatFieldMetadata(inverseRelationFieldMetadata)
+    ) {
+      throw new GraphqlQueryRunnerException(
+        `Relation filter on "${fieldMetadata.name}" is misconfigured`,
+        GraphqlQueryRunnerExceptionCode.INVALID_QUERY_INPUT,
+        { userFriendlyMessage: msg`Relation filter is misconfigured` },
+      );
+    }
+
     const inverseJoinColumnName =
-      inverseRelationFieldMetadata?.settings?.joinColumnName;
+      inverseRelationFieldMetadata.settings?.joinColumnName;
 
     if (!isDefined(targetObjectMetadata) || !isDefined(inverseJoinColumnName)) {
       throw new GraphqlQueryRunnerException(

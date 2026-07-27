@@ -7,7 +7,10 @@ export type OneToManyRelationCollectionOperator = 'some' | 'none';
  */
 export const parseOneToManyRelationFilter = (
   value: unknown,
-): { operator: OneToManyRelationCollectionOperator; targetFilter: object } | null => {
+): {
+  operator: OneToManyRelationCollectionOperator;
+  targetFilter: object;
+} | null => {
   if (typeof value !== 'object' || value === null) return null;
 
   const entries = Object.entries(value);

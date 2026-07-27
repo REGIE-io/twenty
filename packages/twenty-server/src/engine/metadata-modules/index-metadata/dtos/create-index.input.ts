@@ -40,7 +40,7 @@ export class CreateIndexInput {
   // key), so keep the safe default while allowing that explicit contract.
   @IsBoolean()
   @Field(() => Boolean, { defaultValue: false })
-  isUnique = false;
+  isUnique?: boolean = false;
 
   // indexWhereClause is not exposed: the validator only allows a hardcoded
   // allowlist, so a free-text field on the user-facing API would mislead.
