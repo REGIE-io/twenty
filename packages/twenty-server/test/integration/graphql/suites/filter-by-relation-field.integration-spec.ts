@@ -362,6 +362,37 @@ describe('Filter by relation field (e2e)', () => {
     expect(response.body.errors.length).toBeGreaterThan(0);
   });
 
+  it('should reject a one-to-many relation filter containing both some and none', async () => {
+    const queryData = {
+      query: gql`
+        query Companies($filter: CompanyFilterInput) {
+          companies(filter: $filter, first: 10) {
+            edges {
+              node {
+                id
+              }
+            }
+          }
+        }
+      `,
+      variables: {
+        filter: {
+          people: {
+            some: { jobTitle: { eq: 'Engineer' } },
+            none: { jobTitle: { eq: 'Designer' } },
+          },
+        },
+      },
+    };
+
+    const response = await makeGraphqlAPIRequest(queryData);
+
+    expect(response.body.errors).toHaveLength(1);
+    expect(response.body.errors[0].message).toBe(
+      'One-to-many relation filter "people" must contain exactly one of "some" or "none"',
+    );
+  });
+
   it('should not widen the root query when a relation block contains a deletedAt filter', async () => {
     // A deletedAt nested inside a relation block belongs to the related
     // entity — it must not call `withDeleted()` on the root builder and

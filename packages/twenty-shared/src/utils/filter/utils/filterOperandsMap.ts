@@ -11,8 +11,6 @@ const emptyOperands = [
 const relationOperands = [
   ViewFilterOperand.IS,
   ViewFilterOperand.IS_NOT,
-  ViewFilterOperand.IS_IN_LIST,
-  ViewFilterOperand.IS_NOT_IN_LIST,
 ] as const;
 
 type FilterOperandMap = {

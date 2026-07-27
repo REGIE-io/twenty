@@ -453,7 +453,9 @@ describe('FilterArgProcessorService', () => {
           flatObjectMetadataMaps,
           flatFieldMetadataMaps,
         }),
-      ).toThrow(/exactly one of "some" or "none"/);
+      ).toThrow(
+        'One-to-many relation filter "target" must contain exactly one of "some" or "none"',
+      );
     });
 
     it('should accept a relation traversal onto a composite sub-field without tripping the depth cap', () => {
