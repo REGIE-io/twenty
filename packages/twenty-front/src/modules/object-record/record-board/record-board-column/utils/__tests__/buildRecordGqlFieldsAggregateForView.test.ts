@@ -36,7 +36,6 @@ describe('buildRecordGqlFieldsAggregateForView', () => {
     namePlural: 'opportunities',
     labelSingular: 'Opportunity',
     labelPlural: 'Opportunities',
-    isCustom: false,
     isActive: true,
     isSystem: false,
     isUIEditable: true,
@@ -50,6 +49,7 @@ describe('buildRecordGqlFieldsAggregateForView', () => {
     readableFields: fields,
     updatableFields: fields,
     indexMetadatas: [],
+    searchFieldMetadatas: [],
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
   };

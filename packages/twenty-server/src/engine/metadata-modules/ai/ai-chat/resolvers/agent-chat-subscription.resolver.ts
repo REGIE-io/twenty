@@ -17,9 +17,13 @@ import {
   AiExceptionCode,
 } from 'src/engine/metadata-modules/ai/ai.exception';
 import { AiGraphqlApiExceptionInterceptor } from 'src/engine/metadata-modules/ai/interceptors/ai-graphql-api-exception.interceptor';
+import { AGENT_CHAT_KEEPALIVE_INTERVAL_MS } from 'src/engine/metadata-modules/ai/ai-chat/constants/agent-chat-keepalive-interval-ms.constant';
+import { AGENT_CHAT_STREAM_REAP_CHECK_INTERVAL_MS } from 'src/engine/metadata-modules/ai/ai-chat/constants/agent-chat-stream-reap-check-interval-ms.constant';
 import { AgentChatEventDTO } from 'src/engine/metadata-modules/ai/ai-chat/dtos/agent-chat-event.dto';
 import { AgentChatThreadEntity } from 'src/engine/metadata-modules/ai/ai-chat/entities/agent-chat-thread.entity';
+import { AgentChatStreamingService } from 'src/engine/metadata-modules/ai/ai-chat/services/agent-chat-streaming.service';
 import { SubscriptionService } from 'src/engine/subscriptions/subscription.service';
+import { wrapAsyncIteratorWithLifecycle } from 'src/engine/subscriptions/utils/wrap-async-iterator-with-lifecycle';
 import { InjectWorkspaceScopedRepository } from 'src/engine/twenty-orm/workspace-scoped-repository/inject-workspace-scoped-repository.decorator';
 import { WorkspaceScopedRepository } from 'src/engine/twenty-orm/workspace-scoped-repository/workspace-scoped-repository';
 @MetadataResolver()
@@ -28,6 +32,7 @@ import { WorkspaceScopedRepository } from 'src/engine/twenty-orm/workspace-scope
 export class AgentChatSubscriptionResolver {
   constructor(
     private readonly subscriptionService: SubscriptionService,
+    private readonly agentChatStreamingService: AgentChatStreamingService,
     @InjectWorkspaceScopedRepository(AgentChatThreadEntity)
     private readonly threadRepository: WorkspaceScopedRepository<AgentChatThreadEntity>,
   ) {}
@@ -58,9 +63,60 @@ export class AgentChatSubscriptionResolver {
       );
     }
 
-    return this.subscriptionService.subscribeToAgentChat({
+    const iterator = await this.subscriptionService.subscribeToAgentChat({
       workspaceId: workspace.id,
       threadId,
     });
+
+    const keepalivePayload = {
+      onAgentChatEvent: {
+        threadId,
+        event: { type: 'keepalive' as const },
+      },
+    };
+
+    let lastReapCheckAt = 0;
+
+    return wrapAsyncIteratorWithLifecycle(iterator, {
+      initialValue: keepalivePayload,
+      onHeartbeat: async () => {
+        if (
+          Date.now() - lastReapCheckAt >=
+          AGENT_CHAT_STREAM_REAP_CHECK_INTERVAL_MS
+        ) {
+          lastReapCheckAt = Date.now();
+          await this.reapWatchedStreamIfDead(workspace.id, threadId);
+        }
+
+        await this.subscriptionService.publishToAgentChat({
+          workspaceId: workspace.id,
+          threadId,
+          payload: keepalivePayload,
+        });
+
+        return true;
+      },
+      heartbeatIntervalMs: AGENT_CHAT_KEEPALIVE_INTERVAL_MS,
+    });
+  }
+
+  private async reapWatchedStreamIfDead(
+    workspaceId: string,
+    threadId: string,
+  ): Promise<void> {
+    const thread = await this.threadRepository
+      .findOne(workspaceId, {
+        where: { id: threadId },
+        select: ['id', 'activeStreamId'],
+      })
+      .catch(() => null);
+
+    if (!isDefined(thread) || !isDefined(thread.activeStreamId)) {
+      return;
+    }
+
+    await this.agentChatStreamingService
+      .reapDeadStream({ thread, workspaceId })
+      .catch(() => {});
   }
 }

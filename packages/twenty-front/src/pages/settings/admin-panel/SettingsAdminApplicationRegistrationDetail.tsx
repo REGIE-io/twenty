@@ -15,6 +15,7 @@ import {
   IconSettings,
   IconWorld,
 } from 'twenty-ui/icon';
+import { getAbsoluteImageUrl } from '~/utils/image/getAbsoluteImageUrl';
 import { SettingsApplicationRegistrationConfigTab } from '~/pages/settings/applications/tabs/SettingsApplicationRegistrationConfigTab';
 import { SettingsApplicationRegistrationOAuthTab } from '~/pages/settings/applications/tabs/SettingsApplicationRegistrationOAuthTab';
 import { SettingsApplicationRegistrationDistributionTab } from '~/pages/settings/applications/tabs/SettingsApplicationRegistrationDistributionTab';
@@ -22,17 +23,9 @@ import { SettingsApplicationRegistrationGeneralTab } from '~/pages/settings/appl
 import { TabList } from '@/ui/layout/tab-list/components/TabList';
 import { useAtomComponentStateValue } from '@/ui/utilities/state/jotai/hooks/useAtomComponentStateValue';
 import { activeTabIdComponentState } from '@/ui/layout/tab-list/states/activeTabIdComponentState';
-import { themeCssVariables } from 'twenty-ui/theme-constants';
-import { styled } from '@linaria/react';
 
 const REGISTRATION_DETAIL_TAB_LIST_ID =
   'admin-application-registration-detail-tab-list';
-
-const StyledTitleContainer = styled.div`
-  align-items: center;
-  display: flex;
-  gap: ${themeCssVariables.spacing[2]};
-`;
 
 export const SettingsAdminApplicationRegistrationDetail = () => {
   const { t } = useLingui();
@@ -88,6 +81,7 @@ export const SettingsAdminApplicationRegistrationDetail = () => {
         return (
           <SettingsApplicationRegistrationDistributionTab
             registration={registration}
+            fromAdmin
           />
         );
       case 'general':
@@ -103,17 +97,15 @@ export const SettingsAdminApplicationRegistrationDetail = () => {
 
   return (
     <SettingsPageLayout
-      title={
-        <StyledTitleContainer>
-          <Avatar
-            type="app"
-            size="md"
-            avatarUrl={registration.logoUrl ?? undefined}
-            placeholder={registration.name}
-            placeholderColorSeed={registration.name}
-          />
-          {registration.name}
-        </StyledTitleContainer>
+      title={registration.name}
+      icon={
+        <Avatar
+          type="app"
+          size="md"
+          avatarUrl={getAbsoluteImageUrl(registration.logoUrl ?? undefined)}
+          placeholder={registration.name}
+          placeholderColorSeed={registration.name}
+        />
       }
       links={[
         {

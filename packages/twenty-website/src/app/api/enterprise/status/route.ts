@@ -1,21 +1,33 @@
-import { verifyEnterpriseKey } from '@/lib/enterprise/enterprise-jwt';
-import { getStripeClient } from '@/lib/enterprise/stripe-client';
-import { getSubscriptionCurrentPeriodEnd } from '@/lib/enterprise/stripe-subscription-helpers';
 import { NextResponse } from 'next/server';
+
+import {
+  getEnterpriseConfigError,
+  getStripeClient,
+  getSubscriptionCurrentPeriodEnd,
+  verifyEnterpriseKey,
+} from '@/platform/enterprise';
 
 export const dynamic = 'force-dynamic';
 
 export async function POST(request: Request) {
+  const configError = getEnterpriseConfigError({
+    route: 'enterprise-status',
+    feature: 'Enterprise status',
+    requiredEnvVars: ['STRIPE_SECRET_KEY', 'ENTERPRISE_JWT_PUBLIC_KEY'],
+  });
+
+  if (configError) {
+    return configError;
+  }
+
   try {
-    const body = await request.json();
+    const body = (await request.json()) as { enterpriseKey?: unknown };
     const { enterpriseKey } = body;
 
     if (!enterpriseKey || typeof enterpriseKey !== 'string') {
       return NextResponse.json(
         { error: 'Missing enterpriseKey' },
-        {
-          status: 400,
-        },
+        { status: 400 },
       );
     }
 
@@ -24,9 +36,7 @@ export async function POST(request: Request) {
     if (!payload) {
       return NextResponse.json(
         { error: 'Invalid enterprise key' },
-        {
-          status: 403,
-        },
+        { status: 403 },
       );
     }
 

@@ -159,7 +159,6 @@ const buildFieldMetadataItemFromMarketplaceField = (
     description: field.description ?? '',
     icon: field.icon ?? 'IconField',
     isActive: true,
-    isCustom: true,
     isSystem: false,
     isNullable: true,
     isUnique: false,
@@ -239,7 +238,6 @@ const buildObjectMetadataItemsFromMarketplaceApp = (
         labelPlural: appObject.labelPlural,
         description: appObject.description ?? '',
         icon: appObject.icon ?? 'IconBox',
-        isCustom: true,
         isRemote: false,
         isActive: true,
         isSystem: false,
@@ -256,6 +254,7 @@ const buildObjectMetadataItemsFromMarketplaceApp = (
           (field) => !nonUpdatableFieldIds.has(field.id),
         ),
         indexMetadatas: [],
+        searchFieldMetadatas: [],
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
       };

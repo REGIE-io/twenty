@@ -6,6 +6,7 @@ import { useIsPageLayoutInEditMode } from '@/page-layout/hooks/useIsPageLayoutIn
 import { RecordTableWidgetRendererContent } from '@/page-layout/widgets/record-table/components/RecordTableWidgetRendererContent';
 import { isFieldWidget } from '@/page-layout/widgets/field/utils/isFieldWidget';
 import { useCurrentWidget } from '@/page-layout/widgets/hooks/useCurrentWidget';
+import { useLayoutRenderingContext } from '@/ui/layout/contexts/LayoutRenderingContext';
 import { styled } from '@linaria/react';
 import { isDefined } from 'twenty-shared/utils';
 
@@ -35,28 +36,42 @@ export const FieldWidgetRelationTable = ({
 
   const isPageLayoutInEditMode = useIsPageLayoutInEditMode();
 
+  const { isInSidePanel } = useLayoutRenderingContext();
+
   const viewId = isFieldWidget(widget)
     ? widget.configuration.viewId
     : undefined;
 
-  const targetObjectMetadataId =
+  const relationObjectMetadataId =
     fieldDefinition.metadata.relationObjectMetadataId;
+  const recordPageObjectMetadataNameSingular =
+    fieldDefinition.metadata.objectMetadataNameSingular;
 
-  if (!isDefined(viewId) || !isDefined(targetObjectMetadataId)) {
+  if (
+    !isDefined(viewId) ||
+    !isDefined(relationObjectMetadataId) ||
+    !isDefined(recordPageObjectMetadataNameSingular)
+  ) {
     return null;
   }
 
   return (
     <RecordFilterValueDependenciesContext.Provider
-      value={{ currentRecordId: recordId }}
+      value={{
+        currentRecord: {
+          id: recordId,
+          objectMetadataNameSingular: recordPageObjectMetadataNameSingular,
+        },
+      }}
     >
       <StyledContainer>
         <RecordTableWidgetRendererContent
-          objectMetadataId={targetObjectMetadataId}
+          objectMetadataId={relationObjectMetadataId}
           viewId={viewId}
           widgetId={widget.id}
           isReadOnly={isPageLayoutInEditMode}
           isEmptyStateHidden
+          instanceIdSuffix={`${recordId}${isInSidePanel ? '-side-panel' : ''}`}
         />
       </StyledContainer>
     </RecordFilterValueDependenciesContext.Provider>

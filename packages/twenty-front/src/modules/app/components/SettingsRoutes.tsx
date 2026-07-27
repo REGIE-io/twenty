@@ -1,5 +1,12 @@
 import { lazy, Suspense } from 'react';
-import { Navigate, Route, Routes } from 'react-router-dom';
+import {
+  Navigate,
+  type Params,
+  Route,
+  Routes,
+  useLocation,
+  useParams,
+} from 'react-router-dom';
 
 import { SettingsProtectedRouteWrapper } from '@/settings/components/SettingsProtectedRouteWrapper';
 import { SettingsSkeletonLoader } from '@/settings/components/SettingsSkeletonLoader';
@@ -23,6 +30,55 @@ const SettingsRestPlayground = lazy(() =>
     }),
   ),
 );
+
+// TODO: remove these legacy /api-webhooks redirects after 2026-08-04, once
+// users have had time to update their bookmarks to the new API settings routes.
+const LEGACY_API_WEBHOOKS_SETTINGS_PATHS = {
+  ApiWebhooks: 'api-webhooks',
+  NewApiKey: 'api-webhooks/apis/new',
+  ApiKeyDetail: 'api-webhooks/apis/:apiKeyId',
+  NewWebhook: 'api-webhooks/webhooks/new',
+  WebhookDetail: 'api-webhooks/webhooks/:webhookId',
+} as const;
+
+type LegacySettingsPathRedirectProps = {
+  to:
+    | SettingsPath.ApiWebhooks
+    | SettingsPath.NewApiKey
+    | SettingsPath.ApiKeyDetail
+    | SettingsPath.NewWebhook
+    | SettingsPath.WebhookDetail;
+};
+
+const getLegacySettingsPathRedirectPathname = (
+  to: LegacySettingsPathRedirectProps['to'],
+  params: Readonly<Params<string>>,
+) => {
+  switch (to) {
+    case SettingsPath.ApiKeyDetail:
+      return getSettingsPath(SettingsPath.ApiKeyDetail, {
+        apiKeyId: params.apiKeyId ?? null,
+      });
+    case SettingsPath.WebhookDetail:
+      return getSettingsPath(SettingsPath.WebhookDetail, {
+        webhookId: params.webhookId ?? null,
+      });
+    case SettingsPath.ApiWebhooks:
+    case SettingsPath.NewApiKey:
+    case SettingsPath.NewWebhook:
+      return getSettingsPath(to);
+  }
+};
+
+function LegacySettingsPathRedirect({ to }: LegacySettingsPathRedirectProps) {
+  const location = useLocation();
+  const params = useParams();
+  const pathname = getLegacySettingsPathRedirectPathname(to, params);
+
+  return (
+    <Navigate to={`${pathname}${location.search}${location.hash}`} replace />
+  );
+}
 
 const SettingsAccountsConfiguration = lazy(() =>
   import('~/pages/settings/accounts/SettingsAccountsConfiguration').then(
@@ -114,22 +170,36 @@ const SettingsGeneral = lazy(() =>
   })),
 );
 
-const SettingsWorkspaceEmail = lazy(() =>
-  import('~/pages/settings/email/SettingsWorkspaceEmail').then((module) => ({
-    default: module.SettingsWorkspaceEmail,
+const SettingsLegalDpa = lazy(() =>
+  import('~/pages/settings/legal/SettingsLegalDpa').then((module) => ({
+    default: module.SettingsLegalDpa,
   })),
 );
 
-const SettingsWorkspaceEmailGroupChannelDetail = lazy(() =>
-  import('~/pages/settings/email/SettingsWorkspaceEmailGroupChannelDetail').then(
+const SettingsLegalDpaNew = lazy(() =>
+  import('~/pages/settings/legal/SettingsLegalDpaNew').then((module) => ({
+    default: module.SettingsLegalDpaNew,
+  })),
+);
+
+const SettingsWorkspaceCommunications = lazy(() =>
+  import('~/pages/settings/communications/SettingsWorkspaceCommunications').then(
     (module) => ({
-      default: module.SettingsWorkspaceEmailGroupChannelDetail,
+      default: module.SettingsWorkspaceCommunications,
+    }),
+  ),
+);
+
+const SettingsWorkspaceCommunicationGroupChannelDetail = lazy(() =>
+  import('~/pages/settings/communications/SettingsWorkspaceCommunicationGroupChannelDetail').then(
+    (module) => ({
+      default: module.SettingsWorkspaceCommunicationGroupChannelDetail,
     }),
   ),
 );
 
 const SettingsWorkspaceNewUnsubscribeTopic = lazy(() =>
-  import('~/pages/settings/email/SettingsWorkspaceNewUnsubscribeTopic').then(
+  import('~/pages/settings/communications/SettingsWorkspaceNewUnsubscribeTopic').then(
     (module) => ({
       default: module.SettingsWorkspaceNewUnsubscribeTopic,
     }),
@@ -137,9 +207,17 @@ const SettingsWorkspaceNewUnsubscribeTopic = lazy(() =>
 );
 
 const SettingsWorkspaceUnsubscribeTopicDetail = lazy(() =>
-  import('~/pages/settings/email/SettingsWorkspaceUnsubscribeTopicDetail').then(
+  import('~/pages/settings/communications/SettingsWorkspaceUnsubscribeTopicDetail').then(
     (module) => ({
       default: module.SettingsWorkspaceUnsubscribeTopicDetail,
+    }),
+  ),
+);
+
+const SettingsWorkspaceUnsubscribe = lazy(() =>
+  import('~/pages/settings/communications/SettingsWorkspaceUnsubscribe').then(
+    (module) => ({
+      default: module.SettingsWorkspaceUnsubscribe,
     }),
   ),
 );
@@ -252,14 +330,6 @@ const SettingsAdminApplicationRegistrationDetail = lazy(() =>
   ),
 );
 
-const SettingsAdminApplicationRegistrationConfigVariableDetail = lazy(() =>
-  import('~/pages/settings/admin-panel/SettingsAdminApplicationRegistrationConfigVariableDetail').then(
-    (module) => ({
-      default: module.SettingsAdminApplicationRegistrationConfigVariableDetail,
-    }),
-  ),
-);
-
 const SettingsAvailableApplicationDetails = lazy(() =>
   import('~/pages/settings/applications/SettingsAvailableApplicationDetails').then(
     (module) => ({
@@ -272,14 +342,6 @@ const SettingsApplicationRegistrationDetails = lazy(() =>
   import('~/pages/settings/applications/SettingsApplicationRegistrationDetails').then(
     (module) => ({
       default: module.SettingsApplicationRegistrationDetails,
-    }),
-  ),
-);
-
-const SettingsApplicationRegistrationConfigVariableDetail = lazy(() =>
-  import('~/pages/settings/applications/components/SettingsApplicationRegistrationConfigVariableDetail').then(
-    (module) => ({
-      default: module.SettingsApplicationRegistrationConfigVariableDetail,
     }),
   ),
 );
@@ -367,6 +429,12 @@ const SettingsAccountsCalendars = lazy(() =>
 const SettingsBilling = lazy(() =>
   import('~/pages/settings/billing/SettingsBilling').then((module) => ({
     default: module.SettingsBilling,
+  })),
+);
+
+const SettingsBillingPlans = lazy(() =>
+  import('~/pages/settings/billing/SettingsBillingPlans').then((module) => ({
+    default: module.SettingsBillingPlans,
   })),
 );
 
@@ -645,8 +713,8 @@ export const SettingsRoutes = ({ isAdminPageEnabled }: SettingsRoutesProps) => (
       >
         <Route path={SettingsPath.General} element={<SettingsGeneral />} />
         <Route
-          path={SettingsPath.WorkspaceEmail}
-          element={<SettingsWorkspaceEmail />}
+          path={SettingsPath.WorkspaceCommunications}
+          element={<SettingsWorkspaceCommunications />}
         />
         <Route
           path={SettingsPath.NewEmailGroupChannel}
@@ -654,7 +722,7 @@ export const SettingsRoutes = ({ isAdminPageEnabled }: SettingsRoutesProps) => (
         />
         <Route
           path={SettingsPath.EmailGroupChannelDetail}
-          element={<SettingsWorkspaceEmailGroupChannelDetail />}
+          element={<SettingsWorkspaceCommunicationGroupChannelDetail />}
         />
         <Route
           path={SettingsPath.NewUnsubscribeTopic}
@@ -664,7 +732,15 @@ export const SettingsRoutes = ({ isAdminPageEnabled }: SettingsRoutesProps) => (
           path={SettingsPath.UnsubscribeTopicDetail}
           element={<SettingsWorkspaceUnsubscribeTopicDetail />}
         />
+        <Route
+          path={SettingsPath.Unsubscribe}
+          element={<SettingsWorkspaceUnsubscribe />}
+        />
         <Route path={SettingsPath.Billing} element={<SettingsBilling />} />
+        <Route
+          path={SettingsPath.BillingPlans}
+          element={<SettingsBillingPlans />}
+        />
         <Route path={SettingsPath.Usage} element={<SettingsUsage />} />
         <Route
           path={SettingsPath.UsageUserDetail}
@@ -681,6 +757,11 @@ export const SettingsRoutes = ({ isAdminPageEnabled }: SettingsRoutesProps) => (
         <Route
           path={SettingsPath.PublicDomain}
           element={<SettingPublicDomain />}
+        />
+        <Route path={SettingsPath.LegalDpa} element={<SettingsLegalDpa />} />
+        <Route
+          path={SettingsPath.LegalDpaNew}
+          element={<SettingsLegalDpaNew />}
         />
       </Route>
       <Route
@@ -822,6 +903,30 @@ export const SettingsRoutes = ({ isAdminPageEnabled }: SettingsRoutesProps) => (
         }
       >
         <Route
+          path={LEGACY_API_WEBHOOKS_SETTINGS_PATHS.ApiWebhooks}
+          element={<LegacySettingsPathRedirect to={SettingsPath.ApiWebhooks} />}
+        />
+        <Route
+          path={LEGACY_API_WEBHOOKS_SETTINGS_PATHS.NewApiKey}
+          element={<LegacySettingsPathRedirect to={SettingsPath.NewApiKey} />}
+        />
+        <Route
+          path={LEGACY_API_WEBHOOKS_SETTINGS_PATHS.ApiKeyDetail}
+          element={
+            <LegacySettingsPathRedirect to={SettingsPath.ApiKeyDetail} />
+          }
+        />
+        <Route
+          path={LEGACY_API_WEBHOOKS_SETTINGS_PATHS.NewWebhook}
+          element={<LegacySettingsPathRedirect to={SettingsPath.NewWebhook} />}
+        />
+        <Route
+          path={LEGACY_API_WEBHOOKS_SETTINGS_PATHS.WebhookDetail}
+          element={
+            <LegacySettingsPathRedirect to={SettingsPath.WebhookDetail} />
+          }
+        />
+        <Route
           path={SettingsPath.ApiWebhooks}
           element={<SettingsApiWebhooks />}
         />
@@ -897,10 +1002,6 @@ export const SettingsRoutes = ({ isAdminPageEnabled }: SettingsRoutesProps) => (
         <Route
           path={SettingsPath.ApplicationPageLayoutDetail}
           element={<SettingsLayoutPageLayoutDetail />}
-        />
-        <Route
-          path={SettingsPath.ApplicationRegistrationConfigVariableDetails}
-          element={<SettingsApplicationRegistrationConfigVariableDetail />}
         />
       </Route>
 
@@ -988,14 +1089,6 @@ export const SettingsRoutes = ({ isAdminPageEnabled }: SettingsRoutesProps) => (
           <Route
             path={SettingsPath.AdminPanelApplicationRegistrationDetail}
             element={<SettingsAdminApplicationRegistrationDetail />}
-          />
-          <Route
-            path={
-              SettingsPath.AdminPanelApplicationRegistrationConfigVariableDetails
-            }
-            element={
-              <SettingsAdminApplicationRegistrationConfigVariableDetail />
-            }
           />
           <Route
             path={SettingsPath.AdminPanelWorkspaceChatThread}

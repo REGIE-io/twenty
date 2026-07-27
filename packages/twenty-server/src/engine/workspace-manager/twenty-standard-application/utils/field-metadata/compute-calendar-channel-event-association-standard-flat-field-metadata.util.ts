@@ -14,9 +14,6 @@ import {
   createStandardFieldFlatMetadata,
 } from 'src/engine/workspace-manager/twenty-standard-application/utils/field-metadata/create-standard-field-flat-metadata.util';
 import { createStandardRelationFieldFlatMetadata } from 'src/engine/workspace-manager/twenty-standard-application/utils/field-metadata/create-standard-relation-field-flat-metadata.util';
-import { getTsVectorColumnExpressionFromFields } from 'src/engine/workspace-manager/utils/get-ts-vector-column-expression.util';
-import { SEARCH_FIELDS_FOR_CALENDAR_CHANNEL_EVENT_ASSOCIATION } from 'src/modules/calendar/common/standard-objects/calendar-channel-event-association.workspace-entity';
-
 export const buildCalendarChannelEventAssociationStandardFlatFieldMetadatas = ({
   now,
   objectName,
@@ -188,12 +185,6 @@ export const buildCalendarChannelEventAssociationStandardFlatFieldMetadatas = ({
       icon: 'IconUser',
       isSystem: true,
       isNullable: true,
-      settings: {
-        generatedType: 'STORED',
-        asExpression: getTsVectorColumnExpressionFromFields(
-          SEARCH_FIELDS_FOR_CALENDAR_CHANNEL_EVENT_ASSOCIATION,
-        ),
-      },
     },
     standardObjectMetadataRelatedEntityIds,
     dependencyFlatEntityMaps,

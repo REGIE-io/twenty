@@ -1,30 +1,48 @@
-import { verifyEnterpriseKey } from '@/lib/enterprise/enterprise-jwt';
-import { getStripeClient } from '@/lib/enterprise/stripe-client';
 import { NextResponse } from 'next/server';
+
+import {
+  getEnterpriseConfigError,
+  getStripeClient,
+  isBillableSeatReporter,
+  verifyEnterpriseKey,
+} from '@/platform/enterprise';
 
 export const dynamic = 'force-dynamic';
 
+const NON_UPDATABLE_STATUSES = new Set(['canceled', 'incomplete_expired']);
+
+type InstanceMetadata = {
+  serverId?: string;
+};
+
 export async function POST(request: Request) {
+  const configError = getEnterpriseConfigError({
+    route: 'enterprise-seats',
+    feature: 'Enterprise seat management',
+    requiredEnvVars: ['STRIPE_SECRET_KEY', 'ENTERPRISE_JWT_PUBLIC_KEY'],
+  });
+
+  if (configError) {
+    return configError;
+  }
+
   try {
-    const body = await request.json();
-    const { enterpriseKey, seatCount } = body;
+    const body = (await request.json()) as {
+      enterpriseKey?: unknown;
+      seatCount?: unknown;
+      instanceMetadata?: InstanceMetadata;
+    };
+    const { enterpriseKey, seatCount, instanceMetadata } = body;
 
     if (!enterpriseKey || typeof enterpriseKey !== 'string') {
       return NextResponse.json(
         { error: 'Missing enterpriseKey' },
-        {
-          status: 400,
-        },
+        { status: 400 },
       );
     }
 
     if (typeof seatCount !== 'number' || seatCount < 1) {
-      return NextResponse.json(
-        { error: 'Invalid seatCount' },
-        {
-          status: 400,
-        },
-      );
+      return NextResponse.json({ error: 'Invalid seatCount' }, { status: 400 });
     }
 
     const payload = verifyEnterpriseKey(enterpriseKey);
@@ -32,20 +50,31 @@ export async function POST(request: Request) {
     if (!payload) {
       return NextResponse.json(
         { error: 'Invalid enterprise key' },
-        {
-          status: 403,
-        },
+        { status: 403 },
       );
     }
 
     const stripe = getStripeClient();
-
     const subscription = await stripe.subscriptions.retrieve(payload.sub);
 
-    const NON_UPDATABLE_STATUSES = ['canceled', 'incomplete_expired'];
+    const serverId = instanceMetadata?.serverId;
 
     if (
-      NON_UPDATABLE_STATUSES.includes(subscription.status) ||
+      !isBillableSeatReporter({
+        stripeMetadata: subscription.metadata,
+        serverId,
+      })
+    ) {
+      return NextResponse.json({
+        success: false,
+        reason: 'This instance is not the billing instance for this key',
+        seatCount: subscription.items.data[0]?.quantity ?? 0,
+        subscriptionId: payload.sub,
+      });
+    }
+
+    if (
+      NON_UPDATABLE_STATUSES.has(subscription.status) ||
       subscription.cancel_at_period_end
     ) {
       return NextResponse.json({

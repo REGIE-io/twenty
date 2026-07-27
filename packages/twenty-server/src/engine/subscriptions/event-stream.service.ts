@@ -3,7 +3,6 @@ import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { isDefined } from 'twenty-shared/utils';
 
 import { type SerializableAuthContext } from 'src/engine/core-modules/auth/types/serializable-auth-context.type';
-import { CacheLockService } from 'src/engine/core-modules/cache-lock/cache-lock.service';
 import { WithLock } from 'src/engine/core-modules/cache-lock/with-lock.decorator';
 import { InjectCacheStorage } from 'src/engine/core-modules/cache-storage/decorators/cache-storage.decorator';
 import { CacheStorageService } from 'src/engine/core-modules/cache-storage/services/cache-storage.service';
@@ -19,14 +18,17 @@ import {
   type RecordOrMetadataGqlOperationSignature,
 } from 'src/engine/subscriptions/types/event-stream-data.type';
 
+const ACTIVE_STREAM_COUNT_REFRESH_MS = 5 * 60 * 1_000;
+
 @Injectable()
 export class EventStreamService implements OnModuleInit {
   private readonly logger = new Logger(EventStreamService.name);
+  private activeStreamCount = 0;
+  private activeStreamCountRefreshedAt = 0;
 
   constructor(
     @InjectCacheStorage(CacheStorageNamespace.EngineSubscriptions)
     private readonly cacheStorageService: CacheStorageService,
-    private readonly cacheLockService: CacheLockService,
     private readonly metricsService: MetricsService,
   ) {}
 
@@ -42,9 +44,19 @@ export class EventStreamService implements OnModuleInit {
   }
 
   async getTotalActiveStreamCount(): Promise<number> {
-    return this.cacheStorageService.scanAndCountSetMembers(
-      'workspace:*:activeStreams',
-    );
+    const now = Date.now();
+    const isStale =
+      now - this.activeStreamCountRefreshedAt >= ACTIVE_STREAM_COUNT_REFRESH_MS;
+
+    if (isStale) {
+      this.activeStreamCount =
+        await this.cacheStorageService.scanAndCountSetMembers(
+          'workspace:*:activeStreams',
+        );
+      this.activeStreamCountRefreshedAt = now;
+    }
+
+    return this.activeStreamCount;
   }
 
   async createEventStream({
@@ -76,15 +88,11 @@ export class EventStreamService implements OnModuleInit {
 
     await this.cacheStorageService.set(key, streamData, EVENT_STREAM_TTL_MS);
 
-    const activeStreamsKey = this.getActiveStreamsKey(workspaceId);
-
-    await this.cacheLockService.withLock(async () => {
-      await this.cacheStorageService.setAdd(
-        activeStreamsKey,
-        [eventStreamChannelId],
-        EVENT_STREAM_TTL_MS,
-      );
-    }, activeStreamsKey);
+    await this.cacheStorageService.setAdd(
+      this.getActiveStreamsKey(workspaceId),
+      [eventStreamChannelId],
+      EVENT_STREAM_TTL_MS,
+    );
   }
 
   async destroyEventStream({
@@ -98,13 +106,10 @@ export class EventStreamService implements OnModuleInit {
 
     await this.cacheStorageService.del(key);
 
-    const activeStreamsKey = this.getActiveStreamsKey(workspaceId);
-
-    await this.cacheLockService.withLock(async () => {
-      await this.cacheStorageService.setRemove(activeStreamsKey, [
-        eventStreamChannelId,
-      ]);
-    }, activeStreamsKey);
+    await this.cacheStorageService.setRemove(
+      this.getActiveStreamsKey(workspaceId),
+      [eventStreamChannelId],
+    );
   }
 
   async getActiveStreamIds(workspaceId: string): Promise<string[]> {
@@ -121,14 +126,10 @@ export class EventStreamService implements OnModuleInit {
       return;
     }
 
-    const activeStreamsKey = this.getActiveStreamsKey(workspaceId);
-
-    await this.cacheLockService.withLock(async () => {
-      await this.cacheStorageService.setRemove(
-        activeStreamsKey,
-        streamIdsToRemove,
-      );
-    }, activeStreamsKey);
+    await this.cacheStorageService.setRemove(
+      this.getActiveStreamsKey(workspaceId),
+      streamIdsToRemove,
+    );
   }
 
   async getStreamsData(

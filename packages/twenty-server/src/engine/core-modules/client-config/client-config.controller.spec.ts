@@ -5,6 +5,7 @@ import { SupportDriver } from 'src/engine/core-modules/twenty-config/interfaces/
 import { ClientConfigService } from 'src/engine/core-modules/client-config/services/client-config.service';
 import { ModelFamily } from 'src/engine/metadata-modules/ai/ai-models/types/model-family.enum';
 import { type ModelId } from 'src/engine/metadata-modules/ai/ai-models/types/model-id.type';
+import { ENTERPRISE_INSTANCE_TYPE } from 'twenty-shared/constants';
 
 import { ClientConfigController } from './client-config.controller';
 
@@ -68,6 +69,7 @@ describe('ClientConfigController', () => {
         isEmailVerificationRequired: false,
         defaultSubdomain: 'app',
         frontDomain: 'localhost',
+        publicFunctionDomain: null,
         support: {
           supportDriver: SupportDriver.NONE,
           supportFrontChatId: undefined,
@@ -83,6 +85,12 @@ describe('ClientConfigController', () => {
         },
         api: {
           mutationMaximumAffectedRecords: 100,
+        },
+        onboarding: {
+          importContactsCreditsReward: 2,
+          inviteTeamCreditsRewardPerUser: 3,
+          upgradeCreditsReward: 5,
+          installAppsCreditsRewardPerApp: 1,
         },
         isAttachmentPreviewEnabled: true,
         analyticsEnabled: false,
@@ -101,6 +109,7 @@ describe('ClientConfigController', () => {
         isCloudflareIntegrationEnabled: false,
         isClickHouseConfigured: false,
         isWorkspaceSchemaDDLLocked: false,
+        enterpriseInstanceType: ENTERPRISE_INSTANCE_TYPE.PRODUCTION,
       };
 
       jest

@@ -5,7 +5,6 @@ import {
 } from '@/advanced-text-editor/hooks/useAdvancedTextEditor';
 import { FormFieldInputContainer } from '@/object-record/record-field/ui/form-types/components/FormFieldInputContainer';
 import { type VariablePickerComponent } from '@/object-record/record-field/ui/form-types/types/VariablePickerComponent';
-import { InputErrorHelper } from '@/ui/input/components/InputErrorHelper';
 import { InputHint } from '@/ui/input/components/InputHint';
 import { InputLabel } from '@/ui/input/components/InputLabel';
 import { useFullScreenModal } from '@/ui/layout/fullscreen/hooks/useFullScreenModal';
@@ -37,7 +36,7 @@ const StyledAdvancedTextFieldFieldContainer = styled.div`
 const StyledAdvancedTextFieldInnerContainer = styled.div`
   background-color: ${themeCssVariables.background.transparent.lighter};
   border: 1px solid ${themeCssVariables.border.color.medium};
-  border-radius: ${themeCssVariables.border.radius.sm};
+  border-radius: ${themeCssVariables.border.radius.md};
   box-sizing: border-box;
 
   display: flex;
@@ -62,7 +61,7 @@ const StyledEditorActionButtonContainer = styled.div<{
 const StyledFullScreenEditorContainer = styled.div`
   background-color: ${themeCssVariables.background.secondary};
   border: 1px solid ${themeCssVariables.border.color.medium};
-  border-radius: ${themeCssVariables.border.radius.sm};
+  border-radius: ${themeCssVariables.border.radius.md};
   flex: 1;
   min-height: 0;
   overflow-y: auto;
@@ -243,7 +242,7 @@ export const FormAdvancedTextFieldInput = ({
             </StyledAdvancedTextFieldInnerContainer>
           </StyledAdvancedTextFieldFieldContainer>
           {hint && <InputHint>{hint}</InputHint>}
-          {error && <InputErrorHelper>{error}</InputErrorHelper>}
+          {error && <InputHint danger>{error}</InputHint>}
         </FormFieldInputContainer>
       </StyledAdvancedTextFieldContainerWrapper>
 

@@ -1,4 +1,4 @@
-import { playgroundApiKeyState } from '@/settings/playground/states/playgroundApiKeyState';
+import { playgroundApiKeyState } from '@/settings/mcp-and-apis/states/playgroundApiKeyState';
 import { jotaiStore } from '@/ui/utilities/state/jotai/jotaiStore';
 import { type Meta, type StoryObj } from '@storybook/react-vite';
 import { action } from 'storybook/actions';
@@ -12,6 +12,11 @@ import { graphqlMocks } from '~/testing/graphqlMocks';
 const meta: Meta<typeof SettingsRestPlayground> = {
   title: 'Pages/Settings/Playground/RestPlayground',
   component: SettingsRestPlayground,
+  // Scalar renders an embedded API reference that manipulates browser history
+  // and can reload the headless storybook test iframe. Exclude this
+  // 3rd-party-tool wrapper from the vitest run; it remains available in
+  // Storybook UI. (!test removes the auto-applied `test` tag.)
+  tags: ['!test'],
   decorators: [
     (Story) => {
       jotaiStore.set(playgroundApiKeyState.atom, {

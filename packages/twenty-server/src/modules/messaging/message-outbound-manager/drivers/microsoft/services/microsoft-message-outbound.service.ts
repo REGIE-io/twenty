@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 
 import { type MessageOutboundDriver } from 'src/modules/messaging/message-outbound-manager/interfaces/message-outbound-driver.interface';
 
@@ -12,6 +12,8 @@ import { isDefined } from 'twenty-shared/utils';
 
 @Injectable()
 export class MicrosoftMessageOutboundService implements MessageOutboundDriver {
+  private readonly logger = new Logger(MicrosoftMessageOutboundService.name);
+
   constructor(
     private readonly microsoftOAuth2ClientProvider: MicrosoftOAuth2ClientProvider,
   ) {}
@@ -48,6 +50,32 @@ export class MicrosoftMessageOutboundService implements MessageOutboundDriver {
     );
 
     await this.createDraftMessage(microsoftClient, sendMessageInput);
+  }
+
+  async sendDraft(
+    draftExternalId: string,
+    sendMessageInput: SendMessageInput,
+    connectedAccount: ConnectedAccountEntity,
+  ): Promise<SendMessageResult> {
+    const sendResult = await this.sendMessage(
+      sendMessageInput,
+      connectedAccount,
+    );
+
+    const microsoftClient = await this.microsoftOAuth2ClientProvider.getClient(
+      connectedAccount.id,
+    );
+
+    await microsoftClient
+      .api(`/me/messages/${draftExternalId}`)
+      .delete()
+      .catch((error) =>
+        this.logger.warn(
+          `Failed to delete Microsoft draft ${draftExternalId} after send: ${error}`,
+        ),
+      );
+
+    return sendResult;
   }
 
   private async createDraftMessage(
@@ -97,12 +125,13 @@ export class MicrosoftMessageOutboundService implements MessageOutboundDriver {
     microsoftClient: MicrosoftGraphClient,
     internetMessageId: string,
   ): Promise<string | undefined> {
-    const encodedId = encodeURIComponent(internetMessageId);
+    const escapedInternetMessageId = internetMessageId.split("'").join("''");
 
     const response = await microsoftClient
-      .api(
-        `/me/messages?$filter=internetMessageId eq '${encodedId}'&$select=id&$top=1`,
-      )
+      .api('/me/messages')
+      .filter(`internetMessageId eq '${escapedInternetMessageId}'`)
+      .select('id')
+      .top(1)
       .get();
 
     return response?.value?.[0]?.id;

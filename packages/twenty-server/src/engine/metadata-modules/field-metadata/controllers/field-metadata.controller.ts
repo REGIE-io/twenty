@@ -58,7 +58,6 @@ import { WorkspaceManyOrAllFlatEntityMapsCacheService } from 'src/engine/metadat
 import { fromFlatFieldMetadataToFieldMetadataDto } from 'src/engine/metadata-modules/flat-field-metadata/utils/from-flat-field-metadata-to-field-metadata-dto.util';
 import { computeUniqueFieldMetadataIdsFromFlatIndexMaps } from 'src/engine/metadata-modules/index-metadata/utils/compute-unique-field-metadata-ids-from-flat-index-maps.util';
 import { PermissionsRestApiExceptionFilter } from 'src/engine/metadata-modules/permissions/utils/permissions-rest-api-exception.filter';
-import { getTwentyStandardApplicationIdOrThrow } from 'src/engine/metadata-modules/utils/get-twenty-standard-application-id-or-throw.util';
 
 @Controller('rest/metadata/fields')
 @UseGuards(
@@ -92,17 +91,6 @@ export class FieldMetadataController {
     return computeUniqueFieldMetadataIdsFromFlatIndexMaps(flatIndexMaps);
   }
 
-  private async loadStandardApplicationId(
-    workspaceId: string,
-  ): Promise<string> {
-    const { flatApplicationMaps } =
-      await this.flatEntityMapsCacheService.getOrRecomputeManyOrAllFlatEntityMaps(
-        { workspaceId, flatMapsKeys: ['flatApplicationMaps'] },
-      );
-
-    return getTwentyStandardApplicationIdOrThrow(flatApplicationMaps);
-  }
-
   @Get()
   async findMany(
     @Req() request: AuthenticatedRequest,
@@ -116,10 +104,8 @@ export class FieldMetadataController {
       endingBefore: parseEndingBeforeRestRequest(request),
     });
 
-    const [uniqueFieldMetadataIds, standardApplicationId] = await Promise.all([
-      this.loadUniqueFieldMetadataIds(workspaceId),
-      this.loadStandardApplicationId(workspaceId),
-    ]);
+    const uniqueFieldMetadataIds =
+      await this.loadUniqueFieldMetadataIds(workspaceId);
 
     const result: {
       data: FieldMetadataDTO[];
@@ -127,11 +113,7 @@ export class FieldMetadataController {
       totalCount: number;
     } = {
       data: items.map((item) =>
-        fromFieldMetadataEntityToFieldMetadataDto(
-          item,
-          standardApplicationId,
-          uniqueFieldMetadataIds,
-        ),
+        fromFieldMetadataEntityToFieldMetadataDto(item, uniqueFieldMetadataIds),
       ),
       pageInfo,
       totalCount,
@@ -158,13 +140,10 @@ export class FieldMetadataController {
       );
     }
 
-    const [uniqueFieldMetadataIds, standardApplicationId] = await Promise.all([
-      this.loadUniqueFieldMetadataIds(workspaceId),
-      this.loadStandardApplicationId(workspaceId),
-    ]);
+    const uniqueFieldMetadataIds =
+      await this.loadUniqueFieldMetadataIds(workspaceId);
     const result = fromFieldMetadataEntityToFieldMetadataDto(
       field,
-      standardApplicationId,
       uniqueFieldMetadataIds,
     );
 

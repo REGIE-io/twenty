@@ -20,6 +20,7 @@ import { BillingSubscriptionEntity } from 'src/engine/core-modules/billing/entit
 import { BillingPlanKey } from 'src/engine/core-modules/billing/enums/billing-plan-key.enum';
 import { BillingProductKey } from 'src/engine/core-modules/billing/enums/billing-product-key.enum';
 import { SubscriptionInterval } from 'src/engine/core-modules/billing/enums/billing-subscription-interval.enum';
+import { SubscriptionStatus } from 'src/engine/core-modules/billing/enums/billing-subscription-status.enum';
 import { BillingPriceService } from 'src/engine/core-modules/billing/services/billing-price.service';
 import { BillingProductService } from 'src/engine/core-modules/billing/services/billing-product.service';
 import { BillingSubscriptionPhaseService } from 'src/engine/core-modules/billing/services/billing-subscription-phase.service';
@@ -270,8 +271,13 @@ export class BillingSubscriptionUpdateService {
         });
       }
     } else {
-      const subscriptionOptions =
-        computeSubscriptionUpdateOptions(subscriptionUpdate);
+      const subscriptionOptions = computeSubscriptionUpdateOptions(
+        subscriptionUpdate,
+        {
+          currentSeats: licensedItem.quantity,
+          isTrialing: subscription.status === SubscriptionStatus.Trialing,
+        },
+      );
 
       if (
         subscriptionUpdate.type === SubscriptionUpdateType.RESOURCE_CREDIT_PRICE
@@ -523,6 +529,14 @@ export class BillingSubscriptionUpdateService {
     subscription: BillingSubscriptionEntity,
     update: SubscriptionUpdate,
   ): Promise<boolean> {
+    if (
+      subscription.status === SubscriptionStatus.Trialing &&
+      (update.type === SubscriptionUpdateType.INTERVAL ||
+        update.type === SubscriptionUpdateType.PLAN)
+    ) {
+      return false;
+    }
+
     switch (update.type) {
       case SubscriptionUpdateType.PLAN: {
         const currentPlan =

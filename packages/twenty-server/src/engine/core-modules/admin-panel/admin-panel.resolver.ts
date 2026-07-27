@@ -50,8 +50,15 @@ import { AdminPanelVersionService } from 'src/engine/core-modules/admin-panel/se
 import { ApplicationRegistrationVariableDTO } from 'src/engine/core-modules/application/application-registration-variable/dtos/application-registration-variable.dto';
 import { ApplicationRegistrationVariableService } from 'src/engine/core-modules/application/application-registration-variable/application-registration-variable.service';
 import { UpdateApplicationRegistrationVariableInput } from 'src/engine/core-modules/application/application-registration-variable/dtos/update-application-registration-variable.input';
+import { ApplicationRegistrationClaimService } from 'src/engine/core-modules/application/application-registration/application-registration-claim.service';
 import { ApplicationRegistrationEntity } from 'src/engine/core-modules/application/application-registration/application-registration.entity';
 import { ApplicationRegistrationService } from 'src/engine/core-modules/application/application-registration/application-registration.service';
+import { AdminApplicationRegistrationClaimDTO } from 'src/engine/core-modules/application/application-registration/dtos/admin-application-registration-claim.dto';
+import { ApplicationRegistrationInstalledWorkspacesDTO } from 'src/engine/core-modules/application/application-registration/dtos/application-registration-installed-workspaces.dto';
+import { ApplicationRegistrationStatsDTO } from 'src/engine/core-modules/application/application-registration/dtos/application-registration-stats.dto';
+import { FindApplicationRegistrationInstalledWorkspacesInput } from 'src/engine/core-modules/application/application-registration/dtos/find-application-registration-installed-workspaces.input';
+import { PaginatedApplicationRegistrationsDTO } from 'src/engine/core-modules/application/application-registration/dtos/paginated-application-registrations.dto';
+import { UpdateApplicationRegistrationInput } from 'src/engine/core-modules/application/application-registration/dtos/update-application-registration.input';
 import { AuthGraphqlApiExceptionFilter } from 'src/engine/core-modules/auth/filters/auth-graphql-api-exception.filter';
 import { type AuthContextUser } from 'src/engine/core-modules/auth/types/auth-context.type';
 import { AdminAiModelsDTO } from 'src/engine/core-modules/client-config/client-config.entity';
@@ -60,7 +67,10 @@ import { FeatureFlagService } from 'src/engine/core-modules/feature-flag/service
 import { PreventNestToAutoLogGraphqlErrorsFilter } from 'src/engine/core-modules/graphql/filters/prevent-nest-to-auto-log-graphql-errors.filter';
 import { ResolverValidationPipe } from 'src/engine/core-modules/graphql/pipes/resolver-validation.pipe';
 import { UserInputError } from 'src/engine/core-modules/graphql/utils/graphql-errors.util';
-import { type MessageQueue } from 'src/engine/core-modules/message-queue/message-queue.constants';
+import { MarketplaceCatalogSyncCronJob } from 'src/engine/core-modules/application/application-marketplace/crons/marketplace-catalog-sync.cron.job';
+import { InjectMessageQueue } from 'src/engine/core-modules/message-queue/decorators/message-queue.decorator';
+import { MessageQueue } from 'src/engine/core-modules/message-queue/message-queue.constants';
+import { MessageQueueService } from 'src/engine/core-modules/message-queue/services/message-queue.service';
 import { type ConfigVariables } from 'src/engine/core-modules/twenty-config/config-variables';
 import { ConfigVariableGraphqlApiExceptionFilter } from 'src/engine/core-modules/twenty-config/filters/config-variable-graphql-api-exception.filter';
 import { TwentyConfigService } from 'src/engine/core-modules/twenty-config/twenty-config.service';
@@ -119,6 +129,7 @@ export class AdminPanelResolver {
     private readonly adminPanelHealthService: AdminPanelHealthService,
     private readonly adminPanelSigningKeyService: AdminPanelSigningKeyService,
     private readonly applicationRegistrationService: ApplicationRegistrationService,
+    private readonly applicationRegistrationClaimService: ApplicationRegistrationClaimService,
     private readonly applicationRegistrationVariableService: ApplicationRegistrationVariableService,
     private adminPanelQueueService: AdminPanelQueueService,
     private featureFlagService: FeatureFlagService,
@@ -132,6 +143,8 @@ export class AdminPanelResolver {
     private readonly upgradeStatusService: UpgradeStatusService,
     @InjectRepository(WorkspaceEntity)
     private readonly workspaceRepository: Repository<WorkspaceEntity>,
+    @InjectMessageQueue(MessageQueue.cronQueue)
+    private readonly cronQueueService: MessageQueueService,
   ) {}
 
   @UseGuards(AdminPanelOrImpersonateGuard)
@@ -463,11 +476,53 @@ export class AdminPanelResolver {
   }
 
   @UseGuards(AdminPanelGuard)
-  @Query(() => [ApplicationRegistrationEntity])
-  async findAllApplicationRegistrations(): Promise<
-    ApplicationRegistrationEntity[]
-  > {
-    return this.applicationRegistrationService.findAll();
+  @Query(() => PaginatedApplicationRegistrationsDTO)
+  async findAllApplicationRegistrations(
+    @Args('limit', { type: () => Int, nullable: true, defaultValue: 25 })
+    limit: number,
+    @Args('offset', { type: () => Int, nullable: true, defaultValue: 0 })
+    offset: number,
+    @Args('searchTerm', { type: () => String, nullable: true })
+    searchTerm?: string,
+    @Args('isPreInstalledOnly', { type: () => Boolean, nullable: true })
+    isPreInstalledOnly?: boolean,
+  ): Promise<PaginatedApplicationRegistrationsDTO> {
+    return this.applicationRegistrationService.findAll({
+      limit,
+      offset,
+      searchTerm,
+      isPreInstalledOnly,
+    });
+  }
+
+  @UseGuards(AdminPanelGuard)
+  @Mutation(() => Boolean)
+  async syncMarketplaceCatalog(): Promise<boolean> {
+    await this.cronQueueService.add(
+      MarketplaceCatalogSyncCronJob.name,
+      {},
+      { id: 'marketplace-catalog-sync' }, // Avoids triggering multiple pending jobs
+    );
+
+    return true;
+  }
+
+  @UseGuards(AdminPanelGuard)
+  @Query(() => [AdminApplicationRegistrationClaimDTO])
+  async findAdminApplicationRegistrationClaims(
+    @Args('applicationRegistrationId') applicationRegistrationId: string,
+  ): Promise<AdminApplicationRegistrationClaimDTO[]> {
+    return this.applicationRegistrationClaimService.findClaimsForRegistration(
+      applicationRegistrationId,
+    );
+  }
+
+  @UseGuards(AdminPanelGuard)
+  @Mutation(() => ApplicationRegistrationEntity)
+  async updateAdminApplicationRegistration(
+    @Args('input') input: UpdateApplicationRegistrationInput,
+  ): Promise<ApplicationRegistrationEntity> {
+    return this.applicationRegistrationService.updateGlobal(input);
   }
 
   @UseGuards(AdminPanelGuard)
@@ -757,6 +812,33 @@ export class AdminPanelResolver {
   ): Promise<ApplicationRegistrationVariableDTO[]> {
     return this.applicationRegistrationVariableService.findVariablesWithObfuscatedValuesGlobal(
       applicationRegistrationId,
+    );
+  }
+
+  @UseGuards(AdminPanelGuard)
+  @Query(() => ApplicationRegistrationStatsDTO)
+  async findAdminApplicationRegistrationStats(
+    @Args('id') id: string,
+  ): Promise<ApplicationRegistrationStatsDTO> {
+    return this.applicationRegistrationService.getStatsGlobal(id);
+  }
+
+  @UseGuards(AdminPanelGuard)
+  @Query(() => ApplicationRegistrationInstalledWorkspacesDTO)
+  async findAdminApplicationRegistrationInstalledWorkspaces(
+    @Args('input')
+    {
+      id,
+      limit,
+      offset,
+      searchTerm,
+    }: FindApplicationRegistrationInstalledWorkspacesInput,
+  ): Promise<ApplicationRegistrationInstalledWorkspacesDTO> {
+    return this.applicationRegistrationService.getInstalledWorkspacesGlobal(
+      id,
+      limit,
+      offset,
+      searchTerm,
     );
   }
 

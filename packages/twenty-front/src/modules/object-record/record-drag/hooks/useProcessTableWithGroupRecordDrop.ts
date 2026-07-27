@@ -1,13 +1,14 @@
-import { type DropResult } from '@hello-pangea/dnd';
 import { useStore } from 'jotai';
 import { useCallback } from 'react';
 import { isDefined } from 'twenty-shared/utils';
 
 import { useUpdateOneRecord } from '@/object-record/hooks/useUpdateOneRecord';
 import { isDraggingRecordComponentState } from '@/object-record/record-drag/states/isDraggingRecordComponentState';
+import { type RecordDragDropResult } from '@/object-record/record-drag/types/RecordDragDropResult';
 import { originalDragSelectionComponentState } from '@/object-record/record-drag/states/originalDragSelectionComponentState';
 import { processGroupDrop } from '@/object-record/record-drag/utils/processGroupDrop';
 import { recordGroupDefinitionFamilyState } from '@/object-record/record-group/states/recordGroupDefinitionFamilyState';
+import { getFieldMetadataItemGqlFieldName } from '@/object-metadata/utils/getFieldMetadataItemGqlFieldName';
 import { RECORD_INDEX_REMOVE_SORTING_MODAL_ID } from '@/object-record/record-index/constants/RecordIndexRemoveSortingModalId';
 import { recordIndexGroupFieldMetadataItemComponentState } from '@/object-record/record-index/states/recordIndexGroupFieldMetadataComponentState';
 import { recordIndexRecordIdsByGroupComponentFamilyState } from '@/object-record/record-index/states/recordIndexRecordIdsByGroupComponentFamilyState';
@@ -60,7 +61,7 @@ export const useProcessTableWithGroupRecordDrop = () => {
   );
 
   const processTableWithGroupRecordDrop = useCallback(
-    (result: DropResult) => {
+    (result: RecordDragDropResult) => {
       if (!result.destination) return;
 
       const destinationRecordGroupId = result.destination.droppableId;
@@ -80,6 +81,9 @@ export const useProcessTableWithGroupRecordDrop = () => {
         throw new Error('Field metadata is not defined');
       }
 
+      const recordGroupColumnName =
+        getFieldMetadataItemGqlFieldName(fieldMetadata);
+
       const existingOriginalDragSelection = store.get(originalDragSelection);
 
       const isCurrentlyDraggingRecord = store.get(isDraggingRecord);
@@ -96,7 +100,9 @@ export const useProcessTableWithGroupRecordDrop = () => {
       }
 
       processGroupDrop({
-        groupDropResult: result,
+        droppableId: destinationRecordGroupId,
+        draggableId: result.draggableId,
+        targetIndex: result.destination.index,
         store,
         selectedRecordIds,
         recordIdsByGroupFamilyState,
@@ -106,7 +112,7 @@ export const useProcessTableWithGroupRecordDrop = () => {
             idToUpdate: recordId,
             updateOneRecordInput: {
               position,
-              [fieldMetadata.name]: destinationRecordGroup.value,
+              [recordGroupColumnName]: destinationRecordGroup.value,
             },
           });
         },

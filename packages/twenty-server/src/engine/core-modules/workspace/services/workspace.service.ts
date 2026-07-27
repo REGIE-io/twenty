@@ -4,11 +4,18 @@ import { InjectDataSource, InjectRepository } from '@nestjs/typeorm';
 import assert from 'assert';
 
 import { msg } from '@lingui/core/macro';
-import { TypeOrmQueryService } from '@ptc-org/nestjs-query-typeorm';
 import { PermissionFlagType } from 'twenty-shared/constants';
 import { assertIsDefinedOrThrow, isDefined } from 'twenty-shared/utils';
 import { WorkspaceActivationStatus } from 'twenty-shared/workspace';
-import { DataSource, LessThan, QueryRunner, Repository } from 'typeorm';
+import {
+  DataSource,
+  In,
+  IsNull,
+  LessThan,
+  Not,
+  QueryRunner,
+  Repository,
+} from 'typeorm';
 
 import { CoreEntityCacheService } from 'src/engine/core-entity-cache/services/core-entity-cache.service';
 import { ApiKeyEntity } from 'src/engine/core-modules/api-key/api-key.entity';
@@ -72,7 +79,7 @@ const WORKSPACE_ACTIVATION_STALE_LOCK_TIMEOUT_MS = 5 * 60 * 1000;
 
 @Injectable()
 // oxlint-disable-next-line twenty/inject-workspace-repository
-export class WorkspaceService extends TypeOrmQueryService<WorkspaceEntity> {
+export class WorkspaceService {
   protected readonly logger = new Logger(WorkspaceService.name);
 
   private readonly WORKSPACE_FIELD_PERMISSIONS: Record<
@@ -87,6 +94,7 @@ export class WorkspaceService extends TypeOrmQueryService<WorkspaceEntity> {
     eventLogRetentionDays: PermissionFlagType.SECURITY,
     inviteHash: PermissionFlagType.WORKSPACE_MEMBERS,
     isPublicInviteLinkEnabled: PermissionFlagType.SECURITY,
+    workspaceDiscoverability: PermissionFlagType.SECURITY,
     allowImpersonation: PermissionFlagType.SECURITY,
     isGoogleAuthEnabled: PermissionFlagType.SECURITY,
     isMicrosoftAuthEnabled: PermissionFlagType.SECURITY,
@@ -134,9 +142,7 @@ export class WorkspaceService extends TypeOrmQueryService<WorkspaceEntity> {
     private readonly upgradeMigrationService: UpgradeMigrationService,
     private readonly upgradeSequenceReaderService: UpgradeSequenceReaderService,
     private readonly sdkClientGenerationService: SdkClientGenerationService,
-  ) {
-    super(workspaceRepository);
-  }
+  ) {}
 
   async updateWorkspaceById({
     payload,
@@ -354,7 +360,10 @@ export class WorkspaceService extends TypeOrmQueryService<WorkspaceEntity> {
       });
 
       if (
-        existingWorkspace?.activationStatus === WorkspaceActivationStatus.ACTIVE
+        existingWorkspace?.activationStatus ===
+          WorkspaceActivationStatus.ACTIVE ||
+        existingWorkspace?.activationStatus ===
+          WorkspaceActivationStatus.CREATED
       ) {
         return existingWorkspace;
       }
@@ -436,6 +445,9 @@ export class WorkspaceService extends TypeOrmQueryService<WorkspaceEntity> {
     const executedByVersion =
       this.twentyConfigService.get('APP_VERSION') ?? 'unknown';
 
+    const hasWorkspaceAnySubscription =
+      await this.billingService.hasWorkspaceAnySubscription(workspaceId);
+
     const queryRunner = this.coreDataSource.createQueryRunner();
 
     await queryRunner.connect();
@@ -443,7 +455,9 @@ export class WorkspaceService extends TypeOrmQueryService<WorkspaceEntity> {
 
     try {
       await queryRunner.manager.update(WorkspaceEntity, workspaceId, {
-        activationStatus: WorkspaceActivationStatus.ACTIVE,
+        activationStatus: hasWorkspaceAnySubscription
+          ? WorkspaceActivationStatus.ACTIVE
+          : WorkspaceActivationStatus.CREATED,
       });
 
       await this.upgradeMigrationService.markAsWorkspaceInitial({
@@ -463,11 +477,51 @@ export class WorkspaceService extends TypeOrmQueryService<WorkspaceEntity> {
     }
   }
 
-  async suspendWorkspace(id: string) {
-    await this.workspaceRepository.update(id, {
-      activationStatus: WorkspaceActivationStatus.SUSPENDED,
-      suspendedAt: new Date(),
-    });
+  async suspendWorkspace(id: string): Promise<boolean> {
+    const { affected } = await this.workspaceRepository.update(
+      {
+        id,
+        activationStatus: Not(WorkspaceActivationStatus.SUSPENDED),
+        deletedAt: IsNull(),
+      },
+      {
+        activationStatus: WorkspaceActivationStatus.SUSPENDED,
+        suspendedAt: new Date(),
+      },
+    );
+
+    const hasBeenSuspended = isDefined(affected) && affected > 0;
+
+    if (hasBeenSuspended) {
+      await this.coreEntityCacheService.invalidate('workspaceEntity', id);
+    }
+
+    return hasBeenSuspended;
+  }
+
+  async reactivateWorkspace(id: string): Promise<boolean> {
+    const { affected } = await this.workspaceRepository.update(
+      {
+        id,
+        activationStatus: In([
+          WorkspaceActivationStatus.SUSPENDED,
+          WorkspaceActivationStatus.CREATED,
+        ]),
+        deletedAt: IsNull(),
+      },
+      {
+        activationStatus: WorkspaceActivationStatus.ACTIVE,
+        suspendedAt: null,
+      },
+    );
+
+    const hasBeenReactivated = isDefined(affected) && affected > 0;
+
+    if (hasBeenReactivated) {
+      await this.coreEntityCacheService.invalidate('workspaceEntity', id);
+    }
+
+    return hasBeenReactivated;
   }
 
   async deleteWorkspace(id: string, softDelete = false) {
@@ -519,10 +573,7 @@ export class WorkspaceService extends TypeOrmQueryService<WorkspaceEntity> {
 
     await this.workspaceDataSourceService.deleteWorkspaceDBSchema(workspace.id);
 
-    await this.workspaceCacheStorageService.flush(
-      workspace.id,
-      workspace.metadataVersion,
-    );
+    await this.workspaceCacheStorageService.flush(workspace.id);
     await this.flatEntityMapsCacheService.flushFlatEntityMaps({
       workspaceId: workspace.id,
     });

@@ -36,10 +36,13 @@ export const fromViewManifestToUniversalFlatView = ({
     calendarLayout: viewManifest.calendarLayout ?? null,
     calendarFieldMetadataUniversalIdentifier:
       viewManifest.calendarFieldMetadataUniversalIdentifier ?? null,
+    calendarEndFieldMetadataUniversalIdentifier:
+      viewManifest.calendarEndFieldMetadataUniversalIdentifier ?? null,
     mainGroupByFieldMetadataUniversalIdentifier:
       viewManifest.mainGroupByFieldMetadataUniversalIdentifier ?? null,
     shouldHideEmptyGroups: viewManifest.shouldHideEmptyGroups ?? false,
-    anyFieldFilterValue: null,
+    kanbanColumnWidth: viewManifest.kanbanColumnWidth ?? null,
+    anyFieldFilterValue: viewManifest.anyFieldFilterValue ?? null,
     createdByUserWorkspaceId: null,
     isActive: true,
     isSystemSideEffect: false,

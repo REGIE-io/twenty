@@ -1,7 +1,7 @@
 ---
 title: Éléments de menu de navigation
 description: Ajoutez des entrées personnalisées à la barre latérale de l’espace de travail — des liens vers des vues enregistrées ou des URL externes.
-icon: barres
+icon: bars
 ---
 
 Un **élément de menu de navigation** est une entrée dans la barre latérale gauche. Utilisez `defineNavigationMenuItem()` pour ajouter des liens personnalisés dans la barre latérale — généralement un par [vue](/l/fr/developers/extend/apps/layout/views) — ou pour pointer vers des URL externes.
@@ -34,6 +34,8 @@ export default defineNavigationMenuItem({
   | `NavigationMenuItemType.PAGE_LAYOUT` | Ouvre une mise en page autonome                    | `pageLayoutUniversalIdentifier`                                                            |
 
 * `position` contrôle l’ordre dans la barre latérale.
+
+* L’énumération contient également `NavigationMenuItemType.RECORD`, utilisé en interne pour les favoris d’enregistrements créés par l’utilisateur — il n’est pas utilisable depuis un manifeste d’application (il n’existe aucun champ pour référencer un enregistrement).
 
 * `icon` et `color` sont facultatifs et personnalisent l’apparence de l’entrée.
 

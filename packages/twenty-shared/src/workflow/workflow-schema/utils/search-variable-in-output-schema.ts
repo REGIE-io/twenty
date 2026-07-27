@@ -1,6 +1,6 @@
+import { FieldMetadataType } from '@/types/FieldMetadataType';
 import { isDefined } from '@/utils';
 import { isObject } from 'class-validator';
-import { FieldMetadataType } from '@/types/FieldMetadataType';
 
 import { CAPTURE_ALL_VARIABLE_TAG_INNER_REGEX } from '../../constants/CaptureAllVariableTagInnerRegex';
 import { parseVariablePath } from '../../utils/variable-path.util';
@@ -16,6 +16,7 @@ import {
   type RecordOutputSchemaV2,
   type VariableSearchResult,
 } from '../types/output-schema.type';
+import { isFlattenedArrayOutputSchema } from './flattened-array-output-schema';
 
 const EMPTY_RESULT: VariableSearchResult = {
   variableLabel: undefined,
@@ -27,6 +28,7 @@ const RECORD_STEP_TYPES = [
   'UPDATE_RECORD',
   'DELETE_RECORD',
   'UPSERT_RECORD',
+  'PICK_RECORD',
 ];
 
 const isRecordOutputSchemaV2 = (
@@ -487,6 +489,19 @@ const searchThroughCodeOutputSchema = ({
     codeOutputSchema._outputSchemaType === 'LINK'
   ) {
     return EMPTY_RESULT;
+  }
+
+  const parts = parseVariablePath(stripBrackets(rawVariableName));
+
+  if (
+    parts.length === 1 &&
+    isFlattenedArrayOutputSchema(codeOutputSchema as BaseOutputSchemaV2)
+  ) {
+    return {
+      variableLabel: stepName,
+      variablePathLabel: stepName,
+      variableType: FieldMetadataType.ARRAY,
+    };
   }
 
   return searchThroughBaseOutputSchema({
