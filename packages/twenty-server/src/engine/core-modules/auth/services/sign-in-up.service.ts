@@ -550,6 +550,7 @@ export class SignInUpService {
       displayName?: string;
       subdomain?: string;
       shouldBypassWorkspaceCreationChecks?: boolean;
+      shouldRecordDpaAcceptance?: boolean;
     },
   ) {
     const email =
@@ -702,6 +703,7 @@ export class SignInUpService {
           // workspace creation so we can later prove what was agreed. (Billing
           // is an independent feature flag and must not be used to detect cloud.)
           if (
+            options?.shouldRecordDpaAcceptance !== false &&
             this.twentyConfigService.get('IS_MULTIWORKSPACE_ENABLED') === true
           ) {
             await queryRunner.manager.save(
