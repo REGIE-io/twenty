@@ -21,6 +21,9 @@ import { type UniversalFlatIndexFieldMetadata } from 'src/engine/workspace-manag
 export type CreateStandardIndexOptions<O extends AllStandardObjectName> = {
   indexName: AllStandardObjectIndexName<O>;
   relatedFieldNames: AllStandardObjectFieldName<O>[];
+  subFieldNamesByFieldName?: Partial<
+    Record<AllStandardObjectFieldName<O>, string>
+  >;
   hasDeterministicUniversalIdentifier?: boolean;
 } & Partial<
   Pick<FlatIndexMetadata, 'indexType' | 'indexWhereClause' | 'isUnique'>
@@ -101,7 +104,7 @@ export const createStandardIndexFlatMetadata = <
     indexFields: flatFieldMetadatas.map((flatFieldMetadata, index) => ({
       order: index,
       fieldMetadataUniversalIdentifier: flatFieldMetadata.universalIdentifier,
-      subFieldName: null,
+      subFieldName: relatedSubFieldNames[index] ?? null,
     })),
     isUnique,
     indexWhereClause,
@@ -134,7 +137,7 @@ export const createStandardIndexFlatMetadata = <
         ({ universalIdentifier: fieldMetadataUniversalIdentifier }, index) => ({
           createdAt: now,
           order: index,
-          subFieldName: null,
+          subFieldName: relatedSubFieldNames[index] ?? null,
           updatedAt: now,
           fieldMetadataUniversalIdentifier,
           indexMetadataUniversalIdentifier: universalIdentifier,

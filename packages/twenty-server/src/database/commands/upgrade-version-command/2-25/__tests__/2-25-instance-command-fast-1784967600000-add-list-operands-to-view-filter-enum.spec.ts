@@ -1,6 +1,6 @@
 import { type QueryRunner } from 'typeorm';
 
-import { AddListOperandsToViewFilterEnumFastInstanceCommand } from 'src/database/commands/upgrade-version-command/2-15/2-15-instance-command-fast-1784967600000-add-list-operands-to-view-filter-enum';
+import { AddListOperandsToViewFilterEnumFastInstanceCommand } from 'src/database/commands/upgrade-version-command/2-25/2-25-instance-command-fast-1784967600000-add-list-operands-to-view-filter-enum';
 
 describe('AddListOperandsToViewFilterEnumFastInstanceCommand', () => {
   it('adds both list operands idempotently and leaves rollback as a no-op', async () => {
