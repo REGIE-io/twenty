@@ -25,7 +25,6 @@ export const messagingGetMessagesServiceGetMessages = [
       },
     ],
     attachments: [],
-    isDraft: false,
   },
   {
     externalId: 'AA-work-emails-external',
@@ -48,7 +47,6 @@ export const messagingGetMessagesServiceGetMessages = [
       },
     ],
     attachments: [],
-    isDraft: false,
   },
   {
     externalId: 'AA-personal-emails',
@@ -71,6 +69,5 @@ export const messagingGetMessagesServiceGetMessages = [
       },
     ],
     attachments: [],
-    isDraft: false,
   },
 ] satisfies MessageWithParticipants[];

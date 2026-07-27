@@ -49,8 +49,10 @@ export const enrichCommandMenuItemEventWithResolvedNavigation = ({
   }
 
   const context = buildNavigationInterpolationContext({
-    objectMetadata: flatObjectMetadata,
-    isStandardApp: belongsToTwentyStandardApp(flatObjectMetadata),
+    objectMetadata: {
+      ...flatObjectMetadata,
+      isCustom: !belongsToTwentyStandardApp(flatObjectMetadata),
+    },
     locale,
     i18nInstance,
   });

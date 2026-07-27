@@ -16,7 +16,7 @@ export class MicrosoftCalendarImportEventsService {
 
   public async getCalendarEvents(
     connectedAccount: Pick<ConnectedAccountEntity, 'provider' | 'id'>,
-    eventExternalIds: string[],
+    changedEventIds: string[],
   ): Promise<FetchedCalendarEvent[]> {
     try {
       const microsoftClient =
@@ -24,10 +24,9 @@ export class MicrosoftCalendarImportEventsService {
 
       const events: Event[] = [];
 
-      for (const eventExternalId of eventExternalIds) {
+      for (const changedEventId of changedEventIds) {
         const event = await microsoftClient
-          .api(`/me/calendar/events/${eventExternalId}`)
-          .header('Prefer', 'outlook.body-content-type="text"')
+          .api(`/me/calendar/events/${changedEventId}`)
           .get();
 
         events.push(event);

@@ -53,7 +53,6 @@ export {
   IconBrandLinkedin,
   IconBrandNpm,
   IconBrandOpenai,
-  IconBrandWhatsapp,
   IconBrandX,
   IconBriefcase,
   IconBroadcast,
@@ -102,7 +101,6 @@ export {
   IconColumnInsertRight,
   IconColumns,
   IconCommand,
-  IconMessageCircle,
   IconMessageCircle as IconComment,
   IconCopy,
   IconCopyPlus,
@@ -432,7 +430,6 @@ export {
   IconWebhook,
   IconWindow,
   IconWorld,
-  IconWorldWww,
   IconX,
 } from '@tabler/icons-react';
 

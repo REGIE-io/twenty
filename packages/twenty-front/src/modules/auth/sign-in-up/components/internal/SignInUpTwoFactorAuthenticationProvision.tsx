@@ -4,15 +4,10 @@ import {
   SignInUpStep,
   signInUpStepState,
 } from '@/auth/states/signInUpStepState';
-import {
-  StyledTwoFactorInstructions,
-  StyledTwoFactorMainContent,
-} from '@/auth/sign-in-up/components/internal/SignInUpTwoFactorAuthenticationStyles';
-import { ONBOARDING_CONTENT_BLOCK_WIDTH } from '@/onboarding/constants/OnboardingContentBlockWidth';
 import { extractSecretFromOtpUri } from '@/settings/two-factor-authentication/utils/extractSecretFromOtpUri';
 import { styled } from '@linaria/react';
 import { Trans, useLingui } from '@lingui/react/macro';
-import QRCodeModule from 'react-qr-code';
+import QRCode from 'react-qr-code';
 import { useSetAtomState } from '@/ui/utilities/state/jotai/hooks/useSetAtomState';
 import { IconCopy } from 'twenty-ui/icon';
 import { Loader } from 'twenty-ui/feedback';
@@ -20,17 +15,38 @@ import { MainButton } from 'twenty-ui/input';
 import { useContext } from 'react';
 import { ThemeContext, themeCssVariables } from 'twenty-ui/theme-constants';
 import { useAtomStateValue } from '@/ui/utilities/state/jotai/hooks/useAtomStateValue';
-import { resolveCjsModuleDefaultExport } from '~/utils/resolveCjsModuleDefaultExport';
 import { useCopyToClipboard } from '~/hooks/useCopyToClipboard';
 
-const QRCode = resolveCjsModuleDefaultExport(QRCodeModule);
+const StyledMainContentContainer = styled.div`
+  margin-bottom: ${themeCssVariables.spacing[8]};
+  margin-top: ${themeCssVariables.spacing[4]};
+  text-align: center;
+`;
+
+const StyledTextContainer = styled.div`
+  align-items: center;
+  color: ${themeCssVariables.font.color.tertiary};
+  font-size: ${themeCssVariables.font.size.sm};
+
+  margin-bottom: ${themeCssVariables.spacing[4]};
+  max-width: 280px;
+  text-align: center;
+
+  & > a {
+    color: ${themeCssVariables.font.color.tertiary};
+    text-decoration: none;
+
+    &:hover {
+      text-decoration: underline;
+    }
+  }
+`;
 
 const StyledForm = styled.div`
   align-items: center;
   display: flex;
   flex-direction: column;
-  max-width: 100%;
-  width: ${ONBOARDING_CONTENT_BLOCK_WIDTH}px;
+  width: 100%;
 `;
 
 const StyledCopySetupKeyLink = styled.button`
@@ -75,13 +91,13 @@ export const SignInUpTwoFactorAuthenticationProvision = () => {
     <>
       <TwoFactorAuthenticationSetupEffect />
       <StyledForm>
-        <StyledTwoFactorInstructions>
+        <StyledTextContainer>
           <Trans>
             Use authenticator apps and browser extensions like 1Password, Authy,
             Microsoft Authenticator to generate one-time passwords
           </Trans>
-        </StyledTwoFactorInstructions>
-        <StyledTwoFactorMainContent>
+        </StyledTextContainer>
+        <StyledMainContentContainer>
           {!qrCode ? <Loader /> : <QRCode value={qrCode} />}
           {qrCode && (
             <StyledCopySetupKeyLink onClick={handleCopySetupKey}>
@@ -89,7 +105,7 @@ export const SignInUpTwoFactorAuthenticationProvision = () => {
               <Trans>Copy Setup Key</Trans>
             </StyledCopySetupKeyLink>
           )}
-        </StyledTwoFactorMainContent>
+        </StyledMainContentContainer>
         <MainButton
           title={t`Next`}
           onClick={handleClick}

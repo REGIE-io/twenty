@@ -11,6 +11,7 @@ const MINIMAL_METADATA_QUERY = `
         labelSingular
         labelPlural
         icon
+        isCustom
         isActive
         isSystem
         isRemote

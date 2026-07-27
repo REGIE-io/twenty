@@ -4,7 +4,6 @@ export {
   type SetEditableFocused,
 } from './host/contexts/FrontComponentInputFocusContext';
 export { componentRegistry } from './host/generated/host-component-registry';
-export { FrontComponentConfirmationModalResultEffect } from './remote/components/FrontComponentConfirmationModalResultEffect';
 export { FrontComponentErrorEffect } from './remote/components/FrontComponentErrorEffect';
 export { FrontComponentInitializeHostCommunicationApiEffect } from './remote/components/FrontComponentInitializeHostCommunicationApiEffect';
 export { FrontComponentUpdateContextEffect } from './remote/components/FrontComponentUpdateContextEffect';
@@ -129,12 +128,14 @@ export type {
   HtmlTextareaProperties,
   HtmlThProperties,
 } from './remote/generated/remote-elements';
-export { createFrontComponentRemoteWorker } from './remote/worker/utils/createFrontComponentRemoteWorker';
+export { createRemoteWorker } from './remote/worker/utils/createRemoteWorker';
 export { installStyleBridge } from './polyfills/installStyleBridge';
 export { exposeGlobals } from './remote/utils/exposeGlobals';
 export type { FrontComponentExecutionContext } from 'twenty-sdk/front-component';
 export type { FrontComponentHostCommunicationApi } from './types/FrontComponentHostCommunicationApi';
-export type { HostToWorkerRenderContext } from './types/HostToWorkerRenderContext';
-export type { SdkClientUrls } from './types/SdkClientUrls';
+export type {
+  HostToWorkerRenderContext,
+  SdkClientUrls,
+} from './types/HostToWorkerRenderContext';
 export type { PropertySchema } from './constants/PropertySchema';
 export type { WorkerExports } from './types/WorkerExports';

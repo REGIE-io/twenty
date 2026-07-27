@@ -1,9 +1,15 @@
+import { subMinutes } from 'date-fns';
+
 import { type CurrentWorkspaceMember } from '@/auth/states/currentWorkspaceMemberState';
 import { type EnrichedObjectMetadataItem } from '@/object-metadata/types/EnrichedObjectMetadataItem';
 import { isCompositeFieldType } from '@/object-record/object-filter-dropdown/utils/isCompositeFieldType';
 import { type RecordFilter } from '@/object-record/record-filter/types/RecordFilter';
 import { buildValueFromFilter } from '@/object-record/record-table/utils/buildValueFromFilter';
-import { type ObjectRecord } from 'twenty-shared/types';
+import {
+  FieldMetadataType,
+  ViewFilterOperand,
+  type ObjectRecord,
+} from 'twenty-shared/types';
 import { deepMerge, isDefined } from 'twenty-shared/utils';
 
 export const buildRecordInputFromFilter = ({
@@ -11,13 +17,11 @@ export const buildRecordInputFromFilter = ({
   objectMetadataItem,
   currentWorkspaceMember,
   currentRecordId,
-  timeZone,
 }: {
   currentRecordFilters: RecordFilter[];
   objectMetadataItem: EnrichedObjectMetadataItem;
   currentWorkspaceMember?: CurrentWorkspaceMember;
   currentRecordId?: string;
-  timeZone: string;
 }): Partial<ObjectRecord> => {
   const recordInput: Partial<ObjectRecord> = {};
 
@@ -38,7 +42,6 @@ export const buildRecordInputFromFilter = ({
         currentWorkspaceMember: currentWorkspaceMember ?? undefined,
         currentRecordId,
         label: filter.label,
-        timeZone,
       });
 
       if (!isDefined(value)) {
@@ -50,7 +53,6 @@ export const buildRecordInputFromFilter = ({
       const value = buildValueFromFilter({
         filter,
         options: fieldMetadataItem.options ?? undefined,
-        timeZone,
       });
 
       if (!isDefined(value)) {
@@ -62,6 +64,11 @@ export const buildRecordInputFromFilter = ({
           recordInput[fieldMetadataItem.name] ?? {},
           value,
         );
+      } else if (
+        fieldMetadataItem.type === FieldMetadataType.DATE_TIME &&
+        filter.operand === ViewFilterOperand.IS_BEFORE
+      ) {
+        recordInput[fieldMetadataItem.name] = subMinutes(value as Date, 1);
       } else {
         recordInput[fieldMetadataItem.name] = value;
       }

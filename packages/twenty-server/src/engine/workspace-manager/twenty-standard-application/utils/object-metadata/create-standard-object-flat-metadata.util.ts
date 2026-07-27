@@ -91,7 +91,7 @@ export const createStandardObjectFlatMetadata = <
     isUIEditable,
     isUICreatable,
     isLabelSyncedWithName: false,
-    overrides: null,
+    standardOverrides: null,
     duplicateCriteria,
     shortcut,
     labelIdentifierFieldMetadataId:
@@ -106,7 +106,6 @@ export const createStandardObjectFlatMetadata = <
     targetTableName: 'DEPRECATED',
     fieldIds: [],
     indexMetadataIds: [],
-    searchFieldMetadataIds: [],
     objectPermissionIds: [],
     fieldPermissionIds: [],
     viewIds: [],
@@ -120,7 +119,6 @@ export const createStandardObjectFlatMetadata = <
     fieldPermissionUniversalIdentifiers: [],
     viewUniversalIdentifiers: [],
     indexMetadataUniversalIdentifiers: [],
-    searchFieldMetadataUniversalIdentifiers: [],
     labelIdentifierFieldMetadataUniversalIdentifier,
     imageIdentifierFieldMetadataUniversalIdentifier,
   };

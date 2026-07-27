@@ -65,7 +65,7 @@ describe('useGetObjectRecordIdentifierByNameSingular', () => {
     rerender({
       record: {
         id: 'recordId',
-        domainName: { primaryLinkUrl: 'https://cool-company.com' },
+        domainName: 'https://cool-company.com',
       },
       objectNameSingular: 'company',
     });

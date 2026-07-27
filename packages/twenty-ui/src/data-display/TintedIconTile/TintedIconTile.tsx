@@ -2,7 +2,8 @@ import { type IconComponent } from '@ui/icon/types/IconComponent';
 import { StyledTintedIconTileContainer } from '@ui/data-display/StyledTintedIconTileContainer/StyledTintedIconTileContainer';
 import { getIconTileColorShades } from '@ui/data-display/TintedIconTile/utils/getIconTileColorShades';
 import { DEFAULT_THEME_COLOR_FALLBACK } from '@ui/theme';
-import { useTheme } from '@ui/theme-constants';
+import { ThemeContext } from '@ui/theme-constants';
+import { useContext } from 'react';
 import { isDefined } from '@ui/utilities/utils/isDefined';
 
 export type TintedIconTileProps = {
@@ -18,7 +19,7 @@ export const TintedIconTile = ({
   size: sizeFromProps,
   stroke: strokeFromProps,
 }: TintedIconTileProps) => {
-  const theme = useTheme();
+  const { theme } = useContext(ThemeContext);
   const style = getIconTileColorShades(color);
   const iconSize = sizeFromProps ?? theme.icon.size.md;
   const iconStroke = strokeFromProps ?? theme.icon.stroke.md;

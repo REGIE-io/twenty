@@ -2,122 +2,102 @@ import { validateDateTimeFieldOrThrow } from 'src/engine/api/common/common-args-
 import { CommonQueryRunnerException } from 'src/engine/api/common/common-query-runners/errors/common-query-runner.exception';
 
 describe('validateDateTimeFieldOrThrow', () => {
-  describe('valid inputs (normalized to a canonical instant)', () => {
+  describe('valid inputs', () => {
     it('should return null when value is null', () => {
       const result = validateDateTimeFieldOrThrow(null, 'testField');
 
       expect(result).toBeNull();
     });
 
-    it('should keep the instant for an ISO datetime string with Z timezone', () => {
-      const result = validateDateTimeFieldOrThrow(
-        '2024-01-15T10:30:00Z',
-        'testField',
-      );
+    it('should return the value when it is a valid ISO datetime string with Z timezone', () => {
+      const datetimeString = '2024-01-15T10:30:00Z';
+      const result = validateDateTimeFieldOrThrow(datetimeString, 'testField');
 
-      expect(result).toBe('2024-01-15T10:30:00Z');
+      expect(result).toBe(datetimeString);
     });
 
-    it('should drop a zero millisecond fraction', () => {
-      const result = validateDateTimeFieldOrThrow(
-        '2024-01-15T10:30:00.000Z',
-        'testField',
-      );
+    it('should return the value when it is a valid ISO datetime string with milliseconds and Z timezone', () => {
+      const datetimeString = '2024-01-15T10:30:00.000Z';
+      const result = validateDateTimeFieldOrThrow(datetimeString, 'testField');
 
-      expect(result).toBe('2024-01-15T10:30:00Z');
+      expect(result).toBe(datetimeString);
     });
 
-    it('should convert a timezone offset to its UTC instant', () => {
-      const result = validateDateTimeFieldOrThrow(
-        '2024-01-15T10:30:00+02:00',
-        'testField',
-      );
+    it('should return the value when it is a valid ISO datetime string with timezone offset', () => {
+      const datetimeString = '2024-01-15T10:30:00+02:00';
+      const result = validateDateTimeFieldOrThrow(datetimeString, 'testField');
 
-      expect(result).toBe('2024-01-15T08:30:00Z');
+      expect(result).toBe(datetimeString);
     });
 
-    it('should convert a timezone offset with milliseconds to its UTC instant', () => {
-      const result = validateDateTimeFieldOrThrow(
-        '2024-01-15T10:30:00.000+02:00',
-        'testField',
-      );
+    it('should return the value when it is a valid ISO datetime string with milliseconds and timezone offset', () => {
+      const datetimeString = '2024-01-15T10:30:00.000+02:00';
+      const result = validateDateTimeFieldOrThrow(datetimeString, 'testField');
 
-      expect(result).toBe('2024-01-15T08:30:00Z');
+      expect(result).toBe(datetimeString);
     });
 
-    it('should interpret a zoneless ISO datetime as UTC', () => {
-      const result = validateDateTimeFieldOrThrow(
-        '2024-01-15T10:30:00',
-        'testField',
-      );
+    it('should return the value when it is a valid ISO datetime string without timezone', () => {
+      const datetimeString = '2024-01-15T10:30:00';
+      const result = validateDateTimeFieldOrThrow(datetimeString, 'testField');
 
-      expect(result).toBe('2024-01-15T10:30:00Z');
+      expect(result).toBe(datetimeString);
     });
 
-    it('should interpret a zoneless ISO datetime with milliseconds as UTC', () => {
-      const result = validateDateTimeFieldOrThrow(
-        '2024-01-15T10:30:00.000',
-        'testField',
-      );
+    it('should return the value when it is a valid ISO datetime string with milliseconds without timezone', () => {
+      const datetimeString = '2024-01-15T10:30:00.000';
+      const result = validateDateTimeFieldOrThrow(datetimeString, 'testField');
 
-      expect(result).toBe('2024-01-15T10:30:00Z');
+      expect(result).toBe(datetimeString);
     });
 
-    it('should normalize a datetime with a space separator', () => {
-      const result = validateDateTimeFieldOrThrow(
-        '2024-01-15 10:30:00',
-        'testField',
-      );
+    it('should return the value when it is a valid datetime with space separator', () => {
+      const datetimeString = '2024-01-15 10:30:00';
+      const result = validateDateTimeFieldOrThrow(datetimeString, 'testField');
 
-      expect(result).toBe('2024-01-15T10:30:00Z');
+      expect(result).toBe(datetimeString);
     });
 
-    it('should normalize a datetime with a space separator and milliseconds', () => {
-      const result = validateDateTimeFieldOrThrow(
-        '2024-01-15 10:30:00.000',
-        'testField',
-      );
+    it('should return the value when it is a valid datetime with space separator and milliseconds', () => {
+      const datetimeString = '2024-01-15 10:30:00.000';
+      const result = validateDateTimeFieldOrThrow(datetimeString, 'testField');
 
-      expect(result).toBe('2024-01-15T10:30:00Z');
+      expect(result).toBe(datetimeString);
     });
 
-    it('should normalize a datetime with a space separator without seconds', () => {
-      const result = validateDateTimeFieldOrThrow(
-        '2024-01-15 10:30',
-        'testField',
-      );
+    it('should return the value when it is a valid datetime with space separator without seconds', () => {
+      const datetimeString = '2024-01-15 10:30';
+      const result = validateDateTimeFieldOrThrow(datetimeString, 'testField');
 
-      expect(result).toBe('2024-01-15T10:30:00Z');
+      expect(result).toBe(datetimeString);
     });
 
-    it('should normalize a date-only value to midnight UTC', () => {
-      const result = validateDateTimeFieldOrThrow('2024-01-15', 'testField');
+    it('should return the value when it is a valid ISO date string (will be treated as midnight)', () => {
+      const dateString = '2024-01-15';
+      const result = validateDateTimeFieldOrThrow(dateString, 'testField');
 
-      expect(result).toBe('2024-01-15T00:00:00Z');
+      expect(result).toBe(dateString);
     });
 
-    it('should normalize a compact date-only value to midnight UTC', () => {
-      const result = validateDateTimeFieldOrThrow('20240115', 'testField');
+    it('should return the value when it is a valid ISO compact date string', () => {
+      const dateString = '20240115';
+      const result = validateDateTimeFieldOrThrow(dateString, 'testField');
 
-      expect(result).toBe('2024-01-15T00:00:00Z');
+      expect(result).toBe(dateString);
     });
 
-    it('should normalize a date with a full month name to midnight UTC', () => {
-      const result = validateDateTimeFieldOrThrow(
-        'January 15, 2024',
-        'testField',
-      );
+    it('should return the value when it is a valid date with full month name', () => {
+      const dateString = 'January 15, 2024';
+      const result = validateDateTimeFieldOrThrow(dateString, 'testField');
 
-      expect(result).toBe('2024-01-15T00:00:00Z');
+      expect(result).toBe(dateString);
     });
 
-    it('should normalize a Date object to its instant', () => {
-      const result = validateDateTimeFieldOrThrow(
-        new Date('2024-01-15T10:30:00Z'),
-        'testField',
-      );
+    it('should return the value when it is a Date object', () => {
+      const dateObject = new Date('2024-01-15T10:30:00Z');
+      const result = validateDateTimeFieldOrThrow(dateObject, 'testField');
 
-      expect(result).toBe('2024-01-15T10:30:00Z');
+      expect(result).toBe(dateObject);
     });
   });
 

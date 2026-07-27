@@ -124,9 +124,6 @@ export class CustomDomainManagerService {
       );
     }
 
-    return {
-      ...customDomainWithRecords,
-      isCustomDomainEnabled: workspace.isCustomDomainEnabled,
-    };
+    return customDomainWithRecords;
   }
 }

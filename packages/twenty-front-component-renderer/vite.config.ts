@@ -1,6 +1,7 @@
 import path from 'path';
 import { type PackageJson } from 'type-fest';
 import { defineConfig } from 'vite';
+import tsconfigPaths from 'vite-tsconfig-paths';
 
 import packageJson from './package.json';
 
@@ -10,16 +11,20 @@ export default defineConfig(() => {
     cacheDir:
       '../../node_modules/.vite/packages/twenty-front-component-renderer',
     resolve: {
-      tsconfigPaths: true,
       alias: {
         '@/': path.resolve(__dirname, 'src') + '/',
       },
     },
+    plugins: [
+      tsconfigPaths({
+        root: __dirname,
+      }),
+    ],
     worker: {
       format: 'iife',
       rollupOptions: {
         output: {
-          codeSplitting: false,
+          inlineDynamicImports: true,
         },
       },
       plugins: () => [
@@ -63,6 +68,7 @@ export default defineConfig(() => {
           },
           {
             format: 'cjs',
+            interop: 'auto',
             esModule: true,
             exports: 'named',
             entryFileNames: '[name].cjs',

@@ -1,9 +1,6 @@
 import { type FieldMetadataItem } from '@/object-metadata/types/FieldMetadataItem';
 import { isHiddenSystemField } from '@/object-metadata/utils/isHiddenSystemField';
-import {
-  type WorkflowActionType,
-  type WorkflowTriggerType,
-} from '@/workflow/types/Workflow';
+import { type WorkflowActionType } from '@/workflow/types/Workflow';
 import { CustomError } from 'twenty-shared/utils';
 import { FieldMetadataType } from '~/generated-metadata/graphql';
 
@@ -34,7 +31,7 @@ export const shouldDisplayFormField = ({
   actionType,
 }: {
   fieldMetadataItem: FieldMetadataItem;
-  actionType: WorkflowActionType | WorkflowTriggerType;
+  actionType: WorkflowActionType;
 }) => {
   if (!SUPPORTED_FORM_FIELD_TYPES.includes(fieldMetadataItem.type)) {
     return false;
@@ -68,12 +65,6 @@ export const shouldDisplayFormField = ({
       return (
         !isNotSupportedRelation &&
         (!isHiddenSystemField(fieldMetadataItem) || isIdField) &&
-        fieldMetadataItem.isActive
-      );
-    case 'DATABASE_EVENT':
-      return (
-        !isNotSupportedRelation &&
-        !isHiddenSystemField(fieldMetadataItem) &&
         fieldMetadataItem.isActive
       );
     default:

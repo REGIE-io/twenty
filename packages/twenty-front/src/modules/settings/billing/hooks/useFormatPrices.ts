@@ -2,53 +2,40 @@ import {
   BillingPlanKey,
   SubscriptionInterval,
 } from '~/generated-metadata/graphql';
-import { SETTINGS_BILLING_PLAN_PRICE_FALLBACKS } from '@/settings/billing/constants/SettingsBillingPlanPriceFallbacks';
 import { useBaseLicensedPriceByPlanKeyAndInterval } from '@/settings/billing/hooks/useBaseLicensedPriceByPlanKeyAndInterval';
-import { type SettingsBillingPlanPrices } from '@/settings/billing/types/settingsBillingPlanComparison.type';
 
 export const useFormatPrices = () => {
   const { getBaseLicensedPriceByPlanKeyAndInterval } =
     useBaseLicensedPriceByPlanKeyAndInterval();
 
-  const getFormattedPrice = (
-    planKey: BillingPlanKey,
-    interval: SubscriptionInterval.Month | SubscriptionInterval.Year,
-  ) => {
-    try {
-      const price = getBaseLicensedPriceByPlanKeyAndInterval(planKey, interval);
-      const formattedPrice =
-        price.unitAmount /
-        100 /
-        (interval === SubscriptionInterval.Year ? 12 : 1);
+  const enterpriseYearPrice = getBaseLicensedPriceByPlanKeyAndInterval(
+    BillingPlanKey.ENTERPRISE,
+    SubscriptionInterval.Year,
+  );
 
-      return Number.isFinite(formattedPrice)
-        ? formattedPrice
-        : SETTINGS_BILLING_PLAN_PRICE_FALLBACKS[planKey][interval];
-    } catch {
-      return SETTINGS_BILLING_PLAN_PRICE_FALLBACKS[planKey][interval];
-    }
-  };
+  const enterpriseMonthPrice = getBaseLicensedPriceByPlanKeyAndInterval(
+    BillingPlanKey.ENTERPRISE,
+    SubscriptionInterval.Month,
+  );
 
-  const formatPrices: SettingsBillingPlanPrices = {
+  const proYearPrice = getBaseLicensedPriceByPlanKeyAndInterval(
+    BillingPlanKey.PRO,
+    SubscriptionInterval.Year,
+  );
+
+  const proMonthPrice = getBaseLicensedPriceByPlanKeyAndInterval(
+    BillingPlanKey.PRO,
+    SubscriptionInterval.Month,
+  );
+
+  const formatPrices = {
     [BillingPlanKey.ENTERPRISE]: {
-      [SubscriptionInterval.Year]: getFormattedPrice(
-        BillingPlanKey.ENTERPRISE,
-        SubscriptionInterval.Year,
-      ),
-      [SubscriptionInterval.Month]: getFormattedPrice(
-        BillingPlanKey.ENTERPRISE,
-        SubscriptionInterval.Month,
-      ),
+      [SubscriptionInterval.Year]: enterpriseYearPrice?.unitAmount / 100 / 12,
+      [SubscriptionInterval.Month]: enterpriseMonthPrice?.unitAmount / 100,
     },
     [BillingPlanKey.PRO]: {
-      [SubscriptionInterval.Year]: getFormattedPrice(
-        BillingPlanKey.PRO,
-        SubscriptionInterval.Year,
-      ),
-      [SubscriptionInterval.Month]: getFormattedPrice(
-        BillingPlanKey.PRO,
-        SubscriptionInterval.Month,
-      ),
+      [SubscriptionInterval.Year]: proYearPrice?.unitAmount / 100 / 12,
+      [SubscriptionInterval.Month]: proMonthPrice?.unitAmount / 100,
     },
   };
 

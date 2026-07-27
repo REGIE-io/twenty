@@ -63,15 +63,15 @@ Une fois que les branches parallèles ont terminé leur travail, vous pouvez les
 ### Exemple : Traiter puis notifier
 
 ```
-Trigger
+Déclencheur
    │
-   ├── Branch A: Update Customer Record
+   ├── Branche A : Mettre à jour l'enregistrement client
    │
-   └── Branch B: Create Support Ticket
+   └── Branche B : Créer un ticket d'assistance
 
        ↘  ↙
 
-   Merged Step: Send Confirmation Email
+   Étape fusionnée : Envoyer un e-mail de confirmation
 ```
 
 L'e-mail de confirmation n'est envoyé qu'après la mise à jour du client et la création du ticket.

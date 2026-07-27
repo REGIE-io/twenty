@@ -30,29 +30,22 @@ export const useHandleCheckoutSession = ({
 
   const handleCheckoutSession = async () => {
     setIsSubmitting(true);
-    try {
-      const { data } = await checkoutSession({
-        variables: {
-          recurringInterval,
-          successUrlPath,
-          plan,
-          requirePaymentMethod,
-        },
-      });
-      if (!data?.checkoutSession.url) {
-        enqueueErrorSnackBar({
-          message: t`Checkout session error. Please retry or contact Twenty team`,
-        });
-        return;
-      }
-      redirect(data.checkoutSession.url);
-    } catch {
+    const { data } = await checkoutSession({
+      variables: {
+        recurringInterval,
+        successUrlPath,
+        plan,
+        requirePaymentMethod,
+      },
+    });
+    setIsSubmitting(false);
+    if (!data?.checkoutSession.url) {
       enqueueErrorSnackBar({
         message: t`Checkout session error. Please retry or contact Twenty team`,
       });
-    } finally {
-      setIsSubmitting(false);
+      return;
     }
+    redirect(data.checkoutSession.url);
   };
   return { isSubmitting, handleCheckoutSession };
 };

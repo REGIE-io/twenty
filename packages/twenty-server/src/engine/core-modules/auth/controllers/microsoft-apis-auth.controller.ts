@@ -119,9 +119,10 @@ export class MicrosoftAPIsAuthController {
         });
 
       if (userId) {
-        await this.onboardingService.completeOnboardingConnectAccountStep({
+        await this.onboardingService.setOnboardingConnectAccountPending({
           userId,
           workspaceId,
+          value: false,
         });
       }
 

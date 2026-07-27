@@ -83,8 +83,8 @@ export const MyComponent = () => {
 Вы можете применять то же самое для логики получения данных, с хуками Apollo.
 
 ```tsx
-// ❌ Bad, will cause re-renders even if data is not changing,
-//    because useEffect needs to be re-evaluated
+// ❌ Плохо, вызовет повторные рендеры, даже если данные не меняются,
+//    потому что useEffect нужно повторно вычислять
 export const PageComponent = () => {
   const [data, setData] = useAtomState(dataState);
   const [someDependency] = useAtomState(someDependencyState);
@@ -101,11 +101,12 @@ export const PageComponent = () => {
 export const App = () => (
   <PageComponent />
 );
+
 ```
 
 ```tsx
-// ✅ Good, will not cause re-renders if data is not changing,
-//   because useEffect is re-evaluated in another sibling component
+// ✅ Хорошо, не вызовет повторные рендеры, если данные не меняются,
+//   потому что useEffect пересчитывается в другом соседнем компоненте
 export const PageComponent = () => {
   const [data, setData] = useAtomState(dataState);
 
@@ -131,6 +132,7 @@ export const App = () => (
     <PageComponent />
   </>
 );
+
 ```
 
 ### Используйте состояния семейства атомов и селекторы
@@ -172,13 +174,12 @@ export const App = () => (
 Универсальные имена в программировании не идеальны, так как они не хватает определенности, что ведет к неясности и ухудшению читаемости кода. Такие имена не передают цель переменной или функции, делая трудным понимать намерение кода без более глубокого исследования. Это может привести к увеличению времени отладки, повышению вероятности ошибок и трудностям в поддержке и сотрудничестве. Между тем, описательные имена делают код самодокументирующимся и более простым для навигации, улучшая качество кода и продуктивность разработчиков.
 
 ```tsx
-// ❌ Bad, uses a generic name that doesn't communicate its
-//    purpose or content clearly
+// ❌ Плохо, использует общее имя, которое неясно передает назначение или содержимое
 const [value, setValue] = useState('');
 ```
 
 ```tsx
-// ✅ Good, uses a descriptive name
+// ✅ Хорошо, использует описательное имя
 const [email, setEmail] = useState('');
 ```
 
@@ -226,12 +227,12 @@ const EmailField = ({ value, disabled = false }: EmailFieldProps) => (
 **Использование**
 
 ```tsx
-// ❌ Bad, passing in the same value as the default value adds no value
+// ❌ Плохо, передача того же значения, что и значение по умолчанию, не добавляет ценности
 const Form = () => <EmailField value="username@email.com" disabled={false} />;
 ```
 
 ```tsx
-// ✅ Good, assumes the default value
+// ✅ Хорошо, предполагается значение по умолчанию
 const Form = () => <EmailField value="username@email.com" />;
 ```
 
@@ -299,7 +300,7 @@ import {
 ```
 
 ```tsx
-// ✅ Good, utilises the designated aliases
+// ✅ Хорошо, используется указанный псевдоним
 import { CatalogDecorator } from '~/testing/decorators/CatalogDecorator';
 import { ComponentDecorator } from 'twenty-ui/testing';
 ```

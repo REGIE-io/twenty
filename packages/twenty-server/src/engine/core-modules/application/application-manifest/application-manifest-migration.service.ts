@@ -5,7 +5,6 @@ import { ALL_METADATA_NAME } from 'twenty-shared/metadata';
 import { isDefined } from 'twenty-shared/utils';
 
 import { ComputeApplicationManifestAllUniversalFlatEntityMapsService } from 'src/engine/core-modules/application/application-manifest/services/compute-application-manifest-all-universal-flat-entity-maps.service';
-import { buildAllFlatEntityOperationRecordByMetadataNameFromFromTo } from 'src/engine/core-modules/application/application-manifest/utils/build-all-flat-entity-operation-record-by-metadata-name-from-from-to.util';
 import { buildFromToAllUniversalFlatEntityMaps } from 'src/engine/core-modules/application/application-manifest/utils/build-from-to-all-universal-flat-entity-maps.util';
 import { getApplicationSubAllFlatEntityMaps } from 'src/engine/core-modules/application/application-manifest/utils/get-application-sub-all-flat-entity-maps.util';
 import {
@@ -174,6 +173,11 @@ export class ApplicationManifestMigrationService {
   }> {
     const now = new Date().toISOString();
 
+    const { twentyStandardFlatApplication } =
+      await this.applicationService.findWorkspaceTwentyStandardAndCustomApplicationOrThrow(
+        { workspaceId },
+      );
+
     const recomputeStart = performance.now();
     const cacheResult = await this.workspaceCacheService.getOrRecompute(
       workspaceId,
@@ -189,8 +193,7 @@ export class ApplicationManifestMigrationService {
       ApplicationManifestMigrationService.name,
     );
 
-    const { featureFlagsMap: _featureFlagsMap, ...existingAllFlatEntityMaps } =
-      cacheResult;
+    const { featureFlagsMap, ...existingAllFlatEntityMaps } = cacheResult;
 
     const fromAllFlatEntityMaps = getApplicationSubAllFlatEntityMaps({
       applicationIds: [ownerFlatApplication.id],
@@ -205,27 +208,32 @@ export class ApplicationManifestMigrationService {
         workspaceId,
       });
 
-    const allFlatEntityOperationRecordByMetadataName =
-      buildAllFlatEntityOperationRecordByMetadataNameFromFromTo({
-        fromAllFlatEntityMaps,
-        toAllUniversalFlatEntityMaps,
-        buildOptions: {
-          isSystemBuild: false,
-          inferDeletionFromMissingEntities: true,
-          applicationUniversalIdentifier:
-            ownerFlatApplication.universalIdentifier,
-        },
-      });
+    const dependencyAllFlatEntityMaps = getApplicationSubAllFlatEntityMaps({
+      applicationIds:
+        ownerFlatApplication.universalIdentifier ===
+        TWENTY_STANDARD_APPLICATION.universalIdentifier
+          ? [twentyStandardFlatApplication.id]
+          : [ownerFlatApplication.id, twentyStandardFlatApplication.id],
+      fromAllFlatEntityMaps: existingAllFlatEntityMaps,
+    });
 
     const validateBuildRunStart = performance.now();
     const validateAndBuildResult =
-      await this.workspaceMigrationValidateBuildAndRunService.validateBuildAndRunWorkspaceMigrationFromRecord(
+      await this.workspaceMigrationValidateBuildAndRunService.validateBuildAndRunWorkspaceMigrationFromTo(
         {
-          allFlatEntityOperationRecordByMetadataName,
+          buildOptions: {
+            isSystemBuild: false,
+            inferDeletionFromMissingEntities: true,
+            applicationUniversalIdentifier:
+              ownerFlatApplication.universalIdentifier,
+          },
+          fromToAllFlatEntityMaps: buildFromToAllUniversalFlatEntityMaps({
+            fromAllFlatEntityMaps,
+            toAllUniversalFlatEntityMaps,
+          }),
           workspaceId,
-          isSystemBuild: false,
-          applicationUniversalIdentifier:
-            ownerFlatApplication.universalIdentifier,
+          dependencyAllFlatEntityMaps,
+          additionalCacheDataMaps: { featureFlagsMap },
           dryRun,
         },
       );
@@ -249,7 +257,7 @@ export class ApplicationManifestMigrationService {
     );
 
     if (!dryRun) {
-      await this.syncDefaultRoleAndSettingsFrontComponent({
+      await this.syncDefaultRoleAndSettingsCustomTab({
         manifest,
         workspaceId,
         ownerFlatApplication,
@@ -262,7 +270,7 @@ export class ApplicationManifestMigrationService {
     };
   }
 
-  private async syncDefaultRoleAndSettingsFrontComponent({
+  private async syncDefaultRoleAndSettingsCustomTab({
     manifest,
     workspaceId,
     ownerFlatApplication,
@@ -304,18 +312,18 @@ export class ApplicationManifestMigrationService {
 
     let settingsCustomTabFrontComponentId: string | null = null;
 
-    const settingsFrontComponentUniversalIdentifier =
-      manifest.application.settingsFrontComponent?.universalIdentifier;
+    const settingsCustomTabUniversalIdentifier =
+      manifest.application.settingsCustomTabFrontComponentUniversalIdentifier;
 
-    if (isDefined(settingsFrontComponentUniversalIdentifier)) {
+    if (isDefined(settingsCustomTabUniversalIdentifier)) {
       const flatFrontComponent = findFlatEntityByUniversalIdentifier({
         flatEntityMaps: refreshedFlatFrontComponentMaps,
-        universalIdentifier: settingsFrontComponentUniversalIdentifier,
+        universalIdentifier: settingsCustomTabUniversalIdentifier,
       });
 
       if (!isDefined(flatFrontComponent)) {
         throw new ApplicationException(
-          `Failed to resolve front component for settings front component universalIdentifier ${settingsFrontComponentUniversalIdentifier}`,
+          `Failed to resolve front component for settingsCustomTabFrontComponentUniversalIdentifier ${settingsCustomTabUniversalIdentifier}`,
           ApplicationExceptionCode.ENTITY_NOT_FOUND,
         );
       }

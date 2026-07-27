@@ -53,11 +53,7 @@ export const FieldsConfigurationGroupDropdown = ({
     <Dropdown
       dropdownId={dropdownId}
       clickableComponent={
-        <LightIconButton
-          Icon={IconDotsVertical}
-          accent="tertiary"
-          aria-label={t`More options`}
-        />
+        <LightIconButton Icon={IconDotsVertical} accent="tertiary" />
       }
       dropdownPlacement="bottom-start"
       dropdownComponents={

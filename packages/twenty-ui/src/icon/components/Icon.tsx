@@ -12,7 +12,6 @@ export const Icon = ({
   size,
   stroke,
   color,
-  'aria-hidden': ariaHidden,
 }: IconProps) => {
   const { getIcon } = useIcons();
 
@@ -25,7 +24,6 @@ export const Icon = ({
       size={size}
       stroke={stroke}
       color={color}
-      aria-hidden={ariaHidden}
     />
   );
 };

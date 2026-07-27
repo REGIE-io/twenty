@@ -1,11 +1,6 @@
 import { styled } from '@linaria/react';
 import { t } from '@lingui/core/macro';
-import {
-  type IconComponent,
-  IconComment,
-  IconHome,
-  IconMessageCirclePlus,
-} from 'twenty-ui/icon';
+import { IconComment, IconHome, IconMessageCirclePlus } from 'twenty-ui/icon';
 import { OverflowingTextWithTooltip } from 'twenty-ui/surfaces';
 import { ThemeContext, themeCssVariables } from 'twenty-ui/theme-constants';
 import { useIsMobile } from 'twenty-ui/utilities';
@@ -42,7 +37,6 @@ const StyledTabsPill = styled.div`
   border: 1px solid ${themeCssVariables.border.color.medium};
   border-radius: ${themeCssVariables.border.radius.pill};
   box-sizing: border-box;
-  corner-shape: round;
   display: flex;
   flex-shrink: 0;
   gap: ${themeCssVariables.spacing[0.5]};
@@ -60,7 +54,6 @@ const StyledTabWrapper = styled.div<{ isActive: boolean }>`
     isActive
       ? themeCssVariables.font.color.primary
       : themeCssVariables.font.color.tertiary};
-  corner-shape: round;
   cursor: pointer;
   display: flex;
   flex: 1;
@@ -97,7 +90,6 @@ const StyledNewChatButtonWrapper = styled.div<{ isExpanded: boolean }>`
   border: 1px solid ${themeCssVariables.border.color.medium};
   border-radius: ${themeCssVariables.border.radius.pill};
   box-sizing: border-box;
-  corner-shape: round;
   display: flex;
   height: ${({ isExpanded }) =>
     isExpanded ? themeCssVariables.spacing[7] : themeCssVariables.spacing[6]};
@@ -136,15 +128,7 @@ const StyledNewChatButton = styled.div`
   }
 `;
 
-type MainNavigationDrawerTabsRowProps = {
-  NavigationMenuTabIcon?: IconComponent;
-  navigationMenuTabLabel?: string;
-};
-
-export const MainNavigationDrawerTabsRow = ({
-  NavigationMenuTabIcon = IconHome,
-  navigationMenuTabLabel = t`Home`,
-}: MainNavigationDrawerTabsRowProps) => {
+export const MainNavigationDrawerTabsRow = () => {
   const { theme } = useContext(ThemeContext);
   const isMobile = useIsMobile();
   const isNavigationDrawerExpanded = useAtomStateValue(
@@ -207,7 +191,7 @@ export const MainNavigationDrawerTabsRow = ({
               navigationDrawerActiveTab ===
               NAVIGATION_DRAWER_TABS.NAVIGATION_MENU
             }
-            aria-label={navigationMenuTabLabel}
+            aria-label={t`Home`}
             tabIndex={
               navigationDrawerActiveTab ===
               NAVIGATION_DRAWER_TABS.NAVIGATION_MENU
@@ -218,7 +202,7 @@ export const MainNavigationDrawerTabsRow = ({
             onKeyDown={handleTabKeyDown(NAVIGATION_DRAWER_TABS.NAVIGATION_MENU)}
           >
             <StyledTabIcon>
-              <NavigationMenuTabIcon
+              <IconHome
                 size={theme.icon.size.md}
                 color={getTabIconColor(
                   navigationDrawerActiveTab ===

@@ -1,6 +1,7 @@
 import path from 'path';
 import { type PackageJson } from 'type-fest';
 import { defineConfig } from 'vite';
+import tsconfigPaths from 'vite-tsconfig-paths';
 
 import packageJson from './package.json';
 
@@ -9,16 +10,20 @@ export default defineConfig(() => {
     root: __dirname,
     cacheDir: '../../node_modules/.vite/packages/twenty-sdk-browser',
     resolve: {
-      tsconfigPaths: true,
       alias: {
         '@/': path.resolve(__dirname, 'src') + '/',
       },
     },
+    plugins: [
+      tsconfigPaths({
+        root: __dirname,
+      }),
+    ],
     build: {
       emptyOutDir: false,
       outDir: 'dist',
       lib: {
-        entry: ['src/front-component-renderer/index.ts'],
+        entry: ['src/ui/index.ts', 'src/front-component-renderer/index.ts'],
         name: 'twenty-sdk',
       },
       rollupOptions: {
@@ -43,6 +48,12 @@ export default defineConfig(() => {
             format: 'es',
             entryFileNames: (chunk) => {
               if (
+                chunk.name === 'index' &&
+                chunk.facadeModuleId?.includes('ui/index.ts')
+              ) {
+                return 'ui/index.mjs';
+              }
+              if (
                 chunk.facadeModuleId?.includes(
                   'front-component-renderer/index.ts',
                 )
@@ -54,9 +65,16 @@ export default defineConfig(() => {
           },
           {
             format: 'cjs',
+            interop: 'auto',
             esModule: true,
             exports: 'named',
             entryFileNames: (chunk) => {
+              if (
+                chunk.name === 'index' &&
+                chunk.facadeModuleId?.includes('ui/index.ts')
+              ) {
+                return 'ui/index.cjs';
+              }
               if (
                 chunk.facadeModuleId?.includes(
                   'front-component-renderer/index.ts',

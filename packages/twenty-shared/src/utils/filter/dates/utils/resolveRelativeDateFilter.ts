@@ -6,6 +6,7 @@ import { subUnitFromZonedDateTime } from '@/utils/filter/dates/utils/subUnitFrom
 import { isDefined } from 'class-validator';
 import { type Temporal } from 'temporal-polyfill';
 
+// TODO: use this in workflows where there is duplicated logic
 export const resolveRelativeDateFilter = (
   relativeDateFilter: RelativeDateFilter,
   referenceTodayZonedDateTime: Temporal.ZonedDateTime,
@@ -18,22 +19,52 @@ export const resolveRelativeDateFilter = (
         throw new Error('Amount is required');
       }
 
-      const startOfNextPeriod = getNextPeriodStart(
-        referenceTodayZonedDateTime,
-        unit,
-        firstDayOfTheWeek,
-      );
+      if (unit === 'QUARTER') {
+        const startOfCurrentQuarter = getPeriodStart(
+          referenceTodayZonedDateTime,
+          'QUARTER',
+          firstDayOfTheWeek,
+        );
 
-      const endOfNextPeriod = addUnitToZonedDateTime(
-        startOfNextPeriod,
+        const startOfNextPeriod = addUnitToZonedDateTime(
+          startOfCurrentQuarter,
+          'QUARTER',
+          1,
+        );
+
+        const endOfNextPeriod = addUnitToZonedDateTime(
+          startOfNextPeriod,
+          'QUARTER',
+          amount,
+        );
+
+        const start = startOfNextPeriod.toPlainDate().toString();
+        const end = endOfNextPeriod.toPlainDate().toString();
+
+        return {
+          ...relativeDateFilter,
+          start,
+          end,
+        };
+      }
+
+      const startOfNextDay = referenceTodayZonedDateTime
+        .startOfDay()
+        .add({ days: 1 });
+
+      const startOfNextPeriod = addUnitToZonedDateTime(
+        startOfNextDay,
         unit,
         amount,
       );
 
+      const start = startOfNextDay.toPlainDate().toString();
+      const end = startOfNextPeriod?.toPlainDate().toString();
+
       return {
         ...relativeDateFilter,
-        start: startOfNextPeriod.toPlainDate().toString(),
-        end: endOfNextPeriod.toPlainDate().toString(),
+        start,
+        end,
       };
     }
     case 'PAST': {
@@ -41,22 +72,44 @@ export const resolveRelativeDateFilter = (
         throw new Error('Amount is required');
       }
 
-      const startOfCurrentPeriod = getPeriodStart(
-        referenceTodayZonedDateTime,
-        unit,
-        firstDayOfTheWeek,
-      );
+      if (unit === 'QUARTER') {
+        const startOfCurrentQuarter = getPeriodStart(
+          referenceTodayZonedDateTime,
+          'QUARTER',
+          firstDayOfTheWeek,
+        );
 
-      const startOfPastPeriod = subUnitFromZonedDateTime(
-        startOfCurrentPeriod,
+        const startOfPastPeriod = subUnitFromZonedDateTime(
+          startOfCurrentQuarter,
+          'QUARTER',
+          amount,
+        );
+
+        const start = startOfPastPeriod.toPlainDate().toString();
+        const end = startOfCurrentQuarter.toPlainDate().toString();
+
+        return {
+          ...relativeDateFilter,
+          start,
+          end,
+        };
+      }
+
+      const startOfDay = referenceTodayZonedDateTime.startOfDay();
+
+      const startOfNextPeriod = subUnitFromZonedDateTime(
+        startOfDay,
         unit,
         amount,
       );
 
+      const start = startOfNextPeriod?.toPlainDate().toString();
+      const end = startOfDay.toPlainDate().toString();
+
       return {
         ...relativeDateFilter,
-        start: startOfPastPeriod.toPlainDate().toString(),
-        end: startOfCurrentPeriod.toPlainDate().toString(),
+        start,
+        end,
       };
     }
     case 'THIS': {

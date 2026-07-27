@@ -95,7 +95,6 @@ export class FlatViewFieldGroupValidatorService {
 
   public validateFlatViewFieldGroupUpdate({
     universalIdentifier,
-    flatEntityUpdate,
     optimisticFlatEntityMapsAndRelatedFlatEntityMaps: {
       flatViewFieldGroupMaps: optimisticFlatViewFieldGroupMaps,
       flatViewMaps,
@@ -126,19 +125,8 @@ export class FlatViewFieldGroupValidatorService {
       return validationResult;
     }
 
-    const updatedFlatViewFieldGroup = {
-      ...existingFlatViewFieldGroup,
-      ...flatEntityUpdate,
-    };
-
-    validationResult.flatEntityMinimalInformation = {
-      ...validationResult.flatEntityMinimalInformation,
-      viewUniversalIdentifier:
-        updatedFlatViewFieldGroup.viewUniversalIdentifier,
-    };
-
     const flatView = findFlatEntityByUniversalIdentifier({
-      universalIdentifier: updatedFlatViewFieldGroup.viewUniversalIdentifier,
+      universalIdentifier: existingFlatViewFieldGroup.viewUniversalIdentifier,
       flatEntityMaps: flatViewMaps,
     });
 

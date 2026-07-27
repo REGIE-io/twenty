@@ -1,5 +1,6 @@
 import { styled } from '@linaria/react';
 import React, { lazy, Suspense, useContext } from 'react';
+import { NavigationMenuItemType } from 'twenty-shared/types';
 import { isDefined } from 'twenty-shared/utils';
 import { themeCssVariables } from 'twenty-ui/theme-constants';
 import { type NavigationMenuItem } from '~/generated-metadata/graphql';
@@ -8,14 +9,15 @@ import { isLayoutCustomizationModeEnabledState } from '@/layout-customization/st
 import { NavigationMenuItemDroppableIds } from '@/navigation-menu-item/common/constants/NavigationMenuItemDroppableIds';
 import { NavigationDropTargetContext } from '@/navigation-menu-item/common/contexts/NavigationDropTargetContext';
 import { type NavigationMenuItemClickParams } from '@/navigation-menu-item/display/hooks/useNavigationMenuItemSectionItems';
-import { useReadableNavigationMenuItems } from '@/navigation-menu-item/display/hooks/useReadableNavigationMenuItems';
 import { getObjectMetadataForNavigationMenuItem } from '@/navigation-menu-item/display/object/utils/getObjectMetadataForNavigationMenuItem';
-import { NavigationMenuItemSection } from '@/navigation-menu-item/display/sections/components/NavigationMenuItemSection';
 import { WorkspaceSectionListReadOnly } from '@/navigation-menu-item/display/sections/workspace/components/WorkspaceSectionListReadOnly';
+import { NavigationMenuItemSection } from '@/navigation-menu-item/display/sections/components/NavigationMenuItemSection';
 import type { EditModeProps } from '@/object-metadata/components/EditModeProps';
 import { WorkspaceSectionListEditModeFallback } from '@/object-metadata/components/WorkspaceSectionListEditModeFallback';
 import { objectMetadataItemsSelector } from '@/object-metadata/states/objectMetadataItemsSelector';
 import { type EnrichedObjectMetadataItem } from '@/object-metadata/types/EnrichedObjectMetadataItem';
+import { getObjectPermissionsForObject } from '@/object-metadata/utils/getObjectPermissionsForObject';
+import { useObjectPermissions } from '@/object-record/hooks/useObjectPermissions';
 import { useNavigationSection } from '@/ui/navigation/navigation-drawer/hooks/useNavigationSection';
 import { useAtomStateValue } from '@/ui/utilities/state/jotai/hooks/useAtomStateValue';
 import { viewsSelector } from '@/views/states/selectors/viewsSelector';
@@ -57,6 +59,7 @@ export const WorkspaceSectionContainer = ({
     useNavigationSection('Workspace');
   const views = useAtomStateValue(viewsSelector);
 
+  const { objectPermissionsByObjectMetadataId } = useObjectPermissions();
   const objectMetadataItems = useAtomStateValue(objectMetadataItemsSelector);
   const { addToNavigationFallbackDestination } = useContext(
     NavigationDropTargetContext,
@@ -66,7 +69,6 @@ export const WorkspaceSectionContainer = ({
   const isAddToNavigationDropTargetVisible =
     addToNavigationFallbackDestination?.droppableId ===
     NavigationMenuItemDroppableIds.WORKSPACE_ORPHAN_NAVIGATION_MENU_ITEMS;
-
   const folderChildrenById = items.reduce<Map<string, NavigationMenuItem[]>>(
     (acc, item) => {
       const folderId = item.folderId;
@@ -80,13 +82,35 @@ export const WorkspaceSectionContainer = ({
     new Map(),
   );
 
-  const { filteredTopLevelItems, filteredFolderChildrenById } =
-    useReadableNavigationMenuItems({
-      topLevelItems: flatItems,
-      folderChildrenById,
-    });
-
-  const filteredItems = filteredTopLevelItems;
+  const filteredItems = flatItems.filter((item) => {
+    const itemType = item.type;
+    if (
+      itemType === NavigationMenuItemType.FOLDER ||
+      itemType === NavigationMenuItemType.LINK ||
+      itemType === NavigationMenuItemType.PAGE_LAYOUT
+    ) {
+      return true;
+    }
+    if (
+      itemType === NavigationMenuItemType.OBJECT ||
+      itemType === NavigationMenuItemType.VIEW ||
+      itemType === NavigationMenuItemType.RECORD
+    ) {
+      const objectMetadataItem = getObjectMetadataForNavigationMenuItem(
+        item,
+        objectMetadataItems,
+        views,
+      );
+      return (
+        isDefined(objectMetadataItem) &&
+        getObjectPermissionsForObject(
+          objectPermissionsByObjectMetadataId,
+          objectMetadataItem.id,
+        ).canReadObjectRecords
+      );
+    }
+    return false;
+  });
 
   const workspaceOrphanItemsForSection = isLayoutCustomizationModeEnabled
     ? flatItems
@@ -157,7 +181,7 @@ export const WorkspaceSectionContainer = ({
       ) : (
         <WorkspaceSectionListReadOnly
           filteredItems={filteredItems}
-          folderChildrenById={filteredFolderChildrenById}
+          folderChildrenById={folderChildrenById}
           onActiveObjectMetadataItemClick={onActiveObjectMetadataItemClick}
         />
       )}

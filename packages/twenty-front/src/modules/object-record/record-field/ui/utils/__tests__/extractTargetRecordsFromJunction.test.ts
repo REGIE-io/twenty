@@ -16,6 +16,7 @@ const createMockRelation = (
   targetFieldMetadata: {
     id: 'target-field-id',
     name: 'targetField',
+    isCustom: false,
   },
   sourceObjectMetadata: {
     id: 'source-object-id',

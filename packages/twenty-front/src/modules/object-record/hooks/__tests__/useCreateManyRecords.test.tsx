@@ -12,7 +12,6 @@ import { useRefetchAggregateQueries } from '@/object-record/hooks/useRefetchAggr
 import { getJestMetadataAndApolloMocksWrapper } from '~/testing/jest/getJestMetadataAndApolloMocksWrapper';
 
 jest.mock('uuid', () => ({
-  ...jest.requireActual('uuid'),
   v4: jest.fn(),
 }));
 

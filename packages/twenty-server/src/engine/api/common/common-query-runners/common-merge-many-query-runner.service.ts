@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 
 import { msg } from '@lingui/core/macro';
 import {
@@ -15,6 +15,7 @@ import { isDefined } from 'twenty-shared/utils';
 import { FindOptionsRelations, In, ObjectLiteral } from 'typeorm';
 import { v4 as uuidv4 } from 'uuid';
 
+import { computeMorphOrRelationFieldJoinColumnName } from 'src/engine/metadata-modules/field-metadata/utils/compute-morph-or-relation-field-join-column-name.util';
 import { CommonBaseQueryRunnerService } from 'src/engine/api/common/common-query-runners/common-base-query-runner.service';
 import {
   CommonQueryRunnerException,
@@ -34,7 +35,6 @@ import { buildColumnsToSelect } from 'src/engine/api/graphql/graphql-query-runne
 import { hasRecordFieldValue } from 'src/engine/api/graphql/graphql-query-runner/utils/has-record-field-value.util';
 import { mergeFieldValues } from 'src/engine/api/graphql/graphql-query-runner/utils/merge-field-values.util';
 import { WorkspaceAuthContext } from 'src/engine/core-modules/auth/types/workspace-auth-context.type';
-import { computeMorphOrRelationFieldJoinColumnName } from 'src/engine/metadata-modules/field-metadata/utils/compute-morph-or-relation-field-join-column-name.util';
 import { FlatEntityMaps } from 'src/engine/metadata-modules/flat-entity/types/flat-entity-maps.type';
 import { findFlatEntityByIdInFlatEntityMaps } from 'src/engine/metadata-modules/flat-entity/utils/find-flat-entity-by-id-in-flat-entity-maps.util';
 import { FlatFieldMetadata } from 'src/engine/metadata-modules/flat-field-metadata/types/flat-field-metadata.type';
@@ -42,8 +42,6 @@ import { buildFieldMapsFromFlatObjectMetadata } from 'src/engine/metadata-module
 import { isFlatFieldMetadataOfType } from 'src/engine/metadata-modules/flat-field-metadata/utils/is-flat-field-metadata-of-type.util';
 import { FlatObjectMetadata } from 'src/engine/metadata-modules/flat-object-metadata/types/flat-object-metadata.type';
 import { assertMutationNotOnRemoteObject } from 'src/engine/metadata-modules/object-metadata/utils/assert-mutation-not-on-remote-object.util';
-import { WorkspaceEntityManager } from 'src/engine/twenty-orm/entity-manager/workspace-entity-manager';
-import { WorkspaceRepository } from 'src/engine/twenty-orm/repository/workspace.repository';
 
 @Injectable()
 export class CommonMergeManyQueryRunnerService extends CommonBaseQueryRunnerService<
@@ -52,11 +50,16 @@ export class CommonMergeManyQueryRunnerService extends CommonBaseQueryRunnerServ
 > {
   protected readonly operationName = CommonQueryNames.MERGE_MANY;
 
+  private readonly logger = new Logger(CommonMergeManyQueryRunnerService.name);
   async run(
     args: CommonExtendedInput<MergeManyQueryArgs>,
     queryRunnerContext: CommonExtendedQueryRunnerContext,
   ): Promise<ObjectRecord> {
-    const { flatFieldMetadataMaps, flatObjectMetadata } = queryRunnerContext;
+    const {
+      flatObjectMetadataMaps,
+      flatFieldMetadataMaps,
+      flatObjectMetadata,
+    } = queryRunnerContext;
 
     const recordsToMerge = await this.fetchRecordsToMerge(
       queryRunnerContext,
@@ -83,48 +86,15 @@ export class CommonMergeManyQueryRunnerService extends CommonBaseQueryRunnerServ
 
     const idsToDelete = args.ids.filter((id) => id !== priorityRecord.id);
 
-    const updatedRecord =
-      await queryRunnerContext.workspaceDataSource.transaction(
-        (transactionManager: WorkspaceEntityManager) =>
-          this.executeMergeWithinTransaction(transactionManager, {
-            args,
-            queryRunnerContext,
-            idsToDelete,
-            priorityRecordId: priorityRecord.id,
-            mergedData,
-          }),
-      );
-
-    await this.processNestedRelations({
-      args,
-      queryRunnerContext,
-      updatedRecords: [updatedRecord],
-    });
-
-    return updatedRecord;
-  }
-
-  private async executeMergeWithinTransaction(
-    transactionManager: WorkspaceEntityManager,
-    {
-      args,
+    await this.migrateRelatedRecords(
       queryRunnerContext,
       idsToDelete,
-      priorityRecordId,
-      mergedData,
-    }: {
-      args: CommonExtendedInput<MergeManyQueryArgs>;
-      queryRunnerContext: CommonExtendedQueryRunnerContext;
-      idsToDelete: string[];
-      priorityRecordId: string;
-      mergedData: Partial<ObjectRecord>;
-    },
-  ): Promise<ObjectRecord> {
-    const {
-      flatObjectMetadata,
-      flatObjectMetadataMaps,
-      flatFieldMetadataMaps,
-    } = queryRunnerContext;
+      priorityRecord.id,
+    );
+
+    const queryBuilder = queryRunnerContext.repository.createQueryBuilder(
+      flatObjectMetadata.nameSingular,
+    );
 
     const columnsToReturn = buildColumnsToReturn({
       select: args.selectedFieldsResult.select,
@@ -134,33 +104,26 @@ export class CommonMergeManyQueryRunnerService extends CommonBaseQueryRunnerServ
       flatFieldMetadataMaps,
     });
 
-    const transactionRepository = transactionManager.getRepository(
-      flatObjectMetadata.nameSingular,
-      queryRunnerContext.rolePermissionConfig,
-      queryRunnerContext.authContext,
-    );
-
-    await this.migrateRelatedRecords(
-      transactionManager,
-      queryRunnerContext,
-      idsToDelete,
-      priorityRecordId,
-    );
-
-    await transactionRepository
-      .createQueryBuilder(flatObjectMetadata.nameSingular)
+    await queryBuilder
       .delete()
       .whereInIds(idsToDelete)
       .returning(columnsToReturn)
       .execute();
 
-    return this.updatePriorityRecord(
+    const updatedRecord = await this.updatePriorityRecord(
       args,
       queryRunnerContext,
-      transactionRepository,
-      priorityRecordId,
+      priorityRecord.id,
       mergedData,
     );
+
+    await this.processNestedRelations({
+      args,
+      queryRunnerContext,
+      updatedRecords: [updatedRecord],
+    });
+
+    return updatedRecord;
   }
 
   private async fetchRecordsToMerge(
@@ -249,11 +212,6 @@ export class CommonMergeManyQueryRunnerService extends CommonBaseQueryRunnerServ
   ): Partial<ObjectRecord> {
     const mergedResult: Partial<ObjectRecord> = {};
 
-    const { fieldIdByName } = buildFieldMapsFromFlatObjectMetadata(
-      flatFieldMetadataMaps,
-      flatObjectMetadata,
-    );
-
     const allFieldNames = new Set<string>();
 
     recordsToMerge.forEach((record) => {
@@ -261,7 +219,7 @@ export class CommonMergeManyQueryRunnerService extends CommonBaseQueryRunnerServ
         if (
           !this.shouldExcludeFieldFromMerge(
             fieldName,
-            fieldIdByName,
+            flatObjectMetadata,
             flatFieldMetadataMaps,
           )
         ) {
@@ -286,6 +244,10 @@ export class CommonMergeManyQueryRunnerService extends CommonBaseQueryRunnerServ
       } else if (recordsWithValues.length === 1) {
         mergedResult[fieldName] = recordsWithValues[0].value;
       } else {
+        const { fieldIdByName } = buildFieldMapsFromFlatObjectMetadata(
+          flatFieldMetadataMaps,
+          flatObjectMetadata,
+        );
         const fieldMetadata = findFlatEntityByIdInFlatEntityMaps({
           flatEntityId: fieldIdByName[fieldName],
           flatEntityMaps: flatFieldMetadataMaps,
@@ -317,9 +279,13 @@ export class CommonMergeManyQueryRunnerService extends CommonBaseQueryRunnerServ
 
   private shouldExcludeFieldFromMerge(
     fieldName: string,
-    fieldIdByName: Record<string, string>,
+    flatObjectMetadata: FlatObjectMetadata,
     flatFieldMetadataMaps: FlatEntityMaps<FlatFieldMetadata>,
   ): boolean {
+    const { fieldIdByName } = buildFieldMapsFromFlatObjectMetadata(
+      flatFieldMetadataMaps,
+      flatObjectMetadata,
+    );
     const fieldMetadata = findFlatEntityByIdInFlatEntityMaps({
       flatEntityId: fieldIdByName[fieldName],
       flatEntityMaps: flatFieldMetadataMaps,
@@ -345,7 +311,6 @@ export class CommonMergeManyQueryRunnerService extends CommonBaseQueryRunnerServ
   private async updatePriorityRecord(
     args: CommonExtendedInput<MergeManyQueryArgs>,
     queryRunnerContext: CommonExtendedQueryRunnerContext,
-    repository: WorkspaceRepository<ObjectLiteral>,
     priorityRecordId: string,
     mergedData: Partial<ObjectRecord>,
   ): Promise<ObjectRecord> {
@@ -353,6 +318,7 @@ export class CommonMergeManyQueryRunnerService extends CommonBaseQueryRunnerServ
       flatObjectMetadata,
       flatObjectMetadataMaps,
       flatFieldMetadataMaps,
+      repository,
     } = queryRunnerContext;
 
     const queryBuilder = repository.createQueryBuilder(
@@ -388,7 +354,6 @@ export class CommonMergeManyQueryRunnerService extends CommonBaseQueryRunnerServ
   }
 
   private async migrateRelatedRecords(
-    transactionManager: WorkspaceEntityManager,
     context: CommonExtendedQueryRunnerContext,
     fromIds: string[],
     toId: string,
@@ -401,6 +366,8 @@ export class CommonMergeManyQueryRunnerService extends CommonBaseQueryRunnerServ
 
     const relationFieldsPointingToCurrentObject: Array<{
       objectMetadata: FlatObjectMetadata;
+      fieldName: string;
+      fieldId: string;
       joinColumnName: string | undefined;
     }> = [];
 
@@ -434,6 +401,8 @@ export class CommonMergeManyQueryRunnerService extends CommonBaseQueryRunnerServ
 
       relationFieldsPointingToCurrentObject.push({
         objectMetadata: objMetadata,
+        fieldName: field.name,
+        fieldId: field.id,
         joinColumnName: computeMorphOrRelationFieldJoinColumnName({
           name: field.name,
         }),
@@ -445,20 +414,29 @@ export class CommonMergeManyQueryRunnerService extends CommonBaseQueryRunnerServ
         continue;
       }
 
-      const repository = transactionManager.getRepository(
-        relationField.objectMetadata.nameSingular,
-        context.rolePermissionConfig,
-        context.authContext,
-      );
+      try {
+        const repository = context.workspaceDataSource.getRepository(
+          relationField.objectMetadata.nameSingular,
+          context.rolePermissionConfig,
+        );
 
-      // repository.update() runs outside the transaction; build from the transaction-scoped repository so the migration rolls back with the merge.
-      await repository
-        .createQueryBuilder(relationField.objectMetadata.nameSingular)
-        .update()
-        .set({ [relationField.joinColumnName]: toId })
-        .where({ [relationField.joinColumnName]: In(fromIds) })
-        .returning('*')
-        .execute();
+        const whereCondition = { [relationField.joinColumnName]: In(fromIds) };
+
+        const existingRecords = await repository.find({
+          where: whereCondition,
+        });
+
+        if (existingRecords.length > 0) {
+          await repository.update(whereCondition, {
+            [relationField.joinColumnName]: toId,
+          });
+        }
+      } catch (error) {
+        this.logger.warn(
+          `Failed to migrate relation field "${relationField.fieldName}" (${relationField.joinColumnName}) in object "${relationField.objectMetadata.nameSingular}":`,
+          error.message,
+        );
+      }
     }
   }
 

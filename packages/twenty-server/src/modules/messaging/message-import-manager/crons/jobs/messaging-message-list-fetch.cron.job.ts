@@ -7,7 +7,6 @@ import { In, Not, Repository } from 'typeorm';
 import {
   MessageChannelSyncStage,
   MessageChannelType,
-  WebhookSubscriptionStatus,
 } from 'twenty-shared/types';
 import { SentryCronMonitor } from 'src/engine/core-modules/cron/sentry-cron-monitor.decorator';
 import { ExceptionHandlerService } from 'src/engine/core-modules/exception-handler/exception-handler.service';
@@ -21,7 +20,6 @@ import {
   MessagingMessageListFetchJob,
   type MessagingMessageListFetchJobData,
 } from 'src/modules/messaging/message-import-manager/jobs/messaging-message-list-fetch.job';
-import { isLastSuccessfulSyncStale } from 'src/modules/connected-account/utils/is-last-successful-sync-stale.util';
 import { isThrottled } from 'src/modules/connected-account/utils/is-throttled';
 import { MessageChannelEntity } from 'src/engine/metadata-modules/message-channel/entities/message-channel.entity';
 import { toIsoStringOrNull } from 'src/utils/date/toIsoStringOrNull';
@@ -73,12 +71,7 @@ export class MessagingMessageListFetchCronJob {
               toIsoStringOrNull(messageChannel.syncStageStartedAt),
               messageChannel.throttleFailureCount,
               toIsoStringOrNull(messageChannel.throttleRetryAfter),
-            ) &&
-            (messageChannel.webhookSubscriptionStatus !==
-              WebhookSubscriptionStatus.ACTIVE ||
-              isLastSuccessfulSyncStale(
-                toIsoStringOrNull(messageChannel.syncedAt),
-              )),
+            ),
         );
 
         const throttledCount =

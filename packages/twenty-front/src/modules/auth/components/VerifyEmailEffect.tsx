@@ -1,27 +1,26 @@
-import { verifyEmailRedirectPathState } from '@/app/states/verifyEmailRedirectPathState';
 import { useAuth } from '@/auth/hooks/useAuth';
+import { useSnackBar } from '@/ui/feedback/snack-bar-manager/hooks/useSnackBar';
+import { CombinedGraphQLErrors } from '@apollo/client/errors';
+import { AppPath } from 'twenty-shared/types';
+
+import { verifyEmailRedirectPathState } from '@/app/states/verifyEmailRedirectPathState';
 import { useVerifyLogin } from '@/auth/hooks/useVerifyLogin';
 import { clientConfigApiStatusState } from '@/client-config/states/clientConfigApiStatusState';
 import { useIsCurrentLocationOnAWorkspace } from '@/domain-manager/hooks/useIsCurrentLocationOnAWorkspace';
 import { useRedirectToWorkspaceDomain } from '@/domain-manager/hooks/useRedirectToWorkspaceDomain';
-import { useSnackBar } from '@/ui/feedback/snack-bar-manager/hooks/useSnackBar';
-import { useAtomStateValue } from '@/ui/utilities/state/jotai/hooks/useAtomStateValue';
-import { useSetAtomState } from '@/ui/utilities/state/jotai/hooks/useSetAtomState';
-import { CombinedGraphQLErrors } from '@apollo/client/errors';
+import { ModalContent } from 'twenty-ui/surfaces';
 import { useLingui } from '@lingui/react/macro';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { AppPath } from 'twenty-shared/types';
+import { useAtomStateValue } from '@/ui/utilities/state/jotai/hooks/useAtomStateValue';
 import { isDefined } from 'twenty-shared/utils';
 import { useNavigateApp } from '~/hooks/useNavigateApp';
 import { getWorkspaceUrl } from '~/utils/getWorkspaceUrl';
 import { isGraphqlErrorOfType } from '~/utils/is-graphql-error-of-type.util';
+import { EmailVerificationSent } from '@/auth/sign-in-up/components/EmailVerificationSent';
+import { useSetAtomState } from '@/ui/utilities/state/jotai/hooks/useSetAtomState';
 
-type VerifyEmailEffectProps = {
-  onError: () => void;
-};
-
-export const VerifyEmailEffect = ({ onError }: VerifyEmailEffectProps) => {
+export const VerifyEmailEffect = () => {
   const {
     verifyEmailAndGetLoginToken,
     verifyEmailAndGetWorkspaceAgnosticToken,
@@ -30,6 +29,7 @@ export const VerifyEmailEffect = ({ onError }: VerifyEmailEffectProps) => {
   const { enqueueErrorSnackBar, enqueueSuccessSnackBar } = useSnackBar();
 
   const [searchParams] = useSearchParams();
+  const [isError, setIsError] = useState(false);
 
   const setVerifyEmailRedirectPath = useSetAtomState(
     verifyEmailRedirectPathState,
@@ -72,9 +72,7 @@ export const VerifyEmailEffect = ({ onError }: VerifyEmailEffectProps) => {
             email,
           );
 
-          enqueueSuccessSnackBar(successSnackbarParams);
-
-          return navigate(AppPath.SignInUp);
+          return enqueueSuccessSnackBar(successSnackbarParams);
         }
 
         const { loginToken, workspaceUrls } = await verifyEmailAndGetLoginToken(
@@ -109,7 +107,7 @@ export const VerifyEmailEffect = ({ onError }: VerifyEmailEffectProps) => {
           navigate(AppPath.SignInUp);
         }
 
-        onError();
+        setIsError(true);
       }
     };
 
@@ -122,6 +120,14 @@ export const VerifyEmailEffect = ({ onError }: VerifyEmailEffectProps) => {
     // Verify email only needs to run once at mount
     // oxlint-disable-next-line react-hooks/exhaustive-deps
   }, [clientConfigApiStatus.isLoadedOnce]);
+
+  if (isError) {
+    return (
+      <ModalContent isVerticallyCentered isHorizontallyCentered>
+        <EmailVerificationSent email={email} isError={true} />
+      </ModalContent>
+    );
+  }
 
   return <></>;
 };

@@ -47,15 +47,12 @@ const buildSendEmailStep = (input: Record<string, unknown>): WorkflowAction =>
   }) as WorkflowAction;
 
 const WORKSPACE_MEMBER_ID = '20202020-2222-4222-8222-222222222222';
-const USER_WORKSPACE_ID = '20202020-3333-4333-8333-333333333333';
-const MEMBER_ACCOUNT_ID = '20202020-5555-4555-8555-555555555555';
 
 describe('SendEmailWorkflowAction', () => {
   let action: SendEmailWorkflowAction;
   let mockSendEmailTool: jest.Mocked<Pick<SendEmailTool, 'execute'>>;
   let connectedAccountRepository: { findOne: jest.Mock };
-  let userWorkspaceRepository: { findOne: jest.Mock };
-  let workspaceMemberRepository: { findOne: jest.Mock };
+  let getRepository: jest.Mock;
 
   beforeEach(async () => {
     jest.clearAllMocks();
@@ -67,8 +64,7 @@ describe('SendEmailWorkflowAction', () => {
       }),
     };
     connectedAccountRepository = { findOne: jest.fn() };
-    userWorkspaceRepository = { findOne: jest.fn() };
-    workspaceMemberRepository = { findOne: jest.fn() };
+    getRepository = jest.fn();
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -82,9 +78,7 @@ describe('SendEmailWorkflowAction', () => {
           provide: GlobalWorkspaceOrmManager,
           useValue: {
             executeInWorkspaceContext: jest.fn((callback) => callback()),
-            getRepository: jest
-              .fn()
-              .mockResolvedValue(workspaceMemberRepository),
+            getRepository,
           },
         },
         {
@@ -93,7 +87,7 @@ describe('SendEmailWorkflowAction', () => {
         },
         {
           provide: getRepositoryToken(UserWorkspaceEntity),
-          useValue: userWorkspaceRepository,
+          useValue: { findOne: jest.fn() },
         },
       ],
     }).compile();
@@ -203,12 +197,14 @@ describe('SendEmailWorkflowAction', () => {
   });
 
   describe('sender resolution', () => {
-    const executeWithSender = (connectedAccountId: string) =>
-      action.execute({
+    // Sender-as-variable (workspace member) is draft-only for now, so
+    // send-email must never resolve the value as a workspace member id.
+    it('does not resolve a workspace member id and passes the value through', async () => {
+      await action.execute({
         currentStepId: 'step-1',
         steps: [
           buildSendEmailStep({
-            connectedAccountId,
+            connectedAccountId: WORKSPACE_MEMBER_ID,
             recipients: { to: 'test@example.com' },
             subject: 'Test',
             body: 'hi',
@@ -218,46 +214,12 @@ describe('SendEmailWorkflowAction', () => {
         runInfo: { workspaceId: 'workspace-1', workflowRunId: 'run-1' },
       });
 
-    it("resolves a workspace member id to the member's first connected account", async () => {
-      workspaceMemberRepository.findOne.mockResolvedValue({ userId: 'user-1' });
-      userWorkspaceRepository.findOne.mockResolvedValue({
-        id: USER_WORKSPACE_ID,
-      });
-      connectedAccountRepository.findOne.mockResolvedValue({
-        id: MEMBER_ACCOUNT_ID,
-      });
-
-      await executeWithSender(WORKSPACE_MEMBER_ID);
-
-      expect(mockSendEmailTool.execute).toHaveBeenCalledWith(
-        expect.objectContaining({ connectedAccountId: MEMBER_ACCOUNT_ID }),
-        expect.any(Object),
-      );
-    });
-
-    it('passes the id through unchanged when it is not a workspace member', async () => {
-      workspaceMemberRepository.findOne.mockResolvedValue(null);
-
-      await executeWithSender(WORKSPACE_MEMBER_ID);
-
+      expect(getRepository).not.toHaveBeenCalled();
       expect(connectedAccountRepository.findOne).not.toHaveBeenCalled();
       expect(mockSendEmailTool.execute).toHaveBeenCalledWith(
         expect.objectContaining({ connectedAccountId: WORKSPACE_MEMBER_ID }),
         expect.any(Object),
       );
-    });
-
-    it('throws when the workspace member has no connected account', async () => {
-      workspaceMemberRepository.findOne.mockResolvedValue({ userId: 'user-1' });
-      userWorkspaceRepository.findOne.mockResolvedValue({
-        id: USER_WORKSPACE_ID,
-      });
-      connectedAccountRepository.findOne.mockResolvedValue(null);
-
-      await expect(executeWithSender(WORKSPACE_MEMBER_ID)).rejects.toThrow(
-        `No connected account found for workspace member '${WORKSPACE_MEMBER_ID}'`,
-      );
-      expect(mockSendEmailTool.execute).not.toHaveBeenCalled();
     });
   });
 

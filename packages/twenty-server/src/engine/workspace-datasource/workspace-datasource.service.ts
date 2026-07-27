@@ -37,7 +37,7 @@ export class WorkspaceDataSourceService {
     }
   }
 
-  public async checkSchemaExists(workspaceId: string): Promise<boolean> {
+  public async checkSchemaExists(workspaceId: string) {
     const workspace = await this.workspaceRepository.findOne({
       select: ['databaseSchema'],
       where: { id: workspaceId },

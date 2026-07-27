@@ -16,23 +16,23 @@ export const MyComponent = () => {
 
    const navigationItems = [
      {
-       name: "Home",
+       name: "Inicio",
        Icon: IconHome,
-       onClick: () => console.log("Home clicked"),
+       onClick: () => console.log("Se hizo clic en Inicio"),
      },
      {
-       name: "Profile",
+       name: "Perfil",
        Icon: IconUser,
-       onClick: () => console.log("Profile clicked"),
+       onClick: () => console.log("Se hizo clic en Perfil"),
      },
      {
-       name: "Settings",
+       name: "Configuración",
        Icon: IconSettings,
-       onClick: () => console.log("Settings clicked"),
+       onClick: () => console.log("Se hizo clic en Configuración"),
      },
    ];
 
-  return <NavigationBar activeItemName="Home" items={navigationItems}/>;
+  return <NavigationBar activeItemName="Inicio" items={navigationItems}/>;
 };
 ```
 

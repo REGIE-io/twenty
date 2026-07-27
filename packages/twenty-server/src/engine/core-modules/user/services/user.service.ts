@@ -3,11 +3,12 @@ import { InjectRepository } from '@nestjs/typeorm';
 import assert from 'assert';
 
 import { msg } from '@lingui/core/macro';
+import { TypeOrmQueryService } from '@ptc-org/nestjs-query-typeorm';
 import { isNonEmptyString } from '@sniptt/guards';
 import { SOURCE_LOCALE } from 'twenty-shared/translations';
 import { assertIsDefinedOrThrow, isDefined } from 'twenty-shared/utils';
 import {
-  isWorkspaceProvisioned,
+  isWorkspaceActiveOrSuspended,
   WorkspaceActivationStatus,
 } from 'twenty-shared/workspace';
 import { type QueryRunner, In, IsNull, Not, Repository } from 'typeorm';
@@ -51,7 +52,7 @@ import { STANDARD_ROLE } from 'src/engine/workspace-manager/twenty-standard-appl
 import { WorkspaceMemberWorkspaceEntity } from 'src/modules/workspace-member/standard-objects/workspace-member.workspace-entity';
 
 // oxlint-disable-next-line twenty/inject-workspace-repository
-export class UserService {
+export class UserService extends TypeOrmQueryService<UserEntity> {
   constructor(
     @InjectRepository(UserEntity)
     private readonly userRepository: Repository<UserEntity>,
@@ -69,7 +70,9 @@ export class UserService {
     private readonly coreEntityCacheService: CoreEntityCacheService,
     private readonly workspaceMemberTranspiler: WorkspaceMemberTranspiler,
     private readonly twentyConfigService: TwentyConfigService,
-  ) {}
+  ) {
+    super(userRepository);
+  }
 
   async refreshWorkspaceIfPendingOrOngoingCreation<
     TWorkspace extends Pick<WorkspaceEntity, 'id' | 'activationStatus'>,
@@ -83,9 +86,7 @@ export class UserService {
       return workspace;
     }
 
-    const freshWorkspace = await this.workspaceService.findOneWorkspaceById(
-      workspace.id,
-    );
+    const freshWorkspace = await this.workspaceService.findById(workspace.id);
 
     return freshWorkspace ?? workspace;
   }
@@ -98,7 +99,7 @@ export class UserService {
     const refreshedWorkspace =
       await this.refreshWorkspaceIfPendingOrOngoingCreation(workspace);
 
-    if (!isWorkspaceProvisioned(refreshedWorkspace)) {
+    if (!isWorkspaceActiveOrSuspended(refreshedWorkspace)) {
       return null;
     }
 
@@ -131,7 +132,7 @@ export class UserService {
     const refreshedWorkspace =
       await this.refreshWorkspaceIfPendingOrOngoingCreation(workspace);
 
-    if (!isWorkspaceProvisioned(refreshedWorkspace)) {
+    if (!isWorkspaceActiveOrSuspended(refreshedWorkspace)) {
       return [];
     }
 
@@ -218,7 +219,7 @@ export class UserService {
     workspace: Pick<WorkspaceEntity, 'id' | 'activationStatus'>;
     userIds: string[];
   }): Promise<WorkspaceMemberWorkspaceEntity[]> {
-    if (!isWorkspaceProvisioned(workspace) || userIds.length === 0) {
+    if (!isWorkspaceActiveOrSuspended(workspace) || userIds.length === 0) {
       return [];
     }
 
@@ -245,7 +246,7 @@ export class UserService {
   async loadDeletedWorkspaceMembersOnly(
     workspace: Pick<WorkspaceEntity, 'id' | 'activationStatus'>,
   ) {
-    if (!isWorkspaceProvisioned(workspace)) {
+    if (!isWorkspaceActiveOrSuspended(workspace)) {
       return [];
     }
 

@@ -76,7 +76,7 @@ export class ConfigStorageService implements ConfigStorageInterface {
         this.isSensitiveStringValue(convertedValue, key) &&
         isEncryptedString(convertedValue)
       ) {
-        return this.secretEncryptionService.decryptVersionedOrThrow(
+        return this.secretEncryptionService.decryptVersioned(
           convertedValue,
         ) as unknown as ConfigVariables[T];
       }

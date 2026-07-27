@@ -3,7 +3,6 @@ import { useHeadlessCommandContextApi } from '@/command-menu-item/engine-command
 import { DEFAULT_QUERY_PAGE_SIZE } from '@/object-record/constants/DefaultQueryPageSize';
 import { useIncrementalDestroyManyRecords } from '@/object-record/hooks/useIncrementalDestroyManyRecords';
 import { useRemoveSelectedRecordsFromRecordBoard } from '@/object-record/record-board/hooks/useRemoveSelectedRecordsFromRecordBoard';
-import { PLACEHOLDER_RECORD_INDEX_ID } from '@/object-record/record-index/constants/PlaceholderRecordIndexId';
 import { useResetTableRowSelection } from '@/object-record/record-table/hooks/internal/useResetTableRowSelection';
 import { useSidePanelMenu } from '@/side-panel/hooks/useSidePanelMenu';
 import { t } from '@lingui/core/macro';
@@ -20,8 +19,10 @@ export const DestroyRecordsCommand = () => {
     isInSidePanel,
   } = useHeadlessCommandContextApi();
 
-  if (!isDefined(objectMetadataItem)) {
-    throw new Error('Object metadata is required to destroy records');
+  if (!isDefined(recordIndexId) || !isDefined(objectMetadataItem)) {
+    throw new Error(
+      'Record index ID and object metadata are required to destroy records',
+    );
   }
 
   const isSingleRecord = selectedRecords.length === 1;
@@ -29,13 +30,9 @@ export const DestroyRecordsCommand = () => {
   const navigateApp = useNavigateApp();
   const { closeSidePanelMenu } = useSidePanelMenu();
 
-  const { resetTableRowSelection } = useResetTableRowSelection(
-    recordIndexId ?? PLACEHOLDER_RECORD_INDEX_ID,
-  );
+  const { resetTableRowSelection } = useResetTableRowSelection(recordIndexId);
   const { removeSelectedRecordsFromRecordBoard } =
-    useRemoveSelectedRecordsFromRecordBoard(
-      recordIndexId ?? PLACEHOLDER_RECORD_INDEX_ID,
-    );
+    useRemoveSelectedRecordsFromRecordBoard(recordIndexId);
 
   const noMatchFilter: RecordGqlOperationFilter = { id: { in: [] } };
 
@@ -56,22 +53,21 @@ export const DestroyRecordsCommand = () => {
   });
 
   const handleExecute = async () => {
-    if (isDefined(recordIndexId)) {
-      removeSelectedRecordsFromRecordBoard();
-      resetTableRowSelection();
-    }
+    removeSelectedRecordsFromRecordBoard();
+    resetTableRowSelection();
 
     if (!isDefined(graphqlFilter)) {
       throw new Error('Cannot destroy records without a valid filter');
     }
 
-    if (!isSingleRecord || isInSidePanel) {
-      closeSidePanelMenu();
-    }
-
     await incrementalDestroyManyRecords();
 
-    if (!isSingleRecord || isInSidePanel) {
+    if (!isSingleRecord) {
+      return;
+    }
+
+    if (isInSidePanel) {
+      closeSidePanelMenu();
       return;
     }
 

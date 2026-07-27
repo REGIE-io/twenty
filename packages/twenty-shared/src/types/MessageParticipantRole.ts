@@ -3,5 +3,4 @@ export enum MessageParticipantRole {
   'TO' = 'TO',
   'CC' = 'CC',
   'BCC' = 'BCC',
-  'REPLY_TO' = 'REPLY_TO',
 }

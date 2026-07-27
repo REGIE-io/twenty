@@ -39,7 +39,7 @@ export const SettingPublicDomainRowDropdownMenu = ({
       },
       onCompleted: () =>
         enqueueSuccessSnackBar({
-          message: t`Custom domain successfully deleted`,
+          message: t`Public domain successfully deleted`,
         }),
       onError: (error) => enqueueErrorSnackBar({ apolloError: error }),
     });
@@ -50,11 +50,7 @@ export const SettingPublicDomainRowDropdownMenu = ({
       dropdownId={dropdownId}
       dropdownPlacement="right-start"
       clickableComponent={
-        <LightIconButton
-          Icon={IconDotsVertical}
-          accent="tertiary"
-          aria-label={t`More options`}
-        />
+        <LightIconButton Icon={IconDotsVertical} accent="tertiary" />
       }
       dropdownComponents={
         <DropdownContent>

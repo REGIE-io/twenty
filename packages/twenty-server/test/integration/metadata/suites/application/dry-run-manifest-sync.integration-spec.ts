@@ -42,7 +42,6 @@ describe('Manifest sync - dry run', () => {
 
   it('returns the planned actions without applying them', async () => {
     const ticketObject = buildDefaultObjectManifest({
-      applicationUniversalIdentifier: TEST_APP_ID,
       nameSingular: 'dryRunTicket',
       namePlural: 'dryRunTickets',
       labelSingular: 'Dry Run Ticket',
@@ -56,7 +55,6 @@ describe('Manifest sync - dry run', () => {
     });
 
     const invoiceObject = buildDefaultObjectManifest({
-      applicationUniversalIdentifier: TEST_APP_ID,
       nameSingular: 'dryRunInvoice',
       namePlural: 'dryRunInvoices',
       labelSingular: 'Dry Run Invoice',

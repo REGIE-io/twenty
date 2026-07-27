@@ -2,6 +2,7 @@ import { type Meta, type StoryObj } from '@storybook/react-vite';
 
 import { IconsProvider } from '@ui/icon/providers/IconsProvider';
 import { ComponentDecorator } from '@ui/testing/decorators/ComponentDecorator';
+import { JotaiRootDecorator } from '@ui/testing/decorators/JotaiRootDecorator';
 
 import { Icon } from '../Icon';
 
@@ -15,6 +16,7 @@ const meta: Meta<typeof Icon> = {
         <Story />
       </IconsProvider>
     ),
+    JotaiRootDecorator,
   ],
 };
 

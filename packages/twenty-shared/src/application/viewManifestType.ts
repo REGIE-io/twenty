@@ -61,7 +61,6 @@ export type ViewFieldGroupManifest = SyncableEntityOptions & {
 export type ViewSortManifest = SyncableEntityOptions & {
   fieldMetadataUniversalIdentifier: string;
   direction: ViewSortDirection;
-  subFieldName?: string;
 };
 
 export type ViewManifest = SyncableEntityOptions & {
@@ -76,13 +75,10 @@ export type ViewManifest = SyncableEntityOptions & {
   openRecordIn?: ViewOpenRecordIn;
   mainGroupByFieldMetadataUniversalIdentifier?: string;
   shouldHideEmptyGroups?: boolean;
-  anyFieldFilterValue?: string | null;
-  kanbanColumnWidth?: number | null;
   kanbanAggregateOperation?: AggregateOperations;
   kanbanAggregateOperationFieldMetadataUniversalIdentifier?: string;
   calendarLayout?: ViewCalendarLayout;
   calendarFieldMetadataUniversalIdentifier?: string;
-  calendarEndFieldMetadataUniversalIdentifier?: string;
   fields?: ViewFieldManifest[];
   filters?: ViewFilterManifest[];
   filterGroups?: ViewFilterGroupManifest[];

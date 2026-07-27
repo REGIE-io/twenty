@@ -1,7 +1,6 @@
 import { Logger } from '@nestjs/common';
 import { InjectDataSource, InjectRepository } from '@nestjs/typeorm';
 
-import { isDefined } from 'twenty-shared/utils';
 import { WorkspaceActivationStatus } from 'twenty-shared/workspace';
 import { DataSource, Repository } from 'typeorm';
 
@@ -19,9 +18,6 @@ import { WorkspaceEntity } from 'src/engine/core-modules/workspace/workspace.ent
 import { getWorkspaceSchemaName } from 'src/engine/workspace-datasource/utils/get-workspace-schema-name.util';
 import { WorkflowRunStatus } from 'src/modules/workflow/common/standard-objects/workflow-run.workspace-entity';
 import { STALED_RUNS_THRESHOLD_MS } from 'src/modules/workflow/workflow-runner/workflow-run-queue/constants/staled-runs-threshold';
-import { STUCK_RUNNING_RUNS_THRESHOLD_MS } from 'src/modules/workflow/workflow-runner/workflow-run-queue/constants/stuck-running-runs-threshold';
-import { STUCK_STOPPING_RUNS_THRESHOLD_MS } from 'src/modules/workflow/workflow-runner/workflow-run-queue/constants/stuck-stopping-runs-threshold';
-import { getStuckRunningRunsMonitorCacheKey } from 'src/modules/workflow/workflow-runner/workflow-run-queue/utils/get-stuck-running-runs-monitor-cache-key.util';
 import {
   WorkflowHandleStaledRunsJob,
   WorkflowHandleStaledRunsJobData,
@@ -104,24 +100,9 @@ export class WorkflowHandleStaledRunsCronJob {
   }
 
   private async checkAndEnqueue(workspaceId: string): Promise<boolean> {
-    const [
-      hasStaledRuns,
-      hasStuckStoppingRuns,
-      hasStuckRunningRuns,
-      hasFlaggedStuckRunningRuns,
-    ] = await Promise.all([
-      this.hasStaledRuns(workspaceId),
-      this.hasStuckStoppingRuns(workspaceId),
-      this.hasStuckRunningRuns(workspaceId),
-      this.hasFlaggedStuckRunningRuns(workspaceId),
-    ]);
+    const hasStaledRuns = await this.hasStaledRuns(workspaceId);
 
-    if (
-      hasStaledRuns ||
-      hasStuckStoppingRuns ||
-      hasStuckRunningRuns ||
-      hasFlaggedStuckRunningRuns
-    ) {
+    if (hasStaledRuns) {
       await this.messageQueueService.add<WorkflowHandleStaledRunsJobData>(
         WorkflowHandleStaledRunsJob.name,
         { workspaceId },
@@ -158,43 +139,5 @@ export class WorkflowHandleStaledRunsCronJob {
     );
 
     return result.length > 0;
-  }
-
-  private async hasStuckStoppingRuns(workspaceId: string): Promise<boolean> {
-    const schemaName = getWorkspaceSchemaName(workspaceId);
-    const thresholdDate = new Date(
-      Date.now() - STUCK_STOPPING_RUNS_THRESHOLD_MS,
-    );
-
-    const result = await this.coreDataSource.query(
-      `SELECT 1 FROM ${schemaName}."workflowRun" WHERE "status" = $1 AND "updatedAt" < $2 LIMIT 1`,
-      [WorkflowRunStatus.STOPPING, thresholdDate],
-    );
-
-    return result.length > 0;
-  }
-
-  private async hasStuckRunningRuns(workspaceId: string): Promise<boolean> {
-    const schemaName = getWorkspaceSchemaName(workspaceId);
-    const thresholdDate = new Date(
-      Date.now() - STUCK_RUNNING_RUNS_THRESHOLD_MS,
-    );
-
-    const result = await this.coreDataSource.query(
-      `SELECT 1 FROM ${schemaName}."workflowRun" WHERE "status" = $1 AND "updatedAt" < $2 LIMIT 1`,
-      [WorkflowRunStatus.RUNNING, thresholdDate],
-    );
-
-    return result.length > 0;
-  }
-
-  private async hasFlaggedStuckRunningRuns(
-    workspaceId: string,
-  ): Promise<boolean> {
-    const flaggedRuns = await this.cacheStorageService.get<
-      Record<string, string>
-    >(getStuckRunningRunsMonitorCacheKey(workspaceId));
-
-    return isDefined(flaggedRuns) && Object.keys(flaggedRuns).length > 0;
   }
 }

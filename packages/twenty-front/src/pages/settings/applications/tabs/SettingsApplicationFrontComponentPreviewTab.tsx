@@ -4,8 +4,6 @@ import { Suspense, lazy } from 'react';
 import { Section } from 'twenty-ui/layout';
 import { themeCssVariables } from 'twenty-ui/theme-constants';
 
-import { FrontComponentSkeletonLoader } from '@/front-components/components/FrontComponentSkeletonLoader';
-
 const FrontComponentRenderer = lazy(() =>
   import('@/front-components/components/FrontComponentRenderer').then(
     (module) => ({ default: module.FrontComponentRenderer }),
@@ -66,11 +64,8 @@ export const SettingsApplicationFrontComponentPreviewTab = ({
           </StyledHeadlessNotice>
         ) : (
           <StyledRendererContainer>
-            <Suspense fallback={<FrontComponentSkeletonLoader />}>
-              <FrontComponentRenderer
-                frontComponentId={frontComponentId}
-                loadingFallback={<FrontComponentSkeletonLoader />}
-              />
+            <Suspense fallback={null}>
+              <FrontComponentRenderer frontComponentId={frontComponentId} />
             </Suspense>
           </StyledRendererContainer>
         )}

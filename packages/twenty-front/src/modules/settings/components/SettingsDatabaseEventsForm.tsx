@@ -19,12 +19,8 @@ const StyledFilterRow = styled.div<{ isMobile: boolean }>`
   gap: ${themeCssVariables.spacing[2]};
   grid-template-columns: ${({ isMobile }) =>
     isMobile
-      ? `minmax(${OBJECT_MOBILE_WIDTH}px, 1fr) ${ACTION_MOBILE_WIDTH}px ${
-          themeCssVariables.spacing[8]
-        }`
-      : `minmax(${OBJECT_DROPDOWN_WIDTH}px, 1fr) ${ACTION_DROPDOWN_WIDTH}px ${
-          themeCssVariables.spacing[8]
-        }`};
+      ? `${OBJECT_MOBILE_WIDTH}px ${ACTION_MOBILE_WIDTH}px auto`
+      : `${OBJECT_DROPDOWN_WIDTH}px ${ACTION_DROPDOWN_WIDTH}px auto`};
   margin-bottom: ${themeCssVariables.spacing[2]};
 `;
 
@@ -95,7 +91,6 @@ export const SettingsDatabaseEventsForm = ({
               Icon={IconTrash}
               variant="tertiary"
               size="medium"
-              ariaLabel={t`Remove filter`}
               onClick={() => removeOperation?.(index)}
             />
           ) : (

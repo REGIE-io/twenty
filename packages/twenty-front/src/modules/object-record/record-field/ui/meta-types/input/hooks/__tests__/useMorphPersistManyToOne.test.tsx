@@ -49,6 +49,7 @@ const mockMorphFieldDefinition = {
         targetFieldMetadata: {
           id: 'target-field-1',
           name: 'tasks',
+          isCustom: false,
         },
         sourceObjectMetadata: {
           id: 'task-metadata-id',
@@ -70,6 +71,7 @@ const mockMorphFieldDefinition = {
         targetFieldMetadata: {
           id: 'target-field-2',
           name: 'tasks',
+          isCustom: false,
         },
         sourceObjectMetadata: {
           id: 'task-metadata-id',

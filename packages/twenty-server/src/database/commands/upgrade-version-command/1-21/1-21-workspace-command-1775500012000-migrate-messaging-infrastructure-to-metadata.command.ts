@@ -5,9 +5,9 @@ import { Command } from 'nest-commander';
 import { type FeatureFlagKey } from 'twenty-shared/types';
 import { type DeepPartial, Repository } from 'typeorm';
 
-import { ProvisionedWorkspaceCommandRunner } from 'src/database/commands/command-runners/provisioned-workspace.command-runner';
-import { WorkspaceIteratorService } from 'src/database/commands/command-runners/workspace-iterator.service';
+import { ActiveOrSuspendedWorkspaceCommandRunner } from 'src/database/commands/command-runners/active-or-suspended-workspace.command-runner';
 import { type RunOnWorkspaceArgs } from 'src/database/commands/command-runners/workspace.command-runner';
+import { WorkspaceIteratorService } from 'src/database/commands/command-runners/workspace-iterator.service';
 import { FeatureFlagService } from 'src/engine/core-modules/feature-flag/services/feature-flag.service';
 import { RegisteredWorkspaceCommand } from 'src/engine/core-modules/upgrade/decorators/registered-workspace-command.decorator';
 import { UserWorkspaceEntity } from 'src/engine/core-modules/user-workspace/user-workspace.entity';
@@ -16,6 +16,7 @@ import { ConnectedAccountEntity } from 'src/engine/metadata-modules/connected-ac
 import { MessageChannelEntity } from 'src/engine/metadata-modules/message-channel/entities/message-channel.entity';
 import { MessageFolderEntity } from 'src/engine/metadata-modules/message-folder/entities/message-folder.entity';
 import { GlobalWorkspaceOrmManager } from 'src/engine/twenty-orm/global-workspace-datasource/global-workspace-orm.manager';
+import { type MessageFolderWorkspaceEntity } from 'src/modules/messaging/common/standard-objects/message-folder.workspace-entity';
 import { type WorkspaceMemberWorkspaceEntity } from 'src/modules/workspace-member/standard-objects/workspace-member.workspace-entity';
 
 type LegacyConnectedAccountWorkspaceEntity = {
@@ -41,7 +42,7 @@ type LegacyConnectedAccountWorkspaceEntity = {
   description:
     'Backfill connectedAccount, messageChannel, calendarChannel, and messageFolder to core metadata schema',
 })
-export class MigrateMessagingInfrastructureToMetadataCommand extends ProvisionedWorkspaceCommandRunner {
+export class MigrateMessagingInfrastructureToMetadataCommand extends ActiveOrSuspendedWorkspaceCommandRunner {
   constructor(
     private readonly twentyORMGlobalManager: GlobalWorkspaceOrmManager,
     @InjectRepository(ConnectedAccountEntity)
@@ -98,7 +99,7 @@ export class MigrateMessagingInfrastructureToMetadataCommand extends Provisioned
       );
 
     const messageFolderWorkspaceRepository =
-      await this.twentyORMGlobalManager.getRepository<MessageFolderEntity>(
+      await this.twentyORMGlobalManager.getRepository<MessageFolderWorkspaceEntity>(
         workspaceId,
         'messageFolder',
       );

@@ -1,11 +1,8 @@
-import { WorkspaceActivationStatus } from 'twenty-shared/workspace';
-
 import {
   AuthException,
   AuthExceptionCode,
 } from 'src/engine/core-modules/auth/auth.exception';
 import { type SignInUpNewUserPayload } from 'src/engine/core-modules/auth/types/signInUp.type';
-import { DpaAgreementEntity } from 'src/engine/core-modules/dpa/entities/dpa-agreement.entity';
 import { AuthProviderEnum } from 'src/engine/core-modules/workspace/types/workspace.type';
 
 import { SignInUpService } from './sign-in-up.service';
@@ -42,6 +39,18 @@ const createSignInUpServiceForTests = () => {
     }),
   };
 
+  const mockOnboardingService = {
+    setOnboardingConnectAccountPending: jest.fn(),
+    setOnboardingCreateProfilePending: jest.fn(),
+    setOnboardingInviteTeamPending: jest.fn(),
+    createOnboardingStatusForWorkspaceMember: jest.fn(),
+  };
+
+  const mockUserWorkspaceService = {
+    create: jest.fn(),
+    checkUserWorkspaceExists: jest.fn(),
+  };
+
   const mockConfigurationValues: MockConfigurationValues = {
     IS_MULTIWORKSPACE_ENABLED: true,
     IS_WORKSPACE_CREATION_LIMITED_TO_SERVER_ADMINS: false,
@@ -57,28 +66,13 @@ const createSignInUpServiceForTests = () => {
 
   const queryRunnerMock = {
     manager: {
-      save: jest.fn((_entity, entity) => entity),
-      update: jest.fn(),
+      save: jest.fn(async (_entity, value) => value),
     },
     connect: jest.fn(),
     startTransaction: jest.fn(),
     commitTransaction: jest.fn(),
     rollbackTransaction: jest.fn(),
     release: jest.fn(),
-  };
-
-  const mockUserWorkspaceService = {
-    create: jest.fn(),
-    checkUserWorkspaceExists: jest.fn(),
-    addUserToWorkspaceIfUserNotInWorkspace: jest.fn(),
-  };
-
-  const mockOnboardingService = {
-    setOnboardingConnectAccountPending: jest.fn(),
-    setOnboardingCreateProfilePending: jest.fn(),
-    setOnboardingInstallAppsPending: jest.fn(),
-    setOnboardingInviteTeamPending: jest.fn(),
-    createOnboardingStatusForWorkspaceMember: jest.fn(),
   };
 
   const service = new SignInUpService(
@@ -122,15 +116,9 @@ const createSignInUpServiceForTests = () => {
       }),
     } as any,
     {
-      creditWorkspaceBalance: jest.fn(),
-    } as any,
-    {
-      isBillingEnabled: jest.fn(),
-    } as any,
-    {
       createQueryRunner: jest.fn(() => queryRunnerMock),
-      transaction: jest.fn(async (runInTransaction) =>
-        runInTransaction({ queryRunner: queryRunnerMock }),
+      transaction: jest.fn(async (callback) =>
+        callback({ queryRunner: queryRunnerMock }),
       ),
     } as any,
   );
@@ -143,7 +131,6 @@ const createSignInUpServiceForTests = () => {
     mockUserWorkspaceService,
     mockApplicationService,
     mockOnboardingService,
-    queryRunnerMock,
   };
 };
 
@@ -339,7 +326,6 @@ describe('SignInUpService workspace-creation policy', () => {
       mockUserWorkspaceService,
       mockApplicationService,
       mockOnboardingService,
-      queryRunnerMock,
     } = createSignInUpServiceForTests();
 
     const existingUser = {
@@ -361,7 +347,6 @@ describe('SignInUpService workspace-creation policy', () => {
         displayName: 'Acme',
         subdomain: 'acme',
         shouldBypassWorkspaceCreationChecks: true,
-        shouldRecordDpaAcceptance: false,
       },
     );
 
@@ -385,102 +370,5 @@ describe('SignInUpService workspace-creation policy', () => {
     expect(
       mockOnboardingService.setOnboardingConnectAccountPending,
     ).toHaveBeenCalled();
-    expect(queryRunnerMock.manager.save).not.toHaveBeenCalledWith(
-      DpaAgreementEntity,
-      expect.anything(),
-    );
-  });
-
-  it('records DPA acceptance for normal multi-workspace signup', async () => {
-    const {
-      service,
-      mockWorkspaceRepository,
-      mockUserRepository,
-      queryRunnerMock,
-    } = createSignInUpServiceForTests();
-
-    mockWorkspaceRepository.count.mockResolvedValue(0);
-    mockUserRepository.count.mockResolvedValue(0);
-
-    await service.signUpOnNewWorkspace(
-      {
-        type: 'newUserWithPicture',
-        newUserWithPicture: {
-          email: 'creator@gmail.com',
-          firstName: 'Creator',
-          lastName: 'User',
-        },
-      },
-      { displayName: 'Acme Inc' },
-    );
-
-    expect(queryRunnerMock.manager.save).toHaveBeenCalledWith(
-      DpaAgreementEntity,
-      expect.objectContaining({
-        acceptedByEmail: 'creator@gmail.com',
-      }),
-    );
-  });
-});
-
-describe('SignInUpService onboarding steps', () => {
-  it('flags the connect-account step but not the install-apps step for a new user joining an existing workspace', async () => {
-    const { service, mockOnboardingService } = createSignInUpServiceForTests();
-
-    await service.signInUpOnExistingWorkspace({
-      workspace: {
-        id: 'existing-workspace-id',
-        activationStatus: WorkspaceActivationStatus.ACTIVE,
-      } as any,
-      userData: {
-        type: 'newUserWithPicture',
-        newUserWithPicture: {
-          email: 'invited.user@acme.dev',
-          firstName: 'Invited',
-          lastName: 'User',
-        },
-      },
-    });
-
-    expect(
-      mockOnboardingService.setOnboardingCreateProfilePending,
-    ).toHaveBeenCalledWith(expect.objectContaining({ value: true }), undefined);
-    expect(
-      mockOnboardingService.setOnboardingInstallAppsPending,
-    ).not.toHaveBeenCalled();
-    expect(
-      mockOnboardingService.setOnboardingConnectAccountPending,
-    ).toHaveBeenCalledWith(expect.objectContaining({ value: true }), undefined);
-  });
-
-  it('flags the install-apps step for a user creating a new workspace', async () => {
-    const {
-      service,
-      mockOnboardingService,
-      mockWorkspaceRepository,
-      mockUserRepository,
-    } = createSignInUpServiceForTests();
-
-    mockWorkspaceRepository.count.mockResolvedValue(0);
-    mockUserRepository.count.mockResolvedValue(0);
-
-    await service.signUpOnNewWorkspace(
-      {
-        type: 'newUserWithPicture',
-        newUserWithPicture: {
-          email: 'creator@gmail.com',
-          firstName: 'Creator',
-          lastName: 'User',
-        },
-      },
-      { displayName: 'Acme Inc' },
-    );
-
-    expect(
-      mockOnboardingService.setOnboardingInstallAppsPending,
-    ).toHaveBeenCalledWith(
-      expect.objectContaining({ value: true }),
-      expect.anything(),
-    );
   });
 });

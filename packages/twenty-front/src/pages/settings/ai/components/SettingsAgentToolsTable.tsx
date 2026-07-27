@@ -88,7 +88,7 @@ export const SettingsAgentToolsTable = ({
                     marketplaceApp={marketplaceApp}
                   />
                 }
-                name={tool.label ?? tool.name}
+                name={tool.name}
                 applicationId={getToolApplicationId(tool, currentWorkspace)}
                 action={
                   <IconChevronRight

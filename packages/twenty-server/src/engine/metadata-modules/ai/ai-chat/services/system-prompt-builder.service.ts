@@ -1,9 +1,6 @@
 import { Injectable } from '@nestjs/common';
 
-import {
-  assertUnreachable,
-  getValidTimeZoneOrUndefined,
-} from 'twenty-shared/utils';
+import { assertUnreachable } from 'twenty-shared/utils';
 
 import { COMMON_PRELOAD_TOOLS } from 'src/engine/core-modules/tool-provider/constants/common-preload-tools.const';
 import { ToolCategory } from 'twenty-shared/ai';
@@ -185,28 +182,14 @@ ${instructions}`;
       `Locale: ${userContext.locale}`,
     ];
 
-    const resolvedTimeZone = getValidTimeZoneOrUndefined(userContext.timezone);
-
-    if (resolvedTimeZone) {
-      parts.push(`Timezone: ${resolvedTimeZone}`);
+    if (userContext.timezone) {
+      parts.push(`Timezone: ${userContext.timezone}`);
     }
-
-    parts.push(`Current date: ${this.formatCurrentDate(userContext.timezone)}`);
 
     return `
 ## User Context
 
 ${parts.join('\n')}`;
-  }
-
-  private formatCurrentDate(timezone: string | null): string {
-    return new Intl.DateTimeFormat('en-US', {
-      timeZone: getValidTimeZoneOrUndefined(timezone),
-      weekday: 'long',
-      year: 'numeric',
-      month: 'long',
-      day: 'numeric',
-    }).format(new Date());
   }
 
   buildUploadedFilesSection(

@@ -1,27 +1,55 @@
-import { fromEntityToScalarEntity } from 'src/engine/metadata-modules/flat-entity/utils/from-entity-to-scalar-entity.util';
+import { isDefined, removePropertiesFromRecord } from 'twenty-shared/utils';
+
+import {
+  FlatEntityMapsException,
+  FlatEntityMapsExceptionCode,
+} from 'src/engine/metadata-modules/flat-entity/exceptions/flat-entity-maps.exception';
+import { getMetadataEntityRelationProperties } from 'src/engine/metadata-modules/flat-entity/utils/get-metadata-entity-relation-properties.util';
 import { type FlatViewFieldGroup } from 'src/engine/metadata-modules/flat-view-field-group/types/flat-view-field-group.type';
 import { type FromEntityToFlatEntityArgs } from 'src/engine/workspace-cache/types/from-entity-to-flat-entity-args.type';
-import { resolveManyToOneRelationIdsToUniversalIdentifiers } from 'src/engine/workspace-manager/workspace-migration/universal-flat-entity/utils/resolve-many-to-one-relation-ids-to-universal-identifiers.util';
 
-export const fromViewFieldGroupEntityToFlatViewFieldGroup = (
-  args: FromEntityToFlatEntityArgs<'viewFieldGroup'>,
-): FlatViewFieldGroup => {
-  const { entity: viewFieldGroupEntity } = args;
+export const fromViewFieldGroupEntityToFlatViewFieldGroup = ({
+  entity: viewFieldGroupEntity,
+  applicationIdToUniversalIdentifierMap,
+  viewIdToUniversalIdentifierMap,
+}: FromEntityToFlatEntityArgs<'viewFieldGroup'>): FlatViewFieldGroup => {
+  const viewFieldGroupEntityWithoutRelations = removePropertiesFromRecord(
+    viewFieldGroupEntity,
+    getMetadataEntityRelationProperties('viewFieldGroup'),
+  );
 
-  const viewFieldGroupScalarEntity = fromEntityToScalarEntity({
-    metadataName: 'viewFieldGroup',
-    entity: viewFieldGroupEntity,
-  });
+  const applicationUniversalIdentifier =
+    applicationIdToUniversalIdentifierMap.get(
+      viewFieldGroupEntity.applicationId,
+    );
 
-  const relationUniversalIdentifiers =
-    resolveManyToOneRelationIdsToUniversalIdentifiers({
-      metadataName: 'viewFieldGroup',
-      ...args,
-    });
+  if (!isDefined(applicationUniversalIdentifier)) {
+    throw new FlatEntityMapsException(
+      `Application with id ${viewFieldGroupEntity.applicationId} not found for viewFieldGroup ${viewFieldGroupEntity.id}`,
+      FlatEntityMapsExceptionCode.ENTITY_NOT_FOUND,
+    );
+  }
+
+  const viewUniversalIdentifier = viewIdToUniversalIdentifierMap.get(
+    viewFieldGroupEntity.viewId,
+  );
+
+  if (!isDefined(viewUniversalIdentifier)) {
+    throw new FlatEntityMapsException(
+      `View with id ${viewFieldGroupEntity.viewId} not found for viewFieldGroup ${viewFieldGroupEntity.id}`,
+      FlatEntityMapsExceptionCode.ENTITY_NOT_FOUND,
+    );
+  }
 
   return {
-    ...viewFieldGroupScalarEntity,
-    ...relationUniversalIdentifiers,
+    ...viewFieldGroupEntityWithoutRelations,
+    createdAt: viewFieldGroupEntity.createdAt.toISOString(),
+    updatedAt: viewFieldGroupEntity.updatedAt.toISOString(),
+    deletedAt: viewFieldGroupEntity.deletedAt?.toISOString() ?? null,
+    universalIdentifier:
+      viewFieldGroupEntityWithoutRelations.universalIdentifier,
+    applicationUniversalIdentifier,
+    viewUniversalIdentifier,
     viewFieldIds:
       viewFieldGroupEntity.viewFields?.map((viewField) => viewField.id) ?? [],
     viewFieldUniversalIdentifiers:

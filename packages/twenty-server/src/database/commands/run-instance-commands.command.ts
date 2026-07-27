@@ -67,7 +67,7 @@ export class RunInstanceCommandsCommand extends CommandRunner {
       await this.runLegacyPendingTypeOrmMigrations();
 
       const activeOrSuspendedWorkspaceIds =
-        await this.workspaceVersionService.getProvisionedWorkspaceIds();
+        await this.workspaceVersionService.getActiveOrSuspendedWorkspaceIds();
 
       const sequence = this.upgradeSequenceReaderService.getUpgradeSequence();
 
@@ -133,7 +133,7 @@ export class RunInstanceCommandsCommand extends CommandRunner {
     }
 
     const activeOrSuspendedWorkspaceIds =
-      await this.workspaceVersionService.getProvisionedWorkspaceIds();
+      await this.workspaceVersionService.getActiveOrSuspendedWorkspaceIds();
 
     if (activeOrSuspendedWorkspaceIds.length === 0) {
       return;

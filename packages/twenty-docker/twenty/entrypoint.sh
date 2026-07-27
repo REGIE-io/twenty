@@ -20,7 +20,9 @@ setup_and_migrate_db() {
         echo "Warning: Failed to flush cache before upgrade, but continuing startup..."
     fi
 
-    yarn command:prod upgrade
+    if ! yarn command:prod upgrade; then
+        echo "Warning: Upgrade completed with errors. Some workspaces may not be fully migrated. Check logs for details."
+    fi
 
     if ! yarn command:prod cache:flush; then
         echo "Warning: Failed to flush cache after upgrade, but continuing startup..."

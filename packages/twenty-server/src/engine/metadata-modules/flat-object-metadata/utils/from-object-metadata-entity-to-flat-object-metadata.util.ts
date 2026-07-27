@@ -1,36 +1,40 @@
-import { isDefined } from 'twenty-shared/utils';
+import { isDefined, removePropertiesFromRecord } from 'twenty-shared/utils';
 
-import { fromEntityToScalarEntity } from 'src/engine/metadata-modules/flat-entity/utils/from-entity-to-scalar-entity.util';
+import {
+  FlatEntityMapsException,
+  FlatEntityMapsExceptionCode,
+} from 'src/engine/metadata-modules/flat-entity/exceptions/flat-entity-maps.exception';
+import { getMetadataEntityRelationProperties } from 'src/engine/metadata-modules/flat-entity/utils/get-metadata-entity-relation-properties.util';
 import { type FlatObjectMetadata } from 'src/engine/metadata-modules/flat-object-metadata/types/flat-object-metadata.type';
 import { type FromEntityToFlatEntityArgs } from 'src/engine/workspace-cache/types/from-entity-to-flat-entity-args.type';
-import { resolveManyToOneRelationIdsToUniversalIdentifiers } from 'src/engine/workspace-manager/workspace-migration/universal-flat-entity/utils/resolve-many-to-one-relation-ids-to-universal-identifiers.util';
 
 type FromObjectMetadataEntityToFlatObjectMetadataArgs =
   FromEntityToFlatEntityArgs<'objectMetadata'> & {
     fieldMetadataIdToUniversalIdentifierMap: Map<string, string>;
   };
 
-export const fromObjectMetadataEntityToFlatObjectMetadata = (
-  args: FromObjectMetadataEntityToFlatObjectMetadataArgs,
-): FlatObjectMetadata => {
-  const {
-    entity: objectMetadataEntity,
-    fieldMetadataIdToUniversalIdentifierMap,
-  } = args;
+export const fromObjectMetadataEntityToFlatObjectMetadata = ({
+  entity: objectMetadataEntity,
+  applicationIdToUniversalIdentifierMap,
+  fieldMetadataIdToUniversalIdentifierMap,
+}: FromObjectMetadataEntityToFlatObjectMetadataArgs): FlatObjectMetadata => {
+  const objectMetadataEntityWithoutRelations = removePropertiesFromRecord(
+    objectMetadataEntity,
+    getMetadataEntityRelationProperties('objectMetadata'),
+  );
 
-  const objectMetadataScalarEntity = fromEntityToScalarEntity({
-    metadataName: 'objectMetadata',
-    entity: objectMetadataEntity,
-  });
+  const applicationUniversalIdentifier =
+    applicationIdToUniversalIdentifierMap.get(
+      objectMetadataEntity.applicationId,
+    );
 
-  const relationUniversalIdentifiers =
-    resolveManyToOneRelationIdsToUniversalIdentifiers({
-      metadataName: 'objectMetadata',
-      ...args,
-    });
+  if (!isDefined(applicationUniversalIdentifier)) {
+    throw new FlatEntityMapsException(
+      `Application with id ${objectMetadataEntity.applicationId} not found when building flat object metadata for object ${objectMetadataEntity.id}`,
+      FlatEntityMapsExceptionCode.ENTITY_NOT_FOUND,
+    );
+  }
 
-  // labelIdentifier/imageIdentifier are soft field references (not modeled
-  // relations) resolved without throwing on missing identifiers
   let labelIdentifierFieldMetadataUniversalIdentifier: string | null = null;
 
   if (isDefined(objectMetadataEntity.labelIdentifierFieldMetadataId)) {
@@ -66,31 +70,28 @@ export const fromObjectMetadataEntityToFlatObjectMetadata = (
   }
 
   return {
-    ...objectMetadataScalarEntity,
-    ...relationUniversalIdentifiers,
-    labelIdentifierFieldMetadataUniversalIdentifier,
-    imageIdentifierFieldMetadataUniversalIdentifier,
+    ...objectMetadataEntityWithoutRelations,
+    universalIdentifier:
+      objectMetadataEntityWithoutRelations.universalIdentifier,
+    createdAt: objectMetadataEntity.createdAt.toISOString(),
+    updatedAt: objectMetadataEntity.updatedAt.toISOString(),
     viewIds: objectMetadataEntity.views.map(({ id }) => id),
     indexMetadataIds: objectMetadataEntity.indexMetadatas.map(({ id }) => id),
-    searchFieldMetadataIds: objectMetadataEntity.searchFieldMetadatas.map(
-      ({ id }) => id,
-    ),
     fieldIds: objectMetadataEntity.fields.map(({ id }) => id),
     objectPermissionIds: objectMetadataEntity.objectPermissions.map(
       ({ id }) => id,
     ),
     fieldPermissionIds:
       objectMetadataEntity.fieldPermissions?.map(({ id }) => id) ?? [],
+    applicationUniversalIdentifier,
+    labelIdentifierFieldMetadataUniversalIdentifier,
+    imageIdentifierFieldMetadataUniversalIdentifier,
     fieldUniversalIdentifiers: objectMetadataEntity.fields.map(
       ({ universalIdentifier }) => universalIdentifier,
     ),
     indexMetadataUniversalIdentifiers: objectMetadataEntity.indexMetadatas.map(
       ({ universalIdentifier }) => universalIdentifier,
     ),
-    searchFieldMetadataUniversalIdentifiers:
-      objectMetadataEntity.searchFieldMetadatas?.map(
-        ({ universalIdentifier }) => universalIdentifier,
-      ) ?? [],
     viewUniversalIdentifiers: objectMetadataEntity.views.map(
       ({ universalIdentifier }) => universalIdentifier,
     ),

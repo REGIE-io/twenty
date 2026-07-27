@@ -1,7 +1,8 @@
+import { type DropResult } from '@hello-pangea/dnd';
+
 import { useUpdateOneRecord } from '@/object-record/hooks/useUpdateOneRecord';
 
 import { useTriggerTableWithoutGroupDragAndDropOptimisticUpdate } from '@/object-record/record-drag/hooks/useTriggerTableWithoutGroupDragAndDropOptimisticUpdate';
-import { type RecordDragDropResult } from '@/object-record/record-drag/types/RecordDragDropResult';
 import { originalDragSelectionComponentState } from '@/object-record/record-drag/states/originalDragSelectionComponentState';
 import { getDragOperationType } from '@/object-record/record-drag/utils/getDragOperationType';
 import { processMultiDrag } from '@/object-record/record-drag/utils/processMultiDrag';
@@ -53,7 +54,7 @@ export const useProcessTableWithoutGroupRecordDrop = () => {
     useTriggerTableWithoutGroupDragAndDropOptimisticUpdate();
 
   const processTableWithoutGroupRecordDrop = useCallback(
-    async (tableRecordDropResult: RecordDragDropResult) => {
+    async (tableRecordDropResult: DropResult) => {
       if (!tableRecordDropResult.destination) return;
 
       if (currentRecordSorts.length > 0) {

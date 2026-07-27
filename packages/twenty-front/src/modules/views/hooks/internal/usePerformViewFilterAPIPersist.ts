@@ -1,33 +1,22 @@
 import { useCallback } from 'react';
 
-import { type FlatViewFilter } from '@/metadata-store/types/FlatViewFilter';
+import { useMetadataErrorHandler } from '@/metadata-error-handler/hooks/useMetadataErrorHandler';
 import { type MetadataRequestResult } from '@/object-metadata/types/MetadataRequestResult.type';
-import { usePerformViewEntityAPIPersistOperation } from '@/views/hooks/internal/usePerformViewEntityAPIPersistOperation';
-import { useMutation } from '@apollo/client/react';
+import { useSnackBar } from '@/ui/feedback/snack-bar-manager/hooks/useSnackBar';
+import { CombinedGraphQLErrors } from '@apollo/client/errors';
+import { t } from '@lingui/core/macro';
 import { CrudOperationType } from 'twenty-shared/types';
-import { convertViewFilterValueToString, isDefined } from 'twenty-shared/utils';
+import { useMutation } from '@apollo/client/react';
 import {
   type CreateViewFilterMutationVariables,
   type DeleteViewFilterMutationVariables,
   type DestroyViewFilterMutationVariables,
   type UpdateViewFilterMutationVariables,
-  type ViewFilterFragmentFragment,
   CreateViewFilterDocument,
   DeleteViewFilterDocument,
   DestroyViewFilterDocument,
   UpdateViewFilterDocument,
 } from '~/generated-metadata/graphql';
-
-// Normalize value like the fetch path (splitViewWithRelated) so store
-// comparisons against string-converted values stay consistent
-const toFlatViewFilter = ({
-  __typename,
-  ...viewFilter
-}: ViewFilterFragmentFragment): FlatViewFilter =>
-  ({
-    ...viewFilter,
-    value: convertViewFilterValueToString(viewFilter.value),
-  }) as FlatViewFilter;
 
 export const usePerformViewFilterAPIPersist = () => {
   const [createViewFilterMutation] = useMutation(CreateViewFilterDocument);
@@ -35,8 +24,8 @@ export const usePerformViewFilterAPIPersist = () => {
   const [deleteViewFilterMutation] = useMutation(DeleteViewFilterDocument);
   const [destroyViewFilterMutation] = useMutation(DestroyViewFilterDocument);
 
-  const { performViewEntityAPIPersistBatchOperation } =
-    usePerformViewEntityAPIPersistOperation('viewFilter');
+  const { handleMetadataError } = useMetadataErrorHandler();
+  const { enqueueErrorSnackBar } = useSnackBar();
 
   const performViewFilterAPICreate = useCallback(
     async (
@@ -45,21 +34,44 @@ export const usePerformViewFilterAPIPersist = () => {
       MetadataRequestResult<
         Awaited<ReturnType<typeof createViewFilterMutation>>[]
       >
-    > =>
-      performViewEntityAPIPersistBatchOperation({
-        inputs: createViewFilterInputs,
-        mutate: (variables) => createViewFilterMutation({ variables }),
-        applyResultToDraft: (fulfilledMutations, { addToDraft }) =>
-          addToDraft({
-            key: 'viewFilters',
-            items: fulfilledMutations
-              .map(({ result }) => result.data?.createViewFilter)
-              .filter(isDefined)
-              .map(toFlatViewFilter),
-          }),
-        operationType: CrudOperationType.CREATE,
-      }),
-    [createViewFilterMutation, performViewEntityAPIPersistBatchOperation],
+    > => {
+      if (createViewFilterInputs.length === 0) {
+        return {
+          status: 'successful',
+          response: [],
+        };
+      }
+
+      try {
+        const results = await Promise.all(
+          createViewFilterInputs.map((variables) =>
+            createViewFilterMutation({
+              variables,
+            }),
+          ),
+        );
+
+        return {
+          status: 'successful',
+          response: results,
+        };
+      } catch (error) {
+        if (CombinedGraphQLErrors.is(error)) {
+          handleMetadataError(error, {
+            primaryMetadataName: 'viewFilter',
+            operationType: CrudOperationType.CREATE,
+          });
+        } else {
+          enqueueErrorSnackBar({ message: t`An error occurred.` });
+        }
+
+        return {
+          status: 'failed',
+          error,
+        };
+      }
+    },
+    [createViewFilterMutation, handleMetadataError, enqueueErrorSnackBar],
   );
 
   const performViewFilterAPIUpdate = useCallback(
@@ -69,21 +81,44 @@ export const usePerformViewFilterAPIPersist = () => {
       MetadataRequestResult<
         Awaited<ReturnType<typeof updateViewFilterMutation>>[]
       >
-    > =>
-      performViewEntityAPIPersistBatchOperation({
-        inputs: updateViewFilterInputs,
-        mutate: (variables) => updateViewFilterMutation({ variables }),
-        applyResultToDraft: (fulfilledMutations, { updateInDraft }) =>
-          updateInDraft(
-            'viewFilters',
-            fulfilledMutations
-              .map(({ result }) => result.data?.updateViewFilter)
-              .filter(isDefined)
-              .map(toFlatViewFilter),
+    > => {
+      if (updateViewFilterInputs.length === 0) {
+        return {
+          status: 'successful',
+          response: [],
+        };
+      }
+
+      try {
+        const results = await Promise.all(
+          updateViewFilterInputs.map((variables) =>
+            updateViewFilterMutation({
+              variables,
+            }),
           ),
-        operationType: CrudOperationType.UPDATE,
-      }),
-    [updateViewFilterMutation, performViewEntityAPIPersistBatchOperation],
+        );
+
+        return {
+          status: 'successful',
+          response: results,
+        };
+      } catch (error) {
+        if (CombinedGraphQLErrors.is(error)) {
+          handleMetadataError(error, {
+            primaryMetadataName: 'viewFilter',
+            operationType: CrudOperationType.UPDATE,
+          });
+        } else {
+          enqueueErrorSnackBar({ message: t`An error occurred.` });
+        }
+
+        return {
+          status: 'failed',
+          error,
+        };
+      }
+    },
+    [updateViewFilterMutation, handleMetadataError, enqueueErrorSnackBar],
   );
 
   const performViewFilterAPIDelete = useCallback(
@@ -93,18 +128,44 @@ export const usePerformViewFilterAPIPersist = () => {
       MetadataRequestResult<
         Awaited<ReturnType<typeof deleteViewFilterMutation>>[]
       >
-    > =>
-      performViewEntityAPIPersistBatchOperation({
-        inputs: deleteViewFilterInputs,
-        mutate: (variables) => deleteViewFilterMutation({ variables }),
-        applyResultToDraft: (fulfilledMutations, { removeFromDraft }) =>
-          removeFromDraft({
-            key: 'viewFilters',
-            itemIds: fulfilledMutations.map(({ input }) => input.input.id),
-          }),
-        operationType: CrudOperationType.DELETE,
-      }),
-    [deleteViewFilterMutation, performViewEntityAPIPersistBatchOperation],
+    > => {
+      if (deleteViewFilterInputs.length === 0) {
+        return {
+          status: 'successful',
+          response: [],
+        };
+      }
+
+      try {
+        const results = await Promise.all(
+          deleteViewFilterInputs.map((variables) =>
+            deleteViewFilterMutation({
+              variables,
+            }),
+          ),
+        );
+
+        return {
+          status: 'successful',
+          response: results,
+        };
+      } catch (error) {
+        if (CombinedGraphQLErrors.is(error)) {
+          handleMetadataError(error, {
+            primaryMetadataName: 'viewFilter',
+            operationType: CrudOperationType.DELETE,
+          });
+        } else {
+          enqueueErrorSnackBar({ message: t`An error occurred.` });
+        }
+
+        return {
+          status: 'failed',
+          error,
+        };
+      }
+    },
+    [deleteViewFilterMutation, handleMetadataError, enqueueErrorSnackBar],
   );
 
   const performViewFilterAPIDestroy = useCallback(
@@ -114,18 +175,44 @@ export const usePerformViewFilterAPIPersist = () => {
       MetadataRequestResult<
         Awaited<ReturnType<typeof destroyViewFilterMutation>>[]
       >
-    > =>
-      performViewEntityAPIPersistBatchOperation({
-        inputs: destroyViewFilterInputs,
-        mutate: (variables) => destroyViewFilterMutation({ variables }),
-        applyResultToDraft: (fulfilledMutations, { removeFromDraft }) =>
-          removeFromDraft({
-            key: 'viewFilters',
-            itemIds: fulfilledMutations.map(({ input }) => input.input.id),
-          }),
-        operationType: CrudOperationType.DESTROY,
-      }),
-    [destroyViewFilterMutation, performViewEntityAPIPersistBatchOperation],
+    > => {
+      if (destroyViewFilterInputs.length === 0) {
+        return {
+          status: 'successful',
+          response: [],
+        };
+      }
+
+      try {
+        const results = await Promise.all(
+          destroyViewFilterInputs.map((variables) =>
+            destroyViewFilterMutation({
+              variables,
+            }),
+          ),
+        );
+
+        return {
+          status: 'successful',
+          response: results,
+        };
+      } catch (error) {
+        if (CombinedGraphQLErrors.is(error)) {
+          handleMetadataError(error, {
+            primaryMetadataName: 'viewFilter',
+            operationType: CrudOperationType.DESTROY,
+          });
+        } else {
+          enqueueErrorSnackBar({ message: t`An error occurred.` });
+        }
+
+        return {
+          status: 'failed',
+          error,
+        };
+      }
+    },
+    [destroyViewFilterMutation, handleMetadataError, enqueueErrorSnackBar],
   );
 
   return {

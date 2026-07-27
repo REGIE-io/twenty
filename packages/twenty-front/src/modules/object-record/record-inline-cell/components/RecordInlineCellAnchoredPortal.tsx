@@ -10,7 +10,7 @@ import {
   type RecordUpdateHook,
   type RecordUpdateHookParams,
 } from '@/object-record/record-field/ui/contexts/FieldContext';
-import { FieldFocusStaticFocusedProvider } from '@/object-record/record-field/ui/contexts/FieldFocusContextProvider';
+import { FieldFocusContextProvider } from '@/object-record/record-field/ui/contexts/FieldFocusContextProvider';
 import { RecordFieldComponentInstanceContext } from '@/object-record/record-field/ui/states/contexts/RecordFieldComponentInstanceContext';
 import { isJunctionRelationForbidden } from '@/object-record/record-field/ui/utils/junction/isJunctionRelationForbidden';
 import { RecordInlineCellAnchoredPortalContext } from '@/object-record/record-inline-cell/components/RecordInlineCellAnchoredPortalContext';
@@ -90,7 +90,7 @@ export const RecordInlineCellAnchoredPortal = ({
   }
 
   return (
-    <FieldFocusStaticFocusedProvider>
+    <FieldFocusContextProvider isFocused={true}>
       <FieldContext.Provider
         key={recordId + fieldMetadataItem.id}
         value={{
@@ -128,6 +128,6 @@ export const RecordInlineCellAnchoredPortal = ({
           )}
         </>
       </FieldContext.Provider>
-    </FieldFocusStaticFocusedProvider>
+    </FieldFocusContextProvider>
   );
 };

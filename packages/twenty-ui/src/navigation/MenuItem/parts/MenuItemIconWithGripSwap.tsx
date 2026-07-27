@@ -1,8 +1,9 @@
 import { TintedIconTile } from '@ui/data-display';
 import { type IconComponent, IconGripVertical } from '@ui/icon';
 import { type ThemeColor } from '@ui/theme';
-import { useTheme } from '@ui/theme-constants';
+import { ThemeContext } from '@ui/theme-constants';
 import { clsx } from 'clsx';
+import { useContext } from 'react';
 import { isDefined } from '@ui/utilities/utils/isDefined';
 import { MenuItemIconBoxContainer } from '@ui/navigation/MenuItem/parts/MenuItemIconBoxContainer';
 
@@ -21,7 +22,7 @@ export const MenuItemIconWithGripSwap = ({
   withIconContainer = false,
   gripIconColor,
 }: MenuItemIconWithGripSwapProps) => {
-  const theme = useTheme();
+  const { theme } = useContext(ThemeContext);
 
   if (!LeftIcon) {
     return null;

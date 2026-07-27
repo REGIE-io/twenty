@@ -7,10 +7,7 @@ import { FieldMetadataType } from 'twenty-shared/types';
 import { StepStatus, type WorkflowRunStepInfos } from 'twenty-shared/workflow';
 import { v4 as uuidv4 } from 'uuid';
 
-jest.mock('uuid', () => ({
-  ...jest.requireActual('uuid'),
-  v4: jest.fn(),
-}));
+jest.mock('uuid');
 
 beforeEach(() => {
   let counter = 0;

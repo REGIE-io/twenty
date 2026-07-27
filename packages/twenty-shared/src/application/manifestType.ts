@@ -1,5 +1,3 @@
-import { type AppLocale } from '@/translations';
-
 import { type AgentManifest } from './agentManifestType';
 import { type ApplicationManifest } from './applicationType';
 import { type AssetManifest } from './assetManifestType';
@@ -25,10 +23,6 @@ import {
   type ViewManifest,
 } from './viewManifestType';
 
-export type TranslationsManifest = Partial<
-  Record<AppLocale, Record<string, string>>
->;
-
 export type Manifest = {
   application: ApplicationManifest;
   objects: ObjectManifest[];
@@ -48,5 +42,4 @@ export type Manifest = {
   pageLayouts: PageLayoutManifest[];
   pageLayoutTabs: PageLayoutTabManifest[];
   commandMenuItems: CommandMenuItemManifest[];
-  translations?: TranslationsManifest;
 };

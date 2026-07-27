@@ -14,6 +14,7 @@ import {
   createStandardFieldFlatMetadata,
 } from 'src/engine/workspace-manager/twenty-standard-application/utils/field-metadata/create-standard-field-flat-metadata.util';
 import { createStandardRelationFieldFlatMetadata } from 'src/engine/workspace-manager/twenty-standard-application/utils/field-metadata/create-standard-relation-field-flat-metadata.util';
+import { getTsVectorColumnExpressionFromFields } from 'src/engine/workspace-manager/utils/get-ts-vector-column-expression.util';
 import { CallRecordingRequestStatus } from 'src/modules/call-recording/common/enums/call-recording-request-status.enum';
 import { CallRecordingStatus } from 'src/modules/call-recording/common/enums/call-recording-status.enum';
 
@@ -173,7 +174,7 @@ export const buildCallRecordingStandardFlatFieldMetadatas = ({
         },
         {
           id: '4800777e-54a8-4464-9c01-07d6eefd04da',
-          value: CallRecordingStatus.FAILED,
+          value: CallRecordingStatus.FAILED_UNKNOWN,
           label: i18nLabel(msg`Failed`),
           position: 5,
           color: 'gray',
@@ -484,6 +485,12 @@ export const buildCallRecordingStandardFlatFieldMetadatas = ({
       icon: 'IconUser',
       isSystem: true,
       isNullable: true,
+      settings: {
+        generatedType: 'STORED',
+        asExpression: getTsVectorColumnExpressionFromFields([
+          { name: 'title', type: FieldMetadataType.TEXT },
+        ]),
+      },
     },
     standardObjectMetadataRelatedEntityIds,
     dependencyFlatEntityMaps,

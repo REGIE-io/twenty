@@ -19,8 +19,6 @@ const getLabelForItem = (
       return item.name ?? 'Folder';
     case NavigationMenuItemType.LINK:
       return item.name ?? 'Link';
-    case NavigationMenuItemType.PAGE_LAYOUT:
-      return item.name ?? 'Page';
     case NavigationMenuItemType.OBJECT:
     case NavigationMenuItemType.VIEW:
       return (

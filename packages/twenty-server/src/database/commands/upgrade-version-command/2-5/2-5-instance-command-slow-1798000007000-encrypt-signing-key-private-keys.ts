@@ -54,10 +54,9 @@ export class EncryptSigningKeyPrivateKeysSlowInstanceCommand implements SlowInst
           continue;
         }
 
-        const plaintext =
-          this.secretEncryptionService.legacyDecryptVersionedWithFallback(
-            row.privateKey as EncryptedString,
-          );
+        const plaintext = this.secretEncryptionService.decryptVersioned(
+          row.privateKey as EncryptedString,
+        );
 
         if (!isDefined(plaintext)) {
           continue;

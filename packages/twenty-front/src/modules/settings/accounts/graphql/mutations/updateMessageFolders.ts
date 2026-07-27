@@ -5,7 +5,6 @@ export const UPDATE_MESSAGE_FOLDERS = gql`
     updateMessageFolders(input: $input) {
       id
       isSynced
-      pendingSyncAction
     }
   }
 `;

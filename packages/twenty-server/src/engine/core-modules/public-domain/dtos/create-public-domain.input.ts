@@ -1,6 +1,6 @@
 import { ArgsType, Field } from '@nestjs/graphql';
 
-import { IsNotEmpty, IsString, IsUUID } from 'class-validator';
+import { IsNotEmpty, IsOptional, IsString, IsUUID } from 'class-validator';
 
 @ArgsType()
 export class CreatePublicDomainInput {
@@ -9,7 +9,8 @@ export class CreatePublicDomainInput {
   @IsNotEmpty()
   domain: string;
 
-  @Field(() => String)
+  @Field(() => String, { nullable: true })
+  @IsOptional()
   @IsUUID()
-  applicationId: string;
+  applicationId?: string | null;
 }

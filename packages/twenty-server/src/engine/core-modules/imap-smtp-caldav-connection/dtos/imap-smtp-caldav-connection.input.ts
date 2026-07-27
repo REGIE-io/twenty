@@ -32,9 +32,6 @@ export class ConnectionParametersInput {
 
 @InputType('EmailAccountConnectionParameters')
 export class EmailAccountConnectionParametersInput {
-  @Field(() => String, { nullable: true })
-  name?: string | null;
-
   @Field(() => ConnectionParametersInput, { nullable: true })
   IMAP?: ConnectionParametersInput;
 

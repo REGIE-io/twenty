@@ -87,7 +87,7 @@ export const fromRelationCreateFieldInputToFlatFieldMetadatas = async ({
     sourceFlatObjectMetadata,
     targetFlatObjectMetadata,
     targetFlatFieldMetadataType: FieldMetadataType.RELATION,
-    applicationUniversalIdentifier: flatApplication.universalIdentifier,
+    flatApplication,
     junctionTargetFlatFieldMetadata,
   });
 

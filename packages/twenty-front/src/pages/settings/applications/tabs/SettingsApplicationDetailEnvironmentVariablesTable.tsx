@@ -1,8 +1,8 @@
+import { TextInput } from '@/ui/input/components/TextInput';
 import { styled } from '@linaria/react';
 import { t } from '@lingui/core/macro';
 import { isNonEmptyString } from '@sniptt/guards';
 import { useContext, useState } from 'react';
-import { type ApplicationVariableOption } from 'twenty-shared/application';
 import { IconInfoCircle } from 'twenty-ui/icon';
 import { AppTooltip, TooltipDelay } from 'twenty-ui/surfaces';
 import { H2Title } from 'twenty-ui/typography';
@@ -10,7 +10,6 @@ import { Section } from 'twenty-ui/layout';
 import { ThemeContext, themeCssVariables } from 'twenty-ui/theme-constants';
 import { useDebouncedCallback } from 'use-debounce';
 import { type ApplicationVariable } from '~/generated-metadata/graphql';
-import { SettingsApplicationVariableInput } from '~/pages/settings/applications/components/SettingsApplicationVariableInput';
 
 const StyledContainer = styled.div`
   display: flex;
@@ -81,15 +80,8 @@ export const SettingsApplicationDetailEnvironmentVariablesTable = ({
                   </>
                 )}
               </StyledLabelRow>
-              <SettingsApplicationVariableInput
-                type={editedEnvVariable.type}
+              <TextInput
                 value={editedEnvVariable.value}
-                options={
-                  editedEnvVariable.options as
-                    | ApplicationVariableOption[]
-                    | null
-                    | undefined
-                }
                 onChange={(newValue) => {
                   setEditedEnvVariables((prevState) =>
                     prevState.map((val) => {
@@ -102,6 +94,7 @@ export const SettingsApplicationDetailEnvironmentVariablesTable = ({
                   onUpdateDebounced({ ...editedEnvVariable, value: newValue });
                 }}
                 placeholder={t`Value`}
+                fullWidth
               />
             </div>
           );

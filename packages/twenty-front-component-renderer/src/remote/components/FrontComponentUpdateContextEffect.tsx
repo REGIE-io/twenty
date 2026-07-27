@@ -1,9 +1,11 @@
-import { type FrontComponentThread } from '@/types/FrontComponentThread';
+import { type FrontComponentHostCommunicationApi } from '@/types/FrontComponentHostCommunicationApi';
+import { type WorkerExports } from '@/types/WorkerExports';
 import { type FrontComponentExecutionContext } from 'twenty-sdk/front-component';
+import { type ThreadWebWorker } from '@quilted/threads';
 import { useEffect } from 'react';
 
 type FrontComponentUpdateContextEffectProps = {
-  thread: FrontComponentThread;
+  thread: ThreadWebWorker<WorkerExports, FrontComponentHostCommunicationApi>;
   executionContext: FrontComponentExecutionContext;
   onExecutionContextInitialized: () => void;
 };

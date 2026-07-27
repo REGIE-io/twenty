@@ -113,7 +113,7 @@ export const computeFlatFieldToUpdateFromMorphRelationUpdatePayload = ({
         sourceFlatObjectMetadata: sourceObjectMetadata,
         targetFlatObjectMetadata: newTargetObjectMetadata,
         targetFlatFieldMetadataType: FieldMetadataType.RELATION,
-        applicationUniversalIdentifier: flatApplication.universalIdentifier,
+        flatApplication,
         sourceFlatObjectMetadataJoinColumnName:
           computeMorphOrRelationFieldJoinColumnName({
             name: computedMorphName,

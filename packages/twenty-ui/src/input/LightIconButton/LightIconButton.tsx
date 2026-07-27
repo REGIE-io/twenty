@@ -1,8 +1,8 @@
 import { clsx } from 'clsx';
-import { type ComponentProps, type MouseEvent } from 'react';
+import { type ComponentProps, type MouseEvent, useContext } from 'react';
 
 import { type IconComponent } from '@ui/icon';
-import { useTheme } from '@ui/theme-constants';
+import { ThemeContext } from '@ui/theme-constants';
 
 import styles from './LightIconButton.module.scss';
 
@@ -35,7 +35,7 @@ export const LightIconButton = ({
   onClick,
   title,
 }: LightIconButtonProps) => {
-  const theme = useTheme();
+  const { theme } = useContext(ThemeContext);
 
   return (
     <button
@@ -53,7 +53,6 @@ export const LightIconButton = ({
       {Icon && (
         <Icon
           size={size === 'medium' ? theme.icon.size.md : theme.icon.size.sm}
-          aria-hidden={!!ariaLabel}
         />
       )}
     </button>

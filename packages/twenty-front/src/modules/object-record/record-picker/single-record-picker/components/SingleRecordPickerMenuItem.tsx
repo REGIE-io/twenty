@@ -1,6 +1,3 @@
-import { useMemo } from 'react';
-
-import { type EnrichedObjectMetadataItem } from '@/object-metadata/types/EnrichedObjectMetadataItem';
 import { getAvatarType } from '@/object-metadata/utils/getAvatarType';
 import { searchRecordStoreFamilyState } from '@/object-record/record-picker/multiple-record-picker/states/searchRecordStoreComponentFamilyState';
 import { SingleRecordPickerComponentInstanceContext } from '@/object-record/record-picker/single-record-picker/states/contexts/SingleRecordPickerComponentInstanceContext';
@@ -10,13 +7,12 @@ import { type RecordPickerPickableMorphItem } from '@/object-record/record-picke
 import { SelectableListItem } from '@/ui/layout/selectable-list/components/SelectableListItem';
 import { isSelectedItemIdComponentFamilyState } from '@/ui/layout/selectable-list/states/isSelectedItemIdComponentFamilyState';
 import { useAvailableComponentInstanceIdOrThrow } from '@/ui/utilities/state/component-state/hooks/useAvailableComponentInstanceIdOrThrow';
-import { useAtomComponentFamilyStateValue } from '@/ui/utilities/state/jotai/hooks/useAtomComponentFamilyStateValue';
-import { useAtomComponentStateValue } from '@/ui/utilities/state/jotai/hooks/useAtomComponentStateValue';
 import { useAtomFamilyStateValue } from '@/ui/utilities/state/jotai/hooks/useAtomFamilyStateValue';
+import { useAtomComponentStateValue } from '@/ui/utilities/state/jotai/hooks/useAtomComponentStateValue';
+import { useAtomComponentFamilyStateValue } from '@/ui/utilities/state/jotai/hooks/useAtomComponentFamilyStateValue';
 import { capitalize, isDefined } from 'twenty-shared/utils';
 import { Avatar } from 'twenty-ui/data-display';
 import { MenuItemSelectAvatar } from 'twenty-ui/navigation';
-import { getAbsoluteImageUrl } from '~/utils/image/getAbsoluteImageUrl';
 
 type SingleRecordPickerMenuItemProps = {
   morphItem: RecordPickerPickableMorphItem;
@@ -54,18 +50,6 @@ export const SingleRecordPickerMenuItem = ({
       recordPickerComponentInstanceId,
     );
 
-  const objectMetadataItem = useMemo(
-    () =>
-      singleRecordPickerSearchableObjectMetadataItems.find(
-        (searchableObjectMetadataItem: EnrichedObjectMetadataItem) =>
-          searchableObjectMetadataItem.id === morphItem.objectMetadataId,
-      ),
-    [
-      singleRecordPickerSearchableObjectMetadataItems,
-      morphItem.objectMetadataId,
-    ],
-  );
-
   if (!isDefined(searchRecordStore)) {
     return null;
   }
@@ -89,11 +73,13 @@ export const SingleRecordPickerMenuItem = ({
         focused={isSelectedItemId}
         avatar={
           <Avatar
-            avatarUrl={getAbsoluteImageUrl(searchRecordStore.imageUrl)}
+            avatarUrl={searchRecordStore.imageUrl}
             placeholderColorSeed={morphItem.recordId}
             placeholder={searchRecordStore.label}
             size="md"
-            type={getAvatarType(objectMetadataItem)}
+            type={
+              getAvatarType(searchRecordStore.objectNameSingular) ?? 'rounded'
+            }
           />
         }
         contextualText={

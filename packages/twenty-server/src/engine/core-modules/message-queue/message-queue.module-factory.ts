@@ -15,7 +15,7 @@ import { type TwentyConfigService } from 'src/engine/core-modules/twenty-config/
  * @param metricsService
  */
 export const messageQueueModuleFactory = async (
-  twentyConfigService: TwentyConfigService,
+  _twentyConfigService: TwentyConfigService,
   redisClientService: RedisClientService,
   metricsService: MetricsService,
 ): Promise<MessageQueueModuleOptions> => {
@@ -29,7 +29,6 @@ export const messageQueueModuleFactory = async (
           connection: redisClientService.getQueueClient(),
         },
         metricsService,
-        twentyConfigService,
       } satisfies BullMQDriverFactoryOptions;
     }
     default:

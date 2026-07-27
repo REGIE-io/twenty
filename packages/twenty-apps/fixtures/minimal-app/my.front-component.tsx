@@ -1,7 +1,5 @@
 import { defineFrontComponent } from 'twenty-sdk/define';
 
-import 'twenty-ui/style.css';
-
 export const MyComponent = () => {
   return (
     <div style={{ padding: '10px' }}>

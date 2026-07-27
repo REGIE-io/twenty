@@ -20,6 +20,7 @@ export { Callout } from './Callout/Callout';
 export { CircularProgressBar } from './CircularProgressBar/CircularProgressBar';
 export {
   AnimatedPlaceholderEmptyContainer,
+  EMPTY_PLACEHOLDER_TRANSITION_PROPS,
   AnimatedPlaceholderEmptyTextContainer,
   AnimatedPlaceholderEmptyTitle,
   AnimatedPlaceholderEmptySubTitle,
@@ -34,7 +35,11 @@ export type { InfoAccent, InfoProps } from './Info/Info';
 export { Info } from './Info/Info';
 export { InlineBanner } from './InlineBanner/InlineBanner';
 export { Loader } from './Loader/Loader';
-export type { ProgressBarProps } from './ProgressBar/ProgressBar';
+export { useProgressAnimation } from './ProgressBar/hooks/useProgressAnimation';
+export type {
+  ProgressBarProps,
+  StyledBarProps,
+} from './ProgressBar/ProgressBar';
 export { ProgressBar } from './ProgressBar/ProgressBar';
 export type { SidePanelInformationBannerProps } from './SidePanelInformationBanner/SidePanelInformationBanner';
 export { SidePanelInformationBanner } from './SidePanelInformationBanner/SidePanelInformationBanner';

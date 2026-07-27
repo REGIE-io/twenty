@@ -66,7 +66,6 @@ const computeAgentFlatRoleTargetToUpdate = ({
         ...existingRoleTarget,
         roleId,
         roleUniversalIdentifier: flatRole.universalIdentifier,
-        agentUniversalIdentifier: flatAgent.universalIdentifier,
         updatedAt,
       },
     };
@@ -79,7 +78,6 @@ const computeAgentFlatRoleTargetToUpdate = ({
       roleUniversalIdentifier: flatRole.universalIdentifier,
       userWorkspaceId: null,
       agentId: flatAgent.id,
-      agentUniversalIdentifier: flatAgent.universalIdentifier,
       apiKeyId: null,
       createdAt: updatedAt,
       updatedAt,

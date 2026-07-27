@@ -10,7 +10,6 @@ import { type PermissionFlagConfig } from '@/sdk/define/permission-flags/permiss
 import { type ViewConfig } from '@/sdk/define/views/view-config';
 import { type PostInstallLogicFunctionConfig } from '@/sdk/define/logic-functions/post-install-logic-function-config';
 import { type PreInstallLogicFunctionConfig } from '@/sdk/define/logic-functions/pre-install-logic-function-config';
-import { type UninstallLogicFunctionConfig } from '@/sdk/define/logic-functions/uninstall-logic-function-config';
 import { type RoleConfig } from '@/sdk/define/roles/role-config';
 import {
   type AgentManifest,
@@ -37,7 +36,6 @@ export type DefinableEntity =
   | LogicFunctionConfig
   | PostInstallLogicFunctionConfig
   | PreInstallLogicFunctionConfig
-  | UninstallLogicFunctionConfig
   | AgentManifest
   | ConnectionProviderManifest
   | RoleConfig

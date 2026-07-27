@@ -13,7 +13,7 @@ export const StyledHeaderDropdownButton = styled.button<StyledDropdownButtonProp
       ? themeCssVariables.background.transparent.light
       : themeCssVariables.background.primary};
   border: none;
-  border-radius: ${themeCssVariables.border.radius.md};
+  border-radius: ${themeCssVariables.border.radius.sm};
   color: ${({ isActive }) =>
     isActive
       ? themeCssVariables.color.blue

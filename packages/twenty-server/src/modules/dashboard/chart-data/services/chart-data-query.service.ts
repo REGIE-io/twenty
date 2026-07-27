@@ -160,12 +160,10 @@ export class ChartDataQueryService {
       dateGranularity: shouldApplyPrimaryDateGranularity
         ? (dateGranularity ?? GRAPH_DEFAULT_DATE_GRANULARITY)
         : undefined,
-      flatObjectMetadataMaps,
-      flatFieldMetadataMaps,
     });
 
     if (isDefined(primaryOrderBy)) {
-      orderBy.push(...primaryOrderBy);
+      orderBy.push(primaryOrderBy);
     }
 
     if (isDefined(secondaryGroupByFieldMetadataId)) {
@@ -216,7 +214,7 @@ export class ChartDataQueryService {
       );
 
       if (isDefined(secondaryAxisOrderBy)) {
-        const secondaryOrderBy = getGroupByOrderBy({
+        const secondaryOrderByItem = getGroupByOrderBy({
           graphOrderBy: secondaryAxisOrderBy,
           groupByFieldMetadata: secondaryGroupByField,
           groupBySubFieldName: secondaryGroupBySubFieldName,
@@ -225,12 +223,10 @@ export class ChartDataQueryService {
           dateGranularity: shouldApplySecondaryDateGranularity
             ? (secondaryDateGranularity ?? GRAPH_DEFAULT_DATE_GRANULARITY)
             : undefined,
-          flatObjectMetadataMaps,
-          flatFieldMetadataMaps,
         });
 
-        if (isDefined(secondaryOrderBy)) {
-          orderBy.push(...secondaryOrderBy);
+        if (isDefined(secondaryOrderByItem)) {
+          orderBy.push(secondaryOrderByItem);
         }
       }
     }

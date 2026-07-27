@@ -1,9 +1,7 @@
 import { CurrentApplicationContext } from '@/applications/contexts/CurrentApplicationContext';
-import { AppChip } from '@/applications/components/AppChip';
 import { SettingsApplicationInstallPermissionValidationModal } from '@/marketplace/components/SettingsApplicationInstallPermissionValidationModal';
 import { useInstallMarketplaceAppWithPermissionValidation } from '@/marketplace/hooks/useInstallMarketplaceAppWithPermissionValidation';
 import { useUpgradeApplication } from '@/marketplace/hooks/useUpgradeApplication';
-import { getMarketplaceAppDefaultRoleManifest } from '@/marketplace/utils/getMarketplaceAppDefaultRoleManifest';
 import { SettingsPageContainer } from '@/settings/components/SettingsPageContainer';
 import { useHasPermissionFlag } from '@/settings/roles/hooks/useHasPermissionFlag';
 import { SettingsPageLayout } from '@/settings/components/layout/SettingsPageLayout';
@@ -33,7 +31,6 @@ import {
 import {
   ApplicationRegistrationSourceType,
   FindMarketplaceAppDetailDocument,
-  FindMarketplaceAppManifestDocument,
   FindOneApplicationByUniversalIdentifierDocument,
   PermissionFlagType,
 } from '~/generated-metadata/graphql';
@@ -41,7 +38,6 @@ import { SettingsApplicationDetailAboutTab } from '~/pages/settings/applications
 import { SettingsApplicationDetailContentTab } from '~/pages/settings/applications/tabs/SettingsApplicationDetailContentTab';
 import { SettingsApplicationPermissionsTab } from '~/pages/settings/applications/tabs/SettingsApplicationPermissionsTab';
 import { isNewerSemver } from '~/pages/settings/applications/utils/isNewerSemver';
-import { isUpgradableApplicationSourceType } from '~/pages/settings/applications/utils/isUpgradableApplicationSourceType';
 
 const AVAILABLE_APPLICATION_DETAIL_ID = 'available-application-detail';
 
@@ -56,7 +52,7 @@ export const SettingsAvailableApplicationDetails = () => {
   const { upgrade, isUpgrading } = useUpgradeApplication();
 
   const canInstallMarketplaceApps = useHasPermissionFlag(
-    PermissionFlagType.APPLICATIONS,
+    PermissionFlagType.MARKETPLACE_APPS,
   );
 
   const { data: applicationData } = useQuery(
@@ -72,20 +68,14 @@ export const SettingsAvailableApplicationDetails = () => {
     skip: !availableApplicationId,
   });
 
-  const { data: manifestData } = useQuery(FindMarketplaceAppManifestDocument, {
-    variables: { universalIdentifier: availableApplicationId },
-    skip: !availableApplicationId,
-  });
-
   const application = applicationData?.findOneApplication;
 
   const detail = detailData?.findMarketplaceAppDetail;
-  const manifest = manifestData?.findMarketplaceAppDetail?.manifest as
-    | Manifest
-    | undefined;
+  const manifest = detail?.manifest as Manifest | undefined;
+  const app = manifest?.application;
 
-  const displayName = detail?.name ?? '';
-  const description = detail?.description ?? '';
+  const displayName = app?.displayName ?? detail?.name ?? '';
+  const description = app?.description ?? '';
 
   const currentVersion = application?.version;
   const latestAvailableVersion = detail?.latestAvailableVersion;
@@ -101,10 +91,12 @@ export const SettingsAvailableApplicationDetails = () => {
   const isUnlisted = isDefined(detail) && !detail.isListed;
   const isAlreadyInstalled = isDefined(application);
 
-  const defaultRole = getMarketplaceAppDefaultRoleManifest(detail);
+  const defaultRole = manifest?.roles?.find(
+    (r) => r.universalIdentifier === app?.defaultRoleUniversalIdentifier,
+  );
 
   const hasUpdate =
-    isUpgradableApplicationSourceType(sourceType) &&
+    isNpmApp &&
     isDefined(latestAvailableVersion) &&
     isDefined(currentVersion) &&
     isNewerSemver(latestAvailableVersion, currentVersion);
@@ -180,9 +172,10 @@ export const SettingsAvailableApplicationDetails = () => {
     },
     {
       icon: IconShield,
-      count: (detail?.roles ?? []).filter(
+      count: (manifest?.roles ?? []).filter(
         (role) =>
-          role.universalIdentifier !== detail?.defaultRoleUniversalIdentifier,
+          role.universalIdentifier !==
+          manifest?.application.defaultRoleUniversalIdentifier,
       ).length,
       one: t`role`,
       many: t`roles`,
@@ -221,10 +214,10 @@ export const SettingsAvailableApplicationDetails = () => {
           <SettingsApplicationDetailAboutTab
             displayName={displayName}
             description={description}
-            aboutDescription={detail.aboutDescription ?? undefined}
-            screenshots={detail.galleryImages}
-            author={detail.author ?? 'Unknown'}
-            category={detail.category ?? undefined}
+            aboutDescription={app?.aboutDescription}
+            screenshots={app?.screenshots}
+            author={app?.author ?? 'Unknown'}
+            category={app?.category}
             contentEntries={contentEntries}
             currentVersion={
               isAlreadyInstalled
@@ -233,10 +226,10 @@ export const SettingsAvailableApplicationDetails = () => {
             }
             latestAvailableVersion={detail.latestAvailableVersion ?? '0.0.0'}
             developerLinks={{
-              websiteUrl: detail.websiteUrl ?? undefined,
-              termsUrl: detail.termsUrl ?? undefined,
-              emailSupport: detail.emailSupport ?? undefined,
-              issueReportUrl: detail.issueReportUrl ?? undefined,
+              websiteUrl: app?.websiteUrl,
+              termsUrl: app?.termsUrl,
+              emailSupport: app?.emailSupport,
+              issueReportUrl: app?.issueReportUrl,
               sourcePackageUrl,
             }}
             isInstalled={isAlreadyInstalled}
@@ -255,7 +248,7 @@ export const SettingsAvailableApplicationDetails = () => {
             manifestContent={manifest}
             applicationInfo={{
               name: displayName,
-              logo: detail.logo,
+              logo: app?.logoUrl,
               universalIdentifier: detail.universalIdentifier,
             }}
           />
@@ -292,17 +285,6 @@ export const SettingsAvailableApplicationDetails = () => {
           { children: displayName },
         ]}
         title={displayName}
-        icon={
-          <AppChip
-            applicationId={application?.id}
-            logoUrl={detail?.logo}
-            fallbackApplicationData={{
-              name: displayName,
-            }}
-            size="md"
-            chipOnly
-          />
-        }
       >
         <SettingsPageContainer>
           {isUnlisted && (
@@ -321,7 +303,7 @@ export const SettingsAvailableApplicationDetails = () => {
       <SettingsApplicationInstallPermissionValidationModal
         modalInstanceId={modalInstanceId}
         appDisplayName={displayName}
-        appLogoUrl={detail?.logo ?? undefined}
+        appLogoUrl={app?.logoUrl}
         defaultRole={defaultRole}
         onAuthorize={handleInstall}
         isInstalling={isInstalling}

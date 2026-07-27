@@ -1,30 +1,51 @@
-import { release, retain } from '@quilted/threads';
+import { ThreadWebWorker, release, retain } from '@quilted/threads';
 import { RemoteReceiver } from '@remote-dom/core/receivers';
 import { useEffect, useRef } from 'react';
-import { isDefined } from 'twenty-shared/utils';
+import { type CommandConfirmationModalResult } from 'twenty-sdk/front-component';
+import { type ConfirmationModalCaller } from 'twenty-shared/types';
+import { type FrontComponentHostCommunicationApi } from '../../types/FrontComponentHostCommunicationApi';
+import { type SdkClientUrls } from '../../types/HostToWorkerRenderContext';
+import { type WorkerExports } from '../../types/WorkerExports';
+import { createRemoteWorker } from '../worker/utils/createRemoteWorker';
 
-import { buildHostFetchPolicyFromFrontComponentUrls } from '@/host/utils/buildHostFetchPolicyFromFrontComponentUrls';
-import { createFrontComponentHostThread } from '@/host/utils/createFrontComponentHostThread';
-import { createHostFetchEnforcingPolicy } from '@/host/utils/createHostFetchEnforcingPolicy';
-import { fetchComponentSource } from '@/host/utils/fetchComponentSource';
-import { fetchSdkClientSources } from '@/host/utils/fetchSdkClientSources';
-import { FRONT_COMPONENT_SANDBOX_DOCUMENT } from '@/remote/sandbox/generated/frontComponentSandboxDocument';
-import { createFrontComponentSandboxIframe } from '@/remote/sandbox/utils/createFrontComponentSandboxIframe';
-import { createFrontComponentSandboxMessageHandler } from '@/remote/sandbox/utils/createFrontComponentSandboxMessageHandler';
-import { type FrontComponentThread } from '@/types/FrontComponentThread';
-import { type SdkClientUrls } from '@/types/SdkClientUrls';
-import { buildAuthorizationHeadersFromAccessToken } from '@/utils/buildAuthorizationHeadersFromAccessToken';
-import { containsSdkClientImportSpecifier } from '@/utils/containsSdkClientImportSpecifier';
+// Must match COMMAND_MENU_ITEM_CONFIRMATION_MODAL_RESULT_BROWSER_EVENT_NAME in twenty-front
+const COMMAND_MENU_ITEM_CONFIRMATION_MODAL_RESULT_BROWSER_EVENT_NAME =
+  'command-menu-item-confirmation-modal-result';
+
+type CommandMenuItemConfirmationModalResultBrowserEventDetail = {
+  caller: ConfirmationModalCaller;
+  confirmationResult: CommandConfirmationModalResult;
+};
+
+const noopAsync = async () => {};
+
+const HOST_COMMUNICATION_API_NOOP_INITIALIZATION: FrontComponentHostCommunicationApi =
+  {
+    navigate: noopAsync,
+    requestAccessTokenRefresh: async () => '',
+    openSidePanelPage: noopAsync,
+    openCommandConfirmationModal: noopAsync,
+    unmountFrontComponent: noopAsync,
+    enqueueSnackbar: noopAsync,
+    closeSidePanel: noopAsync,
+    updateProgress: noopAsync,
+    copyToClipboard: noopAsync,
+  };
 
 type FrontComponentWorkerEffectProps = {
   componentUrl: string;
   applicationAccessToken?: string;
   apiUrl?: string;
-  functionsBaseUrl?: string;
   sdkClientUrls?: SdkClientUrls;
   applicationVariables?: Record<string, string>;
+  frontComponentId: string;
   setReceiver: React.Dispatch<React.SetStateAction<RemoteReceiver | null>>;
-  setThread: React.Dispatch<React.SetStateAction<FrontComponentThread | null>>;
+  setThread: React.Dispatch<
+    React.SetStateAction<ThreadWebWorker<
+      WorkerExports,
+      FrontComponentHostCommunicationApi
+    > | null>
+  >;
   setError: React.Dispatch<React.SetStateAction<Error | null>>;
 };
 
@@ -32,9 +53,9 @@ export const FrontComponentWorkerEffect = ({
   componentUrl,
   applicationAccessToken,
   apiUrl,
-  functionsBaseUrl,
   sdkClientUrls,
   applicationVariables,
+  frontComponentId,
   setReceiver,
   setThread,
   setError,
@@ -48,101 +69,86 @@ export const FrontComponentWorkerEffect = ({
 
     const newReceiver = new RemoteReceiver({ retain, release });
 
-    const sandboxIframe = createFrontComponentSandboxIframe(
-      FRONT_COMPONENT_SANDBOX_DOCUMENT,
+    const worker = createRemoteWorker();
+
+    worker.onerror = (event: ErrorEvent) => {
+      const workerError =
+        event.error ?? new Error(event.message || 'Unknown worker error');
+
+      console.error('[FrontComponentRenderer] Worker error:', workerError);
+      setError(workerError);
+    };
+
+    const thread = new ThreadWebWorker<
+      WorkerExports,
+      FrontComponentHostCommunicationApi
+    >(worker, {
+      exports: { ...HOST_COMMUNICATION_API_NOOP_INITIALIZATION },
+    });
+
+    const handleCommandMenuItemConfirmationModalResultBrowserEvent = (
+      event: CustomEvent<CommandMenuItemConfirmationModalResultBrowserEventDetail>,
+    ) => {
+      const commandMenuItemConfirmationModalResultBrowserEventDetail =
+        event.detail;
+
+      const caller =
+        commandMenuItemConfirmationModalResultBrowserEventDetail.caller;
+
+      if (
+        caller.type !== 'frontComponent' ||
+        caller.frontComponentId !== frontComponentId
+      ) {
+        return;
+      }
+
+      thread.imports
+        .onConfirmationModalResult(
+          commandMenuItemConfirmationModalResultBrowserEventDetail.confirmationResult,
+        )
+        .catch((error: Error) => {
+          setError(error);
+        });
+    };
+
+    window.addEventListener(
+      COMMAND_MENU_ITEM_CONFIRMATION_MODAL_RESULT_BROWSER_EVENT_NAME,
+      handleCommandMenuItemConfirmationModalResultBrowserEvent as EventListener,
     );
-    document.body.append(sandboxIframe);
-
-    const channel = new MessageChannel();
-
-    const hostFetchPolicy = buildHostFetchPolicyFromFrontComponentUrls({
-      componentUrl,
-      apiUrl,
-      functionsBaseUrl,
-      sdkClientUrls,
-    });
-
-    const hostFetch = createHostFetchEnforcingPolicy(hostFetchPolicy);
-
-    const thread = createFrontComponentHostThread(channel.port1, hostFetch);
-
-    const handleSandboxMessage = createFrontComponentSandboxMessageHandler({
-      sandboxIframe,
-      workerMessagePort: channel.port2,
-      onSandboxError: setError,
-    });
-
-    window.addEventListener('message', handleSandboxMessage);
 
     setThread(thread);
 
-    let isCancelled = false;
-
-    const resolveComponentSourceAndRender = async () => {
-      try {
-        const authorizationHeaders = buildAuthorizationHeadersFromAccessToken(
-          applicationAccessToken,
-        );
-
-        const componentSource = await fetchComponentSource({
-          url: componentUrl,
-          headers: authorizationHeaders,
-        });
-
-        if (isCancelled) {
-          return;
-        }
-
-        const sdkClientSources =
-          isDefined(sdkClientUrls) &&
-          containsSdkClientImportSpecifier(componentSource)
-            ? await fetchSdkClientSources({
-                sdkClientUrls,
-                headers: authorizationHeaders,
-              })
-            : undefined;
-
-        if (isCancelled) {
-          return;
-        }
-
-        await thread.imports.render(newReceiver.connection, {
-          componentUrl,
-          componentSource,
-          applicationAccessToken,
-          apiUrl,
-          functionsBaseUrl,
-          sdkClientSources,
-          hostFetchOrigins: hostFetchPolicy.allowedOrigins,
-          applicationVariables,
-        });
-      } catch (error) {
-        if (!isCancelled) {
-          setError(error instanceof Error ? error : new Error(String(error)));
-        }
-      }
-    };
-
-    resolveComponentSourceAndRender();
+    thread.imports
+      .render(newReceiver.connection, {
+        componentUrl,
+        applicationAccessToken,
+        apiUrl,
+        sdkClientUrls,
+        applicationVariables,
+      })
+      .catch((error: Error) => {
+        setError(error);
+      });
 
     setReceiver(newReceiver);
     isInitializedRef.current = true;
 
     return () => {
-      isCancelled = true;
-      window.removeEventListener('message', handleSandboxMessage);
+      window.removeEventListener(
+        COMMAND_MENU_ITEM_CONFIRMATION_MODAL_RESULT_BROWSER_EVENT_NAME,
+        handleCommandMenuItemConfirmationModalResultBrowserEvent as EventListener,
+      );
       setThread(null);
-      channel.port1.close();
-      sandboxIframe.remove();
+      worker.terminate();
       isInitializedRef.current = false;
     };
   }, [
     componentUrl,
     applicationAccessToken,
     apiUrl,
-    functionsBaseUrl,
     sdkClientUrls,
     applicationVariables,
+    frontComponentId,
     setError,
     setReceiver,
     setThread,

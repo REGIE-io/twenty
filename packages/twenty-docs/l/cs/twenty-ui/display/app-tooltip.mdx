@@ -1,6 +1,6 @@
 ---
 title: Tooltip aplikace
-icon: message
+icon: zpráva
 ---
 
 <Frame>
@@ -19,12 +19,12 @@ export const MyComponent = () => {
   return (
     <>
       <p id="hoverText" style={{ display: "inline-block" }}>
-        Customer Insights
+        Zákaznické přehledy
       </p>
       <AppTooltip
         className
         anchorSelect="#hoverText"
-        content="Explore customer behavior and preferences"
+        content="Prozkoumejte chování a preference zákazníků"
         delayHide={0}
         offset={6}
         noArrow={false}
@@ -72,7 +72,7 @@ import { OverflowingTextWithTooltip } from 'twenty-ui/display';
 
 export const MyComponent = () => {
   const crmTaskDescription =
-    'Follow up with client regarding their recent product inquiry. Discuss pricing options, address any concerns, and provide additional product information. Record the details of the conversation in the CRM for future reference.';
+    'Kontaktujte klienta ohledně jeho nedávného dotazu na produkt. Proberte cenové možnosti, vyřešte případné obavy a poskytněte další informace o produktu. Zaznamenejte podrobnosti rozhovoru do systému CRM pro budoucí potřebu.';
 
   return <OverflowingTextWithTooltip text={crmTaskDescription} />;
 };

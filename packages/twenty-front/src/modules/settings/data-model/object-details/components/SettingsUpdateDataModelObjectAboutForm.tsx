@@ -1,5 +1,4 @@
 import { isDDLLockedState } from '@/client-config/states/isDDLLockedState';
-import { useGetIsMetadataItemCustom } from '@/object-metadata/hooks/useGetIsMetadataItemCustom';
 import { useUpdateOneObjectMetadataItem } from '@/object-metadata/hooks/useUpdateOneObjectMetadataItem';
 import { type EnrichedObjectMetadataItem } from '@/object-metadata/types/EnrichedObjectMetadataItem';
 import { isObjectMetadataReadOnly } from '@/object-record/read-only/utils/isObjectMetadataReadOnly';
@@ -28,9 +27,6 @@ export const SettingsUpdateDataModelObjectAboutForm = ({
   objectMetadataItem,
 }: SettingsUpdateDataModelObjectAboutFormProps) => {
   const isDDLLocked = useAtomStateValue(isDDLLockedState);
-
-  const getIsMetadataItemCustom = useGetIsMetadataItemCustom();
-  const isCustomObject = getIsMetadataItemCustom(objectMetadataItem);
 
   const readonly =
     isObjectMetadataReadOnly({
@@ -65,7 +61,7 @@ export const SettingsUpdateDataModelObjectAboutForm = ({
       labelSingular,
       namePlural,
       nameSingular,
-      ...(isCustomObject
+      ...(objectMetadataItem.isCustom
         ? { color: parseThemeColor(objectMetadataItem.color) }
         : {}),
     },
@@ -107,7 +103,7 @@ export const SettingsUpdateDataModelObjectAboutForm = ({
         labelSingular: updatedObject?.data?.updateOneObject.labelSingular,
         namePlural: updatedObject?.data?.updateOneObject.namePlural,
         nameSingular: updatedObject?.data?.updateOneObject.nameSingular,
-        ...(isCustomObject
+        ...(objectMetadataItem.isCustom
           ? {
               color: parseThemeColor(
                 updatedObject?.data?.updateOneObject.color ??
@@ -145,7 +141,7 @@ export const SettingsUpdateDataModelObjectAboutForm = ({
   ) => {
     const updatePayload = { ...formValues };
 
-    if (!isCustomObject) {
+    if (!objectMetadataItem.isCustom) {
       const {
         nameSingular: _nameSingular,
         namePlural: _namePlural,

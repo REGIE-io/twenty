@@ -66,7 +66,7 @@ export const SettingsRolePermissionsObjectLevelRecordLevelSection = ({
                   onClick={() =>
                     navigateSettings(
                       isBillingEnabled
-                        ? SettingsPath.BillingPlans
+                        ? SettingsPath.Billing
                         : SettingsPath.AdminPanelEnterprise,
                     )
                   }

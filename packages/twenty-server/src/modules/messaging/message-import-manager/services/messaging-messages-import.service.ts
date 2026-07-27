@@ -108,7 +108,7 @@ export class MessagingMessagesImportService {
           );
 
           if (!messageIdsToFetch?.length) {
-            await this.messageChannelSyncStatusService.markAsMessageSyncCompleted(
+            await this.messageChannelSyncStatusService.markAsCompletedAndMarkAsMessagesListFetchPending(
               [messageChannel.id],
               workspaceId,
             );
@@ -214,7 +214,7 @@ export class MessagingMessagesImportService {
           }
 
           if (messageIdsToFetch.length < messagesGetBatchSize) {
-            await this.messageChannelSyncStatusService.markAsMessageSyncCompleted(
+            await this.messageChannelSyncStatusService.markAsCompletedAndMarkAsMessagesListFetchPending(
               [messageChannel.id],
               workspaceId,
             );

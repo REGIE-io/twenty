@@ -13,7 +13,6 @@ type LogoProps = {
   secondaryLogo?: string | null;
   placeholder?: string | null;
   onClick?: () => void;
-  to?: AppPath;
 };
 
 const StyledContainer = styled.div`
@@ -56,7 +55,6 @@ export const Logo = ({
   secondaryLogo,
   placeholder,
   onClick,
-  to = AppPath.SignInUp,
 }: LogoProps) => {
   const { redirectToDefaultDomain } = useRedirectToDefaultDomain();
   const defaultPrimaryLogoUrl = `${window.location.origin}/images/icons/android/android-launchericon-192-192.png`;
@@ -78,7 +76,10 @@ export const Logo = ({
   return (
     <StyledContainer onClick={() => onClick?.()}>
       {isUsingDefaultLogo ? (
-        <UndecoratedLink to={to} onClick={() => redirectToDefaultDomain()}>
+        <UndecoratedLink
+          to={AppPath.SignInUp}
+          onClick={() => redirectToDefaultDomain()}
+        >
           <StyledPrimaryLogo
             style={{ backgroundImage: `url(${primaryLogoUrl})` }}
           />

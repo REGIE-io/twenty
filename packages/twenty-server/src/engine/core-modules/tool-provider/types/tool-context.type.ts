@@ -1,5 +1,4 @@
 import { type ActorMetadata } from 'twenty-shared/types';
-import { type APP_LOCALES } from 'twenty-shared/translations';
 
 import { type CodeExecutionStreamEmitter } from 'src/engine/core-modules/tool-provider/interfaces/code-execution-stream-emitter.type';
 
@@ -13,6 +12,5 @@ export type ToolContext = {
   userId?: string;
   userWorkspaceId?: string;
   threadId?: string;
-  locale?: keyof typeof APP_LOCALES;
   onCodeExecutionUpdate?: CodeExecutionStreamEmitter;
 };

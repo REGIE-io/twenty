@@ -48,7 +48,6 @@ export const createExecuteToolTool = (
   options?: {
     excludeTools?: Set<string>;
     compactOutput?: boolean;
-    spillLargeOutput?: boolean;
   },
 ) => ({
   description:
@@ -67,7 +66,6 @@ export const createExecuteToolTool = (
 
     return toolRegistry.resolveAndExecute(toolName, args, context, {
       compactOutput: options?.compactOutput,
-      spillLargeOutput: options?.spillLargeOutput,
     });
   },
 });

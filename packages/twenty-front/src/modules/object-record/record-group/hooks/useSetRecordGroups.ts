@@ -110,20 +110,16 @@ export const useSetRecordGroups = () => {
       mainGroupByFieldMetadataId,
       viewGroups,
       objectMetadataItem,
-      recordIndexId: recordIndexIdFromOptions,
     }: {
       viewId: string;
       mainGroupByFieldMetadataId: string;
       viewGroups: ViewGroup[];
       objectMetadataItem: EnrichedObjectMetadataItem;
-      recordIndexId?: string;
     }) => {
-      const recordIndexId =
-        recordIndexIdFromOptions ??
-        getRecordIndexIdFromObjectNamePluralAndViewId(
-          objectMetadataItem.namePlural,
-          viewId,
-        );
+      const recordIndexId = getRecordIndexIdFromObjectNamePluralAndViewId(
+        objectMetadataItem.namePlural,
+        viewId,
+      );
 
       const newGroupDefinitions = mapViewGroupsToRecordGroupDefinitions({
         mainGroupByFieldMetadataId,

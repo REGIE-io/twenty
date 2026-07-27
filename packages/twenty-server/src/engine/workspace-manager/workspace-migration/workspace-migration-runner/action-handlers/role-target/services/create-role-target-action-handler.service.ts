@@ -25,13 +25,11 @@ export class CreateRoleTargetActionHandlerService extends WorkspaceMigrationRunn
     allFlatEntityMaps,
     flatApplication,
     workspaceId,
-    preallocatedIdByUniversalIdentifierByMetadataName,
   }: WorkspaceMigrationActionRunnerArgs<UniversalCreateRoleTargetAction>): Promise<FlatCreateRoleTargetAction> {
-    const { roleId, agentId } = resolveUniversalRelationIdentifiersToIds({
+    const { roleId } = resolveUniversalRelationIdentifiersToIds({
       flatEntityMaps: allFlatEntityMaps,
       metadataName: action.metadataName,
       universalForeignKeyValues: action.flatEntity,
-      preallocatedIdByUniversalIdentifierByMetadataName,
     });
 
     const emptyUniversalForeignKeyAggregators =
@@ -44,7 +42,6 @@ export class CreateRoleTargetActionHandlerService extends WorkspaceMigrationRunn
       flatEntity: {
         ...action.flatEntity,
         roleId,
-        agentId,
         applicationId: flatApplication.id,
         id: action.id ?? v4(),
         workspaceId,

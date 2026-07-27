@@ -5,7 +5,6 @@ import { DropdownMenuItemsContainer } from '@/ui/layout/dropdown/components/Drop
 import { styled } from '@linaria/react';
 import { useLingui } from '@lingui/react/macro';
 import { type ReactNode, useState } from 'react';
-import { InlineBanner } from 'twenty-ui/feedback';
 import { IconSparkles } from 'twenty-ui/icon';
 import { SearchInput } from 'twenty-ui/input';
 import { Section } from 'twenty-ui/layout';
@@ -16,16 +15,6 @@ import { SettingsAvailableApplicationCard } from '~/pages/settings/applications/
 
 const StyledSearchInputContainer = styled.div`
   padding-bottom: ${themeCssVariables.spacing[2]};
-`;
-
-const StyledContentContainer = styled.div`
-  display: flex;
-  flex-direction: column;
-  gap: ${themeCssVariables.spacing[3]};
-`;
-
-const StyledNotVettedContainer = styled.div`
-  margin-top: ${themeCssVariables.spacing[3]};
 `;
 
 const StyledCardsGrid = styled.div`
@@ -51,7 +40,7 @@ const StyledHintLink = styled.button`
 export const SettingsApplicationsAvailableTab = () => {
   const { t } = useLingui();
   const [searchTerm, setSearchTerm] = useState('');
-  const [showVettedOnly, setShowVettedOnly] = useState(true);
+  const [showFeaturedOnly, setShowFeaturedOnly] = useState(true);
 
   const { data: marketplaceApps, isLoading } = useMarketplaceApps();
 
@@ -67,13 +56,14 @@ export const SettingsApplicationsAvailableTab = () => {
       })
     : marketplaceApps;
 
-  const vettedApplications = textFilteredApplications.filter(
-    (application) => application.isVetted,
-  );
+  const filteredApplications = showFeaturedOnly
+    ? textFilteredApplications.filter((application) => application.isFeatured)
+    : textFilteredApplications;
 
-  const nonVettedApplications = textFilteredApplications.filter(
-    (application) => !application.isVetted,
-  );
+  const nonFeaturedCount = showFeaturedOnly
+    ? textFilteredApplications.filter((application) => !application.isFeatured)
+        .length
+    : 0;
 
   if (isLoading) {
     return (
@@ -83,12 +73,8 @@ export const SettingsApplicationsAvailableTab = () => {
     );
   }
 
-  const showNonVettedHint =
-    showVettedOnly &&
-    vettedApplications.length === 0 &&
-    nonVettedApplications.length > 0;
-
-  const hasNoApplications = textFilteredApplications.length === 0;
+  const showNonFeaturedHint =
+    filteredApplications.length === 0 && nonFeaturedCount > 0;
 
   return (
     <Section>
@@ -108,9 +94,11 @@ export const SettingsApplicationsAvailableTab = () => {
                   <DropdownMenuItemsContainer>
                     <MenuItemToggle
                       LeftIcon={IconSparkles}
-                      onToggleChange={() => setShowVettedOnly(!showVettedOnly)}
-                      toggled={showVettedOnly}
-                      text={t`Vetted only`}
+                      onToggleChange={() =>
+                        setShowFeaturedOnly(!showFeaturedOnly)
+                      }
+                      toggled={showFeaturedOnly}
+                      text={t`Featured only`}
                       toggleSize="small"
                     />
                   </DropdownMenuItemsContainer>
@@ -121,48 +109,26 @@ export const SettingsApplicationsAvailableTab = () => {
         />
       </StyledSearchInputContainer>
 
-      {hasNoApplications ||
-      (showVettedOnly && vettedApplications.length === 0) ? (
+      {filteredApplications.length === 0 ? (
         <SettingsEmptyPlaceholder padding="4">
-          {showNonVettedHint
-            ? t`No vetted applications found. ${nonVettedApplications.length} non-vetted result(s) available — `
+          {showNonFeaturedHint
+            ? t`No featured applications found. ${nonFeaturedCount} non-featured result(s) available — `
             : t`No applications available`}
-          {showNonVettedHint && (
-            <StyledHintLink onClick={() => setShowVettedOnly(false)}>
+          {showNonFeaturedHint && (
+            <StyledHintLink onClick={() => setShowFeaturedOnly(false)}>
               {t`show all`}
             </StyledHintLink>
           )}
         </SettingsEmptyPlaceholder>
       ) : (
-        <StyledContentContainer>
-          {vettedApplications.length > 0 && (
-            <StyledCardsGrid>
-              {vettedApplications.map((application) => (
-                <SettingsAvailableApplicationCard
-                  key={application.id}
-                  application={application}
-                />
-              ))}
-            </StyledCardsGrid>
-          )}
-
-          {!showVettedOnly && nonVettedApplications.length > 0 && (
-            <StyledNotVettedContainer>
-              <InlineBanner
-                color={'danger'}
-                message={t`Applications below are not vetted. Use at your own risk.`}
-              />
-              <StyledCardsGrid>
-                {nonVettedApplications.map((application) => (
-                  <SettingsAvailableApplicationCard
-                    key={application.id}
-                    application={application}
-                  />
-                ))}
-              </StyledCardsGrid>
-            </StyledNotVettedContainer>
-          )}
-        </StyledContentContainer>
+        <StyledCardsGrid>
+          {filteredApplications.map((application) => (
+            <SettingsAvailableApplicationCard
+              key={application.id}
+              application={application}
+            />
+          ))}
+        </StyledCardsGrid>
       )}
     </Section>
   );

@@ -4,7 +4,6 @@ import React from 'react';
 import { getDisplayNameFromParticipant } from '@/activities/emails/utils/getDisplayNameFromParticipant';
 import { CoreObjectNameSingular } from 'twenty-shared/types';
 import { RecordChip } from '@/object-record/components/RecordChip';
-import { getAbsoluteImageUrl } from '~/utils/image/getAbsoluteImageUrl';
 import { Avatar } from 'twenty-ui/data-display';
 import { themeCssVariables } from 'twenty-ui/theme-constants';
 
@@ -70,7 +69,7 @@ export const ParticipantChip = ({
         <StyledChip>
           <StyledAvatarContainer>
             <Avatar
-              avatarUrl={getAbsoluteImageUrl(avatarUrl)}
+              avatarUrl={avatarUrl}
               type="rounded"
               placeholder={displayName}
               size="sm"

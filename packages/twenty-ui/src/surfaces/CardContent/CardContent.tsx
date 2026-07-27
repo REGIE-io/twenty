@@ -1,5 +1,6 @@
 import { clsx } from 'clsx';
-import { type ComponentPropsWithoutRef, type ReactNode } from 'react';
+import { type HTMLMotionProps, motion } from 'framer-motion';
+import { type ReactNode } from 'react';
 
 import styles from './CardContent.module.scss';
 
@@ -9,7 +10,7 @@ type CardContentProps = {
   divider?: boolean;
   isClickable?: boolean;
   hasHoverHighlight?: boolean;
-} & ComponentPropsWithoutRef<'div'>;
+} & Omit<HTMLMotionProps<'div'>, 'theme'>;
 
 export const CardContent = ({
   children,
@@ -20,7 +21,7 @@ export const CardContent = ({
   ...rest
 }: CardContentProps) => {
   return (
-    <div
+    <motion.div
       className={clsx(styles.cardContent, className)}
       data-divider={divider || undefined}
       data-clickable={isClickable || undefined}
@@ -29,6 +30,6 @@ export const CardContent = ({
       {...rest}
     >
       {children}
-    </div>
+    </motion.div>
   );
 };

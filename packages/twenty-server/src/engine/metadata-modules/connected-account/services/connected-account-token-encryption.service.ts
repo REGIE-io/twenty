@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 
 import { isDefined } from 'twenty-shared/utils';
 
@@ -20,6 +20,10 @@ import { ACCOUNT_TYPES } from 'twenty-shared/constants';
 
 @Injectable()
 export class ConnectedAccountTokenEncryptionService {
+  private readonly logger = new Logger(
+    ConnectedAccountTokenEncryptionService.name,
+  );
+
   constructor(
     private readonly secretEncryptionService: SecretEncryptionService,
   ) {}
@@ -71,7 +75,7 @@ export class ConnectedAccountTokenEncryptionService {
       );
     }
 
-    return this.secretEncryptionService.decryptVersionedOrThrow(ciphertext, {
+    return this.secretEncryptionService.decryptVersioned(ciphertext, {
       workspaceId,
     });
   }
@@ -125,9 +129,7 @@ export class ConnectedAccountTokenEncryptionService {
     connectionParameters: PlaintextImapSmtpCaldavParams;
     workspaceId: string;
   }): EncryptedImapSmtpCaldavParams {
-    const result: EncryptedImapSmtpCaldavParams = {
-      name: connectionParameters.name ?? null,
-    };
+    const result: EncryptedImapSmtpCaldavParams = {};
 
     for (const protocol of ACCOUNT_TYPES) {
       const params = connectionParameters[protocol];
@@ -152,9 +154,7 @@ export class ConnectedAccountTokenEncryptionService {
     connectionParameters: EncryptedImapSmtpCaldavParams;
     workspaceId: string;
   }): PlaintextImapSmtpCaldavParams {
-    const result: PlaintextImapSmtpCaldavParams = {
-      name: connectionParameters.name ?? null,
-    };
+    const result: PlaintextImapSmtpCaldavParams = {};
 
     for (const protocol of ACCOUNT_TYPES) {
       const params = connectionParameters[protocol];
@@ -179,6 +179,30 @@ export class ConnectedAccountTokenEncryptionService {
     protocolParams: EncryptedConnectionParameters;
     workspaceId: string;
   }): PlaintextConnectionParameters {
+    const isEncrypted = protocolParams.password.startsWith(
+      SECRET_ENCRYPTION_ENVELOPE_PREFIX,
+    );
+
+    // TODO: Remove in follow-up PR once all legacy encryption fallbacks are dropped.
+    // TODO: Remove after 2-5 slow instance command has been run everywhere.
+    // During the rollout window protocolParams.password may be a legacy
+    // unencrypted plaintext value living in the same column. We trust the
+    // entity-level brand at the type layer (column is EncryptedString) but
+    // still re-validate at runtime to handle the un-backfilled tail; the
+    // assert above splits the two.
+    if (!isEncrypted) {
+      this.logger.warn(
+        'Protocol password is not encrypted. Expected during the rollout window until the slow instance command finishes backfilling.',
+      );
+
+      const rawPassword: string = protocolParams.password;
+
+      return {
+        ...protocolParams,
+        password: rawPassword as PlaintextString,
+      };
+    }
+
     return {
       ...protocolParams,
       password: this.decrypt({

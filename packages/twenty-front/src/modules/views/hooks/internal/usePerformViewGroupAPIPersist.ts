@@ -1,15 +1,14 @@
 import { useCallback } from 'react';
 
-import { type FlatViewGroup } from '@/metadata-store/types/FlatViewGroup';
+import { useMetadataErrorHandler } from '@/metadata-error-handler/hooks/useMetadataErrorHandler';
 import { type MetadataRequestResult } from '@/object-metadata/types/MetadataRequestResult.type';
-import { usePerformViewEntityAPIPersistOperation } from '@/views/hooks/internal/usePerformViewEntityAPIPersistOperation';
-import { useMutation } from '@apollo/client/react';
-import { isNonEmptyArray } from '@sniptt/guards';
+import { useSnackBar } from '@/ui/feedback/snack-bar-manager/hooks/useSnackBar';
+import { CombinedGraphQLErrors } from '@apollo/client/errors';
+import { t } from '@lingui/core/macro';
 import { CrudOperationType } from 'twenty-shared/types';
+import { useMutation } from '@apollo/client/react';
 import {
-  type CreateManyViewGroupsMutationVariables,
   type UpdateManyViewGroupsMutationVariables,
-  CreateManyViewGroupsDocument,
   UpdateManyViewGroupsDocument,
 } from '~/generated-metadata/graphql';
 
@@ -18,12 +17,8 @@ export const usePerformViewGroupAPIPersist = () => {
     UpdateManyViewGroupsDocument,
   );
 
-  const [createManyViewGroupsMutation] = useMutation(
-    CreateManyViewGroupsDocument,
-  );
-
-  const { performViewEntityAPIPersistOperation } =
-    usePerformViewEntityAPIPersistOperation('viewGroup');
+  const { handleMetadataError } = useMetadataErrorHandler();
+  const { enqueueErrorSnackBar } = useSnackBar();
 
   const performViewGroupAPIUpdate = useCallback(
     async (
@@ -33,66 +28,45 @@ export const usePerformViewGroupAPIPersist = () => {
         ReturnType<typeof updateManyViewGroupsMutation>
       > | null>
     > => {
-      if (!isNonEmptyArray(updateViewGroupInputs.inputs)) {
+      if (
+        !Array.isArray(updateViewGroupInputs.inputs) ||
+        updateViewGroupInputs.inputs.length === 0
+      ) {
         return {
           status: 'successful',
           response: null,
         };
       }
 
-      return performViewEntityAPIPersistOperation({
-        persist: () =>
-          updateManyViewGroupsMutation({
-            variables: updateViewGroupInputs,
-          }),
-        applyResultToDraft: (result, { updateInDraft }) =>
-          updateInDraft(
-            'viewGroups',
-            (result.data?.updateManyViewGroups ?? []).map(
-              ({ __typename, ...viewGroup }) => viewGroup as FlatViewGroup,
-            ),
-          ),
-        operationType: CrudOperationType.UPDATE,
-      });
-    },
-    [updateManyViewGroupsMutation, performViewEntityAPIPersistOperation],
-  );
+      try {
+        const result = await updateManyViewGroupsMutation({
+          variables: updateViewGroupInputs,
+        });
 
-  const performViewGroupAPICreate = useCallback(
-    async (
-      createViewGroupInputs: CreateManyViewGroupsMutationVariables,
-    ): Promise<
-      MetadataRequestResult<Awaited<
-        ReturnType<typeof createManyViewGroupsMutation>
-      > | null>
-    > => {
-      if (!isNonEmptyArray(createViewGroupInputs.inputs)) {
         return {
           status: 'successful',
-          response: null,
+          response: result,
+        };
+      } catch (error) {
+        if (CombinedGraphQLErrors.is(error)) {
+          handleMetadataError(error, {
+            primaryMetadataName: 'viewGroup',
+            operationType: CrudOperationType.UPDATE,
+          });
+        } else {
+          enqueueErrorSnackBar({ message: t`An error occurred.` });
+        }
+
+        return {
+          status: 'failed',
+          error,
         };
       }
-
-      return performViewEntityAPIPersistOperation({
-        persist: () =>
-          createManyViewGroupsMutation({
-            variables: createViewGroupInputs,
-          }),
-        applyResultToDraft: (result, { addToDraft }) =>
-          addToDraft({
-            key: 'viewGroups',
-            items: (result.data?.createManyViewGroups ?? []).map(
-              ({ __typename, ...viewGroup }) => viewGroup as FlatViewGroup,
-            ),
-          }),
-        operationType: CrudOperationType.CREATE,
-      });
     },
-    [createManyViewGroupsMutation, performViewEntityAPIPersistOperation],
+    [updateManyViewGroupsMutation, handleMetadataError, enqueueErrorSnackBar],
   );
 
   return {
     performViewGroupAPIUpdate,
-    performViewGroupAPICreate,
   };
 };

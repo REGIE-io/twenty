@@ -1,9 +1,9 @@
 import { type WorkflowFilterAction } from '@/workflow/types/Workflow';
-import { WorkflowStepBody } from '@/workflow/workflow-steps/components/WorkflowStepBody';
 import { WorkflowStepFooter } from '@/workflow/workflow-steps/components/WorkflowStepFooter';
-import { WorkflowStepFilterBuilder } from '@/workflow/workflow-steps/filters/components/WorkflowStepFilterBuilder';
-import { type FilterSettings } from '@/workflow/workflow-steps/filters/types/FilterSettings';
-import { themeCssVariables } from 'twenty-ui/theme-constants';
+import { WorkflowEditActionFilterBodyEffect } from '@/workflow/workflow-steps/filters/components/WorkflowEditActionFilterBodyEffect';
+import { StepFilterGroupsComponentInstanceContext } from '@/workflow/workflow-steps/filters/states/context/StepFilterGroupsComponentInstanceContext';
+import { StepFiltersComponentInstanceContext } from '@/workflow/workflow-steps/filters/states/context/StepFiltersComponentInstanceContext';
+import { WorkflowEditActionFilterBody } from '@/workflow/workflow-steps/workflow-actions/filter-action/components/WorkflowEditActionFilterBody';
 
 type WorkflowEditActionFilterProps = {
   action: WorkflowFilterAction;
@@ -21,33 +21,31 @@ export const WorkflowEditActionFilter = ({
   action,
   actionOptions,
 }: WorkflowEditActionFilterProps) => {
-  const handleFilterSettingsUpdate = (filterSettings: FilterSettings) => {
-    if (actionOptions.readonly === true) {
-      return;
-    }
-
-    actionOptions.onActionUpdate({
-      ...action,
-      settings: {
-        ...action.settings,
-        input: {
-          stepFilterGroups: filterSettings.stepFilterGroups ?? [],
-          stepFilters: filterSettings.stepFilters ?? [],
-        },
-      },
-    });
-  };
-
   return (
     <>
-      <WorkflowStepBody rowGap={themeCssVariables.spacing[0]}>
-        <WorkflowStepFilterBuilder
-          instanceId={action.id}
-          defaultValue={action.settings.input}
-          readonly={actionOptions.readonly}
-          onFilterSettingsUpdate={handleFilterSettingsUpdate}
-        />
-      </WorkflowStepBody>
+      <StepFiltersComponentInstanceContext.Provider
+        value={{
+          instanceId: action.id,
+        }}
+      >
+        <StepFilterGroupsComponentInstanceContext.Provider
+          value={{
+            instanceId: action.id,
+          }}
+        >
+          <WorkflowEditActionFilterBody
+            action={action}
+            actionOptions={actionOptions}
+          />
+          <WorkflowEditActionFilterBodyEffect
+            stepId={action.id}
+            defaultValue={{
+              stepFilterGroups: action.settings.input.stepFilterGroups,
+              stepFilters: action.settings.input.stepFilters,
+            }}
+          />
+        </StepFilterGroupsComponentInstanceContext.Provider>
+      </StepFiltersComponentInstanceContext.Provider>
       {!actionOptions.readonly && <WorkflowStepFooter stepId={action.id} />}
     </>
   );

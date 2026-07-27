@@ -35,14 +35,9 @@ import { GraphqlQueryParser } from 'src/engine/api/graphql/graphql-query-runner/
 import { WorkspacePreQueryHookPayload } from 'src/engine/api/graphql/workspace-query-runner/workspace-query-hook/types/workspace-query-hook.type';
 import { WorkspaceQueryHookService } from 'src/engine/api/graphql/workspace-query-runner/workspace-query-hook/workspace-query-hook.service';
 import { isApiKeyAuthContext } from 'src/engine/core-modules/auth/guards/is-api-key-auth-context.guard';
-import { isApplicationAuthContext } from 'src/engine/core-modules/auth/guards/is-application-auth-context.guard';
 import { isUserAuthContext } from 'src/engine/core-modules/auth/guards/is-user-auth-context.guard';
 import { WorkspaceAuthContext } from 'src/engine/core-modules/auth/types/workspace-auth-context.type';
 import { FeatureFlagService } from 'src/engine/core-modules/feature-flag/services/feature-flag.service';
-import { MetricsService } from 'src/engine/core-modules/metrics/metrics.service';
-import { MetricsKeys } from 'src/engine/core-modules/metrics/types/metrics-keys.type';
-import { ThrottlerException } from 'src/engine/core-modules/throttler/throttler.exception';
-import { ThrottlerService } from 'src/engine/core-modules/throttler/throttler.service';
 import { TwentyConfigService } from 'src/engine/core-modules/twenty-config/twenty-config.service';
 import { FlatEntityMaps } from 'src/engine/metadata-modules/flat-entity/types/flat-entity-maps.type';
 import { FlatFieldMetadata } from 'src/engine/metadata-modules/flat-field-metadata/types/flat-field-metadata.type';
@@ -88,11 +83,7 @@ export abstract class CommonBaseQueryRunnerService<
   @Inject()
   protected readonly commonResultGettersService: CommonResultGettersService;
   @Inject()
-  protected readonly throttlerService: ThrottlerService;
-  @Inject()
   protected readonly twentyConfigService: TwentyConfigService;
-  @Inject()
-  protected readonly metricsService: MetricsService;
   @Inject()
   protected readonly featureFlagService: FeatureFlagService;
 
@@ -110,8 +101,6 @@ export abstract class CommonBaseQueryRunnerService<
       flatObjectMetadataMaps,
       flatFieldMetadataMaps,
     } = queryRunnerContext;
-
-    await this.throttleApplicationQueryExecution(authContext);
 
     await this.validate(args, queryRunnerContext);
 
@@ -317,13 +306,11 @@ export abstract class CommonBaseQueryRunnerService<
   ): Promise<Omit<CommonExtendedQueryRunnerContext, 'commonQueryParser'>> {
     const context = getWorkspaceContext();
 
-    const rolePermissionConfig =
-      queryRunnerContext.rolePermissionConfig ??
-      resolveRolePermissionConfig({
-        authContext: context.authContext,
-        userWorkspaceRoleMap: context.userWorkspaceRoleMap,
-        apiKeyRoleMap: context.apiKeyRoleMap,
-      });
+    const rolePermissionConfig = resolveRolePermissionConfig({
+      authContext: context.authContext,
+      userWorkspaceRoleMap: context.userWorkspaceRoleMap,
+      apiKeyRoleMap: context.apiKeyRoleMap,
+    });
 
     if (!rolePermissionConfig) {
       throw new CommonQueryRunnerException(
@@ -349,30 +336,6 @@ export abstract class CommonBaseQueryRunnerService<
       rolePermissionConfig,
       repository,
     };
-  }
-
-  private async throttleApplicationQueryExecution(
-    authContext: WorkspaceAuthContext,
-  ) {
-    if (!isApplicationAuthContext(authContext)) return;
-
-    try {
-      await this.throttlerService.tokenBucketThrottleOrThrow(
-        `api:throttler:application:${authContext.application.universalIdentifier}`,
-        1,
-        this.twentyConfigService.get('APPLICATION_API_RATE_LIMITING_LIMIT'),
-        this.twentyConfigService.get('APPLICATION_API_RATE_LIMITING_TTL_IN_MS'),
-      );
-    } catch (error) {
-      if (error instanceof ThrottlerException) {
-        await this.metricsService.incrementCounterForEvent({
-          key: MetricsKeys.CommonApiApplicationQueryRateLimited,
-          shouldStoreInCache: false,
-        });
-      }
-
-      throw error;
-    }
   }
 
   private validateQueryComplexity(

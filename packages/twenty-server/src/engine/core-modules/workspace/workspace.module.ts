@@ -1,6 +1,9 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 
+import { NestjsQueryGraphQLModule } from '@ptc-org/nestjs-query-graphql';
+import { NestjsQueryTypeOrmModule } from '@ptc-org/nestjs-query-typeorm';
+
 import { TypeORMModule } from 'src/database/typeorm/typeorm.module';
 import { ApplicationModule } from 'src/engine/core-modules/application/application.module';
 import { PreInstalledAppsModule } from 'src/engine/core-modules/application/pre-installed-apps/pre-installed-apps.module';
@@ -16,6 +19,7 @@ import { FeatureFlagModule } from 'src/engine/core-modules/feature-flag/feature-
 import { FileModule } from 'src/engine/core-modules/file/file.module';
 import { MetricsModule } from 'src/engine/core-modules/metrics/metrics.module';
 import { OnboardingModule } from 'src/engine/core-modules/onboarding/onboarding.module';
+import { PublicDomainEntity } from 'src/engine/core-modules/public-domain/public-domain.entity';
 import { SdkClientModule } from 'src/engine/core-modules/sdk-client/sdk-client.module';
 import { UserWorkspaceEntity } from 'src/engine/core-modules/user-workspace/user-workspace.entity';
 import { UserWorkspaceModule } from 'src/engine/core-modules/user-workspace/user-workspace.module';
@@ -30,6 +34,7 @@ import { InternalMetadataTokenGuard } from 'src/engine/core-modules/workspace/in
 import { InternalWorkspaceMemberProvisioningController } from 'src/engine/core-modules/workspace/internal/internal-workspace-member-provisioning.controller';
 import { InternalWorkspaceMemberProvisioningService } from 'src/engine/core-modules/workspace/internal/internal-workspace-member-provisioning.service';
 import { WorkspaceGaugeService } from 'src/engine/core-modules/workspace/workspace-gauge.service';
+import { workspaceAutoResolverOpts } from 'src/engine/core-modules/workspace/workspace.auto-resolver-opts';
 import { WorkspaceEntity } from 'src/engine/core-modules/workspace/workspace.entity';
 import { WorkspaceResolver } from 'src/engine/core-modules/workspace/workspace.resolver';
 import { BillingDisabledGuard } from 'src/engine/guards/billing-disabled.guard';
@@ -54,32 +59,45 @@ import { WorkspaceMigrationModule } from 'src/engine/workspace-manager/workspace
       UserWorkspaceEntity,
     ]),
     MetricsModule,
-    BillingModule,
-    FileModule,
-    TokenModule,
-    ObjectMetadataModule,
-    UserWorkspaceModule,
-    WorkspaceManagerModule,
-    FeatureFlagModule,
-    OnboardingModule,
-    WorkspaceDataSourceModule,
-    PermissionsModule,
-    WorkspaceCacheStorageModule,
-    RoleModule,
-    AiAgentModule,
-    DnsManagerModule,
-    WorkspaceDomainsModule,
-    SubdomainManagerModule,
-    CustomDomainManagerModule,
-    ViewModule,
-    WorkspaceManyOrAllFlatEntityMapsCacheModule,
-    ApplicationModule,
-    PreInstalledAppsModule,
-    EnterpriseModule,
-    WorkspaceMigrationModule,
-    CoreEntityCacheModule,
-    UpgradeModule,
-    SdkClientModule,
+    NestjsQueryGraphQLModule.forFeature({
+      imports: [
+        BillingModule,
+        FileModule,
+        TokenModule,
+        NestjsQueryTypeOrmModule.forFeature([
+          UserEntity,
+          WorkspaceEntity,
+          UserWorkspaceEntity,
+          PublicDomainEntity,
+        ]),
+        ObjectMetadataModule,
+        UserWorkspaceModule,
+        WorkspaceManagerModule,
+        FeatureFlagModule,
+        OnboardingModule,
+        WorkspaceDataSourceModule,
+        TypeORMModule,
+        PermissionsModule,
+        WorkspaceCacheStorageModule,
+        RoleModule,
+        AiAgentModule,
+        DnsManagerModule,
+        WorkspaceDomainsModule,
+        SubdomainManagerModule,
+        CustomDomainManagerModule,
+        ViewModule,
+        WorkspaceManyOrAllFlatEntityMapsCacheModule,
+        ApplicationModule,
+        PreInstalledAppsModule,
+        EnterpriseModule,
+        WorkspaceMigrationModule,
+        CoreEntityCacheModule,
+        UpgradeModule,
+        SdkClientModule,
+      ],
+      services: [WorkspaceService],
+      resolvers: workspaceAutoResolverOpts,
+    }),
   ],
   controllers: [InternalWorkspaceMemberProvisioningController],
   exports: [WorkspaceService, CheckCustomDomainValidRecordsCronCommand],

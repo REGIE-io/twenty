@@ -43,8 +43,6 @@ describe('deleteFlatEntityFromFlatEntityAndRelatedEntityMapsThroughMutationOrThr
       workspaceId,
       calendarViewIds: [viewId],
       calendarViewUniversalIdentifiers: [viewUniversalIdentifier],
-      calendarEndViewIds: [viewId],
-      calendarEndViewUniversalIdentifiers: [viewUniversalIdentifier],
       mainGroupByFieldMetadataViewIds: [],
       applicationId,
     });
@@ -60,8 +58,6 @@ describe('deleteFlatEntityFromFlatEntityAndRelatedEntityMapsThroughMutationOrThr
       workspaceId,
       calendarFieldMetadataId: mockFieldMetadata.id,
       calendarFieldMetadataUniversalIdentifier: fieldUniversalIdentifier,
-      calendarEndFieldMetadataId: mockFieldMetadata.id,
-      calendarEndFieldMetadataUniversalIdentifier: fieldUniversalIdentifier,
       createdAt: new Date('2024-01-01').toISOString(),
       updatedAt: new Date('2024-01-01').toISOString(),
       icon: 'icon',
@@ -118,8 +114,6 @@ describe('deleteFlatEntityFromFlatEntityAndRelatedEntityMapsThroughMutationOrThr
     ).toMatchObject<Partial<FlatFieldMetadata>>({
       calendarViewIds: [],
       calendarViewUniversalIdentifiers: [],
-      calendarEndViewIds: [],
-      calendarEndViewUniversalIdentifiers: [],
     });
   });
 });

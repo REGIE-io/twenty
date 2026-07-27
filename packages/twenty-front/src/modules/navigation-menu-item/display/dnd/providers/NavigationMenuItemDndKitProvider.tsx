@@ -1,4 +1,9 @@
-import { DragDropProvider } from '@dnd-kit/react';
+import { PointerActivationConstraints } from '@dnd-kit/dom';
+import {
+  DragDropProvider,
+  KeyboardSensor,
+  PointerSensor,
+} from '@dnd-kit/react';
 import type { ReactNode } from 'react';
 
 import type { NavigationSections } from '@/navigation-menu-item/common/constants/NavigationSections.constants';
@@ -7,8 +12,15 @@ import { NavigationDropTargetContext } from '@/navigation-menu-item/common/conte
 import { NavigationMenuItemDragContext } from '@/navigation-menu-item/common/contexts/NavigationMenuItemDragContext';
 import type { DraggableData } from '@/navigation-menu-item/common/types/navigationMenuItemDndKitDraggableData';
 import { useNavigationMenuItemDndKit } from '@/navigation-menu-item/display/dnd/hooks/useNavigationMenuItemDndKit';
-import { DND_KIT_PROVIDER_PLUGINS_WITHOUT_DROP_ANIMATION } from '@/ui/utilities/drag-and-drop/constants/DndKitProviderPluginsWithoutDropAnimation';
-import { DND_KIT_SENSORS } from '@/ui/utilities/drag-and-drop/constants/DndKitSensors';
+
+const NAVIGATION_MENU_ITEM_DND_SENSORS = [
+  PointerSensor.configure({
+    activationConstraints: [
+      new PointerActivationConstraints.Distance({ value: 8 }),
+    ],
+  }),
+  KeyboardSensor,
+];
 
 type NavigationMenuItemDndKitProviderProps = {
   section: NavigationSections;
@@ -26,8 +38,7 @@ export const NavigationMenuItemDndKitProvider = ({
       <NavigationMenuItemDragContext.Provider value={contextValues.drag}>
         <NavigationDropTargetContext.Provider value={contextValues.dropTarget}>
           <DragDropProvider<DraggableData>
-            sensors={DND_KIT_SENSORS}
-            plugins={DND_KIT_PROVIDER_PLUGINS_WITHOUT_DROP_ANIMATION}
+            sensors={NAVIGATION_MENU_ITEM_DND_SENSORS}
             onDragStart={handlers.onDragStart}
             onDragOver={handlers.onDragOver}
             onDragEnd={handlers.onDragEnd}

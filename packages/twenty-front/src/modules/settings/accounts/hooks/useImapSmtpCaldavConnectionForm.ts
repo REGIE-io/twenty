@@ -35,7 +35,6 @@ type UseConnectionFormProps = {
 };
 
 export type ConnectionFormData = {
-  name: string;
   handle: string;
 } & ImapSmtpCaldavAccountInput;
 
@@ -73,7 +72,6 @@ export const useImapSmtpCaldavConnectionForm = ({
       isEditing ? connectionImapSmtpCalDavUpdate : connectionImapSmtpCalDav,
     ),
     defaultValues: {
-      name: '',
       handle: '',
       ...DEFAULT_PROTOCOL_VALUES,
     },
@@ -91,7 +89,6 @@ export const useImapSmtpCaldavConnectionForm = ({
   useEffect(() => {
     if (isDefined(connectedAccount)) {
       reset({
-        name: connectedAccount.connectionParameters?.name || '',
         handle: connectedAccount.handle || '',
         IMAP: {
           ...DEFAULT_PROTOCOL_VALUES.IMAP,
@@ -171,10 +168,7 @@ export const useImapSmtpCaldavConnectionForm = ({
               ? { id: connectedAccountId }
               : {}),
             handle: formValues.handle,
-            connectionParameters: {
-              ...connectionParameters,
-              name: formValues.name,
-            },
+            connectionParameters,
           },
         });
         if (!isDefined(data)) return;

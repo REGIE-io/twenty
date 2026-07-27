@@ -1,6 +1,7 @@
 import {
   PageLayoutTabLayoutMode,
   type GridPosition,
+  type PageLayoutWidgetCanvasPosition,
   type PageLayoutWidgetConditionalDisplay,
   type PageLayoutWidgetGridPosition,
   type PageLayoutWidgetVerticalListPosition,
@@ -90,6 +91,12 @@ export const VERTICAL_LIST_LAYOUT_POSITIONS = {
   },
 } as const satisfies Record<string, PageLayoutWidgetVerticalListPosition>;
 
+export const CANVAS_LAYOUT_POSITIONS = {
+  DEFAULT: {
+    layoutMode: PageLayoutTabLayoutMode.CANVAS,
+  },
+} as const satisfies Record<string, PageLayoutWidgetCanvasPosition>;
+
 export const TAB_PROPS = {
   home: {
     title: 'Home',
@@ -101,37 +108,37 @@ export const TAB_PROPS = {
     title: 'Timeline',
     position: 20,
     icon: 'IconTimelineEvent',
-    layoutMode: PageLayoutTabLayoutMode.VERTICAL_LIST,
+    layoutMode: PageLayoutTabLayoutMode.CANVAS,
   },
   tasks: {
     title: 'Tasks',
     position: 30,
     icon: 'IconCheckbox',
-    layoutMode: PageLayoutTabLayoutMode.VERTICAL_LIST,
+    layoutMode: PageLayoutTabLayoutMode.CANVAS,
   },
   notes: {
     title: 'Notes',
     position: 40,
     icon: 'IconNotes',
-    layoutMode: PageLayoutTabLayoutMode.VERTICAL_LIST,
+    layoutMode: PageLayoutTabLayoutMode.CANVAS,
   },
   files: {
     title: 'Files',
     position: 50,
     icon: 'IconPaperclip',
-    layoutMode: PageLayoutTabLayoutMode.VERTICAL_LIST,
+    layoutMode: PageLayoutTabLayoutMode.CANVAS,
   },
   emails: {
     title: 'Emails',
     position: 60,
     icon: 'IconMail',
-    layoutMode: PageLayoutTabLayoutMode.VERTICAL_LIST,
+    layoutMode: PageLayoutTabLayoutMode.CANVAS,
   },
   calendar: {
     title: 'Calendar',
     position: 70,
     icon: 'IconCalendarEvent',
-    layoutMode: PageLayoutTabLayoutMode.VERTICAL_LIST,
+    layoutMode: PageLayoutTabLayoutMode.CANVAS,
   },
   note: {
     title: 'Note',
@@ -143,13 +150,13 @@ export const TAB_PROPS = {
     title: 'Flow',
     position: 10,
     icon: 'IconSettings',
-    layoutMode: PageLayoutTabLayoutMode.VERTICAL_LIST,
+    layoutMode: PageLayoutTabLayoutMode.CANVAS,
   },
   flowSecondary: {
     title: 'Flow',
     position: 20,
     icon: 'IconSettings',
-    layoutMode: PageLayoutTabLayoutMode.VERTICAL_LIST,
+    layoutMode: PageLayoutTabLayoutMode.CANVAS,
   },
 } as const;
 
@@ -164,37 +171,37 @@ export const WIDGET_PROPS = {
     title: 'Timeline',
     type: WidgetType.TIMELINE,
     gridPosition: GRID_POSITIONS.HALF_HEIGHT,
-    position: VERTICAL_LIST_LAYOUT_POSITIONS.FIRST,
+    position: CANVAS_LAYOUT_POSITIONS.DEFAULT,
   },
   tasks: {
     title: 'Tasks',
     type: WidgetType.TASKS,
     gridPosition: GRID_POSITIONS.HALF_HEIGHT,
-    position: VERTICAL_LIST_LAYOUT_POSITIONS.FIRST,
+    position: CANVAS_LAYOUT_POSITIONS.DEFAULT,
   },
   notes: {
     title: 'Notes',
     type: WidgetType.NOTES,
     gridPosition: GRID_POSITIONS.HALF_HEIGHT,
-    position: VERTICAL_LIST_LAYOUT_POSITIONS.FIRST,
+    position: CANVAS_LAYOUT_POSITIONS.DEFAULT,
   },
   files: {
     title: 'Files',
     type: WidgetType.FILES,
     gridPosition: GRID_POSITIONS.HALF_HEIGHT,
-    position: VERTICAL_LIST_LAYOUT_POSITIONS.FIRST,
+    position: CANVAS_LAYOUT_POSITIONS.DEFAULT,
   },
   emails: {
     title: 'Emails',
     type: WidgetType.EMAILS,
     gridPosition: GRID_POSITIONS.HALF_HEIGHT,
-    position: VERTICAL_LIST_LAYOUT_POSITIONS.FIRST,
+    position: CANVAS_LAYOUT_POSITIONS.DEFAULT,
   },
   calendar: {
     title: 'Calendar',
     type: WidgetType.CALENDAR,
     gridPosition: GRID_POSITIONS.HALF_HEIGHT,
-    position: VERTICAL_LIST_LAYOUT_POSITIONS.FIRST,
+    position: CANVAS_LAYOUT_POSITIONS.DEFAULT,
   },
   noteRichText: {
     title: 'Note',
@@ -212,19 +219,19 @@ export const WIDGET_PROPS = {
     title: 'Flow',
     type: WidgetType.WORKFLOW,
     gridPosition: GRID_POSITIONS.FULL_WIDTH,
-    position: VERTICAL_LIST_LAYOUT_POSITIONS.FIRST,
+    position: CANVAS_LAYOUT_POSITIONS.DEFAULT,
   },
   workflowVersion: {
     title: 'Flow',
     type: WidgetType.WORKFLOW_VERSION,
     gridPosition: GRID_POSITIONS.FULL_WIDTH,
-    position: VERTICAL_LIST_LAYOUT_POSITIONS.FIRST,
+    position: CANVAS_LAYOUT_POSITIONS.DEFAULT,
   },
   workflowRun: {
     title: 'Flow',
     type: WidgetType.WORKFLOW_RUN,
     gridPosition: GRID_POSITIONS.FULL_WIDTH,
-    position: VERTICAL_LIST_LAYOUT_POSITIONS.FIRST,
+    position: CANVAS_LAYOUT_POSITIONS.DEFAULT,
   },
   emailThread: {
     title: 'Thread',

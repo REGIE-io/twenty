@@ -3,7 +3,6 @@ import { getStandardObjectMetadataRelatedEntityIds } from 'src/engine/workspace-
 let uuidCounter = 0;
 
 jest.mock('uuid', () => ({
-  ...jest.requireActual('uuid'),
   v4: jest.fn(
     () => `00000000-0000-0000-0000-${String(++uuidCounter).padStart(12, '0')}`,
   ),

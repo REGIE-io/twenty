@@ -3,11 +3,6 @@ export interface MessageQueueJob<T = any> {
   id: string;
   name: string;
   data: T;
-  abortSignal?: AbortSignal;
-}
-
-export interface MessageQueueJobContext {
-  abortSignal?: AbortSignal;
 }
 
 export interface MessageQueueCronJobData<

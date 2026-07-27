@@ -1,87 +1,59 @@
-import { type MetadataRoute } from 'next';
-import {
-  DOCUMENTATION_DEFAULT_LANGUAGE,
-  type DocumentationSupportedLanguage,
-} from 'twenty-shared/constants';
+import type { MetadataRoute } from 'next';
+import { SOURCE_LOCALE, type AppLocale } from 'twenty-shared/translations';
 
-import { WEBSITE_LOCALE_LIST } from '@/platform/i18n/website-locale-list';
-import { getIndexedWebsiteRoutes } from '@/platform/routing';
-import { WEBSITE_ROUTE_FAMILY_LIST } from '@/platform/routing/website-route-family-list';
-import { getSiteUrl } from '@/platform/seo';
+import { WEBSITE_LOCALE_LIST, localeToUrlSegment } from '@/lib/i18n';
+import { getSiteUrl } from '@/lib/seo';
+import {
+  getIndexedWebsiteRoutes,
+  type WebsiteRoute,
+} from '@/lib/website-routing';
 
 const SITE_URL = getSiteUrl();
+const BUILD_DATE = new Date().toISOString();
 
-const buildLocalizedUrl = (
-  locale: DocumentationSupportedLanguage,
-  path: string,
-): string => {
-  const prefix = locale === DOCUMENTATION_DEFAULT_LANGUAGE ? '' : `/${locale}`;
+const buildLocalizedUrl = (locale: AppLocale, path: string): string => {
+  const prefix =
+    locale === SOURCE_LOCALE ? '' : `/${localeToUrlSegment(locale)}`;
   const tail = path === '/' ? '' : path;
   return `${SITE_URL}${prefix}${tail}`;
 };
 
+const getRouteLocales = (route: WebsiteRoute): readonly AppLocale[] =>
+  route.localeMode === 'source' ? [SOURCE_LOCALE] : WEBSITE_LOCALE_LIST;
+
 const buildLanguageAlternates = (
   path: string,
-  locales: readonly DocumentationSupportedLanguage[],
+  locales: readonly AppLocale[],
 ): Record<string, string> => {
   const alternates: Record<string, string> = {};
   for (const locale of locales) {
     alternates[locale] = buildLocalizedUrl(locale, path);
   }
-  alternates['x-default'] = buildLocalizedUrl(
-    DOCUMENTATION_DEFAULT_LANGUAGE,
-    path,
-  );
+  alternates['x-default'] = buildLocalizedUrl(SOURCE_LOCALE, path);
   return alternates;
 };
 
-const localesFor = (
-  localeMode: 'all' | 'source' | undefined,
-): readonly DocumentationSupportedLanguage[] =>
-  localeMode === 'source'
-    ? [DOCUMENTATION_DEFAULT_LANGUAGE]
-    : WEBSITE_LOCALE_LIST;
-
-const entriesFor = (
+const localize = (
   path: string,
-  locales: readonly DocumentationSupportedLanguage[],
-  shared: {
-    changeFrequency: MetadataRoute.Sitemap[number]['changeFrequency'];
-    priority: number;
-    lastModified?: Date;
-  },
+  changeFrequency: MetadataRoute.Sitemap[number]['changeFrequency'],
+  priority: number,
+  locales: readonly AppLocale[],
 ): MetadataRoute.Sitemap =>
   locales.map((locale) => ({
     url: buildLocalizedUrl(locale, path),
-    changeFrequency: shared.changeFrequency,
-    priority: shared.priority,
-    lastModified: shared.lastModified,
+    lastModified: BUILD_DATE,
+    changeFrequency,
+    priority,
     alternates: { languages: buildLanguageAlternates(path, locales) },
   }));
 
-export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
-  const staticEntries = getIndexedWebsiteRoutes().flatMap((route) =>
-    entriesFor(route.path, localesFor(route.localeMode), route),
-  );
-
-  const familyEntries = await Promise.all(
-    WEBSITE_ROUTE_FAMILY_LIST.filter((family) => family.indexed).map(
-      async (family) => {
-        const entries = await family.enumerateEntries();
-        return entries.flatMap((entry) =>
-          entriesFor(
-            `${family.basePath}/${entry.slug}`,
-            localesFor(family.localeMode),
-            {
-              changeFrequency: family.changeFrequency,
-              priority: family.priority,
-              lastModified: entry.lastModified,
-            },
-          ),
-        );
-      },
+export default function sitemap(): MetadataRoute.Sitemap {
+  return getIndexedWebsiteRoutes().flatMap((route) =>
+    localize(
+      route.path,
+      route.changeFrequency,
+      route.priority,
+      getRouteLocales(route),
     ),
   );
-
-  return [...staticEntries, ...familyEntries.flat()];
 }

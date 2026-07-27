@@ -5,9 +5,9 @@ import {
 } from 'twenty-shared/metadata';
 
 import {
-  ProvisionedWorkspaceCommandRunner,
-  type ProvisionedWorkspaceCommandOptions,
-} from 'src/database/commands/command-runners/provisioned-workspace.command-runner';
+  ActiveOrSuspendedWorkspaceCommandRunner,
+  type ActiveOrSuspendedWorkspaceCommandOptions,
+} from 'src/database/commands/command-runners/active-or-suspended-workspace.command-runner';
 import { WorkspaceIteratorService } from 'src/database/commands/command-runners/workspace-iterator.service';
 import { type RunOnWorkspaceArgs } from 'src/database/commands/command-runners/workspace.command-runner';
 import { type AllFlatEntityMaps } from 'src/engine/metadata-modules/flat-entity/types/all-flat-entity-maps.type';
@@ -15,7 +15,7 @@ import { getMetadataFlatEntityMapsKey } from 'src/engine/metadata-modules/flat-e
 import { getMetadataRelatedMetadataNames } from 'src/engine/metadata-modules/flat-entity/utils/get-metadata-related-metadata-names.util';
 import { WorkspaceMigrationRunnerService } from 'src/engine/workspace-manager/workspace-migration/workspace-migration-runner/services/workspace-migration-runner.service';
 
-type FlatCacheFlushCommandOptions = ProvisionedWorkspaceCommandOptions & {
+type FlatCacheFlushCommandOptions = ActiveOrSuspendedWorkspaceCommandOptions & {
   metadataName?: string[];
   allMetadata?: boolean;
 };
@@ -25,7 +25,7 @@ type FlatCacheFlushCommandOptions = ProvisionedWorkspaceCommandOptions & {
   description:
     'Flush flat entity cache for specific metadata names and workspaces',
 })
-export class FlatCacheInvalidateCommand extends ProvisionedWorkspaceCommandRunner<FlatCacheFlushCommandOptions> {
+export class FlatCacheInvalidateCommand extends ActiveOrSuspendedWorkspaceCommandRunner<FlatCacheFlushCommandOptions> {
   private flatMapsKeysToFlush: (keyof AllFlatEntityMaps)[] = [];
 
   constructor(

@@ -16,7 +16,6 @@ import { styled } from '@linaria/react';
 import { useLingui } from '@lingui/react/macro';
 import { useIsMobile } from 'twenty-ui/utilities';
 import { AdvancedSettingsToggle } from 'twenty-ui/input';
-import { IconSettings } from 'twenty-ui/icon';
 import { themeCssVariables } from 'twenty-ui/theme-constants';
 import { PermissionFlagType } from '~/generated-metadata/graphql';
 
@@ -56,10 +55,7 @@ export const SettingsNavigationDrawer = ({
     <NavigationDrawer className={className} title={t`Settings`}>
       {hasAiPermission && (
         <NavigationDrawerFixedContent>
-          <MainNavigationDrawerTabsRow
-            NavigationMenuTabIcon={IconSettings}
-            navigationMenuTabLabel={t`Settings`}
-          />
+          <MainNavigationDrawerTabsRow />
         </NavigationDrawerFixedContent>
       )}
 

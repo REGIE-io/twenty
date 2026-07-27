@@ -1,16 +1,27 @@
 import {
   openSidePanelPage,
-  type OpenSidePanelPageParams,
   unmountFrontComponent,
   useFrontComponentId,
 } from '@/sdk/front-component';
 import { useEffect, useState } from 'react';
 
-export type CommandOpenSidePanelPageProps = OpenSidePanelPageParams;
+import { type SidePanelPages } from 'twenty-shared/types';
 
-export const CommandOpenSidePanelPage = (
-  props: CommandOpenSidePanelPageProps,
-) => {
+export type CommandOpenSidePanelPageProps = {
+  page: SidePanelPages;
+  pageTitle: string;
+  pageIcon: string;
+  onClick?: () => void;
+  shouldResetSearchState?: boolean;
+};
+
+export const CommandOpenSidePanelPage = ({
+  page,
+  pageTitle,
+  pageIcon,
+  onClick,
+  shouldResetSearchState = false,
+}: CommandOpenSidePanelPageProps) => {
   const [hasExecuted, setHasExecuted] = useState(false);
 
   const frontComponentId = useFrontComponentId();
@@ -23,13 +34,28 @@ export const CommandOpenSidePanelPage = (
     setHasExecuted(true);
 
     const run = async () => {
-      await openSidePanelPage(props);
+      onClick?.();
+
+      await openSidePanelPage({
+        page,
+        pageTitle,
+        pageIcon,
+        shouldResetSearchState,
+      });
 
       await unmountFrontComponent();
     };
 
     run();
-  }, [props, hasExecuted, frontComponentId]);
+  }, [
+    page,
+    pageTitle,
+    pageIcon,
+    shouldResetSearchState,
+    onClick,
+    hasExecuted,
+    frontComponentId,
+  ]);
 
   return null;
 };

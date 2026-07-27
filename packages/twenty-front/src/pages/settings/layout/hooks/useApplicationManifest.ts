@@ -1,7 +1,7 @@
 import { useQuery } from '@apollo/client/react';
 import { type Manifest } from 'twenty-shared/application';
 import {
-  FindMarketplaceAppManifestDocument,
+  FindMarketplaceAppDetailDocument,
   FindOneApplicationDocument,
 } from '~/generated-metadata/graphql';
 
@@ -20,7 +20,7 @@ export const useApplicationManifest = (applicationId: string) => {
   const application = appData?.findOneApplication;
 
   const { data: detailData, loading: detailLoading } = useQuery(
-    FindMarketplaceAppManifestDocument,
+    FindMarketplaceAppDetailDocument,
     {
       variables: {
         universalIdentifier: application?.universalIdentifier ?? '',

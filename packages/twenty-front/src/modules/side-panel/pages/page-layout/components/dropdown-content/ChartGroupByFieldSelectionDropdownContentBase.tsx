@@ -242,44 +242,6 @@ export const ChartGroupByFieldSelectionDropdownContentBase = <
     closeDropdown();
   };
 
-  const handleSelectRelationRecord = () => {
-    if (!isDefined(selectedRelationField)) {
-      return;
-    }
-
-    updateCurrentWidgetConfig({
-      configToUpdate: buildChartGroupByFieldConfigUpdate({
-        configuration,
-        fieldMetadataIdKey,
-        subFieldNameKey,
-        fieldId: selectedRelationField.id,
-        subFieldName: null,
-        objectMetadataItem: sourceObjectMetadataItem,
-        objectMetadataItems,
-      }),
-    });
-    closeDropdown();
-  };
-
-  const handleSelectMorphTargetRecord = ({
-    perTargetFieldId,
-  }: {
-    perTargetFieldId: string;
-  }) => {
-    updateCurrentWidgetConfig({
-      configToUpdate: buildChartGroupByFieldConfigUpdate({
-        configuration,
-        fieldMetadataIdKey,
-        subFieldNameKey,
-        fieldId: perTargetFieldId,
-        subFieldName: null,
-        objectMetadataItem: sourceObjectMetadataItem,
-        objectMetadataItems,
-      }),
-    });
-    closeDropdown();
-  };
-
   if (isDefined(selectedMorphField)) {
     return (
       <ChartGroupByFieldSelectionMorphRelationFieldView
@@ -288,7 +250,6 @@ export const ChartGroupByFieldSelectionDropdownContentBase = <
         currentSubFieldName={currentSubFieldName}
         onBack={handleBackFromMorph}
         onSelectTargetSubField={handleSelectMorphTargetSubField}
-        onSelectTargetRecord={handleSelectMorphTargetRecord}
       />
     );
   }
@@ -297,17 +258,9 @@ export const ChartGroupByFieldSelectionDropdownContentBase = <
     return (
       <ChartGroupByFieldSelectionRelationFieldView
         relationField={selectedRelationField}
-        currentSubFieldName={
-          selectedRelationField.id === currentGroupByFieldMetadataId
-            ? currentSubFieldName
-            : undefined
-        }
-        isCurrentGroupByField={
-          selectedRelationField.id === currentGroupByFieldMetadataId
-        }
+        currentSubFieldName={currentSubFieldName}
         onBack={handleBackFromRelation}
         onSelectSubField={handleSelectRelationSubField}
-        onSelectRecord={handleSelectRelationRecord}
       />
     );
   }

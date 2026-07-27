@@ -1,11 +1,13 @@
+import { useContext } from 'react';
+
 import IconOpenaiRaw from '@assets/icons/openai.svg?react';
 import { type IconComponentProps } from '@ui/icon/types/IconComponent';
-import { useTheme } from '@ui/theme-constants';
+import { ThemeContext } from '@ui/theme-constants';
 
 type IconProviderOpenaiProps = Pick<IconComponentProps, 'size' | 'color'>;
 
 export const IconProviderOpenai = (props: IconProviderOpenaiProps) => {
-  const theme = useTheme();
+  const { theme } = useContext(ThemeContext);
   const size = props.size ?? theme.icon.size.lg;
 
   return (

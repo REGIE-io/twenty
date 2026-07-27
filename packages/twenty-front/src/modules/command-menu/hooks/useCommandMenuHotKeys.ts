@@ -1,13 +1,17 @@
-import { AI_CHAT_THREADS_LIST_FOCUS_ID } from '@/ai/constants/AiChatThreadsListFocusId';
 import { useKeyboardShortcutMenu } from '@/keyboard-shortcut-menu/hooks/useKeyboardShortcutMenu';
 import { SIDE_PANEL_FOCUS_ID } from '@/side-panel/constants/SidePanelFocusId';
-import { useHandleSidePanelEscape } from '@/side-panel/hooks/useHandleSidePanelEscape';
 import { useOpenAskAiPageInSidePanel } from '@/side-panel/hooks/useOpenAskAiPageInSidePanel';
 import { useOpenRecordsSearchPageInSidePanel } from '@/side-panel/hooks/useOpenRecordsSearchPageInSidePanel';
+import { useSidePanelHistory } from '@/side-panel/hooks/useSidePanelHistory';
 import { useSidePanelMenu } from '@/side-panel/hooks/useSidePanelMenu';
+import { sidePanelPageState } from '@/side-panel/states/sidePanelPageState';
+import { sidePanelSearchState } from '@/side-panel/states/sidePanelSearchState';
 import { useGlobalHotkeys } from '@/ui/utilities/hotkey/hooks/useGlobalHotkeys';
 import { useHotkeysOnFocusedElement } from '@/ui/utilities/hotkey/hooks/useHotkeysOnFocusedElement';
+import { useAtomStateValue } from '@/ui/utilities/state/jotai/hooks/useAtomStateValue';
+import { isNonEmptyString } from '@sniptt/guards';
 import { Key } from 'ts-key-enum';
+import { SidePanelPages } from 'twenty-shared/types';
 
 export const useCommandMenuHotKeys = () => {
   const { toggleSidePanelMenu } = useSidePanelMenu();
@@ -16,9 +20,14 @@ export const useCommandMenuHotKeys = () => {
 
   const { openAskAiPage } = useOpenAskAiPageInSidePanel();
 
-  const handleSidePanelEscape = useHandleSidePanelEscape();
+  const { goBackFromSidePanel, goBackOneSubPageOrMainPage } =
+    useSidePanelHistory();
+
+  const sidePanelSearch = useAtomStateValue(sidePanelSearchState);
 
   const { closeKeyboardShortcutMenu } = useKeyboardShortcutMenu();
+
+  const sidePanelPage = useAtomStateValue(sidePanelPageState);
 
   useGlobalHotkeys({
     keys: ['ctrl+k', 'meta+k'],
@@ -57,23 +66,30 @@ export const useCommandMenuHotKeys = () => {
   useHotkeysOnFocusedElement({
     keys: [Key.Escape],
     callback: () => {
-      handleSidePanelEscape();
+      goBackFromSidePanel();
     },
     focusId: SIDE_PANEL_FOCUS_ID,
-    dependencies: [handleSidePanelEscape],
+    dependencies: [goBackFromSidePanel],
     options: {
       enableOnFormTags: false,
     },
   });
 
   useHotkeysOnFocusedElement({
-    keys: [Key.Escape],
+    keys: [Key.Backspace, Key.Delete],
     callback: () => {
-      handleSidePanelEscape();
+      if (isNonEmptyString(sidePanelSearch)) {
+        return;
+      }
+
+      if (sidePanelPage !== SidePanelPages.CommandMenuDisplay) {
+        goBackOneSubPageOrMainPage();
+      }
     },
-    focusId: AI_CHAT_THREADS_LIST_FOCUS_ID,
-    dependencies: [handleSidePanelEscape],
+    focusId: SIDE_PANEL_FOCUS_ID,
+    dependencies: [sidePanelPage, sidePanelSearch, goBackOneSubPageOrMainPage],
     options: {
+      preventDefault: false,
       enableOnFormTags: false,
     },
   });

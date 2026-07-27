@@ -57,8 +57,6 @@ describe('addFlatEntityToFlatEntityAndRelatedEntityMapsThroughMutationOrThrow', 
       applicationId,
       calendarFieldMetadataId: mockFieldMetadata.id,
       calendarFieldMetadataUniversalIdentifier: fieldUniversalIdentifier,
-      calendarEndFieldMetadataId: mockFieldMetadata.id,
-      calendarEndFieldMetadataUniversalIdentifier: fieldUniversalIdentifier,
     };
 
     const flatEntityAndRelatedMapsToMutate: MetadataFlatEntityAndRelatedFlatEntityMaps<'view'> =
@@ -105,8 +103,6 @@ describe('addFlatEntityToFlatEntityAndRelatedEntityMapsThroughMutationOrThrow', 
     ).toMatchObject<Partial<FlatFieldMetadata>>({
       calendarViewIds: [mockView.id],
       calendarViewUniversalIdentifiers: [viewUniversalIdentifier],
-      calendarEndViewIds: [mockView.id],
-      calendarEndViewUniversalIdentifiers: [viewUniversalIdentifier],
     });
   });
 });

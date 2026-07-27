@@ -206,7 +206,7 @@ export class CalendarChannelSyncStatusService {
     );
   }
 
-  public async markAsCalendarEventSyncCompleted(
+  public async markAsCompletedAndMarkAsCalendarEventListFetchPending(
     calendarChannelIds: string[],
     workspaceId: string,
   ) {

@@ -1,6 +1,8 @@
 /* @license Enterprise */
 
 import { Field, ObjectType, registerEnumType } from '@nestjs/graphql';
+
+import { IDField } from '@ptc-org/nestjs-query-graphql';
 import graphqlTypeJson from 'graphql-type-json';
 import {
   Column,
@@ -50,11 +52,11 @@ registerEnumType(SubscriptionInterval, { name: 'SubscriptionInterval' });
 @Entity({ name: 'billingSubscription', schema: 'core' })
 @Index('IDX_BILLING_SUBSCRIPTION_WORKSPACE_ID_UNIQUE', ['workspaceId'], {
   unique: true,
-  where: `status IN ('trialing', 'active', 'past_due', 'incomplete', 'incomplete_expired', 'unpaid', 'paused')`,
+  where: `status IN ('trialing', 'active', 'past_due')`,
 })
 @ObjectType('BillingSubscription')
 export class BillingSubscriptionEntity extends WorkspaceRelatedEntity {
-  @Field(() => UUIDScalarType)
+  @IDField(() => UUIDScalarType)
   @PrimaryGeneratedColumn('uuid')
   id: string;
 
@@ -140,7 +142,6 @@ export class BillingSubscriptionEntity extends WorkspaceRelatedEntity {
   @Column({ nullable: false, type: 'jsonb', default: [] })
   phases: Array<BillingSubscriptionSchedulePhaseDTO>;
 
-  @Field(() => Date, { nullable: true })
   @Column({ nullable: true, type: 'timestamptz' })
   cancelAt: Date | null;
 

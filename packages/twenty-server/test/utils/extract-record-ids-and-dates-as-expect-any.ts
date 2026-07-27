@@ -34,8 +34,7 @@ export const extractRecordIdsAndDatesAsExpectAny = (
     ) {
       return {
         ...acc,
-        [key]:
-          typeof value === 'object' ? expect.any(Object) : expect.any(String),
+        [key]: expect.any(String),
       };
     }
 

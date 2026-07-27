@@ -29,10 +29,6 @@ export const useComposeEmailForTargetRecord = () => {
     openComposeEmailInSidePanel({
       connectedAccountId,
       defaultTo,
-      contextRecord: {
-        objectNameSingular: targetRecord.targetObjectNameSingular,
-        recordId: targetRecord.id,
-      },
     });
   };
 

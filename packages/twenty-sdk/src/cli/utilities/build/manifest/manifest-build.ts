@@ -11,20 +11,19 @@ import { fromRoleConfigToRoleManifest } from '@/cli/utilities/build/manifest/uti
 import { getDefaultFieldsInObjectFields } from '@/cli/utilities/build/manifest/utils/get-default-fields-in-object-fields';
 import { validateConditionalAvailabilityUsage } from '@/cli/utilities/build/manifest/utils/validate-conditional-availability-usage';
 import { validateViewFilterOperands } from '@/cli/utilities/build/manifest/utils/validate-view-filter-operands';
-import { getEngineVersionRange } from '@/cli/utilities/version/get-engine-version-range';
 import { type ApplicationConfig, type LogicFunctionConfig } from '@/sdk/define';
 import { type CommandMenuItemConfig } from '@/sdk/define/command-menu-items/command-menu-item-config';
 import { type FrontComponentConfig } from '@/sdk/define/front-component/front-component-config';
-import { type IndexConfig } from '@/sdk/define/indexes/index-config';
 import { type PostInstallLogicFunctionConfig } from '@/sdk/define/logic-functions/post-install-logic-function-config';
 import { type PreInstallLogicFunctionConfig } from '@/sdk/define/logic-functions/pre-install-logic-function-config';
 import { type ObjectConfig } from '@/sdk/define/objects/object-config';
+import { type IndexConfig } from '@/sdk/define/indexes/index-config';
 import { type PageLayoutConfig } from '@/sdk/define/page-layouts/page-layout-config';
 import { type PageLayoutTabConfig } from '@/sdk/define/page-layouts/page-layout-tab-config';
 import { type RoleConfig } from '@/sdk/define/roles/role-config';
 import { type ViewConfig } from '@/sdk/define/views/view-config';
 import { readFile } from 'node:fs/promises';
-import { basename, extname, join, relative } from 'path';
+import { basename, extname, relative } from 'path';
 import { glob } from 'tinyglobby';
 import {
   type AgentManifest,
@@ -45,7 +44,6 @@ import {
   type PermissionFlagManifest,
   type PostInstallLogicFunctionApplicationManifest,
   type PreInstallLogicFunctionApplicationManifest,
-  type UninstallLogicFunctionApplicationManifest,
   type RoleManifest,
   type SkillManifest,
   type StandaloneViewFieldManifest,
@@ -74,16 +72,6 @@ const loadAssets = async (appPath: string) => {
   });
 };
 
-const loadReadme = async (appPath: string): Promise<string | undefined> => {
-  try {
-    const content = await readFile(join(appPath, 'README.md'), 'utf-8');
-
-    return content.trim().length > 0 ? content : undefined;
-  } catch {
-    return undefined;
-  }
-};
-
 export const buildManifest = async (
   appPath: string,
 ): Promise<{
@@ -93,12 +81,10 @@ export const buildManifest = async (
   warnings: string[];
 }> => {
   const filePaths = await loadSources(appPath);
-  const readmeContent = await loadReadme(appPath);
   const errors: string[] = [];
   const warnings: string[] = [];
 
   let applicationConfig: ApplicationConfig | undefined;
-  const objectConfigs: ObjectConfig[] = [];
   const objects: ObjectManifest[] = [];
   const fields: FieldManifest[] = [];
   const indexes: IndexManifest[] = [];
@@ -120,9 +106,6 @@ export const buildManifest = async (
     [];
   const preInstallLogicFunctions: PreInstallLogicFunctionApplicationManifest[] =
     [];
-  const uninstallLogicFunctions: UninstallLogicFunctionApplicationManifest[] =
-    [];
-  const settingsFrontComponentUniversalIdentifiers: string[] = [];
   const applicationRoleUniversalIdentifiers: string[] = [];
   const applicationFilePaths: string[] = [];
   const objectsFilePaths: string[] = [];
@@ -178,7 +161,31 @@ export const buildManifest = async (
           filePath,
         });
 
-        objectConfigs.push(extract.config);
+        const {
+          objectFields: objectFieldsWithDefaults,
+          fields: reverseRelationFields,
+        } = getDefaultFieldsInObjectFields(extract.config);
+
+        const labelIdentifierFieldMetadataUniversalIdentifier =
+          extract.config.labelIdentifierFieldMetadataUniversalIdentifier ??
+          objectFieldsWithDefaults.find((field) => field.name === 'name')
+            ?.universalIdentifier;
+
+        if (!labelIdentifierFieldMetadataUniversalIdentifier) {
+          errors.push(
+            `No label identifier field found for object ${extract.config.nameSingular}. Please add a field with name "name" to your object.`,
+          );
+          break;
+        }
+
+        const objectManifest: ObjectManifest = {
+          ...extract.config,
+          fields: objectFieldsWithDefaults.map(addMissingFieldOptionIds),
+          labelIdentifierFieldMetadataUniversalIdentifier,
+        };
+
+        objects.push(objectManifest);
+        fields.push(...reverseRelationFields);
 
         errors.push(...extract.errors);
         warnings.push(...(extract.warnings ?? []));
@@ -272,6 +279,11 @@ export const buildManifest = async (
 
         const { handler: _, ...rest } = extract.config;
 
+        const relativeFilePath = relative(appPath, filePath);
+
+        // Auto-infer inputSchema for any trigger that opts in but omits one.
+        // For the AI tool surface we use the JSON schema directly; for the
+        // workflow action surface we convert to Twenty's InputSchema.
         const inferredJsonSchema =
           (rest.toolTriggerSettings && !rest.toolTriggerSettings.inputSchema) ||
           (rest.workflowActionTriggerSettings &&
@@ -307,8 +319,8 @@ export const buildManifest = async (
             ? { workflowActionTriggerSettings }
             : {}),
           handlerName: 'default.config.handler',
-          sourceHandlerPath: relativePath,
-          builtHandlerPath: relativePath.replace(/\.tsx?$/, '.mjs'),
+          sourceHandlerPath: relativeFilePath,
+          builtHandlerPath: relativeFilePath.replace(/\.tsx?$/, '.mjs'),
           builtHandlerChecksum: '[default-checksum]',
         };
 
@@ -343,14 +355,6 @@ export const buildManifest = async (
           });
         }
 
-        if (
-          targetFunctionName === TargetFunction.DefineUninstallLogicFunction
-        ) {
-          uninstallLogicFunctions.push({
-            universalIdentifier: extract.config.universalIdentifier,
-          });
-        }
-
         break;
       }
       case ManifestEntityKey.FrontComponents: {
@@ -377,14 +381,6 @@ export const buildManifest = async (
 
         frontComponents.push(config);
         frontComponentsFilePaths.push(relativePath);
-
-        if (
-          targetFunctionName === TargetFunction.DefineSettingsFrontComponent
-        ) {
-          settingsFrontComponentUniversalIdentifiers.push(
-            extract.config.universalIdentifier,
-          );
-        }
 
         break;
       }
@@ -520,36 +516,6 @@ export const buildManifest = async (
     );
   }
 
-  if (applicationConfig) {
-    for (const objectConfig of objectConfigs) {
-      const { objectFields: objectFieldsWithDefaults } =
-        getDefaultFieldsInObjectFields({
-          objectConfig,
-          applicationUniversalIdentifier: applicationConfig.universalIdentifier,
-        });
-
-      const labelIdentifierFieldMetadataUniversalIdentifier =
-        objectConfig.labelIdentifierFieldMetadataUniversalIdentifier ??
-        objectFieldsWithDefaults.find((field) => field.name === 'name')
-          ?.universalIdentifier;
-
-      if (!labelIdentifierFieldMetadataUniversalIdentifier) {
-        errors.push(
-          `No label identifier field found for object ${objectConfig.nameSingular}. Please add a field with name "name" to your object.`,
-        );
-        continue;
-      }
-
-      const objectManifest: ObjectManifest = {
-        ...objectConfig,
-        fields: objectFieldsWithDefaults.map(addMissingFieldOptionIds),
-        labelIdentifierFieldMetadataUniversalIdentifier,
-      };
-
-      objects.push(objectManifest);
-    }
-  }
-
   if (postInstallLogicFunctions.length > 1) {
     errors.push(
       'Only one post install logic function is allowed per application',
@@ -559,18 +525,6 @@ export const buildManifest = async (
   if (preInstallLogicFunctions.length > 1) {
     errors.push(
       'Only one pre install logic function is allowed per application',
-    );
-  }
-
-  if (uninstallLogicFunctions.length > 1) {
-    errors.push(
-      'Only one uninstall logic function is allowed per application',
-    );
-  }
-
-  if (settingsFrontComponentUniversalIdentifiers.length > 1) {
-    errors.push(
-      'Only one settings front component is allowed per application',
     );
   }
 
@@ -600,42 +554,19 @@ export const buildManifest = async (
 
   const application: ApplicationManifest | undefined =
     applicationConfig && resolvedDefaultRoleUniversalIdentifier
-      ? (() => {
-          const {
-            logoUrl: _logoUrl,
-            screenshots: _screenshots,
-            ...applicationConfigRest
-          } = applicationConfig;
-
-          return {
-            ...applicationConfigRest,
-            logo: applicationConfig.logo,
-            galleryImages: applicationConfig.galleryImages ?? [],
-            defaultRoleUniversalIdentifier:
-              resolvedDefaultRoleUniversalIdentifier,
-            aboutDescription: readmeContent,
-            yarnLockChecksum: null,
-            packageJsonChecksum: null,
-            requiredServerVersionRange: getEngineVersionRange(appPath),
-            ...(postInstallLogicFunctions.length >= 1
-              ? { postInstallLogicFunction: postInstallLogicFunctions[0] }
-              : {}),
-            ...(preInstallLogicFunctions.length >= 1
-              ? { preInstallLogicFunction: preInstallLogicFunctions[0] }
-              : {}),
-            ...(uninstallLogicFunctions.length >= 1
-              ? { uninstallLogicFunction: uninstallLogicFunctions[0] }
-              : {}),
-            ...(settingsFrontComponentUniversalIdentifiers.length >= 1
-              ? {
-                  settingsFrontComponent: {
-                    universalIdentifier:
-                      settingsFrontComponentUniversalIdentifiers[0],
-                  },
-                }
-              : {}),
-          };
-        })()
+      ? {
+          ...applicationConfig,
+          defaultRoleUniversalIdentifier:
+            resolvedDefaultRoleUniversalIdentifier,
+          yarnLockChecksum: null,
+          packageJsonChecksum: null,
+          ...(postInstallLogicFunctions.length >= 1
+            ? { postInstallLogicFunction: postInstallLogicFunctions[0] }
+            : {}),
+          ...(preInstallLogicFunctions.length >= 1
+            ? { preInstallLogicFunction: preInstallLogicFunctions[0] }
+            : {}),
+        }
       : undefined;
 
   const byId = <T extends { universalIdentifier: string }>(a: T, b: T) =>

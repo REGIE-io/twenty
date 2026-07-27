@@ -1,7 +1,6 @@
 import { Global, Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 
-import { TypeORMModule } from 'src/database/typeorm/typeorm.module';
 import { ApplicationEntity } from 'src/engine/core-modules/application/application.entity';
 import { TwentyConfigModule } from 'src/engine/core-modules/twenty-config/twenty-config.module';
 import { WorkspaceEntity } from 'src/engine/core-modules/workspace/workspace.entity';
@@ -23,7 +22,6 @@ import { WorkspaceEventEmitterModule } from 'src/engine/workspace-event-emitter/
 @Global()
 @Module({
   imports: [
-    TypeORMModule,
     TypeOrmModule.forFeature([
       WorkspaceEntity,
       ObjectMetadataEntity,

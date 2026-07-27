@@ -18,7 +18,6 @@ export const timelineThreadFragment = gql`
     subject
     numberOfMessagesInThread
     participantCount
-    lastMessageIsDraft
   }
   ${participantFragment}
 `;

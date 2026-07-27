@@ -4,7 +4,6 @@ import { useLinkedObjectsTitle } from '@/activities/timeline-activities/hooks/us
 import { type TimelineActivity } from '@/activities/timeline-activities/types/TimelineActivity';
 import { type ActivityTargetableObject } from '@/activities/types/ActivityTargetableEntity';
 import { useListenToObjectRecordOperationBrowserEvent } from '@/browser-event/hooks/useListenToObjectRecordOperationBrowserEvent';
-import { useFilteredObjectMetadataItems } from '@/object-metadata/hooks/useFilteredObjectMetadataItems';
 import { useObjectMetadataItem } from '@/object-metadata/hooks/useObjectMetadataItem';
 import { useGenerateDepthRecordGqlFieldsFromObject } from '@/object-record/graphql/record-gql-fields/hooks/useGenerateDepthRecordGqlFieldsFromObject';
 import { useFindManyRecords } from '@/object-record/hooks/useFindManyRecords';
@@ -34,18 +33,6 @@ export const useTimelineActivities = (
     useObjectMetadataItem({
       objectNameSingular: CoreObjectNameSingular.TimelineActivity,
     });
-
-  const { objectMetadataItems } = useFilteredObjectMetadataItems();
-
-  const noteObjectMetadataItem = objectMetadataItems.find(
-    (objectMetadataItem) =>
-      objectMetadataItem.nameSingular === CoreObjectNameSingular.Note,
-  );
-
-  const taskObjectMetadataItem = objectMetadataItems.find(
-    (objectMetadataItem) =>
-      objectMetadataItem.nameSingular === CoreObjectNameSingular.Task,
-  );
 
   const hasTimelineActivityField = timelineActivityMetadata.fields.some(
     (field) =>
@@ -110,24 +97,12 @@ export const useTimelineActivities = (
     objectMetadataItemId: timelineActivityMetadata.id,
   });
 
-  const noteAndTaskObjectMetadataIds = [
-    noteObjectMetadataItem?.id,
-    taskObjectMetadataItem?.id,
-  ].filter(isDefined);
-
-  // Notes and tasks expose a title that we resolve to label their timeline rows.
-  const noteAndTaskLinkedRecordIds = timelineActivities
-    .filter(
-      (timelineActivity) =>
-        isDefined(timelineActivity.linkedObjectMetadataId) &&
-        noteAndTaskObjectMetadataIds.includes(
-          timelineActivity.linkedObjectMetadataId,
-        ),
-    )
+  const activityIds = timelineActivities
+    .filter((timelineActivity) => timelineActivity.name.match(/note|task/i))
     .map((timelineActivity) => timelineActivity.linkedRecordId)
     .filter(isDefined);
 
-  useLinkedObjectsTitle(noteAndTaskLinkedRecordIds);
+  useLinkedObjectsTitle(activityIds);
 
   const firstQueryLoading =
     loadingTimelineActivities && timelineActivities.length === 0;

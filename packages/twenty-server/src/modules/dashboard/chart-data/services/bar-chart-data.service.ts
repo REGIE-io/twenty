@@ -4,7 +4,6 @@ import { isNumber } from '@sniptt/guards';
 import { CalendarStartDay } from 'twenty-shared/constants';
 import { FirstDayOfTheWeek } from 'twenty-shared/types';
 import {
-  capitalize,
   convertCalendarStartDayNonIsoNumberToFirstDayOfTheWeek,
   isDefined,
 } from 'twenty-shared/utils';
@@ -13,7 +12,6 @@ import { type WorkspaceAuthContext } from 'src/engine/core-modules/auth/types/wo
 import { WorkspaceManyOrAllFlatEntityMapsCacheService } from 'src/engine/metadata-modules/flat-entity/services/workspace-many-or-all-flat-entity-maps-cache.service';
 import { findFlatEntityByIdInFlatEntityMaps } from 'src/engine/metadata-modules/flat-entity/utils/find-flat-entity-by-id-in-flat-entity-maps.util';
 import { FlatFieldMetadata } from 'src/engine/metadata-modules/flat-field-metadata/types/flat-field-metadata.type';
-import { buildObjectIdByNameMaps } from 'src/engine/metadata-modules/flat-object-metadata/utils/build-object-id-by-name-maps.util';
 import { BarChartConfigurationDTO } from 'src/engine/metadata-modules/page-layout-widget/dtos/bar-chart-configuration.dto';
 import { BarChartGroupMode } from 'src/engine/metadata-modules/page-layout-widget/enums/bar-chart-group-mode.enum';
 import { BarChartLayout } from 'src/engine/metadata-modules/page-layout-widget/enums/bar-chart-layout.enum';
@@ -28,17 +26,10 @@ import {
   generateChartDataExceptionMessage,
 } from 'src/modules/dashboard/chart-data/exceptions/chart-data.exception';
 import { ChartDataQueryService } from 'src/modules/dashboard/chart-data/services/chart-data-query.service';
-import { ChartRelationLabelService } from 'src/modules/dashboard/chart-data/services/chart-relation-label.service';
 import { FieldMetadataOption } from 'src/modules/dashboard/chart-data/types/field-metadata-option.type';
 import { GroupByRawResult } from 'src/modules/dashboard/chart-data/types/group-by-raw-result.type';
 import { RawDimensionValue } from 'src/modules/dashboard/chart-data/types/raw-dimension-value.type';
-import { RelationLabelResolution } from 'src/modules/dashboard/chart-data/types/relation-label-resolution.type';
-import { applyCumulativeToOneDimensionalBarData } from 'src/modules/dashboard/chart-data/utils/apply-cumulative-to-one-dimensional-bar-data.util';
-import { applyCumulativeToTwoDimensionalBarData } from 'src/modules/dashboard/chart-data/utils/apply-cumulative-to-two-dimensional-bar-data.util';
 import { applyGapFilling } from 'src/modules/dashboard/chart-data/utils/apply-gap-filling.util';
-import { buildFormattedToRawLookupDto } from 'src/modules/dashboard/chart-data/utils/build-formatted-to-raw-lookup-dto.util';
-import { filterOutEmptyChartBuckets } from 'src/modules/dashboard/chart-data/utils/filter-out-empty-chart-buckets.util';
-import { filterOutUnresolvedRelationBuckets } from 'src/modules/dashboard/chart-data/utils/filter-out-unresolved-relation-buckets.util';
 import { getAggregateOperationLabel } from 'src/modules/dashboard/chart-data/utils/get-aggregate-operation-label.util';
 import { getFieldMetadata } from 'src/modules/dashboard/chart-data/utils/get-field-metadata.util';
 import { getSelectOptions } from 'src/modules/dashboard/chart-data/utils/get-select-options.util';
@@ -60,7 +51,6 @@ export class BarChartDataService {
   constructor(
     private readonly workspaceManyOrAllFlatEntityMapsCacheService: WorkspaceManyOrAllFlatEntityMapsCacheService,
     private readonly chartDataQueryService: ChartDataQueryService,
-    private readonly chartRelationLabelService: ChartRelationLabelService,
   ) {}
 
   async getBarChartData({
@@ -142,8 +132,15 @@ export class BarChartDataService {
         (configuration.firstDayOfTheWeek as CalendarStartDay | undefined) ??
         CalendarStartDay.MONDAY;
 
-      const { idByNameSingular: objectIdByNameSingular } =
-        buildObjectIdByNameMaps(flatObjectMetadataMaps);
+      const objectIdByNameSingular: Record<string, string> = {};
+
+      for (const objMetadata of Object.values(
+        flatObjectMetadataMaps.byUniversalIdentifier,
+      )) {
+        if (isDefined(objMetadata)) {
+          objectIdByNameSingular[objMetadata.nameSingular] = objMetadata.id;
+        }
+      }
 
       const rawResults = await this.chartDataQueryService.executeGroupByQuery({
         flatObjectMetadata,
@@ -171,59 +168,25 @@ export class BarChartDataService {
         splitMultiValueFields: configuration.splitMultiValueFields,
       });
 
-      const filteredResults = filterOutEmptyChartBuckets({
-        rawResults,
-        shouldOmitEmptyBuckets: configuration.omitNullValues ?? false,
-      });
-
-      const relationLabelResolutions =
-        await this.chartRelationLabelService.resolveRelationLabels({
-          rawResults: filteredResults,
-          primaryAxis: {
-            groupByField: primaryAxisGroupByField,
-            subFieldName: configuration.primaryAxisGroupBySubFieldName,
-          },
-          secondaryAxis:
-            isTwoDimensional && isDefined(secondaryAxisGroupByField)
-              ? {
-                  groupByField: secondaryAxisGroupByField,
-                  subFieldName: configuration.secondaryAxisGroupBySubFieldName,
-                }
-              : undefined,
-          workspaceId,
-          authContext,
-          flatObjectMetadataMaps,
-          flatFieldMetadataMaps,
-        });
-
-      const resolvedResults = filterOutUnresolvedRelationBuckets({
-        rawResults: filteredResults,
-        primaryRelationLabelResolution: relationLabelResolutions.primary,
-        secondaryRelationLabelResolution: relationLabelResolutions.secondary,
-      });
-
       if (isTwoDimensional && isDefined(secondaryAxisGroupByField)) {
         return this.transformToTwoDimensionalBarChartData({
-          filteredRawResults: resolvedResults,
+          rawResults,
           primaryAxisGroupByField,
           secondaryAxisGroupByField,
           aggregateField,
           configuration,
           userTimezone,
           firstDayOfTheWeek,
-          primaryRelationLabelResolution: relationLabelResolutions.primary,
-          secondaryRelationLabelResolution: relationLabelResolutions.secondary,
         });
       }
 
       return this.transformToOneDimensionalBarChartData({
-        filteredRawResults: resolvedResults,
+        rawResults,
         primaryAxisGroupByField,
         aggregateField,
         configuration,
         userTimezone,
         firstDayOfTheWeek,
-        relationLabelResolution: relationLabelResolutions.primary,
       });
     } catch (error) {
       throw wrapChartDataQueryError(error, 'Bar chart data retrieval failed');
@@ -231,31 +194,37 @@ export class BarChartDataService {
   }
 
   private transformToOneDimensionalBarChartData({
-    filteredRawResults,
+    rawResults,
     primaryAxisGroupByField,
     aggregateField,
     configuration,
     userTimezone,
     firstDayOfTheWeek,
-    relationLabelResolution,
   }: {
-    filteredRawResults: GroupByRawResult[];
+    rawResults: GroupByRawResult[];
     primaryAxisGroupByField: FlatFieldMetadata;
     aggregateField: FlatFieldMetadata;
     configuration: BarChartConfigurationDTO;
     userTimezone: string;
     firstDayOfTheWeek: CalendarStartDay;
-    relationLabelResolution: RelationLabelResolution | undefined;
   }): BarChartDataDTO {
     const layout = configuration.layout ?? BarChartLayout.VERTICAL;
     const isHorizontal = layout === BarChartLayout.HORIZONTAL;
+
+    const filteredResults = configuration.omitNullValues
+      ? rawResults.filter(
+          (result) =>
+            isDefined(result.groupByDimensionValues?.[0]) &&
+            result.aggregateValue !== 0,
+        )
+      : rawResults;
 
     const isDescOrder =
       configuration.primaryAxisOrderBy === GraphOrderBy.FIELD_DESC;
 
     const { data: gapFilledResults, wasTruncated: dateRangeWasTruncated } =
       applyGapFilling({
-        data: filteredRawResults,
+        data: filteredResults,
         primaryAxisGroupByField,
         dateGranularity: configuration.primaryAxisDateGranularity,
         omitNullValues: configuration.omitNullValues ?? false,
@@ -273,7 +242,7 @@ export class BarChartDataService {
       );
 
     const indexByKey = configuration.primaryAxisGroupBySubFieldName
-      ? `${primaryAxisGroupByField.name}${capitalize(configuration.primaryAxisGroupBySubFieldName)}`
+      ? `${primaryAxisGroupByField.name}${this.capitalizeFirst(configuration.primaryAxisGroupBySubFieldName)}`
       : primaryAxisGroupByField.name;
 
     const aggregateValueKey =
@@ -289,7 +258,6 @@ export class BarChartDataService {
         subFieldName: configuration.primaryAxisGroupBySubFieldName,
         userTimezone,
         firstDayOfTheWeek: convertedFirstDayOfTheWeek,
-        relationLabelResolution,
       });
 
     const sortedData = sortChartDataIfNeeded({
@@ -311,7 +279,7 @@ export class BarChartDataService {
     );
 
     const transformedData = configuration.isCumulative
-      ? applyCumulativeToOneDimensionalBarData(limitedSortedData)
+      ? this.applyCumulativeTransformInternal(limitedSortedData)
       : limitedSortedData;
 
     const data = transformedData.map((item) => ({
@@ -344,37 +312,39 @@ export class BarChartDataService {
       layout,
       groupMode: configuration.groupMode ?? BarChartGroupMode.GROUPED,
       hasTooManyGroups:
-        filteredRawResults.length > BAR_CHART_MAXIMUM_NUMBER_OF_BARS ||
+        filteredResults.length > BAR_CHART_MAXIMUM_NUMBER_OF_BARS ||
         dateRangeWasTruncated,
-      formattedToRawLookup: buildFormattedToRawLookupDto({
-        axisLookups: [{ formattedToRawLookup, relationLabelResolution }],
-      }),
+      formattedToRawLookup: Object.fromEntries(formattedToRawLookup),
     };
   }
 
   private transformToTwoDimensionalBarChartData({
-    filteredRawResults,
+    rawResults,
     primaryAxisGroupByField,
     secondaryAxisGroupByField,
     aggregateField,
     configuration,
     userTimezone,
     firstDayOfTheWeek,
-    primaryRelationLabelResolution,
-    secondaryRelationLabelResolution,
   }: {
-    filteredRawResults: GroupByRawResult[];
+    rawResults: GroupByRawResult[];
     primaryAxisGroupByField: FlatFieldMetadata;
     secondaryAxisGroupByField: FlatFieldMetadata;
     aggregateField: FlatFieldMetadata;
     configuration: BarChartConfigurationDTO;
     userTimezone: string;
     firstDayOfTheWeek: CalendarStartDay;
-    primaryRelationLabelResolution: RelationLabelResolution | undefined;
-    secondaryRelationLabelResolution: RelationLabelResolution | undefined;
   }): BarChartDataDTO {
     const layout = configuration.layout ?? BarChartLayout.VERTICAL;
     const isHorizontal = layout === BarChartLayout.HORIZONTAL;
+
+    const filteredResults = configuration.omitNullValues
+      ? rawResults.filter(
+          (result) =>
+            isDefined(result.groupByDimensionValues?.[0]) &&
+            result.aggregateValue !== 0,
+        )
+      : rawResults;
 
     const effectiveGroupMode =
       configuration.groupMode ?? BarChartGroupMode.STACKED;
@@ -385,7 +355,7 @@ export class BarChartDataService {
 
     const { data: gapFilledResults, wasTruncated: dateRangeWasTruncated } =
       applyGapFilling({
-        data: filteredRawResults,
+        data: filteredResults,
         primaryAxisGroupByField,
         dateGranularity: configuration.primaryAxisDateGranularity,
         omitNullValues: configuration.omitNullValues ?? false,
@@ -398,7 +368,7 @@ export class BarChartDataService {
     const secondarySelectOptions = getSelectOptions(secondaryAxisGroupByField);
 
     const indexByKey = configuration.primaryAxisGroupBySubFieldName
-      ? `${primaryAxisGroupByField.name}${capitalize(configuration.primaryAxisGroupBySubFieldName)}`
+      ? `${primaryAxisGroupByField.name}${this.capitalizeFirst(configuration.primaryAxisGroupBySubFieldName)}`
       : primaryAxisGroupByField.name;
 
     const convertedFirstDayOfTheWeek =
@@ -422,8 +392,6 @@ export class BarChartDataService {
       secondarySubFieldName: configuration.secondaryAxisGroupBySubFieldName,
       userTimezone,
       firstDayOfTheWeek: convertedFirstDayOfTheWeek,
-      primaryRelationLabelResolution,
-      secondaryRelationLabelResolution,
     });
 
     const allSecondaryValues = new Set<string>();
@@ -511,10 +479,7 @@ export class BarChartDataService {
     }
 
     const finalData = configuration.isCumulative
-      ? applyCumulativeToTwoDimensionalBarData({
-          data: finalLimitedData,
-          keys: limitedKeys,
-        })
+      ? this.applyCumulativeTwoDimensional(finalLimitedData, limitedKeys)
       : finalLimitedData;
 
     const series = limitedKeys.map((key) => ({
@@ -540,6 +505,11 @@ export class BarChartDataService {
 
     hasTooManyGroups = hasTooManyGroups || dateRangeWasTruncated;
 
+    const mergedLookup = new Map([
+      ...formattedToRawLookup,
+      ...secondaryFormattedToRawLookup,
+    ]);
+
     return {
       data: finalData,
       indexBy: indexByKey,
@@ -552,18 +522,7 @@ export class BarChartDataService {
       layout,
       groupMode: configuration.groupMode ?? BarChartGroupMode.GROUPED,
       hasTooManyGroups,
-      formattedToRawLookup: buildFormattedToRawLookupDto({
-        axisLookups: [
-          {
-            formattedToRawLookup: secondaryFormattedToRawLookup,
-            relationLabelResolution: secondaryRelationLabelResolution,
-          },
-          {
-            formattedToRawLookup,
-            relationLabelResolution: primaryRelationLabelResolution,
-          },
-        ],
-      }),
+      formattedToRawLookup: Object.fromEntries(mergedLookup),
     };
   }
 
@@ -612,5 +571,69 @@ export class BarChartDataService {
       subFieldName: configuration.secondaryAxisGroupBySubFieldName ?? undefined,
       dateGranularity: configuration.secondaryAxisGroupByDateGranularity,
     });
+  }
+
+  private applyCumulativeTwoDimensional(
+    data: Record<string, string | number>[],
+    keys: string[],
+  ): Record<string, string | number>[] {
+    const runningTotals: Record<string, number> = {};
+
+    for (const key of keys) {
+      runningTotals[key] = 0;
+    }
+
+    const result: Record<string, string | number>[] = [];
+
+    for (const datum of data) {
+      const newDatum = { ...datum };
+
+      for (const key of keys) {
+        const value = datum[key];
+
+        if (isNumber(value)) {
+          runningTotals[key] += value;
+        }
+
+        newDatum[key] = runningTotals[key];
+      }
+
+      result.push(newDatum);
+    }
+
+    return result;
+  }
+
+  private applyCumulativeTransformInternal(
+    data: Array<{
+      formattedValue: string;
+      aggregateValue: number;
+      rawValue: RawDimensionValue;
+    }>,
+  ): Array<{
+    formattedValue: string;
+    aggregateValue: number;
+    rawValue: RawDimensionValue;
+  }> {
+    const result: Array<{
+      formattedValue: string;
+      aggregateValue: number;
+      rawValue: RawDimensionValue;
+    }> = [];
+    let runningTotal = 0;
+
+    for (const point of data) {
+      runningTotal += point.aggregateValue;
+
+      const cumulativeValue = runningTotal;
+
+      result.push({ ...point, aggregateValue: cumulativeValue });
+    }
+
+    return result;
+  }
+
+  private capitalizeFirst(str: string): string {
+    return str.charAt(0).toUpperCase() + str.slice(1);
   }
 }

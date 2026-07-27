@@ -1,4 +1,3 @@
-import { currentWorkspaceState } from '@/auth/states/currentWorkspaceState';
 import { useLabelIdentifierFieldMetadataItem } from '@/object-metadata/hooks/useLabelIdentifierFieldMetadataItem';
 import { useObjectMetadataItem } from '@/object-metadata/hooks/useObjectMetadataItem';
 import { type FieldsWidgetEditorMode } from '@/page-layout/widgets/fields/types/FieldsWidgetEditorMode';
@@ -7,7 +6,6 @@ import {
   type FieldsWidgetGroupField,
 } from '@/page-layout/widgets/fields/types/FieldsWidgetGroup';
 import { buildDefaultFieldsWidgetGroups } from '@/page-layout/widgets/fields/utils/buildDefaultFieldsWidgetGroups';
-import { useAtomStateValue } from '@/ui/utilities/state/jotai/hooks/useAtomStateValue';
 import { useViewById } from '@/views/hooks/useViewById';
 import { useMemo } from 'react';
 import {
@@ -40,10 +38,6 @@ export const useFieldsWidgetEditorGroupsData = ({
     useLabelIdentifierFieldMetadataItem({
       objectNameSingular,
     });
-
-  const currentWorkspace = useAtomStateValue(currentWorkspaceState);
-  const workspaceCustomApplicationId =
-    currentWorkspace?.workspaceCustomApplication?.id;
 
   const result = useMemo<
     Pick<
@@ -215,17 +209,11 @@ export const useFieldsWidgetEditorGroupsData = ({
         fields: objectMetadataItem.fields,
         labelIdentifierFieldMetadataItemId:
           labelIdentifierFieldMetadataItem?.id,
-        workspaceCustomApplicationId,
       }),
       ungroupedFields: [],
       editorMode: 'grouped' as const,
     };
-  }, [
-    objectMetadataItem,
-    view,
-    labelIdentifierFieldMetadataItem,
-    workspaceCustomApplicationId,
-  ]);
+  }, [objectMetadataItem, view, labelIdentifierFieldMetadataItem]);
 
   return {
     ...result,

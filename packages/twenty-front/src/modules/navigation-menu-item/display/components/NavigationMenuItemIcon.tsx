@@ -20,7 +20,6 @@ import { useGetStandardObjectIcon } from '@/object-metadata/hooks/useGetStandard
 import { objectMetadataItemsSelector } from '@/object-metadata/states/objectMetadataItemsSelector';
 import { useAtomStateValue } from '@/ui/utilities/state/jotai/hooks/useAtomStateValue';
 import { viewsSelector } from '@/views/states/selectors/viewsSelector';
-import { getAbsoluteImageUrl } from '~/utils/image/getAbsoluteImageUrl';
 
 export const NavigationMenuItemIcon = ({
   navigationMenuItem,
@@ -97,11 +96,11 @@ export const NavigationMenuItemIcon = ({
   }
 
   if (navigationMenuItem.type === NavigationMenuItemType.LINK) {
-    const computedLink = getNavigationMenuItemComputedLink({
-      item: navigationMenuItem,
+    const computedLink = getNavigationMenuItemComputedLink(
+      navigationMenuItem,
       objectMetadataItems,
       views,
-    });
+    );
     return (
       <LinkIconWithLinkOverlay
         link={computedLink}
@@ -156,7 +155,7 @@ export const NavigationMenuItemIcon = ({
       type={recordIdentifier?.avatarType ?? 'icon'}
       Icon={iconToUse}
       iconColor={iconColorToUse}
-      avatarUrl={getAbsoluteImageUrl(recordIdentifier?.avatarUrl ?? '')}
+      avatarUrl={recordIdentifier?.avatarUrl ?? ''}
       placeholder={labelIdentifier}
       placeholderColorSeed={navigationMenuItem.targetRecordId ?? undefined}
     />

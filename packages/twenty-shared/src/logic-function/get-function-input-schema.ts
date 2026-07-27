@@ -20,32 +20,6 @@ import {
 import { type InputJsonSchema } from '@/logic-function';
 import { isDefined } from '@/utils/validation/isDefined';
 
-const TWENTY_RECORD_TYPE_NAME = 'TwentyRecord';
-
-const getObjectUniversalIdentifierFromTypeArgument = (
-  typeReferenceNode: TypeReferenceNode,
-): string | undefined => {
-  const typeArgument = typeReferenceNode.typeArguments?.[0];
-
-  if (
-    isDefined(typeArgument) &&
-    typeArgument.kind === SyntaxKind.LiteralType &&
-    (typeArgument as LiteralTypeNode).literal.kind === SyntaxKind.StringLiteral
-  ) {
-    return ((typeArgument as LiteralTypeNode).literal as StringLiteral).text;
-  }
-
-  return undefined;
-};
-
-const buildArraySchemaFromItems = (items: InputJsonSchema): InputJsonSchema =>
-  items.type === 'record'
-    ? {
-        type: 'records',
-        objectUniversalIdentifier: items.objectUniversalIdentifier,
-      }
-    : { type: 'array', items };
-
 const getTypeString = (typeNode: TypeNode): InputJsonSchema => {
   switch (typeNode.kind) {
     case SyntaxKind.NumberKeyword:
@@ -55,9 +29,10 @@ const getTypeString = (typeNode: TypeNode): InputJsonSchema => {
     case SyntaxKind.BooleanKeyword:
       return { type: 'boolean' };
     case SyntaxKind.ArrayType:
-      return buildArraySchemaFromItems(
-        getTypeString((typeNode as ArrayTypeNode).elementType),
-      );
+      return {
+        type: 'array',
+        items: getTypeString((typeNode as ArrayTypeNode).elementType),
+      };
     case SyntaxKind.TypeReference: {
       const typeReferenceNode = typeNode as TypeReferenceNode;
       const typeName =
@@ -68,18 +43,10 @@ const getTypeString = (typeNode: TypeNode): InputJsonSchema => {
       if (typeName === 'Array' || typeName === 'ReadonlyArray') {
         const elementType = typeReferenceNode.typeArguments?.[0];
 
-        return buildArraySchemaFromItems(
-          isDefined(elementType) ? getTypeString(elementType) : {},
-        );
-      }
-
-      if (typeName === TWENTY_RECORD_TYPE_NAME) {
-        const objectUniversalIdentifier =
-          getObjectUniversalIdentifierFromTypeArgument(typeReferenceNode);
-
-        if (isDefined(objectUniversalIdentifier)) {
-          return { type: 'record', objectUniversalIdentifier };
-        }
+        return {
+          type: 'array',
+          items: isDefined(elementType) ? getTypeString(elementType) : {},
+        };
       }
 
       return {};

@@ -4,7 +4,7 @@ description: Twenty'nin UI'si içinde, korumalı alan (sandbox) izolasyonu ile g
 icon: window-maximize
 ---
 
-Ön uç bileşenler, Twenty'nin UI'si içinde doğrudan görüntülenen React bileşenleridir. Remote DOM kullanan **izole bir Web Worker** içinde çalışırlar — kodunuz, korumalı (sandbox) ve opak kökenli bir iframe içinde yürütülür; ancak UI, o iframe ile sınırlanmak yerine sayfada yerel olarak işlenir.
+Ön uç bileşenler, Twenty'nin UI'si içinde doğrudan görüntülenen React bileşenleridir. Remote DOM kullanan izole bir Web Worker içinde çalışırlar — kodunuz izole bir ortamda (sandbox) çalışır ancak bir iframe içinde değil, sayfada yerel olarak işlenir.
 
 ## Ön uç bileşenlerinin kullanılabileceği yerler
 
@@ -49,13 +49,14 @@ export default defineCommandMenuItem({
   universalIdentifier: 'd4e5f6a7-b8c9-0123-defa-456789012345',
   shortLabel: 'Hello',
   label: 'Hello World',
+  icon: 'IconBolt',
   isPinned: true,
   availabilityType: 'GLOBAL',
   frontComponentUniversalIdentifier: '74c526eb-cb68-4cf7-b05c-0dd8c288d948',
 });
 ```
 
-`yarn twenty dev` ile senkronize ettikten sonra (veya tek seferlik bir `yarn twenty apply` çalıştırdıktan sonra), hızlı işlem sayfanın sağ üst köşesinde görünür:
+`yarn twenty dev` ile senkronize ettikten sonra (veya tek seferlik bir `yarn twenty dev --once` çalıştırdıktan sonra), hızlı işlem sayfanın sağ üst köşesinde görünür:
 
 <div style={{textAlign: 'center'}}>
   <img src="/images/docs/developers/extends/apps/quick-action.png" alt="Sağ üst köşedeki hızlı işlem düğmesi" />
@@ -87,11 +88,11 @@ Komutların ötesinde, bir ön uç bileşenini bir **sayfa düzeninde** widget o
 
 ```tsx src/front-components/sync-tracker.tsx
 import { defineFrontComponent } from 'twenty-sdk/define';
-import { useSelectedRecordIds, enqueueSnackbar } from 'twenty-sdk/front-component';
+import { useRecordId, enqueueSnackbar } from 'twenty-sdk/front-component';
 import { useEffect } from 'react';
 
 const SyncTracker = () => {
-  const [recordId] = useSelectedRecordIds();
+  const recordId = useRecordId();
 
   useEffect(() => {
     enqueueSnackbar({ message: `Tracking record ${recordId}`, variant: 'info' });
@@ -115,19 +116,19 @@ Bileşen `null` döndürdüğü için, Twenty bunun için bir kapsayıcı oluşt
 
 `twenty-sdk` paketi, headless ön uç bileşenler için tasarlanmış dört Command yardımcı bileşeni sağlar. Her bileşen bağlandığında bir eylem yürütür, hataları bir snackbar bildirimi göstererek ele alır ve tamamlandığında ön bileşeni otomatik olarak kaldırır.
 
-Bunları `twenty-sdk/front-component` içinden içe aktarın:
+Bunları `twenty-sdk/command` içinden içe aktarın:
 
 * **`Command`** — `execute` prop'u aracılığıyla async bir geri çağrıyı çalıştırır.
 * **`CommandLink`** — Bir uygulama yoluna gider. Props: `to`, `params`, `queryParams`, `options`.
 * **`CommandModal`** — Bir onay modalı açar. Kullanıcı onaylarsa `execute` geri çağrısını yürütür. Props: `title`, `subtitle`, `execute`, `confirmButtonText`, `confirmButtonAccent`.
-* **`CommandOpenSidePanelPage`** — Bir yan panel sayfasını açar. Props, `page`'e bağlıdır — örneğin `ViewRecord`, `recordId` + `objectNameSingular` alır (ayrıca kaydı belirli bir sekmede açmak için isteğe bağlı bir `tab` kimliği alır), diğer sayfalar `pageTitle` + `pageIcon` alır.
+* **`CommandOpenSidePanelPage`** — Belirli bir yan panel sayfasını açar. Props: `page`, `pageTitle`, `pageIcon`.
 
 `Command` kullanarak komut menüsünden bir eylem çalıştıran headless bir ön uç bileşenin tam örneği:
 
 ```tsx src/front-components/run-action.tsx
 import { defineFrontComponent } from 'twenty-sdk/define';
-import { Command } from 'twenty-sdk/front-component';
-import { CoreApiClient } from 'twenty-client-sdk/core';
+import { Command } from 'twenty-sdk/command';
+import { CoreApiClient } from 'twenty-sdk/clients';
 
 const RunAction = () => {
   const execute = async () => {
@@ -159,6 +160,7 @@ import { defineCommandMenuItem } from 'twenty-sdk/define';
 export default defineCommandMenuItem({
   universalIdentifier: 'f6a7b8c9-d0e1-2345-fabc-456789012345',
   label: 'Run my action',
+  icon: 'IconPlayerPlay',
   frontComponentUniversalIdentifier: 'e5f6a7b8-c9d0-1234-efab-345678901234',
 });
 ```
@@ -167,7 +169,7 @@ Ve yürütmeden önce onay istemek için `CommandModal` kullanan bir örnek:
 
 ```tsx src/front-components/delete-draft.tsx
 import { defineFrontComponent } from 'twenty-sdk/define';
-import { CommandModal } from 'twenty-sdk/front-component';
+import { CommandModal } from 'twenty-sdk/command';
 
 const DeleteDraft = () => {
   const execute = async () => {
@@ -194,62 +196,26 @@ export default defineFrontComponent({
 });
 ```
 
-Ve geçerli kaydı belirli bir sekmede yan panelde açmak için `CommandOpenSidePanelPage` kullanan bir örnek. `tab`, bir sayfa düzeni sekme kimliğidir (varsayılan düzenler `company-tab-emails` veya `company-tab-timeline` gibi kimlikler kullanır; özel düzenler sekmenin kendi kimliğini kullanır). Kimlik kaydın düzeninde mevcut değilse, bunun yerine varsayılan sekme açılır:
-
-```tsx src/front-components/open-company-emails.tsx
-import { defineFrontComponent } from 'twenty-sdk/define';
-import {
-  CommandOpenSidePanelPage,
-  SidePanelPages,
-  useSelectedRecordIds,
-} from 'twenty-sdk/front-component';
-
-const OpenCompanyEmails = () => {
-  const selectedRecordIds = useSelectedRecordIds();
-  const recordId = selectedRecordIds.length === 1 ? selectedRecordIds[0] : null;
-
-  if (!recordId) {
-    return null;
-  }
-
-  return (
-    <CommandOpenSidePanelPage
-      page={SidePanelPages.ViewRecord}
-      recordId={recordId}
-      objectNameSingular="company"
-      tab="company-tab-emails"
-      resetNavigationStack={false}
-    />
-  );
-};
-
-export default defineFrontComponent({
-  universalIdentifier: 'b8c9d0e1-f2a3-4567-bcde-678901234567',
-  name: 'open-company-emails',
-  description: 'Opens the current company on its Emails tab',
-  component: OpenCompanyEmails,
-  isHeadless: true,
-});
-```
-
 ## Bir mantık işlevini çağırma
 
-Ön bileşenler, tarayıcı tarafında, opak kaynaklı bir iframe içinde yer alan korumalı (sandbox) bir Web Worker içinde çalışırken, [mantık işlevleri](/l/tr/developers/extend/apps/logic/logic-functions) sunucu tarafında çalışır. İkisi arasında doğrudan, işlem içi bir çağrı yoktur — bunun yerine, bir ön bileşen bir mantık işlevine HTTP üzerinden erişir.
+Ön bileşenler, tarayıcı tarafında izole bir Web Worker içinde çalışırken, [mantık işlevleri](/l/tr/developers/extend/apps/logic/logic-functions) sunucu tarafında çalışır. İkisi arasında doğrudan, işlem içi bir çağrı yoktur — bunun yerine, bir ön bileşen bir mantık işlevine HTTP üzerinden erişir.
 
-`httpRouteTriggerSettings` ile bildirilen bir mantık işlevi, rota yolunda HTTP üzerinden erişilebilir durumdadır. `RestApiClient`, `/s/` ile başlayan yolları uygulama rotaları olarak ele alır, bunları fonksiyonlarınızın sunulduğu URL'ye çözümler ve `TWENTY_APP_ACCESS_TOKEN` ile kimlik doğrulaması yapar.
+`httpRouteTriggerSettings` ile bildirilen bir mantık işlevi, `${TWENTY_API_URL}/s\<path>` altındaki `/s/` uç noktasında sunulur. Ön bileşeniniz bu rotayı, Twenty tarafından Worker'a enjekte edilen `TWENTY_APP_ACCESS_TOKEN` ile kimlik doğrulayan `twenty-client-sdk/rest` içindeki `RestApiClient` ile çağırır.
 
-> **Twenty Cloud üzerinde, HTTP ile tetiklenen mantık işlevleri, çalışma alanı başına ayrılmış özel bir etki alanında** `https://\<your-workspace-subdomain>.withtwenty.com\<path>` adresinde sunulur. Harici çağrıcılar için, tam URL’yi işlevin **HTTP trigger** ayarlarından veya uygulamanın **Settings** sekmesinden kopyalayın.
+`RestApiClient` tam da bunun için oluşturulmuştur. Worker ortamından `TWENTY_API_URL` ve `TWENTY_APP_ACCESS_TOKEN` değerlerini okur, `Authorization: Bearer` başlığını ekler, JSON'u serileştirip ayrıştırır ve belirteç veya URL eksik olduğunda ya da yanıt 2xx dışı olduğunda bir `RestApiClientError` fırlatır — böylece bu şablon kodunu her bileşende yeniden uygulamak zorunda kalmazsınız.
 
 Başsız bir ön bileşen, çağrıyı `Command` bileşeni aracılığıyla mount sırasında çalıştırabilir ve ardından otomatik olarak unmount olabilir:
 
 ```tsx src/front-components/sync-prs.tsx
-import { RestApiClient } from 'twenty-client-sdk/rest';
 import { defineFrontComponent } from 'twenty-sdk/define';
-import { Command } from 'twenty-sdk/front-component';
+import { Command } from 'twenty-sdk/command';
+import { RestApiClient } from 'twenty-client-sdk/rest';
 
 const SyncPrs = () => {
   const execute = async () => {
-    await new RestApiClient().post('/s/github/fetch-prs', {
+    const client = new RestApiClient();
+
+    await client.post('/s/github/fetch-prs', {
       owner: 'twentyhq',
       repo: 'twenty',
     });
@@ -267,7 +233,7 @@ export default defineFrontComponent({
 });
 ```
 
-`RestApiClient`'e iletilen yol, başına `/s` eklenmiş mantık işlevinin `httpRouteTriggerSettings.path` değeridir. `isAuthRequired: true` ayarını koruyun; bileşeniniz için Twenty'nin oluşturduğu `TWENTY_APP_ACCESS_TOKEN` isteği kimlik doğrular:
+İstemciye iletilen yol, rotanın herkese açık yoludur — mantık fonksiyonunun `httpRouteTriggerSettings.path` değeri, başına `/s` eklenmiş hâlidir. `isAuthRequired: true` değerini koruyun; istemci, Twenty'nin bileşeniniz için oluşturduğu uygulama erişim jetonunu sağlar:
 
 ```ts src/logic-functions/fetch-prs.logic-function.ts
 import { defineLogicFunction } from 'twenty-sdk/define';
@@ -292,22 +258,21 @@ export default defineLogicFunction({
 ```
 
 <Note>
-`TWENTY_APP_ACCESS_TOKEN` otomatik olarak enjekte edilir — bkz. [Uygulama değişkenleri](#application-variables). Gizli uygulama değişkenleri asla ön bileşenlere açığa çıkarılmadığından, API anahtarlarını ve diğer hassas mantığı ön bileşende değil, mantık işlevinin içinde tutun.
+`TWENTY_API_URL` ve `TWENTY_APP_ACCESS_TOKEN` otomatik olarak enjekte edilir — bkz. [Uygulama değişkenleri](#application-variables). Gizli uygulama değişkenleri asla ön bileşenlere açığa çıkarılmadığından, API anahtarlarını ve diğer hassas mantığı ön bileşende değil, mantık işlevinin içinde tutun.
 </Note>
 
-### Twenty REST API'sini çağırma
+### RestApiClient referansı
 
-Uygulama HTTP rotalarını çağırmak veya bir front bileşeninden Twenty kayıtlarını okumak ve yazmak için `twenty-client-sdk/rest` paketinden `RestApiClient` kullanın. `/s/...` yollarını çalışma alanınızdaki işlevlerin temel URL'sine, `/rest/...` dahil diğer tüm yolları ise `TWENTY_API_URL`'ye gönderir.
+`RestApiClient` öğesini `twenty-client-sdk/rest` içinden içe aktarın. `CoreApiClient` ve `MetadataApiClient` ile aynı istemci ailesine aittir, ancak GraphQL API yerine uygulamanızın HTTP rotalarını hedefler.
 
-| Yöntem                            | Açıklama                                                                 |
-| --------------------------------- | ------------------------------------------------------------------------ |
-| `get(path, options?)`             | Bir `GET` isteği gönderir                                                |
-| `post(path, body?, options?)`     | Bir `POST` isteği gönderir                                               |
-| `put(path, body?, options?)`      | Bir `PUT` isteği gönderir                                                |
-| `patch(path, body?, options?)`    | Bir `PATCH` isteği gönderir                                              |
-| `delete(path, options?)`          | Bir `DELETE` isteği gönderir                                             |
-| `request(method, path, options?)` | Herhangi bir HTTP yöntemiyle genel istek                                 |
-| `resolveUrl(path, options?)`      | Bir istekte bulunmadan (bağlantılar için) bir yolu tam URL'sine çözümler |
+| Yöntem                            | Açıklama                                 |
+| --------------------------------- | ---------------------------------------- |
+| `get(path, options?)`             | Bir `GET` isteği gönderir                |
+| `post(path, body?, options?)`     | Bir `POST` isteği gönderir               |
+| `put(path, body?, options?)`      | Bir `PUT` isteği gönderir                |
+| `patch(path, body?, options?)`    | Bir `PATCH` isteği gönderir              |
+| `delete(path, options?)`          | Bir `DELETE` isteği gönderir             |
+| `request(method, path, options?)` | Herhangi bir HTTP yöntemiyle genel istek |
 
 `options`, `headers`, `query` (sorgu dizesi parametrelerinin kaydı; null benzeri değerler atlanır) ve `signal` aracılığıyla bir `AbortSignal` kabul eder. `FormData` olmayan bir `body` nesnesi otomatik olarak JSON’a serileştirilir. `401` durumunda, istemci erişim jetonunu bir kez ana makine (host) üzerinden yeniler ve isteği yeniden dener.
 
@@ -315,7 +280,7 @@ Temel URL ve jeton varsayılan olarak ortamdan çözümlenir. Gerektiğinde — 
 
 ```ts
 const client = new RestApiClient({
-  baseUrl: 'https://myworkspace.twenty.com',
+  baseUrl: 'https://api.example.com',
   token: 'my-token',
 });
 ```
@@ -328,8 +293,8 @@ import { RestApiClient, RestApiClientError } from 'twenty-client-sdk/rest';
 const client = new RestApiClient();
 
 try {
-  const people = await client.get('/rest/people', {
-    query: { limit: 10 },
+  const prs = await client.get('/s/github/fetch-prs', {
+    query: { state: 'open' },
   });
 } catch (error) {
   if (error instanceof RestApiClientError) {
@@ -346,13 +311,13 @@ Bileşeninizin içinde, geçerli kullanıcıya, kayda ve bileşen örneğine eri
 import { defineFrontComponent } from 'twenty-sdk/define';
 import {
   useUserId,
-  useSelectedRecordIds,
+  useRecordId,
   useFrontComponentId,
 } from 'twenty-sdk/front-component';
 
 const RecordInfo = () => {
   const userId = useUserId();
-  const [recordId] = useSelectedRecordIds();
+  const recordId = useRecordId();
   const componentId = useFrontComponentId();
 
   return (
@@ -407,26 +372,12 @@ export default defineFrontComponent({
 Gizli değişkenler (`isSecret: true`) ön uç bileşenlere açıklanmaz. Bunlar yalnızca sunucu tarafında çalışan [mantık işlevlerinde](/l/tr/developers/extend/apps/logic/logic-functions) kullanılabilir. Bu, API anahtarları gibi hassas değerlerin tarayıcıya gönderilmesini engeller.
 </Warning>
 
-`getApplicationVariable`, değişkenin bildirilen `type` değerinden bağımsız olarak her zaman bir **string** (veya `undefined`) döndürür. String, türe göre tutarlı bir şekilde serileştirilir (boolean değerler `"true"` / `"false"`, sayılar ondalık dizeler olarak, diziler/nesneler JSON olarak) ve bu, `process.env` mantık işlevi için kullanılan formatla aynıdır — veriyi kendiniz ayrıştırın (`Number(...)`, `JSON.parse(...)`, `=== 'true'`). [Değişken türleri](/l/tr/developers/extend/apps/config/application#variable-types) bölümüne bakın.
-
 Aşağıdaki sistem değişkenleri her zaman `process.env` aracılığıyla kullanılabilir:
 
 | Değişken                  | Açıklama                                                  |
 | ------------------------- | --------------------------------------------------------- |
-| `TWENTY_API_URL`          | Twenty çekirdek API'sinin temel URL'si                    |
+| `TWENTY_API_URL`          | Twenty API'nin temel URL'si                               |
 | `TWENTY_APP_ACCESS_TOKEN` | Uygulamanızın rolüyle sınırlanan kısa ömürlü bir belirteç |
-
-### `TWENTY_FUNCTIONS_URL`
-
-Twenty ayrıca `TWENTY_FUNCTIONS_URL` değişkenini front bileşenlerine ve mantık işlevlerine enjekte eder: bu, uygulamanızın HTTP ile tetiklenen mantık işlevlerinin sunulduğu temel URL'dir.
-
-Bu değişken, bu URL her zaman Twenty sunucusunun kendisi olmadığı için mevcuttur. Twenty Cloud üzerinde, uygulama rotaları, uygulama tarafından yazılmış yanıtların Twenty uygulamasının kaynağı yerine yalıtılmış bir kaynak üzerinde çalışması için, çalışma alanı başına ayrılmış özel bir etki alanında (`https://\<your-workspace-subdomain>.withtwenty.com` veya yapılandırıldığında uygulamanın birincil genel etki alanında) sunulur. Self-hosted ve yerel örnekler, uygulama rotalarını sunucunun kendisinde `/s` öneki altında sunar ve değişkeni hiç ayarlamayabilir. Temel URL, çalışma alanına ve örneğe göre değiştiğinden, kodunuz bunu sabit olarak yazamaz — sunucu, çalışma zamanında doğru değeri enjekte eder.
-
-Bu değişkeni doğrudan okumanız nadiren gerekir. Rotalarınızı, yolu `/s/` önekiyle birlikte vererek `RestApiClient` üzerinden çağırın; istemci URL'yi sizin için çözümler: `/s` önekini kaldırır ve `TWENTY_FUNCTIONS_URL`'yi hedefler, değişken ayarlı değilse `\<TWENTY_API_URL>/s` adresine geri döner. Mutlak URL'yi bir istek göndermeden elde etmek için, örneğin bir bağlantı için, `resolveUrl('/s/\<path>')` kullanın. Değişkeni yalnızca bir URL'yi elle oluştururken doğrudan okuyun:
-
-```ts
-const routeUrl = `${process.env.TWENTY_FUNCTIONS_URL || `${process.env.TWENTY_API_URL}/s`}/documents/generate`;
-```
 
 ## Host iletişim API'si
 
@@ -446,11 +397,12 @@ Bir eylem tamamlandıktan sonra bir snackbar göstermek ve yan paneli kapatmak i
 
 ```tsx src/front-components/archive-record.tsx
 import { defineFrontComponent } from 'twenty-sdk/define';
-import { enqueueSnackbar, closeSidePanel, useSelectedRecordIds } from 'twenty-sdk/front-component';
-import { CoreApiClient } from 'twenty-client-sdk/core';
+import { useRecordId } from 'twenty-sdk/front-component';
+import { enqueueSnackbar, closeSidePanel } from 'twenty-sdk/front-component';
+import { CoreApiClient } from 'twenty-sdk/clients';
 
 const ArchiveRecord = () => {
-  const [recordId] = useSelectedRecordIds();
+  const recordId = useRecordId();
 
   const handleArchive = async () => {
     const client = new CoreApiClient();
@@ -491,10 +443,10 @@ export default defineFrontComponent({
 Birden çok seçili kaydı yönetmek için `useSelectedRecordIds()` kullanın. Bu, toplu işlemler için kullanışlıdır:
 
 ```tsx src/front-components/bulk-export.tsx
-import { defineFrontComponent } from 'twenty-sdk/define';
+import { defineFrontComponent, numberOfSelectedRecords } from 'twenty-sdk/define';
 import { useSelectedRecordIds } from 'twenty-sdk/front-component';
 import { enqueueSnackbar, closeSidePanel } from 'twenty-sdk/front-component';
-import { CoreApiClient } from 'twenty-client-sdk/core';
+import { CoreApiClient } from 'twenty-sdk/clients';
 
 const BulkExport = () => {
   const selectedRecordIds = useSelectedRecordIds();
@@ -532,19 +484,12 @@ export default defineFrontComponent({
   name: 'bulk-export',
   description: 'Export selected records',
   component: BulkExport,
-});
-```
-
-Bunu, kayıt seçimleriyle sınırlandırılmış bir [komut menüsü öğesi](/l/tr/developers/extend/apps/layout/command-menu-items) ile sunun:
-
-```ts src/command-menu-items/bulk-export.command-menu-item.ts
-import { defineCommandMenuItem } from 'twenty-sdk/define';
-
-export default defineCommandMenuItem({
-  universalIdentifier: 'd0e1f2a3-b4c5-6789-defa-012345678902',
-  label: 'Bulk Export',
-  availabilityType: 'RECORD_SELECTION',
-  frontComponentUniversalIdentifier: 'd0e1f2a3-b4c5-6789-defa-012345678901',
+  command: {
+    universalIdentifier: 'd0e1f2a3-b4c5-6789-defa-012345678902',
+    label: 'Bulk Export',
+    availabilityType: 'RECORD_SELECTION',
+    conditionalAvailabilityExpression: numberOfSelectedRecords > 0,
+  },
 });
 ```
 
@@ -572,43 +517,15 @@ Ayrıntılar için [genel varlıklar bölümüne](/l/tr/developers/extend/apps/c
 Ön uç bileşenleri birden fazla biçimlendirme yaklaşımını destekler. Şunları kullanabilirsiniz:
 
 * **Satır içi stiller** — `style={{ color: 'red' }}`
-* **Twenty UI bileşenleri** — Twenty'nin kendi bileşen kitaplığı; aşağıda [Twenty UI bileşenlerini kullanma](#using-twenty-ui-components) bölümüne bakın
+* **Twenty UI bileşenleri** — `twenty-sdk/ui` içinden içe aktarın (Button, Tag, Status, Chip, Avatar ve daha fazlası)
 * **Emotion** — `@emotion/react` ile CSS-in-JS
 * **Styled-components** — `styled.div` kalıpları
 * **Tailwind CSS** — yardımcı sınıflar
 * **React ile uyumlu herhangi bir CSS-in-JS kitaplığı**
 
-## Twenty UI bileşenlerini kullanma
-
-Twenty, bileşen kitaplığını [`twenty-ui`](https://www.npmjs.com/package/twenty-ui/v/1.0.0-alpha.1) paketi olarak sunar. Ön uç bileşenleri bunu, çalışma alanının açık ve koyu temasıyla otomatik olarak eşleşen düğmeler, etiketler, durum rozetleri, çipler, avatarlar, simgeler, tipografi ve tema belirteçleri için kullanabilir.
-
-### Kurulum
-
-Paketi, Twenty örneğinizle birlikte gelen sürüme sabitleyerek uygulamanıza ekleyin:
-
-```bash
-yarn add twenty-ui@1.0.0-alpha.1
-```
-
-`twenty-ui`, derleme zamanında ön uç bileşeninize paketlenir, bu nedenle yalnızca uygulamanızın bir bağımlılığı olması gerekir — çalışma zamanında yapılandırmanız gereken hiçbir şey yoktur.
-
-### Bileşenleri içe aktarma
-
-Kullandığınız bileşenlerin yalnızca paketinizde yer alması için, paket kökü yerine eşleşen alt yoldan içe aktarın:
-
-| Alt yol                     | Dışa aktardıkları                                        |
-| --------------------------- | -------------------------------------------------------- |
-| `twenty-ui/input`           | `Button` ve form girdileri                               |
-| `twenty-ui/data-display`    | `Tag`, `Status`, `Chip`, `Avatar` ve daha fazlası        |
-| `twenty-ui/feedback`        | `Callout`, `Banner`, `Info` ve daha fazlası              |
-| `twenty-ui/typography`      | `H1Title`, `H2Title`, `H3Title`, `Label` ve daha fazlası |
-| `twenty-ui/icon`            | `Icon*` bileşenleri (ör. `IconCheck`)                    |
-| `twenty-ui/theme-constants` | `ThemeProvider`, `themeCssVariables`                     |
-
 ```tsx
 import { defineFrontComponent } from 'twenty-sdk/define';
-import { Status, Tag } from 'twenty-ui/data-display';
-import { Button } from 'twenty-ui/input';
+import { Button, Tag, Status } from 'twenty-sdk/ui';
 
 const StyledWidget = () => {
   return (
@@ -626,43 +543,3 @@ export default defineFrontComponent({
   component: StyledWidget,
 });
 ```
-
-### İkonlar
-
-Tek tek simgeleri `twenty-ui/icon` içinden içe aktarın:
-
-```tsx
-import { IconBox, IconCheck } from 'twenty-ui/icon';
-```
-
-Her adlandırılmış simge ağaç sallama optimizasyonuna tabidir; bu nedenle birkaç tanesini içe aktarmak paket boyutunuza çok az şey ekler. `IconsProvider`, `useIcons` ve `iconsState` kullanmaktan kaçının — bunlar, birkaç MB'lık Tabler simge setinin tamamını içeri çeker.
-
-### Temalandırma ve tema belirteçleri
-
-Twenty UI bileşenleri, çalışma alanının açık ve koyu temasıyla otomatik olarak eşleşir — oluşturucu etkin renk şemasını barındırıcıda uygular ve bileşenler renklerini buna göre belirler.
-
-Kendi satır içi stillerinizde aynı tasarım belirteçlerini kullanmak için `useTheme()` kancasını çağırın. Bu kanca, etkin temaya bağlı Twenty tema belirteçlerini (boşluklandırma, renkler, köşe yarıçapları, yazı tipleri) döndürür; bileşeninizde `ThemeProvider` kurulumuna gerek yoktur:
-
-```tsx
-import { useTheme } from 'twenty-ui/theme-constants';
-
-const Card = () => {
-  const theme = useTheme();
-
-  return (
-    <div
-      style={{
-        padding: theme.spacing[4],
-        background: theme.background.secondary,
-        color: theme.font.color.primary,
-      }}
-    >
-      Themed card
-    </div>
-  );
-};
-```
-
-`useTheme()` bir kanca olduğundan, belirteçleri bileşen gövdesinin içinde okursunuz; böylece değerler her zaman etkin temayı yansıtır. Aynı belirteç haritası, `themeCssVariables` sabiti olarak da dışa aktarılır; ancak ön uç bileşenlerinde `useTheme()` kullanmayı tercih edin — `themeCssVariables` öğesini dolaylı olarak kullanan modül düzeyinde bir sabit, uygulama manifesti çıkarılırken tanımsız olabilir.
-
-Etkin şemaya açıkça dallanmak için, `twenty-sdk/front-component` içindeki `useColorScheme()` ile okuyun; bu kanca `'light'` veya `'dark'` döndürür.

@@ -58,42 +58,6 @@ test.describe('Postcard card front component', () => {
     }
   });
 
-  // The front component renders in a separate iframe + Web Worker, so its
-  // failures never reach the assertion output. Surface browser console output,
-  // uncaught errors, failed requests, and 4xx/5xx responses (e.g. a presigned
-  // S3 403) in the test log so CI failures are diagnosable without the trace.
-  test.beforeEach(({ page }) => {
-    page.on('console', (message) => {
-      console.log(`[browser:${message.type()}] ${message.text()}`);
-    });
-
-    page.on('pageerror', (error) => {
-      console.log(`[pageerror] ${error.message}\n${error.stack ?? ''}`);
-    });
-
-    page.on('requestfailed', (request) => {
-      console.log(
-        `[requestfailed] ${request.method()} ${request.url()} — ${
-          request.failure()?.errorText ?? 'unknown error'
-        }`,
-      );
-    });
-
-    page.on('response', (response) => {
-      if (response.status() >= 400) {
-        console.log(
-          `[response ${response.status()}] ${response
-            .request()
-            .method()} ${response.url()}`,
-        );
-      }
-    });
-
-    page.on('worker', (worker) => {
-      console.log(`[worker started] ${worker.url()}`);
-    });
-  });
-
   test('renders the postcard name and status badge in the record preview', async ({
     page,
   }) => {
@@ -161,15 +125,5 @@ test.describe('Postcard card front component', () => {
     for (const fallback of FALLBACK_TEXTS) {
       await expect(page.getByText(fallback, { exact: false })).toHaveCount(0);
     }
-
-    const sdkPanel = page.getByTestId(CARD_TEST_IDS.sdkPanel);
-    await expect(sdkPanel).toBeVisible();
-
-    await expect(page.getByTestId(CARD_TEST_IDS.sdkCore)).toHaveText('core: ok');
-    await expect(page.getByTestId(CARD_TEST_IDS.sdkMetadata)).toHaveText(
-      'metadata: ok',
-    );
-
-    await expect(page.getByTestId(CARD_TEST_IDS.sdkRest)).toHaveText('rest: ok');
   });
 });

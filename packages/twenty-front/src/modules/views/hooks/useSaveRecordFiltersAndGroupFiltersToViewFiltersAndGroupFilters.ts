@@ -84,19 +84,25 @@ export const useSaveRecordFiltersAndGroupFiltersToViewFiltersAndGroupFilters =
           (viewFilterGroup) => viewFilterGroup.id,
         );
 
-        const createFilterGroupResult = await performViewFilterGroupAPICreate(
+        await performViewFilterGroupAPICreate(
           viewFilterGroupsToCreate,
           currentView,
         );
-        if (createFilterGroupResult.status === 'failed') {
-          return;
-        }
+        await performViewFilterGroupAPIUpdate(viewFilterGroupsToUpdate);
+        await performViewFilterGroupAPIDestroy(viewFilterGroupIdsToDestroy);
 
-        const updateFilterGroupResult = await performViewFilterGroupAPIUpdate(
-          viewFilterGroupsToUpdate,
-        );
-        if (updateFilterGroupResult.status === 'failed') {
-          return;
+        // Mirror the DB cascade: remove cascade-deleted viewFilters from the store
+        if (viewFilterGroupIdsToDestroy.length > 0) {
+          const destroyedIdsSet = new Set(viewFilterGroupIdsToDestroy);
+
+          store.set(metadataStoreState.atomFamily('viewFilters'), (prev) => ({
+            ...prev,
+            current: (prev.current as FlatViewFilter[]).filter(
+              (viewFilter) =>
+                !isDefined(viewFilter.viewFilterGroupId) ||
+                !destroyedIdsSet.has(viewFilter.viewFilterGroupId),
+            ),
+          }));
         }
 
         const currentViewFilters = currentView.viewFilters ?? [];
@@ -188,27 +194,6 @@ export const useSaveRecordFiltersAndGroupFiltersToViewFiltersAndGroupFilters =
         );
         if (deleteResult.status === 'failed') {
           return;
-        }
-
-        const destroyFilterGroupResult = await performViewFilterGroupAPIDestroy(
-          viewFilterGroupIdsToDestroy,
-        );
-        if (destroyFilterGroupResult.status === 'failed') {
-          return;
-        }
-
-        // Mirror the DB cascade: remove cascade-deleted viewFilters from the store
-        if (viewFilterGroupIdsToDestroy.length > 0) {
-          const destroyedIdsSet = new Set(viewFilterGroupIdsToDestroy);
-
-          store.set(metadataStoreState.atomFamily('viewFilters'), (prev) => ({
-            ...prev,
-            current: (prev.current as FlatViewFilter[]).filter(
-              (viewFilter) =>
-                !isDefined(viewFilter.viewFilterGroupId) ||
-                !destroyedIdsSet.has(viewFilter.viewFilterGroupId),
-            ),
-          }));
         }
       }, [
         canPersistChanges,

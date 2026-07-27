@@ -1,80 +1,81 @@
-import { useDragDropMonitor } from '@dnd-kit/react';
+import { Draggable } from '@hello-pangea/dnd';
 import { isFunction } from '@sniptt/guards';
-import { type JSX, useContext, useEffect, useState } from 'react';
+import { type JSX, useContext } from 'react';
 import { isDefined } from 'twenty-shared/utils';
-
-import { DraggableListGroupContext } from '@/ui/layout/draggable-list/contexts/DraggableListGroupContext';
-import { DragDropItemSortableCell } from '@/ui/utilities/drag-and-drop/components/DragDropItemSortableCell';
+import { ThemeContext } from 'twenty-ui/theme-constants';
 
 type DraggableItemProps = {
   draggableId: string;
   isDragDisabled?: boolean;
+  disableInteractiveElementBlocking?: boolean;
   index: number;
   itemComponent:
     | JSX.Element
     | ((props: { isDragging: boolean }) => JSX.Element);
+  isInsideScrollableContainer?: boolean;
+  draggableComponentStyles?: React.CSSProperties;
   disableDraggingBackground?: boolean;
+  containerOffsetY?: number;
 };
 
 export const DraggableItem = ({
   draggableId,
   isDragDisabled = false,
+  disableInteractiveElementBlocking = false,
   index,
   itemComponent,
-  disableDraggingBackground = false,
+  isInsideScrollableContainer,
+  draggableComponentStyles,
+  disableDraggingBackground,
+  containerOffsetY,
 }: DraggableItemProps) => {
-  const draggableListGroupContext = useContext(DraggableListGroupContext);
-
-  const [isDragging, setIsDragging] = useState(false);
-
-  useDragDropMonitor({
-    onDragStart: (event) => {
-      if (String(event.operation.source?.id) === draggableId) {
-        setIsDragging(true);
-      }
-    },
-    onDragEnd: () => {
-      setIsDragging(false);
-    },
-  });
-
-  // The list's end drop zone resolves its drop index from this registry,
-  // since only the rendered items know how many of them there are.
-  useEffect(() => {
-    if (!isDefined(draggableListGroupContext)) {
-      return;
-    }
-
-    const itemIndexByDraggableId =
-      draggableListGroupContext.itemIndexByDraggableId;
-
-    itemIndexByDraggableId.set(draggableId, index);
-
-    return () => {
-      itemIndexByDraggableId.delete(draggableId);
-    };
-  }, [draggableListGroupContext, draggableId, index]);
-
-  if (!isDefined(draggableListGroupContext)) {
-    throw new Error('DraggableItem must be rendered inside a DraggableList');
-  }
-
-  const { group } = draggableListGroupContext;
-
+  const { theme } = useContext(ThemeContext);
   return (
-    <DragDropItemSortableCell
-      id={draggableId}
+    <Draggable
+      key={draggableId}
+      draggableId={draggableId}
       index={index}
-      group={group}
-      type={group}
-      accept={group}
-      disabled={isDragDisabled}
-      highlightWhileDragging={!disableDraggingBackground}
-      dropLine="horizontal"
+      isDragDisabled={isDragDisabled}
+      disableInteractiveElementBlocking={disableInteractiveElementBlocking}
     >
-      {isFunction(itemComponent)
-        ? itemComponent({ isDragging })
-        : itemComponent}
-    </DragDropItemSortableCell>
+      {(draggableProvided, draggableSnapshot) => {
+        const draggableStyle = draggableProvided.draggableProps.style;
+        const isDragging = draggableSnapshot.isDragging;
+
+        return (
+          <div
+            ref={draggableProvided.innerRef}
+            // oxlint-disable-next-line react/jsx-props-no-spreading
+            {...draggableProvided.draggableProps}
+            // oxlint-disable-next-line react/jsx-props-no-spreading
+            {...draggableProvided.dragHandleProps}
+            style={{
+              ...draggableComponentStyles,
+              ...draggableStyle,
+              left: 'auto',
+              transform: draggableStyle?.transform?.replace(
+                /\(-?\d+px,/,
+                '(0,',
+              ),
+              ...(isInsideScrollableContainer
+                ? {
+                    top: `${(isDefined(draggableStyle) && 'top' in draggableStyle ? draggableStyle.top : 0) - (containerOffsetY ?? 0)}px`,
+                  }
+                : { top: 'auto' }),
+              background:
+                !disableDraggingBackground && isDragging
+                  ? theme.background.transparent.light
+                  : 'none',
+            }}
+          >
+            {isFunction(itemComponent)
+              ? itemComponent({
+                  isDragging,
+                })
+              : itemComponent}
+          </div>
+        );
+      }}
+    </Draggable>
   );
 };

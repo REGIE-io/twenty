@@ -33,6 +33,7 @@ import { WorkspaceMemberWorkspaceEntity } from 'src/modules/workspace-member/sta
 @CoreResolver()
 @UseGuards(
   WorkspaceAuthGuard,
+  UserAuthGuard,
   SettingsPermissionGuard(PermissionFlagType.WORKFLOWS),
 )
 @UsePipes(ResolverValidationPipe)
@@ -72,7 +73,6 @@ export class WorkflowTriggerResolver {
   }
 
   @Mutation(() => RunWorkflowVersionDTO)
-  @UseGuards(UserAuthGuard)
   async runWorkflowVersion(
     @AuthUser() user: AuthContextUser,
     @AuthWorkspace() workspace: WorkspaceEntity,

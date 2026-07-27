@@ -11,7 +11,6 @@ import { type WorkspaceAuthContext } from 'src/engine/core-modules/auth/types/wo
 import { findFlatEntityByIdInFlatEntityMaps } from 'src/engine/metadata-modules/flat-entity/utils/find-flat-entity-by-id-in-flat-entity-maps.util';
 import { WorkspaceManyOrAllFlatEntityMapsCacheService } from 'src/engine/metadata-modules/flat-entity/services/workspace-many-or-all-flat-entity-maps-cache.service';
 import { FlatFieldMetadata } from 'src/engine/metadata-modules/flat-field-metadata/types/flat-field-metadata.type';
-import { buildObjectIdByNameMaps } from 'src/engine/metadata-modules/flat-object-metadata/utils/build-object-id-by-name-maps.util';
 import { LineChartConfigurationDTO } from 'src/engine/metadata-modules/page-layout-widget/dtos/line-chart-configuration.dto';
 import { GraphOrderBy } from 'src/engine/metadata-modules/page-layout-widget/enums/graph-order-by.enum';
 import { EXTRA_ITEM_TO_DETECT_TOO_MANY_GROUPS } from 'src/modules/dashboard/chart-data/constants/extra-item-to-detect-too-many-groups.constant';
@@ -25,16 +24,10 @@ import {
   generateChartDataExceptionMessage,
 } from 'src/modules/dashboard/chart-data/exceptions/chart-data.exception';
 import { ChartDataQueryService } from 'src/modules/dashboard/chart-data/services/chart-data-query.service';
-import { ChartRelationLabelService } from 'src/modules/dashboard/chart-data/services/chart-relation-label.service';
 import { FieldMetadataOption } from 'src/modules/dashboard/chart-data/types/field-metadata-option.type';
 import { GroupByRawResult } from 'src/modules/dashboard/chart-data/types/group-by-raw-result.type';
 import { RawDimensionValue } from 'src/modules/dashboard/chart-data/types/raw-dimension-value.type';
-import { RelationLabelResolution } from 'src/modules/dashboard/chart-data/types/relation-label-resolution.type';
-import { applyCumulativeToLineDataPoints } from 'src/modules/dashboard/chart-data/utils/apply-cumulative-to-line-data-points.util';
 import { applyGapFilling } from 'src/modules/dashboard/chart-data/utils/apply-gap-filling.util';
-import { buildFormattedToRawLookupDto } from 'src/modules/dashboard/chart-data/utils/build-formatted-to-raw-lookup-dto.util';
-import { filterOutEmptyChartBuckets } from 'src/modules/dashboard/chart-data/utils/filter-out-empty-chart-buckets.util';
-import { filterOutUnresolvedRelationBuckets } from 'src/modules/dashboard/chart-data/utils/filter-out-unresolved-relation-buckets.util';
 import { getAggregateOperationLabel } from 'src/modules/dashboard/chart-data/utils/get-aggregate-operation-label.util';
 import { getFieldMetadata } from 'src/modules/dashboard/chart-data/utils/get-field-metadata.util';
 import { getSelectOptions } from 'src/modules/dashboard/chart-data/utils/get-select-options.util';
@@ -57,7 +50,6 @@ export class LineChartDataService {
   constructor(
     private readonly workspaceManyOrAllFlatEntityMapsCacheService: WorkspaceManyOrAllFlatEntityMapsCacheService,
     private readonly chartDataQueryService: ChartDataQueryService,
-    private readonly chartRelationLabelService: ChartRelationLabelService,
   ) {}
 
   async getLineChartData({
@@ -141,8 +133,15 @@ export class LineChartDataService {
         (configuration.firstDayOfTheWeek as CalendarStartDay | undefined) ??
         CalendarStartDay.MONDAY;
 
-      const { idByNameSingular: objectIdByNameSingular } =
-        buildObjectIdByNameMaps(flatObjectMetadataMaps);
+      const objectIdByNameSingular: Record<string, string> = {};
+
+      for (const objMetadata of Object.values(
+        flatObjectMetadataMaps.byUniversalIdentifier,
+      )) {
+        if (isDefined(objMetadata)) {
+          objectIdByNameSingular[objMetadata.nameSingular] = objMetadata.id;
+        }
+      }
 
       const rawResults = await this.chartDataQueryService.executeGroupByQuery({
         flatObjectMetadata,
@@ -175,40 +174,9 @@ export class LineChartDataService {
         configuration,
       );
 
-      const filteredResults = filterOutEmptyChartBuckets({
-        rawResults,
-        shouldOmitEmptyBuckets: configuration.omitNullValues ?? false,
-      });
-
-      const relationLabelResolutions =
-        await this.chartRelationLabelService.resolveRelationLabels({
-          rawResults: filteredResults,
-          primaryAxis: {
-            groupByField: primaryAxisGroupByField,
-            subFieldName: configuration.primaryAxisGroupBySubFieldName,
-          },
-          secondaryAxis:
-            isTwoDimensional && isDefined(secondaryAxisGroupByField)
-              ? {
-                  groupByField: secondaryAxisGroupByField,
-                  subFieldName: configuration.secondaryAxisGroupBySubFieldName,
-                }
-              : undefined,
-          workspaceId,
-          authContext,
-          flatObjectMetadataMaps,
-          flatFieldMetadataMaps,
-        });
-
-      const resolvedResults = filterOutUnresolvedRelationBuckets({
-        rawResults: filteredResults,
-        primaryRelationLabelResolution: relationLabelResolutions.primary,
-        secondaryRelationLabelResolution: relationLabelResolutions.secondary,
-      });
-
       if (isTwoDimensional && isDefined(secondaryAxisGroupByField)) {
         return this.transformToTwoDimensionalLineChartData({
-          filteredRawResults: resolvedResults,
+          rawResults,
           primaryAxisGroupByField,
           secondaryAxisGroupByField,
           aggregateField,
@@ -216,20 +184,17 @@ export class LineChartDataService {
           userTimezone,
           firstDayOfTheWeek,
           seriesIdPrefix,
-          primaryRelationLabelResolution: relationLabelResolutions.primary,
-          secondaryRelationLabelResolution: relationLabelResolutions.secondary,
         });
       }
 
       return this.transformToOneDimensionalLineChartData({
-        filteredRawResults: resolvedResults,
+        rawResults,
         primaryAxisGroupByField,
         aggregateField,
         configuration,
         userTimezone,
         firstDayOfTheWeek,
         seriesIdPrefix,
-        relationLabelResolution: relationLabelResolutions.primary,
       });
     } catch (error) {
       throw wrapChartDataQueryError(error, 'Line chart data retrieval failed');
@@ -237,30 +202,36 @@ export class LineChartDataService {
   }
 
   private transformToOneDimensionalLineChartData({
-    filteredRawResults,
+    rawResults,
     primaryAxisGroupByField,
     aggregateField,
     configuration,
     userTimezone,
     firstDayOfTheWeek,
     seriesIdPrefix,
-    relationLabelResolution,
   }: {
-    filteredRawResults: GroupByRawResult[];
+    rawResults: GroupByRawResult[];
     primaryAxisGroupByField: FlatFieldMetadata;
     aggregateField: FlatFieldMetadata;
     configuration: LineChartConfigurationDTO;
     userTimezone: string;
     firstDayOfTheWeek: CalendarStartDay;
     seriesIdPrefix: string;
-    relationLabelResolution: RelationLabelResolution | undefined;
   }): LineChartDataDTO {
+    const filteredResults = configuration.omitNullValues
+      ? rawResults.filter(
+          (result) =>
+            isDefined(result.groupByDimensionValues?.[0]) &&
+            result.aggregateValue !== 0,
+        )
+      : rawResults;
+
     const isDescOrder =
       configuration.primaryAxisOrderBy === GraphOrderBy.FIELD_DESC;
 
     const { data: gapFilledResults, wasTruncated: dateRangeWasTruncated } =
       applyGapFilling({
-        data: filteredRawResults,
+        data: filteredResults,
         primaryAxisGroupByField,
         dateGranularity: configuration.primaryAxisDateGranularity,
         omitNullValues: configuration.omitNullValues ?? false,
@@ -287,7 +258,6 @@ export class LineChartDataService {
       subFieldName: configuration.primaryAxisGroupBySubFieldName,
       userTimezone,
       firstDayOfTheWeek: convertedFirstDayOfTheWeek,
-      relationLabelResolution,
     });
 
     const processedDataPoints = rawProcessedDataPoints.map((point) => ({
@@ -315,7 +285,7 @@ export class LineChartDataService {
     );
 
     const transformedData = configuration.isCumulative
-      ? applyCumulativeToLineDataPoints(limitedSortedData)
+      ? this.applyCumulativeTransform(limitedSortedData)
       : limitedSortedData;
 
     const dataPoints = transformedData.map(({ x, y }) => ({
@@ -341,16 +311,14 @@ export class LineChartDataService {
       showLegend: configuration.displayLegend ?? true,
       showDataLabels: configuration.displayDataLabel ?? false,
       hasTooManyGroups:
-        filteredRawResults.length > LINE_CHART_MAXIMUM_NUMBER_OF_DATA_POINTS ||
+        filteredResults.length > LINE_CHART_MAXIMUM_NUMBER_OF_DATA_POINTS ||
         dateRangeWasTruncated,
-      formattedToRawLookup: buildFormattedToRawLookupDto({
-        axisLookups: [{ formattedToRawLookup, relationLabelResolution }],
-      }),
+      formattedToRawLookup: Object.fromEntries(formattedToRawLookup),
     };
   }
 
   private transformToTwoDimensionalLineChartData({
-    filteredRawResults,
+    rawResults,
     primaryAxisGroupByField,
     secondaryAxisGroupByField,
     aggregateField,
@@ -358,10 +326,8 @@ export class LineChartDataService {
     userTimezone,
     firstDayOfTheWeek,
     seriesIdPrefix,
-    primaryRelationLabelResolution,
-    secondaryRelationLabelResolution,
   }: {
-    filteredRawResults: GroupByRawResult[];
+    rawResults: GroupByRawResult[];
     primaryAxisGroupByField: FlatFieldMetadata;
     secondaryAxisGroupByField: FlatFieldMetadata;
     aggregateField: FlatFieldMetadata;
@@ -369,9 +335,15 @@ export class LineChartDataService {
     userTimezone: string;
     firstDayOfTheWeek: CalendarStartDay;
     seriesIdPrefix: string;
-    primaryRelationLabelResolution: RelationLabelResolution | undefined;
-    secondaryRelationLabelResolution: RelationLabelResolution | undefined;
   }): LineChartDataDTO {
+    const filteredResults = configuration.omitNullValues
+      ? rawResults.filter(
+          (result) =>
+            isDefined(result.groupByDimensionValues?.[0]) &&
+            result.aggregateValue !== 0,
+        )
+      : rawResults;
+
     const isStacked = configuration.isStacked ?? false;
 
     const isDescOrder =
@@ -379,7 +351,7 @@ export class LineChartDataService {
 
     const { data: gapFilledResults, wasTruncated: dateRangeWasTruncated } =
       applyGapFilling({
-        data: filteredRawResults,
+        data: filteredResults,
         primaryAxisGroupByField,
         dateGranularity: configuration.primaryAxisDateGranularity,
         omitNullValues: configuration.omitNullValues ?? false,
@@ -412,8 +384,6 @@ export class LineChartDataService {
       secondarySubFieldName: configuration.secondaryAxisGroupBySubFieldName,
       userTimezone,
       firstDayOfTheWeek: convertedFirstDayOfTheWeek,
-      primaryRelationLabelResolution,
-      secondaryRelationLabelResolution,
     });
 
     const allXValues: string[] = [];
@@ -506,7 +476,7 @@ export class LineChartDataService {
       }));
 
       if (configuration.isCumulative) {
-        dataPoints = applyCumulativeToLineDataPoints(dataPoints);
+        dataPoints = this.applyCumulativeTransform(dataPoints);
       }
 
       return {
@@ -525,19 +495,16 @@ export class LineChartDataService {
     const hasTooManyGroups =
       hasTooManySeries || hasTooManyDataPoints || dateRangeWasTruncated;
 
-    const secondaryLookupWithPrefixedSeriesIds = new Map<
-      string,
-      RawDimensionValue
-    >();
+    const mergedLookup = new Map([
+      ...formattedToRawLookup,
+      ...secondaryFormattedToRawLookup,
+    ]);
 
     for (const seriesId of limitedSeriesIds) {
       const rawValue = secondaryFormattedToRawLookup.get(seriesId);
 
       if (isDefined(rawValue)) {
-        secondaryLookupWithPrefixedSeriesIds.set(
-          `${seriesIdPrefix}${seriesId}`,
-          rawValue,
-        );
+        mergedLookup.set(`${seriesIdPrefix}${seriesId}`, rawValue);
       }
     }
 
@@ -548,18 +515,7 @@ export class LineChartDataService {
       showLegend: configuration.displayLegend ?? true,
       showDataLabels: configuration.displayDataLabel ?? false,
       hasTooManyGroups,
-      formattedToRawLookup: buildFormattedToRawLookupDto({
-        axisLookups: [
-          {
-            formattedToRawLookup: secondaryLookupWithPrefixedSeriesIds,
-            relationLabelResolution: secondaryRelationLabelResolution,
-          },
-          {
-            formattedToRawLookup,
-            relationLabelResolution: primaryRelationLabelResolution,
-          },
-        ],
-      }),
+      formattedToRawLookup: Object.fromEntries(mergedLookup),
     };
   }
 
@@ -610,5 +566,24 @@ export class LineChartDataService {
       subFieldName: configuration.secondaryAxisGroupBySubFieldName ?? undefined,
       dateGranularity: configuration.secondaryAxisGroupByDateGranularity,
     });
+  }
+
+  private applyCumulativeTransform<T extends { y: number | null }>(
+    data: T[],
+  ): T[] {
+    const result: T[] = [];
+    let runningTotal = 0;
+
+    for (const point of data) {
+      if (isDefined(point.y)) {
+        runningTotal += point.y;
+      }
+
+      const cumulativeValue = runningTotal;
+
+      result.push({ ...point, y: cumulativeValue });
+    }
+
+    return result;
   }
 }

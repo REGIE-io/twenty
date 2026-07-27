@@ -5,8 +5,7 @@
   outline: inherit;
   align-items: center;
   border: 1px solid var(--t-border-color-medium);
-  // Concentric with the md dropdown container: parent radius minus its inset.
-  border-radius: calc(var(--t-border-radius-md) - var(--t-spacing-1));
+  border-radius: var(--t-border-radius-sm);
   color: var(--t-font-color-tertiary);
   cursor: pointer;
   display: flex;

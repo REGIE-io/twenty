@@ -57,8 +57,6 @@ export class InternalWorkspaceProvisioningService {
         displayName,
         subdomain,
         shouldBypassWorkspaceCreationChecks: true,
-        // Internal service-to-service provisioning has no human accepting the click-through DPA.
-        shouldRecordDpaAcceptance: false,
       },
     );
     const workspace =

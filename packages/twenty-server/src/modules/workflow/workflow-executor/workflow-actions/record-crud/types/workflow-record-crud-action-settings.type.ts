@@ -1,4 +1,3 @@
-import { type WorkflowPickRecordActionInput } from 'src/modules/workflow/workflow-executor/workflow-actions/record-crud/types/workflow-pick-record-action-input.type';
 import {
   type WorkflowUpsertRecordActionInput,
   type WorkflowCreateRecordActionInput,
@@ -26,8 +25,4 @@ export type WorkflowFindRecordsActionSettings = BaseWorkflowActionSettings & {
 
 export type WorkflowUpsertRecordActionSettings = BaseWorkflowActionSettings & {
   input: WorkflowUpsertRecordActionInput;
-};
-
-export type WorkflowPickRecordActionSettings = BaseWorkflowActionSettings & {
-  input: WorkflowPickRecordActionInput;
 };

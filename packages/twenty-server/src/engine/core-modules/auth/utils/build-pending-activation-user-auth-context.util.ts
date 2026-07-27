@@ -5,6 +5,7 @@ type PendingActivationUserAuthContextInput = {
   workspace: NonNullable<RawAuthContext['workspace']>;
   userWorkspaceId: NonNullable<RawAuthContext['userWorkspaceId']>;
   user: NonNullable<RawAuthContext['user']>;
+  workspaceMetadataVersion?: string;
 };
 
 export const buildPendingActivationUserAuthContext = (
@@ -15,5 +16,6 @@ export const buildPendingActivationUserAuthContext = (
     workspace: input.workspace,
     userWorkspaceId: input.userWorkspaceId,
     user: input.user,
+    workspaceMetadataVersion: input.workspaceMetadataVersion,
   };
 };

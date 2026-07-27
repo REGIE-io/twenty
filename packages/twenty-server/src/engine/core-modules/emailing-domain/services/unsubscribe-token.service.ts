@@ -26,7 +26,7 @@ export class UnsubscribeTokenService {
 
   verify(token: string): UnsubscribeTokenPayload | null {
     try {
-      const decrypted = this.secretEncryptionService.decryptVersionedOrThrow(
+      const decrypted = this.secretEncryptionService.decryptVersioned(
         Buffer.from(token, 'base64url').toString('utf8') as EncryptedString,
       );
 

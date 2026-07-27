@@ -38,19 +38,6 @@ if (typeof window !== 'undefined') {
   });
 }
 
-// jsdom does not implement ResizeObserver; @dnd-kit/dom expects it at import
-// time.
-class ResizeObserverMock {
-  observe() {}
-  unobserve() {}
-  disconnect() {}
-}
-
-if (globalThis.ResizeObserver === undefined) {
-  globalThis.ResizeObserver =
-    ResizeObserverMock as unknown as typeof ResizeObserver;
-}
-
 // Add Jest matchers for toThrowError and other missing methods
 declare global {
   namespace jest {

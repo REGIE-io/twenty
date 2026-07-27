@@ -1,19 +1,23 @@
 import { getPageLayoutVerticalListViewerVariant } from '@/page-layout/components/utils/getPageLayoutVerticalListViewerVariant';
-import { usePageLayoutContentContext } from '@/page-layout/contexts/PageLayoutContentContext';
+import { pageLayoutDraggingWidgetIdComponentState } from '@/page-layout/states/pageLayoutDraggingWidgetIdComponentState';
 import { type PageLayoutVerticalListViewerVariant } from '@/page-layout/types/PageLayoutVerticalListViewerVariant';
 import { type PageLayoutWidget } from '@/page-layout/types/PageLayoutWidget';
-import { type PageLayoutWidgetDragData } from '@/page-layout/types/PageLayoutWidgetDragData';
-import { type PageLayoutWidgetListDropData } from '@/page-layout/types/PageLayoutWidgetListDropData';
-import { PAGE_LAYOUT_WIDGET_DND_TYPE } from '@/page-layout/constants/PageLayoutWidgetDndType';
 import { WidgetRenderer } from '@/page-layout/widgets/components/WidgetRenderer';
 import { useIsInPinnedTab } from '@/page-layout/widgets/hooks/useIsInPinnedTab';
 import { useLayoutRenderingContext } from '@/ui/layout/contexts/LayoutRenderingContext';
-import { DragDropItemEndDropZone } from '@/ui/utilities/drag-and-drop/components/DragDropItemEndDropZone';
-import { DragDropItemSortableCell } from '@/ui/utilities/drag-and-drop/components/DragDropItemSortableCell';
+import { useSetAtomComponentState } from '@/ui/utilities/state/jotai/hooks/useSetAtomComponentState';
+import {
+  DragDropContext,
+  Draggable,
+  Droppable,
+  type DropResult,
+} from '@hello-pangea/dnd';
 import { styled } from '@linaria/react';
-import { type ReactNode } from 'react';
+import { type ReactNode, useId } from 'react';
 import { themeCssVariables } from 'twenty-ui/theme-constants';
 import { useIsMobile } from 'twenty-ui/utilities';
+
+import { getCssCompatibleDraggableProps } from '@/ui/layout/draggable-list/utils/getCssCompatibleDraggableProps';
 
 const StyledVerticalListContainer = styled.div<{
   variant: PageLayoutVerticalListViewerVariant;
@@ -32,24 +36,29 @@ const StyledVerticalListContainer = styled.div<{
       : themeCssVariables.spacing[2]};
 `;
 
-const StyledEndDropZone = styled(DragDropItemEndDropZone)`
-  display: flex;
-  flex: 1;
-  flex-direction: column;
-  gap: ${themeCssVariables.spacing[4]};
-  min-height: ${themeCssVariables.spacing[6]};
+const StyledDraggableWrapper = styled.div<{ isDragging: boolean }>`
+  background: ${({ isDragging }) =>
+    isDragging
+      ? themeCssVariables.background.transparent.light
+      : 'transparent'};
+  border-radius: ${themeCssVariables.border.radius.sm};
+  transition: background 0.1s ease;
 `;
 
 type PageLayoutVerticalListEditorProps = {
   widgets: PageLayoutWidget[];
+  onReorder: (result: DropResult) => void;
+  isReorderEnabled?: boolean;
   trailingElement?: ReactNode;
 };
 
 export const PageLayoutVerticalListEditor = ({
   widgets,
+  onReorder,
+  isReorderEnabled = true,
   trailingElement,
 }: PageLayoutVerticalListEditorProps) => {
-  const { tabId } = usePageLayoutContentContext();
+  const droppableId = `page-layout-vertical-list-${useId()}`;
 
   const { isInSidePanel } = useLayoutRenderingContext();
   const isMobile = useIsMobile();
@@ -61,48 +70,56 @@ export const PageLayoutVerticalListEditor = ({
     isInSidePanel,
   });
 
-  const endDropData: PageLayoutWidgetListDropData = {
-    type: 'widget-list',
-    tabId,
-  };
+  const setPageLayoutDraggingWidgetId = useSetAtomComponentState(
+    pageLayoutDraggingWidgetIdComponentState,
+  );
 
   return (
-    <StyledVerticalListContainer
-      variant={variant}
-      shouldUseWhiteBackground={!isInPinnedTab || isMobile}
+    <DragDropContext
+      onDragStart={(result) => {
+        setPageLayoutDraggingWidgetId(result.draggableId);
+      }}
+      onDragEnd={(result) => {
+        setPageLayoutDraggingWidgetId(null);
+        onReorder(result);
+      }}
     >
-      {widgets.map((widget, index) => {
-        const widgetDragData: PageLayoutWidgetDragData = {
-          type: 'widget',
-          widgetId: widget.id,
-          tabId,
-          index,
-        };
-
-        return (
-          <DragDropItemSortableCell
-            key={widget.id}
-            id={widget.id}
-            index={index}
-            group={tabId}
-            data={widgetDragData}
-            type={PAGE_LAYOUT_WIDGET_DND_TYPE}
-            accept={PAGE_LAYOUT_WIDGET_DND_TYPE}
-            hasTransition={false}
-            highlightWhileDragging={true}
-            dropLine="horizontal"
+      <Droppable droppableId={droppableId}>
+        {(provided) => (
+          <StyledVerticalListContainer
+            ref={provided.innerRef}
+            variant={variant}
+            shouldUseWhiteBackground={!isInPinnedTab || isMobile}
+            // oxlint-disable-next-line react/jsx-props-no-spreading
+            {...provided.droppableProps}
           >
-            <WidgetRenderer widget={widget} />
-          </DragDropItemSortableCell>
-        );
-      })}
-      <StyledEndDropZone
-        id={`page-layout-widget-list-${tabId}`}
-        accept={PAGE_LAYOUT_WIDGET_DND_TYPE}
-        data={endDropData}
-      >
-        {trailingElement}
-      </StyledEndDropZone>
-    </StyledVerticalListContainer>
+            {widgets.map((widget, index) => (
+              <Draggable
+                key={widget.id}
+                draggableId={widget.id}
+                index={index}
+                isDragDisabled={!isReorderEnabled}
+              >
+                {(provided, snapshot) => (
+                  <StyledDraggableWrapper
+                    ref={provided.innerRef}
+                    // oxlint-disable-next-line react/jsx-props-no-spreading
+                    {...getCssCompatibleDraggableProps(provided.draggableProps)}
+                    isDragging={snapshot.isDragging}
+                  >
+                    {/* oxlint-disable-next-line react/jsx-props-no-spreading */}
+                    <div {...provided.dragHandleProps}>
+                      <WidgetRenderer widget={widget} />
+                    </div>
+                  </StyledDraggableWrapper>
+                )}
+              </Draggable>
+            ))}
+            {provided.placeholder}
+            {trailingElement}
+          </StyledVerticalListContainer>
+        )}
+      </Droppable>
+    </DragDropContext>
   );
 };

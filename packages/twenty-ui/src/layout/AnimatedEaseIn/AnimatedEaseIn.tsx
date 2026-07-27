@@ -1,17 +1,31 @@
+import { motion } from 'framer-motion';
+import { useContext } from 'react';
 import { type AnimationDuration } from '@ui/theme';
+import { ThemeContext } from '@ui/theme-constants';
 
-import styles from './AnimatedEaseIn.module.scss';
-
-type AnimatedEaseInProps = {
-  children?: React.ReactNode;
+type AnimatedEaseInProps = Omit<
+  React.ComponentProps<typeof motion.div>,
+  'initial' | 'animated' | 'transition'
+> & {
   duration?: AnimationDuration;
 };
 
 export const AnimatedEaseIn = ({
   children,
   duration = 'normal',
-}: AnimatedEaseInProps) => (
-  <div className={styles.fadeIn} data-duration={duration}>
-    {children}
-  </div>
-);
+}: AnimatedEaseInProps) => {
+  const { theme } = useContext(ThemeContext);
+
+  const initial = { opacity: 0 };
+  const animate = { opacity: 1 };
+  const transition = {
+    ease: 'linear',
+    duration: theme.animation.duration[duration],
+  };
+
+  return (
+    <motion.div initial={initial} animate={animate} transition={transition}>
+      {children}
+    </motion.div>
+  );
+};

@@ -25,7 +25,6 @@ import { FieldMetadataType } from '~/generated-metadata/graphql';
 import { dateLocaleState } from '~/localization/states/dateLocaleState';
 
 import { beautifyPastDateRelativeToNow } from '~/utils/date-utils';
-import { getAbsoluteImageUrl } from '~/utils/image/getAbsoluteImageUrl';
 import { SidePanelPageInfoLayout } from './SidePanelPageInfoLayout';
 
 const StyledClickableTitle = styled.div`
@@ -141,7 +140,7 @@ export const SidePanelRecordInfo = ({
       icon={
         recordIdentifier ? (
           <Avatar
-            avatarUrl={getAbsoluteImageUrl(recordIdentifier.avatarUrl)}
+            avatarUrl={recordIdentifier.avatarUrl}
             placeholder={recordIdentifier.name}
             placeholderColorSeed={objectRecordId}
             size="md"

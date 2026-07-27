@@ -1,5 +1,4 @@
 import { styled } from '@linaria/react';
-import { useLingui } from '@lingui/react/macro';
 
 import { recordIndexAllRecordIdsComponentSelector } from '@/object-record/record-index/states/selectors/recordIndexAllRecordIdsComponentSelector';
 import { themeCssVariables } from 'twenty-ui/theme-constants';
@@ -39,8 +38,6 @@ const StyledColumnHeaderCell = styled.div`
 `;
 
 export const RecordTableHeaderCheckboxColumn = () => {
-  const { t } = useLingui();
-
   const allRowsSelectedStatus = useAtomComponentSelectorValue(
     allRowsSelectedStatusComponentSelector,
   );
@@ -90,7 +87,6 @@ export const RecordTableHeaderCheckboxColumn = () => {
           onChange={onChange}
           indeterminate={indeterminate}
           disabled={recordTableIsEmpty}
-          aria-label={t`Select all rows`}
         />
       </StyledContainer>
     </StyledColumnHeaderCell>

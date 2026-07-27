@@ -9,7 +9,6 @@ import { type FlatObjectMetadata } from 'src/engine/metadata-modules/flat-object
 const workspaceId = '20202020-0000-0000-0000-000000000000';
 
 const personNameFieldId = 'person-name-field-id';
-const personAvatarFileFieldId = 'person-avatar-file-field-id';
 const companyNameFieldId = 'company-name-field-id';
 const companyDomainNameFieldId = 'company-domain-name-field-id';
 const customObjectNameFieldId = 'custom-object-name-field-id';
@@ -26,9 +25,9 @@ export const mockFlatObjectMetadatas: FlatObjectMetadata[] = [
     icon: 'test-person-icon',
     isSearchable: true,
     labelIdentifierFieldMetadataId: personNameFieldId,
-    imageIdentifierFieldMetadataId: personAvatarFileFieldId,
+    imageIdentifierFieldMetadataId: null,
     workspaceId,
-    fieldIds: [personNameFieldId, personAvatarFileFieldId],
+    fieldIds: [personNameFieldId],
     universalIdentifier: 'person-universal-id',
     applicationId: workspaceId,
   }),
@@ -42,7 +41,7 @@ export const mockFlatObjectMetadatas: FlatObjectMetadata[] = [
     icon: 'test-company-icon',
     isSearchable: true,
     labelIdentifierFieldMetadataId: companyNameFieldId,
-    imageIdentifierFieldMetadataId: companyDomainNameFieldId,
+    imageIdentifierFieldMetadataId: null,
     workspaceId,
     fieldIds: [companyNameFieldId, companyDomainNameFieldId],
     universalIdentifier: 'company-universal-id',
@@ -115,19 +114,6 @@ export const mockFlatFieldMetadataMaps: FlatEntityMaps<FlatFieldMetadata> = {
       universalIdentifier: 'person-name-field-universal-id',
       applicationId: workspaceId,
     }),
-    'person-avatar-file-field-universal-id': getFlatFieldMetadataMock({
-      id: personAvatarFileFieldId,
-      type: FieldMetadataType.FILES,
-      icon: 'test-field-icon',
-      name: 'avatarFile',
-      label: 'Avatar',
-      description: null,
-      defaultValue: null,
-      objectMetadataId: '20202020-8dec-43d5-b2ff-6eef05095bec',
-      workspaceId,
-      universalIdentifier: 'person-avatar-file-field-universal-id',
-      applicationId: workspaceId,
-    }),
     'company-name-field-universal-id': getFlatFieldMetadataMock({
       id: companyNameFieldId,
       type: FieldMetadataType.TEXT,
@@ -187,7 +173,6 @@ export const mockFlatFieldMetadataMaps: FlatEntityMaps<FlatFieldMetadata> = {
   },
   universalIdentifierById: {
     [personNameFieldId]: 'person-name-field-universal-id',
-    [personAvatarFileFieldId]: 'person-avatar-file-field-universal-id',
     [companyNameFieldId]: 'company-name-field-universal-id',
     [companyDomainNameFieldId]: 'company-domain-name-field-universal-id',
     [customObjectNameFieldId]: 'custom-object-name-field-universal-id',

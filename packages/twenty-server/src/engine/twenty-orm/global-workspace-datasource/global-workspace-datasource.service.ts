@@ -8,10 +8,6 @@ import { InjectDataSource } from '@nestjs/typeorm';
 import { isDefined } from 'twenty-shared/utils';
 import { DataSource } from 'typeorm';
 
-import {
-  DatabasePoolMetricsService,
-  DatabasePoolName,
-} from 'src/database/typeorm/database-pool-metrics.service';
 import { TwentyConfigService } from 'src/engine/core-modules/twenty-config/twenty-config.service';
 import { GlobalWorkspaceDataSource } from 'src/engine/twenty-orm/global-workspace-datasource/global-workspace-datasource';
 import { WorkspaceEventEmitter } from 'src/engine/workspace-event-emitter/workspace-event-emitter';
@@ -29,7 +25,6 @@ export class GlobalWorkspaceDataSourceService
     private readonly workspaceEventEmitter: WorkspaceEventEmitter,
     @InjectDataSource()
     private readonly coreDataSource: DataSource,
-    private readonly databasePoolMetricsService: DatabasePoolMetricsService,
   ) {}
 
   async onModuleInit(): Promise<void> {
@@ -62,10 +57,6 @@ export class GlobalWorkspaceDataSourceService
     );
 
     await this.globalWorkspaceDataSource.initialize();
-    this.databasePoolMetricsService.registerDataSource({
-      poolName: DatabasePoolName.WorkspacePrimary,
-      dataSource: this.globalWorkspaceDataSource,
-    });
 
     const shouldInitializeReplicaDataSource = isDefined(
       this.twentyConfigService.get('PG_DATABASE_REPLICA_URL'),
@@ -100,10 +91,6 @@ export class GlobalWorkspaceDataSourceService
         this.coreDataSource,
       );
       await this.globalWorkspaceDataSourceReplica.initialize();
-      this.databasePoolMetricsService.registerDataSource({
-        poolName: DatabasePoolName.WorkspaceReplica,
-        dataSource: this.globalWorkspaceDataSourceReplica,
-      });
     }
   }
 

@@ -1,3 +1,6 @@
+import { Field, ObjectType } from '@nestjs/graphql';
+
+import { BeforeCreateOne, IDField } from '@ptc-org/nestjs-query-graphql';
 import { isDefined } from 'twenty-shared/utils';
 import {
   BeforeInsert,
@@ -12,6 +15,8 @@ import {
   UpdateDateColumn,
 } from 'typeorm';
 
+import { UUIDScalarType } from 'src/engine/api/graphql/workspace-schema-builder/graphql-types/scalars';
+import { BeforeCreateOneAppToken } from 'src/engine/core-modules/app-token/hooks/before-create-one-app-token.hook';
 import { UserEntity } from 'src/engine/core-modules/user/user.entity';
 import { WorkspaceEntity } from 'src/engine/core-modules/workspace/workspace.entity';
 
@@ -21,13 +26,15 @@ export enum AppTokenType {
   AuthorizationCode = 'AUTHORIZATION_CODE',
   PasswordResetToken = 'PASSWORD_RESET_TOKEN',
   InvitationToken = 'INVITATION_TOKEN',
-  OnboardingInvitationToken = 'ONBOARDING_INVITATION_TOKEN',
   EmailVerificationToken = 'EMAIL_VERIFICATION_TOKEN',
   EnterpriseValidityToken = 'ENTERPRISE_VALIDITY_TOKEN',
 }
 
 @Entity({ name: 'appToken', schema: 'core' })
+@ObjectType('AppToken')
+@BeforeCreateOne(BeforeCreateOneAppToken)
 export class AppTokenEntity {
+  @IDField(() => UUIDScalarType)
   @PrimaryGeneratedColumn('uuid')
   id: string;
 
@@ -49,12 +56,14 @@ export class AppTokenEntity {
   @Column({ nullable: true, type: 'uuid' })
   workspaceId: string | null;
 
+  @Field()
   @Column({ nullable: false, type: 'text', default: AppTokenType.RefreshToken })
   type: AppTokenType;
 
   @Column({ nullable: true, type: 'text' })
   value: string;
 
+  @Field()
   @Column({ type: 'timestamptz' })
   expiresAt: Date;
 
@@ -64,9 +73,11 @@ export class AppTokenEntity {
   @Column({ nullable: true, type: 'timestamptz' })
   revokedAt: Date | null;
 
+  @Field()
   @CreateDateColumn({ type: 'timestamptz' })
   createdAt: Date;
 
+  @Field()
   @UpdateDateColumn({ type: 'timestamptz' })
   updatedAt: Date;
 

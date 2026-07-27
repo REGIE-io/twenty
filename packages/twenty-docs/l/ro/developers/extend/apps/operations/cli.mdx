@@ -4,25 +4,7 @@ description: comenzi `yarn twenty` pentru executarea funcțiilor, transmiterea �
 icon: terminal
 ---
 
-Interfața CLI `yarn twenty` este punctul tău de acces pentru tot ce ține de aplicație. Lista completă de comenzi:
-
-| Comandă                                         | Ce face                                                                                   | Documentat în                                                                                              |
-| ----------------------------------------------- | ----------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------- |
-| `dev`                                           | Monitorizează fișierele sursă și sincronizează în timp real modificările                  | [Ghid de pornire rapidă](/l/ro/developers/extend/apps/getting-started/quick-start)                              |
-| `plan`                                          | Previzualizează modificările metadatelor fără a le aplica                                 | [Sincronizare și recuperare](/l/ro/developers/extend/apps/operations/sync-and-recovery#previewing-changes-plan) |
-| `aplică`                                        | Aplică modificările metadatelor după afișarea planului                                    | [Sincronizare și recuperare](/l/ro/developers/extend/apps/operations/sync-and-recovery)                         |
-| `dev:build`                                     | Compilează aplicația și generează clientul API (`--tarball` pentru a împacheta un `.tgz`) | [Publicare](/l/ro/developers/extend/apps/operations/publishing)                                                 |
-| `dev:typecheck`                                 | Rulează verificarea tipurilor TypeScript                                                  | [Testare](/l/ro/developers/extend/apps/operations/testing)                                                      |
-| `dev:add`                                       | Creează scheletul unei entități noi                                                       | [Generarea scheletului](/l/ro/developers/extend/apps/getting-started/scaffolding)                               |
-| `dev:generate-client`                           | Regenerează clientul API tipizat                                                          | această pagină                                                                                             |
-| `dev:function:exec` / `dev:function:logs`       | Execută funcții și transmite în flux jurnalele acestora                                   | această pagină                                                                                             |
-| `dev:translations-extract`                      | Extrage șirurile traducibile în cataloagele din `locales/`                                | [Traduceri](/l/ro/developers/extend/apps/translations/overview)                                                 |
-| `dev:catalog-sync`                              | Declanșează o sincronizare a catalogului marketplace-ului                                 | [Publicare](/l/ro/developers/extend/apps/operations/publishing#how-marketplace-discovery-works)                 |
-| `app:publish` / `app:install` / `app:uninstall` | Ciclul de viață al lansărilor                                                             | [Publicare](/l/ro/developers/extend/apps/operations/publishing) și această pagină                               |
-| `docker:*`                                      | Administrează containerul serverului Twenty local                                         | [Server local](/l/ro/developers/extend/apps/getting-started/local-server)                                       |
-| `remote:*`                                      | Administrează conexiunile la server                                                       | această pagină                                                                                             |
-
-Fiecare comandă acceptă `-r, --remote \<name>` pentru a viza un anumit server la distanță în locul celui implicit.
+Dincolo de `dev`, `dev:build`, `dev:add` și `dev:typecheck`, `yarn twenty` CLI oferă comenzi pentru executarea funcțiilor, vizualizarea jurnalelor și gestionarea instalărilor de aplicații.
 
 ## Executarea funcțiilor (`yarn twenty dev:function:exec`)
 
@@ -38,10 +20,8 @@ yarn twenty dev:function:exec -u e56d363b-0bdc-4d8a-a393-6f0d1c75bdcf
 # Pass a JSON payload
 yarn twenty dev:function:exec -n create-new-post-card -p '{"name": "Hello"}'
 
-# Execute the install and uninstall hooks
+# Execute the post-install function
 yarn twenty dev:function:exec --postInstall
-yarn twenty dev:function:exec --preInstall
-yarn twenty dev:function:exec --uninstall
 ```
 
 ## Vizualizarea jurnalelor funcțiilor (`yarn twenty dev:function:logs`)
@@ -120,12 +100,6 @@ yarn twenty remote:list
 
 # Set the active remote
 yarn twenty remote:use <name>
-
-# Check that the active remote's authentication is still valid
-yarn twenty remote:status
-
-# Remove a remote
-yarn twenty remote:remove <name>
 ```
 
 Acreditările dvs. sunt stocate în `~/.twenty/config.json`.

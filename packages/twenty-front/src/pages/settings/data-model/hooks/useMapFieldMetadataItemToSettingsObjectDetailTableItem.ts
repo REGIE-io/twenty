@@ -1,5 +1,4 @@
 import { isDefined } from 'twenty-shared/utils';
-import { currentWorkspaceState } from '@/auth/states/currentWorkspaceState';
 import { useGetRelationMetadata } from '@/object-metadata/hooks/useGetRelationMetadata';
 import { type FieldMetadataItem } from '@/object-metadata/types/FieldMetadataItem';
 import { type EnrichedObjectMetadataItem } from '@/object-metadata/types/EnrichedObjectMetadataItem';
@@ -10,16 +9,11 @@ import { getSettingsFieldTypeConfig } from '@/settings/data-model/utils/getSetti
 import { isFieldTypeSupportedInSettings } from '@/settings/data-model/utils/isFieldTypeSupportedInSettings';
 import { type SettingsObjectDetailTableItem } from '~/pages/settings/data-model/types/SettingsObjectDetailTableItem';
 import { getSettingsObjectFieldType } from '~/pages/settings/data-model/utils/getSettingsObjectFieldType';
-import { useAtomStateValue } from '@/ui/utilities/state/jotai/hooks/useAtomStateValue';
 
 export const useMapFieldMetadataItemToSettingsObjectDetailTableItem = (
   objectMetadataItem: EnrichedObjectMetadataItem,
 ) => {
   const getRelationMetadata = useGetRelationMetadata();
-
-  const currentWorkspace = useAtomStateValue(currentWorkspaceState);
-  const workspaceCustomApplicationId =
-    currentWorkspace?.workspaceCustomApplication?.id;
 
   const mapFieldMetadataItemToSettingsObjectDetailTableItem = (
     fieldMetadataItem: FieldMetadataItem,
@@ -27,7 +21,6 @@ export const useMapFieldMetadataItemToSettingsObjectDetailTableItem = (
     const fieldType = getSettingsObjectFieldType(
       objectMetadataItem,
       fieldMetadataItem,
-      workspaceCustomApplicationId,
     );
 
     const { relationObjectMetadataItem } =

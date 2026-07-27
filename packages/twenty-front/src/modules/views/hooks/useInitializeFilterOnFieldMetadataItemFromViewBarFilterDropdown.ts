@@ -4,7 +4,6 @@ import { useUpsertObjectFilterDropdownCurrentFilter } from '@/object-record/obje
 import { fieldMetadataItemIdUsedInDropdownComponentState } from '@/object-record/object-filter-dropdown/states/fieldMetadataItemIdUsedInDropdownComponentState';
 import { objectFilterDropdownCurrentRecordFilterComponentState } from '@/object-record/object-filter-dropdown/states/objectFilterDropdownCurrentRecordFilterComponentState';
 import { objectFilterDropdownFilterIsSelectedComponentState } from '@/object-record/object-filter-dropdown/states/objectFilterDropdownFilterIsSelectedComponentState';
-import { objectFilterDropdownSearchInputComponentState } from '@/object-record/object-filter-dropdown/states/objectFilterDropdownSearchInputComponentState';
 import { selectedOperandInDropdownComponentState } from '@/object-record/object-filter-dropdown/states/selectedOperandInDropdownComponentState';
 import { currentRecordFiltersComponentState } from '@/object-record/record-filter/states/currentRecordFiltersComponentState';
 import { type RecordFilter } from '@/object-record/record-filter/types/RecordFilter';
@@ -46,11 +45,6 @@ export const useInitializeFilterOnFieldMetadataItemFromViewBarFilterDropdown =
         objectFilterDropdownFilterIsSelectedComponentState,
       );
 
-    const objectFilterDropdownSearchInputCallbackState =
-      useAtomComponentStateCallbackState(
-        objectFilterDropdownSearchInputComponentState,
-      );
-
     const { upsertObjectFilterDropdownCurrentFilter } =
       useUpsertObjectFilterDropdownCurrentFilter();
 
@@ -87,8 +81,6 @@ export const useInitializeFilterOnFieldMetadataItemFromViewBarFilterDropdown =
           }
 
           store.set(objectFilterDropdownFilterIsSelectedCallbackState, true);
-
-          store.set(objectFilterDropdownSearchInputCallbackState, '');
 
           const defaultOperand = getRecordFilterOperands({
             filterType,
@@ -147,7 +139,6 @@ export const useInitializeFilterOnFieldMetadataItemFromViewBarFilterDropdown =
           fieldMetadataItemUsedInDropdownCallbackState,
           currentRecordFiltersCallbackState,
           objectFilterDropdownFilterIsSelectedCallbackState,
-          objectFilterDropdownSearchInputCallbackState,
           pushFocusItemToFocusStack,
           objectFilterDropdownCurrentRecordFilterCallbackState,
           selectedOperandInDropdownCallbackState,

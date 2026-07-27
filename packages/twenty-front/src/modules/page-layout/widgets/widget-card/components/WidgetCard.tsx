@@ -116,7 +116,7 @@ const StyledWidgetCard = styled.div<WidgetCardStyledProps>`
   &:hover {
     // border-color shorthand must precede border-bottom-color longhand for correct CSS cascade
     border-color: ${(props) => {
-      if (props.variant === 'solo') {
+      if (props.variant === 'canvas') {
         return computeBorderColor(props);
       }
       if (
@@ -131,7 +131,7 @@ const StyledWidgetCard = styled.div<WidgetCardStyledProps>`
     }};
 
     border-bottom-color: ${(props) => {
-      if (props.variant === 'solo') {
+      if (props.variant === 'canvas') {
         return computeBorderColor(props);
       }
 

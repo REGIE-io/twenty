@@ -18,17 +18,11 @@ describe('GmailMessageOutboundService', () => {
   let service: GmailMessageOutboundService;
 
   const mockSend = jest.fn().mockResolvedValue({ data: { id: 'message-id' } });
-  const mockCreateDraft = jest
-    .fn()
-    .mockResolvedValue({ data: { id: 'draft-id' } });
 
   const mockGmailClient = {
     users: {
       messages: {
         send: mockSend,
-      },
-      drafts: {
-        create: mockCreateDraft,
       },
       getProfile: jest
         .fn()
@@ -75,7 +69,6 @@ describe('GmailMessageOutboundService', () => {
 
   afterEach(() => {
     mockSend.mockClear();
-    mockCreateDraft.mockClear();
     jest.restoreAllMocks();
   });
 
@@ -131,36 +124,6 @@ describe('GmailMessageOutboundService', () => {
       userId: 'me',
       requestBody: {
         raw: Buffer.from('mocked-email-content').toString('base64url'),
-      },
-    });
-  });
-
-  it('should create Gmail drafts in the existing thread when a thread id is provided', async () => {
-    const sendMessageInput = {
-      to: 'recipient@example.com',
-      subject: 'Re: Existing thread',
-      body: 'Plain text',
-      html: '<p>HTML content</p>',
-      attachments: [],
-      inReplyTo: '<parent@example.com>',
-      threadExternalId: 'gmail-thread-id',
-    };
-
-    const connectedAccount = {
-      id: 'connected-account-id',
-      provider: ConnectedAccountProvider.GOOGLE,
-    } as any;
-
-    await service.createDraft(sendMessageInput, connectedAccount);
-
-    expect(mockCreateDraft).toHaveBeenCalledTimes(1);
-    expect(mockCreateDraft).toHaveBeenCalledWith({
-      userId: 'me',
-      requestBody: {
-        message: {
-          raw: Buffer.from('mocked-email-content').toString('base64url'),
-          threadId: 'gmail-thread-id',
-        },
       },
     });
   });

@@ -1,6 +1,6 @@
 ---
 title: Настройка
-icon: gear
+icon: шестерёнка
 ---
 
 # Управление конфигурацией
@@ -16,7 +16,7 @@ Twenty предлагает **два режима конфигурации**, ч
 ## 1. Конфигурация панели администратора (по умолчанию)
 
 ```bash
-IS_CONFIG_VARIABLES_IN_DB_ENABLED=true  # default
+IS_CONFIG_VARIABLES_IN_DB_ENABLED=true  # по умолчанию
 ```
 
 **Большая часть конфигурации происходит через UI** после установки:
@@ -168,8 +168,7 @@ IS_WORKSPACE_CREATION_LIMITED_TO_SERVER_ADMINS=true
 **Режим только для среды:** если вы установили `IS_CONFIG_VARIABLES_IN_DB_ENABLED=false`, добавьте эти переменные в свой `.env` файл вместо этого.
 </Warning>
 
-**Необходимые границы** (автоматически настроены):
-[Посмотреть соответствующий исходный код](https://github.com/twentyhq/twenty/blob/main/packages/twenty-server/src/engine/core-modules/auth/utils/get-google-apis-oauth-scopes.ts#L4-L10)
+соответствующий исходный код](https://github.com/twentyhq/twenty/blob/main/packages/twenty-server/src/engine/core-modules/auth/utils/get-google-apis-oauth-scopes.ts#L4-L10)
 
 * `https://www.googleapis.com/auth/calendar.events`
 * `https://www.googleapis.com/auth/gmail.readonly`
@@ -232,7 +231,7 @@ IS_WORKSPACE_CREATION_LIMITED_TO_SERVER_ADMINS=true
 
 ### Настройка областей доступа
 
-[См. соответствующий исходный код](https://github.com/twentyhq/twenty/blob/main/packages/twenty-server/src/engine/core-modules/auth/utils/get-microsoft-apis-oauth-scopes.ts#L2-L9)
+соответствующий исходный код](https://github.com/twentyhq/twenty/blob/main/packages/twenty-server/src/engine/core-modules/auth/utils/get-microsoft-apis-oauth-scopes.ts#L2-L9)
 
 * 'openid'
 * 'электронная почта'
@@ -255,7 +254,7 @@ IS_WORKSPACE_CREATION_LIMITED_TO_SERVER_ADMINS=true
 Зарегистрируйте следующие повторяющиеся задания в вашем контейнере рабочего:
 
 ```bash
-# from your worker container
+# из вашего контейнера рабочего
 yarn command:prod cron:messaging:messages-import
 yarn command:prod cron:messaging:message-list-fetch
 yarn command:prod cron:calendar:calendar-event-list-fetch
@@ -313,10 +312,10 @@ yarn command:prod cron:workflow:automated-cron-trigger
 **Режим только для среды:** если вы установили `IS_CONFIG_VARIABLES_IN_DB_ENABLED=false`, добавьте эти переменные в свой `.env` файл вместо этого.
 </Warning>
 
-## S3 Хранилище
+## S3 Storage
 
 <Warning>
-По умолчанию Twenty магазинов загрузили файлы в локальной файловой системе. Для продакшн-развертываний используйте S3 или совместимый с S3 сервис (MinIO, DigitalOcean Spaces и т. д.). чтобы файлы сохранялись при перезапусках контейнеров и были доступны на нескольких экземплярах сервера при масштабировании.
+By default, Twenty stores uploaded files on the local filesystem. Для продакшн-развертываний используйте S3 или совместимый с S3 сервис (MinIO, DigitalOcean Spaces и т. д.). чтобы файлы сохранялись при перезапусках контейнеров и были доступны на нескольких экземплярах сервера при масштабировании.
 </Warning>
 
 Установите `STORAGE_TYPE=S_3` и настройте переменные `STORAGE_S3_*` через админ-панель или `.env`. См. [справочник config-variables.ts](https://github.com/twentyhq/twenty/blob/main/packages/twenty-server/src/engine/core-modules/twenty-config/config-variables.ts) для полного списка переменных S3.

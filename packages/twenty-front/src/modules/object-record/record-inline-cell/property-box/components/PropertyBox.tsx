@@ -13,7 +13,7 @@ const StyledPropertyBoxContainer = styled.div<{
   noHorizontalPadding?: boolean;
 }>`
   align-self: stretch;
-  border-radius: ${themeCssVariables.border.radius.md};
+  border-radius: ${themeCssVariables.border.radius.sm};
   display: flex;
   flex-direction: column;
   gap: ${themeCssVariables.spacing[2]};

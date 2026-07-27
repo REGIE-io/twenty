@@ -31,8 +31,6 @@
   &[data-disabled] {
     cursor: not-allowed;
   }
-
-  @include focus-ring;
 }
 
 .button[data-variant='primary'] {

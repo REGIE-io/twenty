@@ -7,7 +7,6 @@ import { useRemoveRecordsFromBoard } from '@/object-record/record-board/hooks/us
 import { useRepositionRecordsOnBoard } from '@/object-record/record-board/hooks/useRepositionRecordsOnBoard';
 import { useTriggerRecordBoardInitialQuery } from '@/object-record/record-board/hooks/useTriggerRecordBoardInitialQuery';
 import { recordGroupFromGroupValueComponentFamilySelector } from '@/object-record/record-group/states/selectors/recordGroupFromGroupValueComponentFamilySelector';
-import { getFieldMetadataItemGqlFieldName } from '@/object-metadata/utils/getFieldMetadataItemGqlFieldName';
 import { useRecordIndexContextOrThrow } from '@/object-record/record-index/contexts/RecordIndexContext';
 import { recordIndexGroupFieldMetadataItemComponentState } from '@/object-record/record-index/states/recordIndexGroupFieldMetadataComponentState';
 import { recordIndexRecordIdsByGroupComponentFamilyState } from '@/object-record/record-index/states/recordIndexRecordIdsByGroupComponentFamilyState';
@@ -103,9 +102,7 @@ export const RecordBoardDataChangedEffect = () => {
 
             const recordGroupValue =
               objectRecordOperation.createdRecord[
-                getFieldMetadataItemGqlFieldName(
-                  currentRecordIndexGroupFieldMetadataItem,
-                )
+                currentRecordIndexGroupFieldMetadataItem.name
               ];
 
             const recordGroupDefinitionFromGroupValue = store.get(

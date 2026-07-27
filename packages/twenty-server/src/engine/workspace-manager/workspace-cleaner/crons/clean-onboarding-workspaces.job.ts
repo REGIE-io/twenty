@@ -35,7 +35,6 @@ export class CleanOnboardingWorkspacesJob {
         activationStatus: In([
           WorkspaceActivationStatus.PENDING_CREATION,
           WorkspaceActivationStatus.ONGOING_CREATION,
-          WorkspaceActivationStatus.CREATED,
         ]),
         createdAt: LessThan(sevenDaysAgo),
       },

@@ -3,29 +3,28 @@ import { themeCssVariables } from 'twenty-ui/theme-constants';
 
 const StyledBoardCard = styled.div<{
   isDragging?: boolean;
+  isSecondaryDragged?: boolean;
+  isPrimaryMultiDrag?: boolean;
 }>`
-  --record-card-background-color: ${themeCssVariables.background.secondary};
-
-  background-color: var(--record-card-background-color);
+  background-color: ${themeCssVariables.background.secondary};
   border: 1px solid ${themeCssVariables.border.color.medium};
   border-radius: ${themeCssVariables.border.radius.sm};
   color: ${themeCssVariables.font.color.primary};
   cursor: pointer;
-  opacity: ${({ isDragging }) => (isDragging ? '0.3' : '1')};
+  opacity: ${({ isSecondaryDragged }) => (isSecondaryDragged ? '0.3' : '1')};
 
   width: 100%;
 
   &[data-selected='true'] {
-    --record-card-background-color: ${themeCssVariables.accent.quaternary};
+    background-color: ${themeCssVariables.accent.quaternary};
   }
 
   &[data-focused='true'] {
-    --record-card-background-color: ${themeCssVariables.background.tertiary};
+    background-color: ${themeCssVariables.background.tertiary};
   }
 
   &[data-active='true'] {
-    --record-card-background-color: ${themeCssVariables.accent.quaternary};
-
+    background-color: ${themeCssVariables.accent.quaternary};
     border: 1px solid ${themeCssVariables.color.blue7};
   }
 

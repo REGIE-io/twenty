@@ -54,7 +54,7 @@ export class NavigateAppTool implements Tool {
       };
     }
 
-    const input: NavigateAppInput['navigation'] = parseResult.data.navigation;
+    const input: NavigateAppInput = parseResult.data;
 
     switch (input.type) {
       case 'navigateToView':

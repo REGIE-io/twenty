@@ -14,7 +14,6 @@ import { fromFieldMetadataEntityToFlatFieldMetadata } from 'src/engine/metadata-
 import { IndexMetadataEntity } from 'src/engine/metadata-modules/index-metadata/index-metadata.entity';
 import { computeUniqueFieldMetadataIdsFromIndexEntities } from 'src/engine/metadata-modules/index-metadata/utils/compute-unique-field-metadata-ids-from-index-entities.util';
 import { ObjectMetadataEntity } from 'src/engine/metadata-modules/object-metadata/object-metadata.entity';
-import { SearchFieldMetadataEntity } from 'src/engine/metadata-modules/search-field-metadata/search-field-metadata.entity';
 import { ViewFieldEntity } from 'src/engine/metadata-modules/view-field/entities/view-field.entity';
 import { ViewFilterEntity } from 'src/engine/metadata-modules/view-filter/entities/view-filter.entity';
 import { ViewGroupEntity } from 'src/engine/metadata-modules/view-group/entities/view-group.entity';
@@ -51,8 +50,6 @@ export class WorkspaceFlatFieldMetadataMapCacheService extends WorkspaceCachePro
     private readonly viewSortRepository: WorkspaceScopedRepository<ViewSortEntity>,
     @InjectWorkspaceScopedRepository(ViewEntity)
     private readonly viewRepository: WorkspaceScopedRepository<ViewEntity>,
-    @InjectWorkspaceScopedRepository(SearchFieldMetadataEntity)
-    private readonly searchFieldMetadataRepository: WorkspaceScopedRepository<SearchFieldMetadataEntity>,
   ) {
     super();
   }
@@ -69,7 +66,6 @@ export class WorkspaceFlatFieldMetadataMapCacheService extends WorkspaceCachePro
       viewFilters,
       viewSorts,
       views,
-      searchFieldMetadatas,
     ] = await Promise.all([
       this.fieldMetadataRepository.find({
         where: { workspaceId },
@@ -108,13 +104,9 @@ export class WorkspaceFlatFieldMetadataMapCacheService extends WorkspaceCachePro
           'universalIdentifier',
           'kanbanAggregateOperationFieldMetadataId',
           'calendarFieldMetadataId',
-          'calendarEndFieldMetadataId',
           'mainGroupByFieldMetadataId',
         ],
         withDeleted: true,
-      }),
-      this.searchFieldMetadataRepository.find(workspaceId, {
-        select: ['id', 'universalIdentifier', 'fieldMetadataId'],
       }),
     ]);
 
@@ -122,11 +114,9 @@ export class WorkspaceFlatFieldMetadataMapCacheService extends WorkspaceCachePro
       viewFieldsByFieldId,
       viewFiltersByFieldId,
       calendarViewsByFieldId,
-      calendarEndViewsByFieldId,
       kanbanViewsByFieldId,
       mainGroupByFieldMetadataViewsByFieldId,
       viewSortsByFieldId,
-      searchFieldMetadatasByFieldId,
     ] = (
       [
         {
@@ -143,10 +133,6 @@ export class WorkspaceFlatFieldMetadataMapCacheService extends WorkspaceCachePro
         },
         {
           entities: views,
-          foreignKey: 'calendarEndFieldMetadataId',
-        },
-        {
-          entities: views,
           foreignKey: 'kanbanAggregateOperationFieldMetadataId',
         },
         {
@@ -155,10 +141,6 @@ export class WorkspaceFlatFieldMetadataMapCacheService extends WorkspaceCachePro
         },
         {
           entities: viewSorts,
-          foreignKey: 'fieldMetadataId',
-        },
-        {
-          entities: searchFieldMetadatas,
           foreignKey: 'fieldMetadataId',
         },
       ] as const
@@ -186,15 +168,11 @@ export class WorkspaceFlatFieldMetadataMapCacheService extends WorkspaceCachePro
             kanbanViewsByFieldId.get(fieldMetadataEntity.id) || [],
           calendarViews:
             calendarViewsByFieldId.get(fieldMetadataEntity.id) || [],
-          calendarEndViews:
-            calendarEndViewsByFieldId.get(fieldMetadataEntity.id) || [],
           mainGroupByFieldMetadataViews:
             mainGroupByFieldMetadataViewsByFieldId.get(
               fieldMetadataEntity.id,
             ) || [],
           viewSorts: viewSortsByFieldId.get(fieldMetadataEntity.id) || [],
-          searchFieldMetadatas:
-            searchFieldMetadatasByFieldId.get(fieldMetadataEntity.id) || [],
         },
         fieldMetadataIdToUniversalIdentifierMap,
         objectMetadataIdToUniversalIdentifierMap,

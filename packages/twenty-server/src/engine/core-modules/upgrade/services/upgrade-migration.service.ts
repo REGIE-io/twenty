@@ -189,7 +189,7 @@ export class UpgradeMigrationService {
   // isInitial records are excluded — they represent activation
   // state, not execution progress.
   async getLastAttemptedCommandNameOrThrow(
-    allProvisionedWorkspaceIds: string[],
+    allActiveOrSuspendedWorkspaceIds: string[],
   ): Promise<{
     name: string;
     status: UpgradeMigrationStatus;
@@ -210,10 +210,10 @@ export class UpgradeMigrationService {
         )`,
       );
 
-    if (allProvisionedWorkspaceIds.length > 0) {
+    if (allActiveOrSuspendedWorkspaceIds.length > 0) {
       queryBuilder.andWhere(
-        '(migration."workspaceId" IS NULL OR migration."workspaceId" IN (:...allProvisionedWorkspaceIds))',
-        { allProvisionedWorkspaceIds },
+        '(migration."workspaceId" IS NULL OR migration."workspaceId" IN (:...allActiveOrSuspendedWorkspaceIds))',
+        { allActiveOrSuspendedWorkspaceIds },
       );
     } else {
       queryBuilder.andWhere('migration."workspaceId" IS NULL');

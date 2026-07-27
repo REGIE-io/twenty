@@ -8,15 +8,13 @@ import {
   CleanSuspendedWorkspaceEmail,
   WarnSuspendedWorkspaceEmail,
 } from 'twenty-emails';
-import { SettingsPath } from 'twenty-shared/types';
-import { getSettingsPath, isDefined } from 'twenty-shared/utils';
+import { isDefined } from 'twenty-shared/utils';
 import { WorkspaceActivationStatus } from 'twenty-shared/workspace';
 import { In, Repository } from 'typeorm';
 
 import { BillingSubscriptionEntity } from 'src/engine/core-modules/billing/entities/billing-subscription.entity';
 import { SubscriptionStatus } from 'src/engine/core-modules/billing/enums/billing-subscription-status.enum';
 import { BillingSubscriptionService } from 'src/engine/core-modules/billing/services/billing-subscription.service';
-import { WorkspaceDomainsService } from 'src/engine/core-modules/domain/workspace-domains/services/workspace-domains.service';
 import { EmailService } from 'src/engine/core-modules/email/email.service';
 import { I18nService } from 'src/engine/core-modules/i18n/i18n.service';
 import { MetricsService } from 'src/engine/core-modules/metrics/metrics.service';
@@ -69,7 +67,6 @@ export class CleanerWorkspaceService {
     private readonly userWorkspaceRepository: Repository<UserWorkspaceEntity>,
     private readonly i18nService: I18nService,
     private readonly metricsService: MetricsService,
-    private readonly workspaceDomainsService: WorkspaceDomainsService,
   ) {
     this.inactiveDaysBeforeSoftDelete = this.twentyConfigService.get(
       'WORKSPACE_INACTIVE_DAYS_BEFORE_SOFT_DELETION',
@@ -118,7 +115,6 @@ export class CleanerWorkspaceService {
   async sendWarningEmail(
     workspaceMember: WorkspaceMemberWorkspaceEntity,
     workspaceDisplayName: string | undefined,
-    billingSettingsUrl: string,
     daysSinceInactive: number,
   ) {
     const emailData = {
@@ -126,14 +122,13 @@ export class CleanerWorkspaceService {
       inactiveDaysBeforeDelete: this.inactiveDaysBeforeSoftDelete,
       userName: `${workspaceMember.name.firstName} ${workspaceMember.name.lastName}`,
       workspaceDisplayName: `${workspaceDisplayName}`,
-      link: billingSettingsUrl,
       locale: workspaceMember.locale,
     };
     const emailTemplate = WarnSuspendedWorkspaceEmail(emailData);
     const html = await render(emailTemplate, { pretty: true });
     const text = await render(emailTemplate, { plainText: true });
 
-    const workspaceDeletionMsg = msg`Your workspace is paused — reactivate to keep your data`;
+    const workspaceDeletionMsg = msg`Action needed to prevent workspace deletion`;
     const i18n = this.i18nService.getI18nInstance(workspaceMember.locale);
     const subject = i18n._(workspaceDeletionMsg);
 
@@ -182,19 +177,11 @@ export class CleanerWorkspaceService {
         .join(', ')}']`,
     );
 
-    const billingSettingsUrl = this.workspaceDomainsService
-      .buildWorkspaceURL({
-        workspace,
-        pathname: getSettingsPath(SettingsPath.Billing),
-      })
-      .toString();
-
     if (!dryRun) {
       for (const workspaceMember of workspaceMembers) {
         await this.sendWarningEmail(
           workspaceMember,
           workspace.displayName,
-          billingSettingsUrl,
           daysSinceInactive,
         );
 
@@ -300,7 +287,6 @@ export class CleanerWorkspaceService {
         activationStatus: In([
           WorkspaceActivationStatus.PENDING_CREATION,
           WorkspaceActivationStatus.ONGOING_CREATION,
-          WorkspaceActivationStatus.CREATED,
         ]),
       },
       withDeleted: true,

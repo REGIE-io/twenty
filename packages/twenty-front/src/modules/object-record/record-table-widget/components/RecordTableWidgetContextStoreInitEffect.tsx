@@ -8,13 +8,11 @@ import { useEffect } from 'react';
 type RecordTableWidgetContextStoreInitEffectProps = {
   objectMetadataItemId: string;
   viewId: string;
-  contextStoreViewType?: ContextStoreViewType;
 };
 
 export const RecordTableWidgetContextStoreInitEffect = ({
   objectMetadataItemId,
   viewId,
-  contextStoreViewType = ContextStoreViewType.Table,
 }: RecordTableWidgetContextStoreInitEffectProps) => {
   const setContextStoreCurrentObjectMetadataItemId = useSetAtomComponentState(
     contextStoreCurrentObjectMetadataItemIdComponentState,
@@ -31,11 +29,10 @@ export const RecordTableWidgetContextStoreInitEffect = ({
   useEffect(() => {
     setContextStoreCurrentObjectMetadataItemId(objectMetadataItemId);
     setContextStoreCurrentViewId(viewId);
-    setContextStoreCurrentViewType(contextStoreViewType);
+    setContextStoreCurrentViewType(ContextStoreViewType.Table);
   }, [
     objectMetadataItemId,
     viewId,
-    contextStoreViewType,
     setContextStoreCurrentObjectMetadataItemId,
     setContextStoreCurrentViewId,
     setContextStoreCurrentViewType,

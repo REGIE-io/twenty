@@ -1,33 +1,21 @@
-# My Twenty App
+This is a [Twenty](https://twenty.com) application bootstrapped with [`create-twenty-app`](https://www.npmjs.com/package/create-twenty-app).
 
-Describe your app in one or two sentences.
+## Getting Started
 
-## Features
+This app was scaffolded with a local Twenty server running at [http://localhost:2020](http://localhost:2020).
 
-List the top things your app does, for example:
+Login with the default development credentials: `tim@apple.dev` / `tim@apple.dev`.
 
-- Feature one
-- Feature two
-- Feature three
+Run `yarn twenty help` to list all available commands.
 
-## Getting started
+## Useful Commands
 
-Setup instructions live in [SETUP.md](SETUP.md).
+- `yarn twenty dev` - Start the development server and sync your app
+- `yarn twenty docker:status` - Check the local Twenty server status
+- `yarn twenty docker:start` - Start the local Twenty server
+- `yarn test` - Run integration tests
 
-## Publishing
-
-The `Publish` workflow (`.github/workflows/publish.yml`) publishes the app to npm with provenance using [npm trusted publishing](https://docs.npmjs.com/trusted-publishers). To publish:
-
-1. On npmjs.com register this repository as a trusted publisher of your package, pointing at the `publish.yml` workflow.
-2. Bump the version in `package.json`, then push a version tag (e.g. `git tag v1.0.0 && git push --tags`) or run the workflow manually from the Actions tab.
-
-Publishing with provenance is also how you prove ownership when claiming your app in a Twenty marketplace.
-
-## Changelog
-
-Notable changes are documented in [CHANGELOG.md](CHANGELOG.md).
-
-## Learn more
+## Learn More
 
 - [Twenty Apps documentation](https://docs.twenty.com/developers/extend/apps/getting-started/quick-start)
 - [twenty-sdk CLI reference](https://www.npmjs.com/package/twenty-sdk)

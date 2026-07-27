@@ -12,6 +12,7 @@ const minimalMetadataQuery = {
           nameSingular
           labelSingular
           labelPlural
+          isCustom
         }
       }
     }
@@ -22,6 +23,7 @@ type MinimalObjectItem = {
   nameSingular: string;
   labelSingular: string;
   labelPlural: string;
+  isCustom: boolean;
 };
 
 const updateWorkspaceMemberLocale = async (locale: string) => {

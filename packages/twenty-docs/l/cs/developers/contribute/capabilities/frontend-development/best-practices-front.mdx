@@ -1,6 +1,6 @@
 ---
 title: Osvědčené postupy
-icon: star
+icon: hvězda
 ---
 
 Tento dokument popisuje osvědčené postupy, které byste měli dodržovat při práci na frontend.
@@ -62,29 +62,29 @@ Pamatujte, že můžete **vždy** zabránit opakovanému renderování pochopen�
 
 Vyhýbání se překreslení v nových funkcích je nyní snadné tím, že je eliminujete na úrovni kořene.
 
-Komponenta "PageChangeEffect" obsahuje pouze jeden "useEffect", který drží veškerou logiku pro provedení změny stránky.
+The `PageChangeEffect` sidecar component contains just one `useEffect` that holds all the logic to execute on a page change.
 
 Tímto způsobem víte, že existuje pouze jedno místo, které může spustit překreslování.
 
-### Vždy si dvakrát rozmyslete před přidáním `useEffect` do vaší kódové databáze
+### Always think twice before adding `useEffect` in your codebase
 
-Opakované renderování jsou často způsobeny zbytečným `useEffect`.
+Re-renders are often caused by unnecessary `useEffect`.
 
-Měli byste si myslet, zda potřebujete `useEffect`, nebo zda můžete přesunout logiku ve funkci obsluhy událostí.
+You should think whether you need `useEffect`, or if you can move the logic in a event handler function.
 
-Pro vás je obecně snadné přesunout logiku do funkce `handleClick` nebo `handleChange`.
+You'll find it generally easy to move the logic in a `handleClick` or `handleChange` function.
 
 Můžete je také najít v knihovnách jako Apollo: `onCompleted`, `onError` atd.
 
-### Použij sourozeneckou komponentu k extrakci `useEffect` nebo logiky načítání dat
+### Use a sibling component to extract `useEffect` or data fetching logic
 
-Pokud máte pocit, že potřebujete přidat `useEffect` do základní komponenty, měli byste zvážit její extrakci v postranním vozíku.
+If you feel like you need to add a `useEffect` in your root component, you should consider extracting it in a sidecar component.
 
 Stejný postup můžete aplikovat na logiku získávání dat pomocí Apollo hooks.
 
 ```tsx
-// ❌ Bad, will cause re-renders even if data is not changing,
-//    because useEffect needs to be re-evaluated
+// ❌ Špatně, způsobí překreslení, i když se data nemění,
+//    protože useEffect je třeba znovu vyhodnotit
 export const PageComponent = () => {
   const [data, setData] = useAtomState(dataState);
   const [someDependency] = useAtomState(someDependencyState);
@@ -104,8 +104,8 @@ export const App = () => (
 ```
 
 ```tsx
-// ✅ Good, will not cause re-renders if data is not changing,
-//   because useEffect is re-evaluated in another sibling component
+// ✅ Dobře, nezpůsobí překreslení, pokud se data nemění,
+//   protože useEffect je znovu vyhodnocen v jiné sourozenecké komponentě
 export const PageComponent = () => {
   const [data, setData] = useAtomState(dataState);
 
@@ -244,7 +244,7 @@ Nejčastější příklad je komponenta ikon:
 ```tsx
 const SomeParentComponent = () => <MyComponent Icon={MyIcon} />;
 
-// In MyComponent
+// V komponentě MyComponent
 const MyComponent = ({ MyIcon }: { MyIcon: IconComponent }) => {
   const theme = useTheme();
 
@@ -299,7 +299,7 @@ import {
 ```
 
 ```tsx
-// ✅ Good, utilises the designated aliases
+// ✅ Dobře, využívá určené aliasy
 import { CatalogDecorator } from '~/testing/decorators/CatalogDecorator';
 import { ComponentDecorator } from 'twenty-ui/testing';
 ```

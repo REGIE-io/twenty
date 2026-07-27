@@ -1,8 +1,7 @@
-import { isWidgetViewType } from 'twenty-shared/utils';
-
 import { createAtomFamilySelector } from '@/ui/utilities/state/jotai/utils/createAtomFamilySelector';
 import { viewsSelector } from '@/views/states/selectors/viewsSelector';
 import { type View } from '@/views/types/View';
+import { ViewType } from '@/views/types/ViewType';
 
 export const viewsFromObjectMetadataItemFamilySelector =
   createAtomFamilySelector<View[], { objectMetadataItemId: string }>({
@@ -15,7 +14,8 @@ export const viewsFromObjectMetadataItemFamilySelector =
           .filter(
             (view) =>
               view.objectMetadataId === objectMetadataItemId &&
-              !isWidgetViewType(view.type),
+              view.type !== ViewType.FIELDS_WIDGET &&
+              view.type !== ViewType.TABLE_WIDGET,
           )
           .sort((a, b) => a.position - b.position);
       },

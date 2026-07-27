@@ -1,90 +1,30 @@
 import { conditionalAvailabilityTransformPlugin } from '@/cli/utilities/build/common/conditional-availability/conditional-availability-transform-plugin';
-import { pathExists } from '@/cli/utilities/file/fs-utils';
+import { pathExists, remove } from '@/cli/utilities/file/fs-utils';
 import { type ValidationResult } from '@/sdk/define';
-import { createHash } from 'node:crypto';
 import * as esbuild from 'esbuild';
 import { createRequire } from 'module';
-import vm from 'node:vm';
+import { mkdtemp, writeFile } from 'node:fs/promises';
+import os from 'os';
 import path from 'path';
 import { isDefined, isPlainObject } from 'twenty-shared/utils';
 
-type CompiledModuleWrapper = (
-  exports: Record<string, unknown>,
-  require: NodeRequire,
-  module: { exports: Record<string, unknown> },
-  filename: string,
-  dirname: string,
-) => void;
-
-type CachedCompiledModule = {
-  outputHash: string;
-  wrapper: CompiledModuleWrapper;
-};
-
-// vm.compileFunction pins every function it compiles at the V8 isolate level
-// and never releases it (nodejs/node#35375). In dev mode the manifest is
-// rebuilt on every file change and recompiles every entity file, so compiling
-// the same file over and over grows the heap without bound and eventually
-// OOM-crashes the process.
-//
-// We keep only the latest build per file, keyed by file path: when a file is
-// rebuilt with unchanged output we reuse its wrapper, and when its output
-// changes we overwrite the entry so the previous build is dropped instead of
-// accumulating. This bounds the cache to one entry per file rather than one
-// per rebuild.
-const compiledModuleCacheByFilePath = new Map<string, CachedCompiledModule>();
-
-const getCompiledWrapper = (
-  code: string,
-  filePath: string,
-): CompiledModuleWrapper => {
-  const outputHash = createHash('sha1').update(code).digest('hex');
-
-  const cachedModule = compiledModuleCacheByFilePath.get(filePath);
-
-  if (isDefined(cachedModule) && cachedModule.outputHash === outputHash) {
-    return cachedModule.wrapper;
-  }
-
-  const compiledWrapper = vm.compileFunction(
-    code,
-    ['exports', 'require', 'module', '__filename', '__dirname'],
-    { filename: filePath },
-  ) as unknown as CompiledModuleWrapper;
-
-  compiledModuleCacheByFilePath.set(filePath, {
-    outputHash,
-    wrapper: compiledWrapper,
-  });
-
-  return compiledWrapper;
-};
-
 const MANIFEST_MOCK_MODULES = [
-  'twenty-ui',
+  'twenty-sdk/ui',
   'twenty-client-sdk/core',
   'twenty-client-sdk/metadata',
 ];
 
-const escapeRegExp = (value: string): string =>
-  value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-
 const manifestMockPlugin: esbuild.Plugin = {
   name: 'manifest-mock',
   setup: (build) => {
-    const escapedModules = MANIFEST_MOCK_MODULES.map(escapeRegExp);
-    const filter = new RegExp(`^(${escapedModules.join('|')})(/.*)?$`);
+    const filter = new RegExp(
+      `^(${MANIFEST_MOCK_MODULES.map((module) => module.replace('/', '\\/')).join('|')})$`,
+    );
 
-    build.onResolve({ filter }, ({ path: modulePath }) => {
-      if (modulePath.endsWith('.css')) {
-        return null;
-      }
-
-      return {
-        path: modulePath,
-        namespace: 'manifest-mock',
-      };
-    });
+    build.onResolve({ filter }, ({ path: modulePath }) => ({
+      path: modulePath,
+      namespace: 'manifest-mock',
+    }));
 
     build.onLoad({ filter: /.*/, namespace: 'manifest-mock' }, () => ({
       contents: 'module.exports = new Proxy({}, { get: () => () => {} });',
@@ -136,7 +76,6 @@ const loadModule = async ({
     target: 'node18',
     jsx: 'automatic',
     tsconfig: hasTsconfig ? tsconfigPath : undefined,
-    loader: { '.css': 'empty' },
     alias: {
       ...(reactPath && { react: reactPath }),
       ...(reactDomPath && { 'react-dom': reactDomPath }),
@@ -147,19 +86,16 @@ const loadModule = async ({
 
   const code = result.outputFiles[0].text;
 
-  const compiledWrapper = getCompiledWrapper(code, filePath);
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), 'twenty-manifest-'));
+  const tempFile = path.join(tempDir, 'module.cjs');
 
-  const moduleShim: { exports: Record<string, unknown> } = { exports: {} };
+  try {
+    await writeFile(tempFile, code);
 
-  compiledWrapper(
-    moduleShim.exports,
-    appRequire,
-    moduleShim,
-    filePath,
-    path.dirname(filePath),
-  );
-
-  return moduleShim.exports;
+    return appRequire(tempFile) as Record<string, unknown>;
+  } finally {
+    await remove(tempDir);
+  }
 };
 
 const extractDefaultConfigFromModuleOrThrow = <T>(

@@ -181,7 +181,7 @@ export class WorkspaceRolesPermissionsCacheService extends WorkspaceCacheProvide
             const getPermissionValue = (
               overrideValue: boolean | undefined,
               defaultValue: boolean,
-            ) => overrideValue ?? (isSystem ? true : defaultValue);
+            ) => (isSystem ? true : (overrideValue ?? defaultValue));
 
             canRead = getPermissionValue(
               objectRecordPermissionsOverride?.canReadObjectRecords,

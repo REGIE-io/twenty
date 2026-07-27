@@ -1,10 +1,11 @@
 import { isNonEmptyString } from '@sniptt/guards';
 import { clsx } from 'clsx';
+import { useContext } from 'react';
 import { isDefined } from '@ui/utilities/utils/isDefined';
 
 import { type IconComponent } from '@ui/icon';
 import { AppTooltip, TooltipDelay, TooltipPosition } from '@ui/surfaces';
-import { useTheme } from '@ui/theme-constants';
+import { ThemeContext } from '@ui/theme-constants';
 
 import styles from './MenuPicker.module.scss';
 
@@ -37,7 +38,7 @@ export const MenuPicker = ({
   tooltipDelay = TooltipDelay.noDelay,
   tooltipOffset = 5,
 }: MenuPickerProps) => {
-  const theme = useTheme();
+  const { theme } = useContext(ThemeContext);
 
   return (
     <>

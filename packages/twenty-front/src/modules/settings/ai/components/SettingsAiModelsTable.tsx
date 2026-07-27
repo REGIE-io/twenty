@@ -42,7 +42,6 @@ const StyledDeprecatedSuffix = styled.span`
 
 const hoverCardTooltipClass = css`
   border-radius: ${themeCssVariables.border.radius.rounded} !important;
-  corner-shape: round;
 
   padding: 0 !important;
 `;

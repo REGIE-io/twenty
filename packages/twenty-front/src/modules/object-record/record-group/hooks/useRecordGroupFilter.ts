@@ -1,6 +1,5 @@
 import { type FieldMetadataItem } from '@/object-metadata/types/FieldMetadataItem';
 import { useCurrentRecordGroupDefinition } from '@/object-record/record-group/hooks/useCurrentRecordGroupDefinition';
-import { getFieldMetadataItemGqlFieldName } from '@/object-metadata/utils/getFieldMetadataItemGqlFieldName';
 import { recordIndexGroupFieldMetadataItemComponentState } from '@/object-record/record-index/states/recordIndexGroupFieldMetadataComponentState';
 import { useAtomComponentStateValue } from '@/ui/utilities/state/jotai/hooks/useAtomComponentStateValue';
 import { useMemo } from 'react';
@@ -25,15 +24,12 @@ export const useRecordGroupFilter = (fields: FieldMetadataItem[]) => {
         );
       }
 
-      const recordGroupColumnName =
-        getFieldMetadataItemGqlFieldName(fieldMetadataItem);
-
       if (!isDefined(currentRecordGroupDefinition.value)) {
-        return { [recordGroupColumnName]: { is: 'NULL' } };
+        return { [fieldMetadataItem.name]: { is: 'NULL' } };
       }
 
       return {
-        [recordGroupColumnName]: {
+        [fieldMetadataItem.name]: {
           eq: currentRecordGroupDefinition.value,
         },
       };

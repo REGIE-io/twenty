@@ -8,10 +8,6 @@ export type {
 } from './types/base-output-schema.type';
 export { collectOutputSchemaPaths } from './utils/collect-output-schema-paths';
 export {
-  getCurrentItemSchemaFromFlattenedArrayOutputSchema,
-  isFlattenedArrayOutputSchema,
-} from './utils/flattened-array-output-schema';
-export {
   findOutputSchemaPathFailure,
   type OutputSchemaPathFailure,
 } from './utils/find-output-schema-path-failure';

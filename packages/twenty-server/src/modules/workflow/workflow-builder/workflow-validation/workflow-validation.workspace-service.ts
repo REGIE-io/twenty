@@ -27,7 +27,6 @@ import {
 
 import { WorkflowCommonWorkspaceService } from 'src/modules/workflow/common/workspace-services/workflow-common.workspace-service';
 import { WorkflowSchemaWorkspaceService } from 'src/modules/workflow/workflow-builder/workflow-schema/workflow-schema.workspace-service';
-import { getPickRecordLoadBalanceConfigError } from 'src/modules/workflow/workflow-builder/workflow-validation/utils/get-pick-record-load-balance-config-error.util';
 import {
   type WorkflowAction,
   type WorkflowAiAgentAction,
@@ -53,11 +52,6 @@ const VARIABLE_CONSUMING_ACTION_TYPES = new Set<WorkflowActionType>([
   WorkflowActionType.LOGIC_FUNCTION,
   WorkflowActionType.SEND_EMAIL,
   ...RECORD_CRUD_ACTION_TYPES,
-]);
-
-const OBJECT_TARGETING_ACTION_TYPES = new Set<WorkflowActionType>([
-  ...RECORD_CRUD_ACTION_TYPES,
-  WorkflowActionType.PICK_RECORD,
 ]);
 
 @Injectable()
@@ -584,14 +578,14 @@ export class WorkflowValidationWorkspaceService {
     steps: WorkflowAction[];
   }): Promise<WorkflowValidationIssue[]> {
     const recordSteps = steps.filter((step) =>
-      OBJECT_TARGETING_ACTION_TYPES.has(step.type),
+      RECORD_CRUD_ACTION_TYPES.has(step.type),
     );
 
     if (recordSteps.length === 0) {
       return [];
     }
 
-    const { objectIdByNameSingular, flatFieldMetadataMaps } =
+    const { objectIdByNameSingular } =
       await this.workflowCommonWorkspaceService.getFlatEntityMaps(workspaceId);
 
     const issues: WorkflowValidationIssue[] = [];
@@ -619,25 +613,6 @@ export class WorkflowValidationWorkspaceService {
           message: `Step "${step.name ?? step.id}" targets object "${objectName}" which does not exist in this workspace.`,
           stepId: step.id,
         });
-
-        continue;
-      }
-
-      if (step.type === WorkflowActionType.PICK_RECORD) {
-        const loadBalanceError = getPickRecordLoadBalanceConfigError({
-          step,
-          objectIdByNameSingular,
-          flatFieldMetadataMaps,
-        });
-
-        if (isDefined(loadBalanceError)) {
-          issues.push({
-            severity: 'error',
-            code: 'INVALID_STEP_PARAMS',
-            message: loadBalanceError,
-            stepId: step.id,
-          });
-        }
       }
     }
 

@@ -9,7 +9,6 @@ import { TwentyConfigService } from 'src/engine/core-modules/twenty-config/twent
 import { NoPermissionGuard } from 'src/engine/guards/no-permission.guard';
 import { PublicEndpointGuard } from 'src/engine/guards/public-endpoint.guard';
 import { cleanServerUrl } from 'src/utils/clean-server-url';
-import { getRequestBaseUrl } from 'src/utils/get-request-base-url.util';
 import { TWENTY_CLI_APPLICATION_REGISTRATION } from 'src/engine/workspace-manager/twenty-standard-application/constants/twenty-cli-application-registration.constant';
 
 @Controller('.well-known')
@@ -23,7 +22,7 @@ export class OAuthDiscoveryController {
   @Get('oauth-authorization-server')
   @UseGuards(PublicEndpointGuard, NoPermissionGuard)
   async getAuthorizationServerMetadata(@Req() request: Request) {
-    const issuer = getRequestBaseUrl(request);
+    const issuer = this.getRequestBaseUrl(request);
     // /authorize is served by the frontend; SERVER_URL (API-only) has no such
     // route, so we route the client to the default frontend base URL in that
     // case. All other hosts (app.twenty.com, workspace subdomains, custom
@@ -74,7 +73,7 @@ export class OAuthDiscoveryController {
   @Get('oauth-protected-resource')
   @UseGuards(PublicEndpointGuard, NoPermissionGuard)
   getProtectedResourceMetadataRoot(@Req() request: Request) {
-    const base = getRequestBaseUrl(request);
+    const base = this.getRequestBaseUrl(request);
 
     return this.buildProtectedResourceMetadata(base, base);
   }
@@ -82,7 +81,7 @@ export class OAuthDiscoveryController {
   @Get('oauth-protected-resource/mcp')
   @UseGuards(PublicEndpointGuard, NoPermissionGuard)
   getProtectedResourceMetadataMcp(@Req() request: Request) {
-    const base = getRequestBaseUrl(request);
+    const base = this.getRequestBaseUrl(request);
 
     return this.buildProtectedResourceMetadata(base, `${base}/mcp`);
   }
@@ -94,6 +93,10 @@ export class OAuthDiscoveryController {
       scopes_supported: ALL_OAUTH_SCOPES,
       bearer_methods_supported: ['header'],
     };
+  }
+
+  private getRequestBaseUrl(request: Request): string {
+    return `${request.protocol}://${request.get('host')}`;
   }
 
   private isApiHost(request: Request): boolean {

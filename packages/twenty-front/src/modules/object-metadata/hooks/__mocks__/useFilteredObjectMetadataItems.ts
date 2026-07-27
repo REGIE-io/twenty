@@ -13,6 +13,7 @@ export const query = gql`
       labelPlural
       description
       icon
+      isCustom
       isActive
       createdAt
       updatedAt
@@ -43,6 +44,7 @@ export const responseData = {
   labelPlural: 'labelPlural',
   description: 'newDescription',
   icon: '',
+  isCustom: false,
   isActive: true,
   createdAt: '',
   updatedAt: '',

@@ -13,7 +13,6 @@ import { useFilteredObjectMetadataItems } from '@/object-metadata/hooks/useFilte
 import { useAtomComponentStateValue } from '@/ui/utilities/state/jotai/hooks/useAtomComponentStateValue';
 import { useAtomStateValue } from '@/ui/utilities/state/jotai/hooks/useAtomStateValue';
 import { viewsSelector } from '@/views/states/selectors/viewsSelector';
-import { lastVisitedViewPerObjectMetadataItemState } from '@/navigation/states/lastVisitedViewPerObjectMetadataItemState';
 
 export const useIdentifyActiveNavigationMenuItems = (): {
   activeNavigationMenuItemIds: string[];
@@ -24,9 +23,6 @@ export const useIdentifyActiveNavigationMenuItems = (): {
     lastClickedNavigationMenuItemIdState,
   );
   const views = useAtomStateValue(viewsSelector);
-  const lastVisitedViewPerObjectMetadataItem = useAtomStateValue(
-    lastVisitedViewPerObjectMetadataItemState,
-  );
   const { activeObjectMetadataItems, objectMetadataItems } =
     useFilteredObjectMetadataItems();
 
@@ -68,12 +64,11 @@ export const useIdentifyActiveNavigationMenuItems = (): {
 
         if (isDefined(lastClickedItem)) {
           const lastClickedNavigationMenuItemLink =
-            getNavigationMenuItemComputedLink({
-              item: lastClickedItem,
+            getNavigationMenuItemComputedLink(
+              lastClickedItem,
               objectMetadataItems,
               views,
-              lastVisitedViewPerObjectMetadataItem,
-            });
+            );
           const lastClickedObjectMetadataId =
             getObjectMetadataForNavigationMenuItem(
               lastClickedItem,
@@ -105,12 +100,11 @@ export const useIdentifyActiveNavigationMenuItems = (): {
             if (item.type !== NavigationMenuItemType.RECORD) {
               return false;
             }
-            const link = getNavigationMenuItemComputedLink({
+            const link = getNavigationMenuItemComputedLink(
               item,
               objectMetadataItems,
               views,
-              lastVisitedViewPerObjectMetadataItem,
-            });
+            );
             return link === currentPath;
           })
           .map((item) => item.id);
@@ -180,7 +174,6 @@ export const useIdentifyActiveNavigationMenuItems = (): {
       lastClickedNavigationMenuItemId,
       objectMetadataItems,
       views,
-      lastVisitedViewPerObjectMetadataItem,
       currentPathWithSearch,
       currentPath,
       currentObjectMetadataItem,

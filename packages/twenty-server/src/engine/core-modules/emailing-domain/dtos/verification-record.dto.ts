@@ -13,7 +13,4 @@ export class VerificationRecordDTO {
 
   @Field(() => Number, { nullable: true })
   priority?: number;
-
-  @Field(() => String, { nullable: true })
-  status?: string;
 }

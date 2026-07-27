@@ -1,6 +1,5 @@
 import { AiChatBanner } from '@/ai/components/AiChatBanner';
 import { useAiChatEndTrialPeriod } from '@/ai/hooks/useAiChatEndTrialPeriod';
-import { AddCreditCardModal } from '@/settings/billing/components/AddCreditCardModal';
 import { StartSubscriptionConfirmationModal } from '@/settings/billing/components/StartSubscriptionConfirmationModal';
 import { useCreditUpgradeAction } from '@/settings/billing/hooks/useCreditUpgradeAction';
 import { usePermissionFlagMap } from '@/settings/roles/hooks/usePermissionFlagMap';
@@ -29,13 +28,8 @@ export const AIChatNoMoreBillingCreditsBanner = () => {
 
   const isTrialing = subscriptionStatus === SubscriptionStatus.Trialing;
 
-  const {
-    endTrialPeriodFromAiChat,
-    startSubscriptionAfterPaymentMethodFromAiChat,
-    finalRedirectPath,
-    isEndTrialLoading,
-    hasPaymentMethod,
-  } = useAiChatEndTrialPeriod();
+  const { endTrialPeriodFromAiChat, isEndTrialLoading, hasPaymentMethod } =
+    useAiChatEndTrialPeriod();
 
   const {
     nextPrice,
@@ -47,12 +41,7 @@ export const AIChatNoMoreBillingCreditsBanner = () => {
   } = useCreditUpgradeAction();
 
   if (!hasPermissionToManageBilling) {
-    return (
-      <AiChatBanner
-        message={t`Your workspace hit its AI usage limit. Ask an admin to upgrade the plan.`}
-        variant="warning"
-      />
-    );
+    return null;
   }
 
   const message = isTrialing
@@ -86,21 +75,14 @@ export const AIChatNoMoreBillingCreditsBanner = () => {
           (isTrialing && isEndTrialLoading) || (!isTrialing && isUpgrading)
         }
       />
-      {isTrialing &&
-        (hasPaymentMethod === false ? (
-          <AddCreditCardModal
-            modalInstanceId={AI_CHAT_END_TRIAL_PERIOD_MODAL_ID}
-            finalRedirectPath={finalRedirectPath}
-            onPaymentMethodAdded={startSubscriptionAfterPaymentMethodFromAiChat}
-          />
-        ) : (
-          <StartSubscriptionConfirmationModal
-            modalInstanceId={AI_CHAT_END_TRIAL_PERIOD_MODAL_ID}
-            hasPaymentMethod={hasPaymentMethod}
-            onConfirmClick={endTrialPeriodFromAiChat}
-            loading={isEndTrialLoading}
-          />
-        ))}
+      {isTrialing && (
+        <StartSubscriptionConfirmationModal
+          modalInstanceId={AI_CHAT_END_TRIAL_PERIOD_MODAL_ID}
+          hasPaymentMethod={hasPaymentMethod}
+          onConfirmClick={endTrialPeriodFromAiChat}
+          loading={isEndTrialLoading}
+        />
+      )}
       {!isTrialing && (
         <ConfirmationModal
           modalInstanceId={AI_CHAT_UPGRADE_CREDIT_PLAN_MODAL_ID}

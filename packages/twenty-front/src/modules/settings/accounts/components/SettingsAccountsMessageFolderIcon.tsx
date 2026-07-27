@@ -23,7 +23,7 @@ const StyledCardMedia = styled.div`
 const StyledCardMediaContent = styled.div`
   align-items: stretch;
   background-color: ${themeCssVariables.background.secondary};
-  border-radius: ${themeCssVariables.border.radius.xs};
+  border-radius: 2px;
   box-sizing: border-box;
   display: flex;
   flex: 1;

@@ -4,7 +4,6 @@ import { isDefined } from 'twenty-shared/utils';
 
 import { type FieldMetadataItem } from '@/object-metadata/types/FieldMetadataItem';
 import { type RecordGroupDefinition } from '@/object-record/record-group/types/RecordGroupDefinition';
-import { getFieldMetadataItemGqlFieldName } from '@/object-metadata/utils/getFieldMetadataItemGqlFieldName';
 
 export const computeRecordGroupOptionsFilter = ({
   recordGroupFieldMetadata,
@@ -17,7 +16,7 @@ export const computeRecordGroupOptionsFilter = ({
     return {};
   }
 
-  const fieldName = getFieldMetadataItemGqlFieldName(recordGroupFieldMetadata);
+  const fieldName = recordGroupFieldMetadata.name;
   const hasNullValue = recordGroupValues.some(isNull);
   const nonNullValues = recordGroupValues.filter(
     (value): value is NonNullable<typeof value> => !isNull(value),

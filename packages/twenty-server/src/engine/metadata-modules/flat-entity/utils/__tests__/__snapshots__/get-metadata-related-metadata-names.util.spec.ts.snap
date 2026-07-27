@@ -23,7 +23,6 @@ exports[`getMetadataRelatedMetadataNames should return related metadata names fo
   "viewField",
   "viewFilter",
   "view",
-  "searchFieldMetadata",
 ]
 `;
 
@@ -61,7 +60,6 @@ exports[`getMetadataRelatedMetadataNames should return related metadata names fo
   "objectPermission",
   "fieldPermission",
   "view",
-  "searchFieldMetadata",
 ]
 `;
 
@@ -120,7 +118,6 @@ exports[`getMetadataRelatedMetadataNames should return related metadata names fo
 exports[`getMetadataRelatedMetadataNames should return related metadata names for roleTarget 1`] = `
 [
   "role",
-  "agent",
 ]
 `;
 
@@ -139,13 +136,6 @@ exports[`getMetadataRelatedMetadataNames should return related metadata names fo
   "role",
   "rowLevelPermissionPredicateGroup",
   "rowLevelPermissionPredicate",
-]
-`;
-
-exports[`getMetadataRelatedMetadataNames should return related metadata names for searchFieldMetadata 1`] = `
-[
-  "objectMetadata",
-  "fieldMetadata",
 ]
 `;
 

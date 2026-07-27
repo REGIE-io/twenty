@@ -1,43 +1,52 @@
-const baseProject = {
+import { readFileSync } from 'fs';
+import { dirname, resolve } from 'path';
+import { pathsToModuleNameMapper } from 'ts-jest';
+import { fileURLToPath } from 'url';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
+
+const tsConfig = JSON.parse(
+  readFileSync(resolve(__dirname, './tsconfig.json'), 'utf8'),
+);
+
+const jestConfig = {
+  displayName: 'twenty-website',
   preset: '../../jest.preset.js',
-  setupFilesAfterEnv: ['<rootDir>/test/setup-jest-dom.ts'],
-  transformIgnorePatterns: [
-    '/node_modules/(?!(twenty-ui|twenty-shared)/.*)',
-    '../../node_modules/(?!(twenty-ui|twenty-shared)/.*)',
-  ],
+  testEnvironment: 'node',
+  transformIgnorePatterns: ['../../node_modules/'],
   transform: {
-    '^.+\\.(ts|js|tsx|jsx|mjs)$': [
+    '^.+\\.[tj]sx?$': [
       '@swc/jest',
       {
         jsc: {
           parser: { syntax: 'typescript', tsx: true },
+          experimental: {
+            plugins: [
+              [
+                '@lingui/swc-plugin',
+                {
+                  runtimeModules: {
+                    i18n: ['@lingui/core', 'i18n'],
+                    trans: ['@lingui/react', 'Trans'],
+                  },
+                },
+              ],
+            ],
+          },
           transform: { react: { runtime: 'automatic' } },
         },
       },
     ],
   },
   moduleNameMapper: {
-    '^@/(.*)$': '<rootDir>/src/$1',
-    '^@lingui/core/macro$': '<rootDir>/test/lingui-macro-mock.ts',
+    '^server-only$': '<rootDir>/jest/server-only-stub.ts',
+    ...pathsToModuleNameMapper(tsConfig.compilerOptions.paths, {
+      prefix: '<rootDir>/',
+    }),
   },
-  moduleFileExtensions: ['ts', 'tsx', 'js', 'jsx', 'mjs'],
-};
-
-const jestConfig = {
-  projects: [
-    {
-      ...baseProject,
-      displayName: 'node',
-      testEnvironment: 'node',
-      testMatch: ['<rootDir>/src/**/*.test.ts'],
-    },
-    {
-      ...baseProject,
-      displayName: 'jsdom',
-      testEnvironment: 'jsdom',
-      testMatch: ['<rootDir>/src/**/*.test.tsx'],
-    },
-  ],
+  moduleFileExtensions: ['ts', 'tsx', 'js', 'jsx'],
+  extensionsToTreatAsEsm: ['.ts', '.tsx'],
   coverageDirectory: './coverage',
 };
 

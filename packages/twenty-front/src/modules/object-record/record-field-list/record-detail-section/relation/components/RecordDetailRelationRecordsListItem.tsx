@@ -5,6 +5,7 @@ import { useCallback, useContext } from 'react';
 import { useObjectMetadataItem } from '@/object-metadata/hooks/useObjectMetadataItem';
 import { useObjectMetadataItems } from '@/object-metadata/hooks/useObjectMetadataItems';
 import { CoreObjectNameSingular } from 'twenty-shared/types';
+import { getObjectTypename } from '@/object-record/cache/utils/getObjectTypename';
 import { RecordChip } from '@/object-record/components/RecordChip';
 import { useDeleteOneRecord } from '@/object-record/hooks/useDeleteOneRecord';
 import { useObjectPermissionsForObject } from '@/object-record/hooks/useObjectPermissionsForObject';
@@ -109,7 +110,9 @@ export const RecordDetailRelationRecordsListItem = ({
       objectNameSingular: relationObjectMetadataNameSingular,
     });
 
-  const relationObjectLabelSingular = relationObjectMetadataItem.labelSingular;
+  const relationObjectTypeName = getObjectTypename(
+    relationObjectMetadataNameSingular,
+  );
 
   const relationObjectPermissions = useObjectPermissionsForObject(
     relationObjectMetadataItem.id,
@@ -276,17 +279,17 @@ export const RecordDetailRelationRecordsListItem = ({
       {createPortal(
         <ConfirmationModal
           modalInstanceId={getDeleteRelationModalId(relationRecord.id)}
-          title={t`Delete Related ${relationObjectLabelSingular}`}
+          title={t`Delete Related ${relationObjectTypeName}`}
           subtitle={
             <Trans>
               Are you sure you want to delete this related{' '}
-              {relationObjectLabelSingular}?
+              {relationObjectMetadataNameSingular}?
               <br />
               This action will break all its relationships with other objects.
             </Trans>
           }
           onConfirmClick={handleConfirmDelete}
-          confirmButtonText={t`Delete ${relationObjectLabelSingular}`}
+          confirmButtonText={t`Delete ${relationObjectTypeName}`}
         />,
         document.body,
       )}

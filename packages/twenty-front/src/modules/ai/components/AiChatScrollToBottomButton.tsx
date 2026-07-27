@@ -13,7 +13,6 @@ const StyledScrollToBottomButton = styled.button<{ isVisible: boolean }>`
   bottom: ${themeCssVariables.spacing[3]};
   box-shadow: ${themeCssVariables.boxShadow.light};
   color: ${themeCssVariables.font.color.secondary};
-  corner-shape: round;
   cursor: pointer;
   display: flex;
   height: 32px;

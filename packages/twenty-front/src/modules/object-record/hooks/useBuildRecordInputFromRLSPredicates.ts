@@ -14,7 +14,6 @@ import { buildRecordInputFromFilter } from '@/object-record/record-table/utils/b
 import { buildCompositeValueFromSubField } from '@/object-record/record-table/utils/buildValueFromFilter';
 import { type ObjectRecord } from '@/object-record/types/ObjectRecord';
 import { isUndefined } from '@sniptt/guards';
-import { useUserTimezone } from '@/ui/input/components/internal/date/hooks/useUserTimezone';
 import { useAtomStateValue } from '@/ui/utilities/state/jotai/hooks/useAtomStateValue';
 import { isDefined, isPlainObject } from 'twenty-shared/utils';
 
@@ -29,8 +28,6 @@ export const useBuildRecordInputFromRLSPredicates = ({
   objectMetadataItem: EnrichedObjectMetadataItem;
 }) => {
   const currentWorkspaceMember = useAtomStateValue(currentWorkspaceMemberState);
-
-  const { userTimezone } = useUserTimezone();
 
   const { record: currentWorkspaceMemberRecord } = useFindOneRecord({
     objectNameSingular: CoreObjectNameSingular.WorkspaceMember,
@@ -180,7 +177,6 @@ export const useBuildRecordInputFromRLSPredicates = ({
       currentRecordFilters: staticFilters,
       objectMetadataItem,
       currentWorkspaceMember: currentWorkspaceMember ?? undefined,
-      timeZone: userTimezone,
     });
 
     const mergedRecordInput: Partial<ObjectRecord> = {

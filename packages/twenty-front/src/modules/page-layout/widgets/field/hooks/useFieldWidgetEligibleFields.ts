@@ -7,12 +7,7 @@ export const useFieldWidgetEligibleFields = (objectNameSingular: string) => {
     boxedRelationFieldMetadataItems,
     junctionRelationFieldMetadataItems,
     inlineFieldMetadataItems,
-  } = useFieldListFieldMetadataItems({
-    objectNameSingular,
-    // Allow advanced relation fields targeting system objects (e.g. calendarEventParticipants)
-    // to appear in the FieldWidget selector — the widget can render them as boxed relations.
-    includeSystemObjectRelations: true,
-  });
+  } = useFieldListFieldMetadataItems({ objectNameSingular });
 
   return useMemo(() => {
     const eligibleInlineFields = inlineFieldMetadataItems.filter(

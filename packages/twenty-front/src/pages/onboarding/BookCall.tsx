@@ -4,56 +4,52 @@ import { Link } from 'react-router-dom';
 
 import { currentUserState } from '@/auth/states/currentUserState';
 import { calendarBookingPageIdState } from '@/client-config/states/calendarBookingPageIdState';
+import { useSetNextOnboardingStatus } from '@/onboarding/hooks/useSetNextOnboardingStatus';
+import { ModalContent, ModalFooter } from 'twenty-ui/surfaces';
 import { ScrollWrapper } from '@/ui/utilities/scroll/components/ScrollWrapper';
-import { styled } from '@linaria/react';
 import { useLingui } from '@lingui/react/macro';
 import { useAtomStateValue } from '@/ui/utilities/state/jotai/hooks/useAtomStateValue';
 import { AppPath } from 'twenty-shared/types';
-import { IconChevronLeft } from 'twenty-ui/icon';
+import { IconChevronLeft, IconChevronRightPipe } from 'twenty-ui/icon';
 import { LightButton } from 'twenty-ui/input';
-import { ThemeContext, themeCssVariables } from 'twenty-ui/theme-constants';
+import { ThemeContext } from 'twenty-ui/theme-constants';
 import { useIsMobile } from 'twenty-ui/utilities';
-
-const StyledPage = styled.div`
-  display: flex;
-  flex: 1;
-  flex-direction: column;
-  min-height: 0;
-  width: 100%;
-`;
-
-const StyledContent = styled.div`
-  align-items: center;
-  display: flex;
-  flex: 1;
-  justify-content: center;
-  min-height: 0;
-  overflow: hidden;
-  width: 100%;
-`;
-
-const StyledFooter = styled.div`
-  align-items: center;
-  display: flex;
-  justify-content: center;
-  padding: ${themeCssVariables.spacing[2]};
-  width: 100%;
-`;
+import { useMutation } from '@apollo/client/react';
+import {
+  OnboardingStatus,
+  SkipBookOnboardingStepDocument,
+} from '~/generated-metadata/graphql';
 
 export const BookCall = () => {
   const { colorScheme } = useContext(ThemeContext);
 
   const { t } = useLingui();
   const calendarBookingPageId = useAtomStateValue(calendarBookingPageIdState);
+  const setNextOnboardingStatus = useSetNextOnboardingStatus();
   const currentUser = useAtomStateValue(currentUserState);
+  const [skipBookOnboardingStepMutation] = useMutation(
+    SkipBookOnboardingStepDocument,
+  );
 
   const isMobile = useIsMobile();
+  const isPlanRequired =
+    currentUser?.onboardingStatus === OnboardingStatus.PLAN_REQUIRED;
+
+  const handleCompleteOnboarding = async () => {
+    await skipBookOnboardingStepMutation();
+    setNextOnboardingStatus();
+  };
 
   return (
-    <StyledPage>
-      <StyledContent>
+    <>
+      <ModalContent
+        noPadding
+        overflowHidden
+        isHorizontallyCentered
+        isVerticallyCentered
+      >
         <ScrollWrapper
-          componentInstanceId="scroll-wrapper-book-call"
+          componentInstanceId="scroll-wrapper-modal-content"
           autoHeight={!isMobile}
         >
           <Cal
@@ -66,12 +62,20 @@ export const BookCall = () => {
             }}
           />
         </ScrollWrapper>
-      </StyledContent>
-      <StyledFooter>
-        <Link to={AppPath.PlanRequired}>
-          <LightButton Icon={IconChevronLeft} title={t`Back`} />
-        </Link>
-      </StyledFooter>
-    </StyledPage>
+      </ModalContent>
+      <ModalFooter autoHeight centered smallPadding>
+        {isPlanRequired ? (
+          <Link to={AppPath.PlanRequired}>
+            <LightButton Icon={IconChevronLeft} title={t`Back`} />
+          </Link>
+        ) : (
+          <LightButton
+            Icon={IconChevronRightPipe}
+            title={t`Skip`}
+            onClick={handleCompleteOnboarding}
+          />
+        )}
+      </ModalFooter>
+    </>
   );
 };

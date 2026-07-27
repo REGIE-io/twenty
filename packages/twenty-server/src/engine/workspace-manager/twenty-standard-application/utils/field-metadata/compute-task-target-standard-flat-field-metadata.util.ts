@@ -15,6 +15,8 @@ import {
   createStandardFieldFlatMetadata,
 } from 'src/engine/workspace-manager/twenty-standard-application/utils/field-metadata/create-standard-field-flat-metadata.util';
 import { createStandardRelationFieldFlatMetadata } from 'src/engine/workspace-manager/twenty-standard-application/utils/field-metadata/create-standard-relation-field-flat-metadata.util';
+import { getTsVectorColumnExpressionFromFields } from 'src/engine/workspace-manager/utils/get-ts-vector-column-expression.util';
+
 export const buildTaskTargetStandardFlatFieldMetadatas = ({
   now,
   objectName,
@@ -188,6 +190,12 @@ export const buildTaskTargetStandardFlatFieldMetadatas = ({
       icon: 'IconUser',
       isSystem: true,
       isNullable: true,
+      settings: {
+        generatedType: 'STORED',
+        asExpression: getTsVectorColumnExpressionFromFields([
+          { name: 'id', type: FieldMetadataType.UUID },
+        ]),
+      },
     },
     standardObjectMetadataRelatedEntityIds,
     dependencyFlatEntityMaps,
@@ -228,12 +236,11 @@ export const buildTaskTargetStandardFlatFieldMetadatas = ({
       type: FieldMetadataType.MORPH_RELATION,
       morphId: STANDARD_OBJECTS.taskTarget.morphIds.targetMorphId.morphId,
       fieldName: 'targetPerson',
-      label: i18nLabel(msg`Person`),
+      label: i18nLabel(msg`Target`),
       description: i18nLabel(msg`TaskTarget target`),
-      icon: 'IconCheckbox',
+      icon: 'IconArrowUpRight',
       isNullable: true,
       isUIEditable: false,
-      isSystemSideEffect: true,
       targetObjectName: 'person',
       targetFieldName: 'taskTargets',
       settings: {
@@ -254,12 +261,11 @@ export const buildTaskTargetStandardFlatFieldMetadatas = ({
       type: FieldMetadataType.MORPH_RELATION,
       morphId: STANDARD_OBJECTS.taskTarget.morphIds.targetMorphId.morphId,
       fieldName: 'targetCompany',
-      label: i18nLabel(msg`Company`),
+      label: i18nLabel(msg`Target`),
       description: i18nLabel(msg`TaskTarget target`),
-      icon: 'IconCheckbox',
+      icon: 'IconArrowUpRight',
       isNullable: true,
       isUIEditable: false,
-      isSystemSideEffect: true,
       targetObjectName: 'company',
       targetFieldName: 'taskTargets',
       settings: {
@@ -280,12 +286,11 @@ export const buildTaskTargetStandardFlatFieldMetadatas = ({
       type: FieldMetadataType.MORPH_RELATION,
       morphId: STANDARD_OBJECTS.taskTarget.morphIds.targetMorphId.morphId,
       fieldName: 'targetOpportunity',
-      label: i18nLabel(msg`Opportunity`),
+      label: i18nLabel(msg`Target`),
       description: i18nLabel(msg`TaskTarget target`),
-      icon: 'IconCheckbox',
+      icon: 'IconArrowUpRight',
       isNullable: true,
       isUIEditable: false,
-      isSystemSideEffect: true,
       targetObjectName: 'opportunity',
       targetFieldName: 'taskTargets',
       settings: {

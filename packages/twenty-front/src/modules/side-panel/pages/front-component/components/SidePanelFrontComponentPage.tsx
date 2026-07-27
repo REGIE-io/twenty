@@ -1,6 +1,5 @@
 import { Suspense, lazy } from 'react';
 
-import { FrontComponentSkeletonLoader } from '@/front-components/components/FrontComponentSkeletonLoader';
 import { viewableFrontComponentIdComponentState } from '@/side-panel/pages/front-component/states/viewableFrontComponentIdComponentState';
 import { viewableFrontComponentRecordContextComponentState } from '@/side-panel/pages/front-component/states/viewableFrontComponentRecordContextComponentState';
 import { useAtomComponentStateValue } from '@/ui/utilities/state/jotai/hooks/useAtomComponentStateValue';
@@ -32,11 +31,10 @@ export const SidePanelFrontComponentPage = () => {
     : undefined;
 
   return (
-    <Suspense fallback={<FrontComponentSkeletonLoader />}>
+    <Suspense fallback={null}>
       <FrontComponentRenderer
         frontComponentId={viewableFrontComponentId}
         selectedRecordIds={selectedRecordIds}
-        loadingFallback={<FrontComponentSkeletonLoader />}
       />
     </Suspense>
   );

@@ -1,6 +1,5 @@
 ---
 title: ベストプラクティス',
-icon: star
 ---
 
 このドキュメントでは、フロントエンド作業におけるベストプラクティスを概要化しています。
@@ -9,14 +8,12 @@ icon: star
 
 React と Jotai はコードベース内の状態管理を行います。
 
-### Jotai の atom を使用して状態を保存する
+### 状態を保存するために `useAtomState` を使用する
 
 状態を保存するために必要なだけ多くのアトムを作成するのがよいです。
 
 <Warning>
-
-プロップドリリングを必要以上に控えるより、追加のアトムを使用する方が良いです。
-
+  プロップドリリングを必要以上に控えるより、追加のアトムを使用する方が良いです。
 </Warning>
 
 ```tsx
@@ -46,7 +43,7 @@ export const MyComponent = () => {
 
 状態の保存に `useRef` を使用するのは避けてください。
 
-状態を保存したい場合は、`useState` または `useAtomState` を用いた Jotai の atom を使用してください。
+If you want to store state, you should use `useState` or `useAtomState`.
 
 いくつかの再レンダリングを防ぐために `useRef` が必要だと感じた場合は、[再レンダリングの管理方法](#managing-re-renders)を参照してください。
 
@@ -62,29 +59,29 @@ React で再レンダリングを管理するのは難しいことがありま�
 
 新機能での再レンダリングをルートレベルで排除することで、簡単に避けることができるようになりました。
 
-`PageChangeEffect` サイドカーコンポーネントには、ページ変更時に実行するすべてのロジックを保持する `useEffect` が1つだけ含まれています。
+The `PageChangeEffect` sidecar component contains just one `useEffect` that holds all the logic to execute on a page change.
 
 その方法で、再レンダリングを引き起こす場所が 1 つだけあることを認識できます。
 
-### コードベースに `useEffect` を追加する前に、常に考えてください。
+### Always think twice before adding `useEffect` in your codebase
 
-再レンダリングは、しばしば不要な `useEffect` によって引き起こされます。
+Re-renders are often caused by unnecessary `useEffect`.
 
-`useEffect` が必要か、イベントハンドラ関数でロジックを動かせるか考えるべきです。
+You should think whether you need `useEffect`, or if you can move the logic in a event handler function.
 
-「handleClick」関数や「handleChange」関数の中で、ロジックを簡単に動かすことができます。
+You'll find it generally easy to move the logic in a `handleClick` or `handleChange` function.
 
 Apollo などのライブラリで `onCompleted`、`onError` などとしても見つかることがあります。
 
-### 兄弟コンポーネントを使用して、`useEffect` またはデータ取得ロジックを抽出します。
+### Use a sibling component to extract `useEffect` or data fetching logic
 
-ルートコンポーネントに `useEffect` を追加する必要があると思われる場合は、サイドカーコンポーネント内で展開することを検討する必要があります。
+If you feel like you need to add a `useEffect` in your root component, you should consider extracting it in a sidecar component.
 
 Apollo フックを使用してデータ取得ロジックにも同じことを適用できます。
 
 ```tsx
-// ❌ Bad, will cause re-renders even if data is not changing,
-//    because useEffect needs to be re-evaluated
+// ❌ 悪い例: データが変化していなくても再レンダーを引き起こす
+//    useEffect を再評価する必要があるため
 export const PageComponent = () => {
   const [data, setData] = useAtomState(dataState);
   const [someDependency] = useAtomState(someDependencyState);
@@ -104,8 +101,8 @@ export const App = () => (
 ```
 
 ```tsx
-// ✅ Good, will not cause re-renders if data is not changing,
-//   because useEffect is re-evaluated in another sibling component
+// ✅ 良い例: データが変化していなければ再レンダーは発生しない
+//   useEffect が別の兄弟コンポーネントで再評価されるため
 export const PageComponent = () => {
   const [data, setData] = useAtomState(dataState);
 
@@ -133,9 +130,9 @@ export const App = () => (
 );
 ```
 
-### atom ファミリー状態とセレクターを使用する
+### Jotaiファミリー状態とファミリーセレクターを使用する
 
-atom ファミリー状態とセレクターは、再レンダリングを回避するための優れた方法です。
+Jotai ファミリー状態とセレクターは、再レンダリングを回避するための優れた方法です。
 
 アイテムのリストを保存する必要があるときに有用です。
 
@@ -172,13 +169,13 @@ atom ファミリー状態とセレクターは、再レンダリングを回避
 プログラミングにおいて汎用的な名前は理想的ではありません。なぜなら、それらは特異性に欠け、曖昧さをもたらし、コードの可読性を低下させるからです。 そのような名前は変数や関数の目的を伝えず、開発者がコードの意図を深く探らない限り理解を困難にします。 これにより、デバッグ時間が増加し、エラーの発生率が高まり、メンテナンスやコラボレーションが難しくなります。 一方で、説明的な命名はコードを自己説明的にし、ナビゲートしやすくし、コードの品質と開発者の生産性を向上させます。
 
 ```tsx
-// ❌ Bad, uses a generic name that doesn't communicate its
-//    purpose or content clearly
+// ❌ 悪い例: 目的や内容が
+//    明確に伝わらない汎用的な名前を使用している
 const [value, setValue] = useState('');
 ```
 
 ```tsx
-// ✅ Good, uses a descriptive name
+// ✅ 良い例: 説明的な名前を使用している
 const [email, setEmail] = useState('');
 ```
 
@@ -191,14 +188,14 @@ const [email, setEmail] = useState('');
 イベントハンドラの名前は `handle` で始めるべきであり、`on` はコンポーネントのプロップ内のイベントを命名するためのプレフィックスとして使用されます。
 
 ```tsx
-// ❌ Bad
+// ❌ 悪い例
 const onEmailChange = (val: string) => {
   // ...
 };
 ```
 
 ```tsx
-// ✅ Good
+// ✅ 良い例
 const handleEmailChange = (val: string) => {
   // ...
 };
@@ -226,12 +223,12 @@ const EmailField = ({ value, disabled = false }: EmailFieldProps) => (
 **使用方法**
 
 ```tsx
-// ❌ Bad, passing in the same value as the default value adds no value
+// ❌ 悪い例: デフォルト値と同じ値を渡しても意味がない
 const Form = () => <EmailField value="username@email.com" disabled={false} />;
 ```
 
 ```tsx
-// ✅ Good, assumes the default value
+// ✅ 良い例: デフォルト値に任せる
 const Form = () => <EmailField value="username@email.com" />;
 ```
 
@@ -244,7 +241,7 @@ const Form = () => <EmailField value="username@email.com" />;
 ```tsx
 const SomeParentComponent = () => <MyComponent Icon={MyIcon} />;
 
-// In MyComponent
+// MyComponent 内
 const MyComponent = ({ MyIcon }: { MyIcon: IconComponent }) => {
   const theme = useTheme();
 
@@ -289,7 +286,7 @@ Reactのコンテキストでのプロップドリリングとは、多くのコ
 **使用方法**
 
 ```tsx
-// ❌ Bad, specifies the entire relative path
+// ❌ 悪い例: 相対パス全体を指定している
 import {
   CatalogDecorator
 } from '../../../../../testing/decorators/CatalogDecorator';
@@ -299,7 +296,7 @@ import {
 ```
 
 ```tsx
-// ✅ Good, utilises the designated aliases
+// ✅ 良い例: 指定したエイリアスを利用している
 import { CatalogDecorator } from '~/testing/decorators/CatalogDecorator';
 import { ComponentDecorator } from 'twenty-ui/testing';
 ```
@@ -314,10 +311,10 @@ const validationSchema = z
     exist: z.boolean(),
     email: z
       .string()
-      .email('Email must be a valid email'),
+      .email('メールアドレスは有効な形式である必要があります'),
     password: z
       .string()
-      .regex(PASSWORD_REGEX, 'Password must contain at least 8 characters'),
+      .regex(PASSWORD_REGEX, 'パスワードは8文字以上である必要があります'),
   })
   .required();
 

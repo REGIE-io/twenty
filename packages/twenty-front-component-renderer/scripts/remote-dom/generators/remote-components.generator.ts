@@ -1,7 +1,6 @@
 import type { Project, SourceFile } from 'ts-morph';
-import { isDefined } from 'twenty-shared/utils';
 
-import { DOM_EVENT_TYPE_TO_REACT_PROP } from '../../../src/constants/DomEventTypeToReactProp';
+import { EVENT_TO_REACT } from '../../../src/constants/EventToReact';
 import { type ComponentSchema } from './schemas';
 import { addExportedConst } from './utils';
 
@@ -16,12 +15,7 @@ const generateComponentDefinition = (
   if (hasEvents) {
     const eventProps = component.events
       .map((event) => {
-        const propName = DOM_EVENT_TYPE_TO_REACT_PROP[event];
-        if (!isDefined(propName)) {
-          throw new Error(
-            `Missing DOM_EVENT_TYPE_TO_REACT_PROP mapping for '${event}'`,
-          );
-        }
+        const propName = EVENT_TO_REACT[event];
         return `    ${propName}: { event: '${event}' },`;
       })
       .join('\n');

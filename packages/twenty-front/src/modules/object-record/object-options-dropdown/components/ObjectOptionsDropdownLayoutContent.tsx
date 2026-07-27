@@ -1,8 +1,7 @@
 import { OBJECT_OPTIONS_DROPDOWN_ID } from '@/object-record/object-options-dropdown/constants/ObjectOptionsDropdownId';
 import { useObjectOptionsDropdown } from '@/object-record/object-options-dropdown/hooks/useObjectOptionsDropdown';
 import { useSetViewTypeFromLayoutOptionsMenu } from '@/object-record/object-options-dropdown/hooks/useSetViewTypeFromLayoutOptionsMenu';
-import { getSupportedRecordCalendarLayout } from '@/object-record/record-calendar/utils/getSupportedRecordCalendarLayout';
-import { recordIndexCalendarLayoutComponentState } from '@/object-record/record-index/states/recordIndexCalendarLayoutComponentState';
+import { recordIndexCalendarLayoutState } from '@/object-record/record-index/states/recordIndexCalendarLayoutState';
 import { recordIndexGroupFieldMetadataItemComponentState } from '@/object-record/record-index/states/recordIndexGroupFieldMetadataComponentState';
 import { recordIndexOpenRecordInState } from '@/object-record/record-index/states/recordIndexOpenRecordInState';
 import { DropdownContent } from '@/ui/layout/dropdown/components/DropdownContent';
@@ -18,14 +17,9 @@ import { useAtomComponentStateValue } from '@/ui/utilities/state/jotai/hooks/use
 import { useGetCurrentViewOnly } from '@/views/hooks/useGetCurrentViewOnly';
 import { useUpdateCurrentView } from '@/views/hooks/useUpdateCurrentView';
 import { type GraphQLView } from '@/views/types/GraphQLView';
-import {
-  getViewTypeLabel,
-  ViewType,
-  viewTypeIconMapping,
-} from '@/views/types/ViewType';
+import { ViewType, viewTypeIconMapping } from '@/views/types/ViewType';
 import { useGetAvailableFieldsForCalendar } from '@/views/view-picker/hooks/useGetAvailableFieldsForCalendar';
 import { useGetAvailableFieldsToGroupRecordsBy } from '@/views/view-picker/hooks/useGetAvailableFieldsToGroupRecordsBy';
-import { useIsFeatureEnabled } from '@/workspace/hooks/useIsFeatureEnabled';
 import { useAtomStateValue } from '@/ui/utilities/state/jotai/hooks/useAtomStateValue';
 import { useLingui } from '@lingui/react/macro';
 import { useCallback } from 'react';
@@ -43,7 +37,6 @@ import {
 import { OverflowingTextWithTooltip } from 'twenty-ui/surfaces';
 import { MenuItem, MenuItemSelect, MenuItemToggle } from 'twenty-ui/navigation';
 import {
-  FeatureFlagKey,
   ViewCalendarLayout,
   ViewOpenRecordIn,
 } from '~/generated-metadata/graphql';
@@ -72,16 +65,9 @@ export const ObjectOptionsDropdownLayoutContent = () => {
   const recordIndexOpenRecordIn = useAtomStateValue(
     recordIndexOpenRecordInState,
   );
-  const recordIndexCalendarLayout = useAtomComponentStateValue(
-    recordIndexCalendarLayoutComponentState,
+  const recordIndexCalendarLayout = useAtomStateValue(
+    recordIndexCalendarLayoutState,
   );
-  const isCalendarWeekViewEnabled = useIsFeatureEnabled(
-    FeatureFlagKey.IS_CALENDAR_WEEK_VIEW_ENABLED,
-  );
-  const supportedCalendarLayout = getSupportedRecordCalendarLayout({
-    calendarLayout: recordIndexCalendarLayout,
-    isCalendarWeekViewEnabled,
-  });
   const recordIndexGroupFieldMetadataItem = useAtomComponentStateValue(
     recordIndexGroupFieldMetadataItemComponentState,
   );
@@ -89,12 +75,6 @@ export const ObjectOptionsDropdownLayoutContent = () => {
   const calendarFieldMetadata = currentView?.calendarFieldMetadataId
     ? objectMetadataItem.fields.find(
         (field) => field.id === currentView.calendarFieldMetadataId,
-      )
-    : undefined;
-
-  const calendarEndFieldMetadata = currentView?.calendarEndFieldMetadataId
-    ? objectMetadataItem.fields.find(
-        (field) => field.id === currentView.calendarEndFieldMetadataId,
       )
     : undefined;
 
@@ -143,11 +123,7 @@ export const ObjectOptionsDropdownLayoutContent = () => {
     ViewOpenRecordIn.SIDE_PANEL,
     ...(currentView?.type === ViewType.KANBAN ? ['Group'] : []),
     ...(currentView?.type === ViewType.CALENDAR
-      ? [
-          'CalendarView',
-          'CalendarDateField',
-          ...(isCalendarWeekViewEnabled ? ['CalendarEndDateField'] : []),
-        ]
+      ? ['CalendarView', 'CalendarDateField']
       : []),
     ...(currentView?.type !== ViewType.TABLE ? ['Compact view'] : []),
   ];
@@ -185,7 +161,7 @@ export const ObjectOptionsDropdownLayoutContent = () => {
             >
               <MenuItemSelect
                 LeftIcon={IconTable}
-                text={t(getViewTypeLabel(ViewType.TABLE))}
+                text={t`Table`}
                 selected={currentView?.type === ViewType.TABLE}
                 focused={selectedItemId === ViewType.TABLE}
                 onClick={async () => {
@@ -203,7 +179,7 @@ export const ObjectOptionsDropdownLayoutContent = () => {
             >
               <MenuItemSelect
                 LeftIcon={viewTypeIconMapping(ViewType.CALENDAR)}
-                text={t(getViewTypeLabel(ViewType.CALENDAR))}
+                text={t`Calendar`}
                 selected={currentView?.type === ViewType.CALENDAR}
                 focused={selectedItemId === ViewType.CALENDAR}
                 onClick={handleSelectCalendarViewType}
@@ -217,7 +193,7 @@ export const ObjectOptionsDropdownLayoutContent = () => {
             >
               <MenuItemSelect
                 LeftIcon={viewTypeIconMapping(ViewType.KANBAN)}
-                text={t(getViewTypeLabel(ViewType.KANBAN))}
+                text={t`Kanban`}
                 disabled={isDefaultView}
                 focused={selectedItemId === ViewType.KANBAN}
                 contextualText={
@@ -256,24 +232,6 @@ export const ObjectOptionsDropdownLayoutContent = () => {
                     hasSubMenu
                   />
                 </SelectableListItem>
-                {isCalendarWeekViewEnabled && (
-                  <SelectableListItem
-                    itemId="CalendarEndDateField"
-                    onEnter={() => onContentChange('calendarEndFields')}
-                  >
-                    <MenuItem
-                      focused={selectedItemId === 'CalendarEndDateField'}
-                      onClick={() => onContentChange('calendarEndFields')}
-                      LeftIcon={IconCalendar}
-                      text={t`End date field`}
-                      contextualText={
-                        calendarEndFieldMetadata?.label ?? t`None`
-                      }
-                      contextualTextPosition="right"
-                      hasSubMenu
-                    />
-                  </SelectableListItem>
-                )}
                 <SelectableListItem
                   itemId="CalendarView"
                   onEnter={() => onContentChange('calendarView')}
@@ -284,9 +242,9 @@ export const ObjectOptionsDropdownLayoutContent = () => {
                     LeftIcon={IconCalendarWeek}
                     text={t`Calendar view`}
                     contextualText={
-                      supportedCalendarLayout === ViewCalendarLayout.MONTH
+                      recordIndexCalendarLayout === ViewCalendarLayout.MONTH
                         ? t`Month`
-                        : supportedCalendarLayout === ViewCalendarLayout.WEEK
+                        : recordIndexCalendarLayout === ViewCalendarLayout.WEEK
                           ? t`Week`
                           : t`Day`
                     }

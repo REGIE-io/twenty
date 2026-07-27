@@ -42,14 +42,14 @@ CRM で特定のイベントが発生したときにメールを自動送信し�
 `{{variable}}` 構文を使用して前のステップのデータを参照します:
 
 ```text
-Hi {{trigger.object.firstName}},
+{{trigger.object.firstName}} 様、
 
-Thank you for connecting with us!
+ご連絡いただきありがとうございます！
 
-Your company, {{trigger.object.company.name}}, is now in our system.
+御社 {{trigger.object.company.name}} は当社のシステムに登録されました。
 
-Best regards,
-The Team
+よろしくお願いいたします。
+チーム一同
 ```
 
 ### トリガーから利用できる変数
@@ -135,7 +135,7 @@ The Team
 | **イベント確認メール**     | イベントの詳細またはアジェンダ |
 
 <Note>
-添付ファイルは静的です—すべての受信者に同じファイルが送信されます。 動的ドキュメント（パーソナライズされた見積もりなど）の場合は、[ロジック関数](/l/ja/user-guide/workflows/how-tos/connect-to-other-tools/generate-pdf-from-twenty)を使ってファイルを生成し、添付します。
+  添付ファイルは静的です—すべての受信者に同じファイルが送信されます。 For dynamic documents (like personalized quotes), generate and attach files using a [Logic Function](/l/ja/user-guide/workflows/how-tos/connect-to-other-tools/generate-pdf-from-twenty).
 </Note>
 
 ## ベストプラクティス

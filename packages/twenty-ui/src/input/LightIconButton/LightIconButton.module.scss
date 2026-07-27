@@ -9,9 +9,7 @@
   align-items: center;
   background: transparent;
   border: var(--light-icon-button-border, none);
-  // Containers that frame the button (e.g. RecordTableCellButtons) publish
-  // this variable to keep the hover shape concentric with their own radius.
-  border-radius: var(--light-icon-button-radius, var(--t-border-radius-md));
+  border-radius: var(--t-border-radius-sm);
   box-shadow: var(--light-icon-button-box-shadow, none);
   color: var(--light-icon-button-color);
   cursor: pointer;
@@ -35,8 +33,6 @@
   &:focus {
     outline: none;
   }
-
-  @include focus-ring;
 
   &:active {
     background: var(

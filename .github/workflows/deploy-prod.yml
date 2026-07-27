@@ -64,7 +64,8 @@ jobs:
             --progress=plain \
             .
 
-          # Trigger the rollout on both services.
+          # Trigger the rollout on both services and return — don't block on services-stable (a slow
+          # or crash-looping task would otherwise hang the job until the waiter times out).
           for svc in "$SERVER_SERVICE" "$WORKER_SERVICE"; do
             echo "Forcing new deployment on $svc"
             aws ecs update-service \
@@ -74,15 +75,3 @@ jobs:
               --query 'service.deployments[0].{status:status,taskDefinition:taskDefinition}' \
               --output table
           done
-
-          echo "Waiting for ECS services to become stable"
-          if ! aws ecs wait services-stable \
-            --cluster "$ECS_CLUSTER" \
-            --services "$SERVER_SERVICE" "$WORKER_SERVICE"; then
-            aws ecs describe-services \
-              --cluster "$ECS_CLUSTER" \
-              --services "$SERVER_SERVICE" "$WORKER_SERVICE" \
-              --query 'services[].{service:serviceName,desired:desiredCount,running:runningCount,pending:pendingCount,deployments:deployments[*].{status:status,rolloutState:rolloutState,reason:rolloutStateReason},events:events[0:5].message}' \
-              --output json
-            exit 1
-          fi

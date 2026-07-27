@@ -14,8 +14,6 @@ export const FIND_ADMIN_APPLICATION_REGISTRATION_VARIABLES = gql`
       isSecret
       isRequired
       isFilled
-      type
-      options
       createdAt
       updatedAt
     }

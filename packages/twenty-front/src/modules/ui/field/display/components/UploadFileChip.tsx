@@ -7,8 +7,7 @@ import { ThemeContext, themeCssVariables } from 'twenty-ui/theme-constants';
 const StyledContainer = styled.div`
   align-items: center;
   background-color: ${themeCssVariables.background.transparent.light};
-  border-radius: ${themeCssVariables.border.radius.smRound};
-  corner-shape: round;
+  border-radius: ${themeCssVariables.border.radius.sm};
   display: flex;
   gap: ${themeCssVariables.spacing[1]};
   height: ${themeCssVariables.spacing[5]};
@@ -19,9 +18,8 @@ const StyledContainer = styled.div`
 const StyledIconBox = styled.div`
   align-items: center;
   background-color: ${themeCssVariables.font.color.tertiary};
-  border-radius: ${themeCssVariables.border.radius.smRound};
+  border-radius: ${themeCssVariables.border.radius.sm};
   color: ${themeCssVariables.background.primary};
-  corner-shape: round;
   display: flex;
   height: 14px;
   justify-content: center;
@@ -31,9 +29,8 @@ const StyledIconBox = styled.div`
 const StyledStaticLoader = styled.div`
   align-items: center;
   border: 1px solid ${themeCssVariables.font.color.tertiary};
-  border-radius: ${themeCssVariables.border.radius.pill};
+  border-radius: 12px;
   box-sizing: border-box;
-  corner-shape: round;
   display: flex;
   height: 12px;
   justify-content: center;

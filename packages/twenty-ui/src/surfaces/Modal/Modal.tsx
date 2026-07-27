@@ -1,7 +1,6 @@
 import { Dialog } from '@base-ui/react/dialog';
 import { clsx } from 'clsx';
 import { useRef } from 'react';
-import { useThemeContainer } from '@ui/theme-constants';
 import { isDefined } from '@ui/utilities/utils/isDefined';
 
 import { type ModalOverlay } from '@ui/surfaces/Modal/types/ModalOverlay';
@@ -53,7 +52,6 @@ export const Modal = ({
   smallBorderRadius,
   narrowWidth,
   autoHeight,
-  width,
   modalZIndex = DEFAULT_MODAL_Z_INDEX,
   backdropZIndex = DEFAULT_BACKDROP_Z_INDEX,
   backdropTestId = 'modal-backdrop',
@@ -65,11 +63,6 @@ export const Modal = ({
   const internalRef = useRef<HTMLDivElement>(null);
   const resolvedRef = externalRef ?? internalRef;
 
-  const themeContainer = useThemeContainer();
-  const resolvedContainer = isDefined(container)
-    ? container
-    : (themeContainer ?? undefined);
-
   const handleBackdropMouseDown = (e: React.MouseEvent) => {
     e.stopPropagation();
     onBackdropMouseDown?.(e);
@@ -80,7 +73,7 @@ export const Modal = ({
   // Modal, open/close is fully controlled by the isOpen prop
   return (
     <Dialog.Root open={isOpen} modal={false} disablePointerDismissal>
-      <Dialog.Portal container={resolvedContainer}>
+      <Dialog.Portal container={isDefined(container) ? container : undefined}>
         <ModalBackdrop
           data-testid={backdropTestId}
           data-click-outside-id={backdropClickOutsideId}
@@ -114,7 +107,6 @@ export const Modal = ({
                 style={
                   {
                     '--modal-z-index': modalZIndex,
-                    width: isMobile ? undefined : width,
                     gap:
                       gap !== undefined ? `var(--t-spacing-${gap})` : undefined,
                   } as React.CSSProperties

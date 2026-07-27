@@ -43,8 +43,7 @@ export const typedTokenHelpers = {
               arg.name === 'PublicEndpointGuard' ||
               arg.name === 'InternalMetadataTokenGuard' ||
               arg.name === 'FilePathGuard' ||
-              arg.name === 'FileByIdGuard' ||
-              arg.name === 'FileUploadTokenGuard'
+              arg.name === 'FileByIdGuard'
             );
           }
           return false;

@@ -9,6 +9,7 @@ import {
   type CatalogOptions,
   type CatalogStory,
   ComponentDecorator,
+  JotaiRootDecorator,
 } from '@ui/testing';
 import { MenuItemSelectAvatar } from '@ui/navigation/MenuItemSelectAvatar/MenuItemSelectAvatar';
 
@@ -37,6 +38,7 @@ export const Default: Story = {
       </div>
     ),
     ComponentDecorator,
+    JotaiRootDecorator,
   ],
 };
 
@@ -105,5 +107,6 @@ export const Catalog: CatalogStory<Story, typeof MenuItemSelectAvatar> = {
       </div>
     ),
     CatalogDecorator,
+    JotaiRootDecorator,
   ],
 };

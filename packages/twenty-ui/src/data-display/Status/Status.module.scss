@@ -2,7 +2,6 @@
   align-items: center;
   background: var(--status-background);
   border-radius: var(--t-border-radius-pill);
-  corner-shape: round;
   color: var(--status-text-color);
   display: inline-flex;
   font-size: var(--t-font-size-md);
@@ -20,7 +19,6 @@
   &:before {
     background-color: var(--status-text-color);
     border-radius: var(--t-border-radius-rounded);
-    corner-shape: round;
     content: '';
     display: block;
     flex-shrink: 0;

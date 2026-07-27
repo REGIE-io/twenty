@@ -46,6 +46,7 @@ describe('objectMetadataItemSchema', () => {
       fields: 'not an array',
       icon: 'invalid icon',
       isActive: 'not a boolean',
+      isCustom: 'not a boolean',
       isSystem: 'not a boolean',
       labelIdentifierFieldMetadataId: 'not a uuid',
       labelPlural: 123,

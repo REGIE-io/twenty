@@ -23,14 +23,15 @@ const buildFieldIdByUniversalIdentifierForObjectAction = ({
   };
 
   for (const universalFlatFieldMetadata of action.universalFlatFieldMetadatas) {
-    const { universalIdentifier } = universalFlatFieldMetadata;
     const providedFieldId =
-      fieldMetadataIdByUniversalIdentifier[universalIdentifier];
+      fieldMetadataIdByUniversalIdentifier[
+        universalFlatFieldMetadata.universalIdentifier
+      ];
 
     if (isDefined(providedFieldId)) {
-      fieldIdByUniversalIdentifier[universalIdentifier] = providedFieldId;
-    } else if (!isDefined(fieldIdByUniversalIdentifier[universalIdentifier])) {
-      fieldIdByUniversalIdentifier[universalIdentifier] = v4();
+      fieldIdByUniversalIdentifier[
+        universalFlatFieldMetadata.universalIdentifier
+      ] = providedFieldId;
     }
   }
 
@@ -199,7 +200,6 @@ export const enrichCreateWorkspaceMigrationActionsWithIds = ({
 
     if (
       action.metadataName !== 'fieldMetadata' &&
-      action.metadataName !== 'objectMetadata' &&
       !isDefined(idByUniversalIdentifier) &&
       !isDefined(fieldMetadataIdByUniversalIdentifier) &&
       !isDefined(pageLayoutTabIdByUniversalIdentifier)
@@ -209,18 +209,17 @@ export const enrichCreateWorkspaceMigrationActionsWithIds = ({
 
     switch (action.metadataName) {
       case 'objectMetadata': {
-        const id =
-          (isDefined(idByUniversalIdentifier)
-            ? idByUniversalIdentifier[action.flatEntity.universalIdentifier]
-            : undefined) ??
-          action.id ??
-          v4();
-        const objectFieldIdByUniversalIdentifier =
-          buildFieldIdByUniversalIdentifierForObjectAction({
-            action,
-            fieldMetadataIdByUniversalIdentifier:
-              fieldMetadataIdByUniversalIdentifier ?? {},
-          });
+        const id = isDefined(idByUniversalIdentifier)
+          ? idByUniversalIdentifier[action.flatEntity.universalIdentifier]
+          : undefined;
+        const objectFieldIdByUniversalIdentifier = isDefined(
+          fieldMetadataIdByUniversalIdentifier,
+        )
+          ? buildFieldIdByUniversalIdentifierForObjectAction({
+              action,
+              fieldMetadataIdByUniversalIdentifier,
+            })
+          : undefined;
 
         return {
           ...action,
@@ -305,8 +304,7 @@ export const enrichCreateWorkspaceMigrationActionsWithIds = ({
       case 'fieldPermission':
       case 'webhook':
       case 'applicationVariable':
-      case 'connectionProvider':
-      case 'searchFieldMetadata': {
+      case 'connectionProvider': {
         if (!isDefined(idByUniversalIdentifier)) {
           return action;
         }

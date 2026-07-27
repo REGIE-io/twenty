@@ -1,4 +1,3 @@
-import { useNumberFormat } from '@/localization/hooks/useNumberFormat';
 import { ObjectMetadataIcon } from '@/object-metadata/components/ObjectMetadataIcon';
 import { type EnrichedObjectMetadataItem } from '@/object-metadata/types/EnrichedObjectMetadataItem';
 import { TableCell } from '@/ui/layout/table/components/TableCell';
@@ -29,7 +28,6 @@ export const SettingsAvailableStandardObjectItemTableRow = ({
   onClick,
 }: SettingsAvailableStandardObjectItemTableRowProps) => {
   const { theme } = useContext(ThemeContext);
-  const { formatNumber } = useNumberFormat();
 
   return (
     <TableRow
@@ -57,9 +55,7 @@ export const SettingsAvailableStandardObjectItemTableRow = ({
       <TableCell>
         <StyledDescription>{objectItem.description}</StyledDescription>
       </TableCell>
-      <TableCell align="right">
-        {formatNumber(objectItem.fields.length)}
-      </TableCell>
+      <TableCell align="right">{objectItem.fields.length}</TableCell>
     </TableRow>
   );
 };

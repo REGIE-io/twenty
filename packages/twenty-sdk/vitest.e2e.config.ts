@@ -1,9 +1,13 @@
+import tsconfigPaths from 'vite-tsconfig-paths';
 import { defineConfig } from 'vitest/config';
 
 export default defineConfig({
-  resolve: {
-    tsconfigPaths: true,
-  },
+  plugins: [
+    tsconfigPaths({
+      root: __dirname,
+      ignoreConfigErrors: true,
+    }),
+  ],
   test: {
     name: 'twenty-sdk-e2e',
     environment: 'node',
@@ -12,9 +16,11 @@ export default defineConfig({
     testTimeout: 60_000,
     hookTimeout: 60_000,
     pool: 'forks',
-    // poolOptions.forks.singleFork was removed in Vitest 4; without serial
-    // file execution the e2e forks race on the shared ~/.twenty config file.
-    fileParallelism: false,
+    poolOptions: {
+      forks: {
+        singleFork: true,
+      },
+    },
     sequence: {
       concurrent: false,
     },

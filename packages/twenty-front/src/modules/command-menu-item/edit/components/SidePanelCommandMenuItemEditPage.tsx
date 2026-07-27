@@ -14,7 +14,7 @@ import { DraggableItem } from '@/ui/layout/draggable-list/components/DraggableIt
 import { DraggableList } from '@/ui/layout/draggable-list/components/DraggableList';
 import { SelectableListItem } from '@/ui/layout/selectable-list/components/SelectableListItem';
 import { useAtomStateValue } from '@/ui/utilities/state/jotai/hooks/useAtomStateValue';
-import { type DraggableListDropResult } from '@/ui/layout/draggable-list/types/DraggableListDropResult';
+import { type DropResult } from '@hello-pangea/dnd';
 import { styled } from '@linaria/react';
 import { useLingui } from '@lingui/react/macro';
 import { ContextStorePageType } from 'twenty-shared/types';
@@ -145,7 +145,7 @@ export const SidePanelCommandMenuItemEditPage = () => {
       />
     );
 
-  const handlePinnedDragEnd = (result: DraggableListDropResult) => {
+  const handlePinnedDragEnd = (result: DropResult) => {
     const { source, destination, draggableId } = result;
 
     if (!isDefined(destination)) {

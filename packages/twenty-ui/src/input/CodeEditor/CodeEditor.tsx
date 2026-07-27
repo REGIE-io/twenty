@@ -4,13 +4,9 @@ import { BASE_CODE_EDITOR_THEME_ID } from '@ui/input/CodeEditor/constants/BaseCo
 import { getBaseCodeEditorTheme } from '@ui/input/CodeEditor/utils/getBaseCodeEditorTheme';
 import { ResizeHandle } from '@ui/layout/ResizeHandle/ResizeHandle';
 import { useResizeHandle } from '@ui/layout/ResizeHandle/hooks/useResizeHandle';
-import {
-  useTheme,
-  useThemeColorScheme,
-  type ThemeType,
-} from '@ui/theme-constants';
+import { ThemeContext, type ThemeType } from '@ui/theme-constants';
 import { type editor } from 'monaco-editor';
-import { type KeyboardEvent, useEffect, useState } from 'react';
+import { type KeyboardEvent, useContext, useEffect, useState } from 'react';
 import { isDefined } from '@ui/utilities/utils/isDefined';
 
 import styles from './CodeEditor.module.scss';
@@ -60,8 +56,7 @@ export const CodeEditor = ({
   contentPadding = 'default',
   autoHeight = false,
 }: CodeEditorProps) => {
-  const theme = useTheme();
-  const colorScheme = useThemeColorScheme();
+  const { theme, colorScheme } = useContext(ThemeContext);
   const [monaco, setMonaco] = useState<Monaco | undefined>(undefined);
   const [editor, setEditor] = useState<
     editor.IStandaloneCodeEditor | undefined
@@ -177,7 +172,6 @@ export const CodeEditor = ({
       <Loader />
     </div>
   ) : (
-    // oxlint-disable-next-line jsx-a11y/no-static-element-interactions
     <div className={styles.container} onKeyDown={handleKeyDown}>
       <input
         type="hidden"

@@ -2,23 +2,13 @@ import { Logger } from '@nestjs/common';
 
 import { plainToClass } from 'class-transformer';
 import {
-  IsDateString,
   IsDefined,
-  IsEnum,
-  IsIn,
-  IsInt,
-  IsNotEmpty,
   IsOptional,
-  IsString,
   IsUrl,
   ValidateIf,
   type ValidationError,
   validateSync,
 } from 'class-validator';
-import {
-  ENTERPRISE_INSTANCE_TYPE,
-  type EnterpriseInstanceType,
-} from 'twenty-shared/constants';
 import { isDefined } from 'twenty-shared/utils';
 import { type LoggerOptions } from 'typeorm/logger/LoggerOptions';
 
@@ -29,7 +19,6 @@ import { SupportDriver } from 'src/engine/core-modules/twenty-config/interfaces/
 
 import { CaptchaDriverType } from 'src/engine/core-modules/captcha/interfaces';
 import { CodeInterpreterDriverType } from 'src/engine/core-modules/code-interpreter/code-interpreter.interface';
-import { DpaRegion } from 'src/engine/core-modules/dpa/enums/dpa-region.enum';
 import { EmailDriver } from 'src/engine/core-modules/email/enums/email-driver.enum';
 import { EmailingDomainDriver } from 'src/engine/core-modules/emailing-domain/drivers/types/emailing-domain-driver.type';
 import { ExceptionHandlerDriver } from 'src/engine/core-modules/exception-handler/interfaces';
@@ -185,39 +174,6 @@ export class ConfigVariables {
     type: ConfigVariableType.BOOLEAN,
   })
   MESSAGING_PROVIDER_GMAIL_ENABLED = false;
-
-  @ConfigVariablesMetadata({
-    group: ConfigVariablesGroup.GOOGLE_AUTH,
-    isSensitive: false,
-    description:
-      'Google Cloud Pub/Sub topic that Gmail push notifications publish to ' +
-      '(format: projects/<project>/topics/<topic>). Required for webhook-based Gmail sync.',
-    type: ConfigVariableType.STRING,
-  })
-  @IsOptional()
-  MESSAGING_GMAIL_PUBSUB_TOPIC: string;
-
-  @ConfigVariablesMetadata({
-    group: ConfigVariablesGroup.GOOGLE_AUTH,
-    isSensitive: false,
-    description:
-      'Service account email authorized to deliver Gmail Pub/Sub push ' +
-      'notifications. The signed OIDC token on each push is verified against ' +
-      'this email. Required for webhook-based Gmail sync.',
-    type: ConfigVariableType.STRING,
-  })
-  @IsOptional()
-  MESSAGING_GMAIL_PUBSUB_VERIFICATION_EMAIL: string;
-
-  @ConfigVariablesMetadata({
-    group: ConfigVariablesGroup.ADVANCED_SETTINGS,
-    description:
-      'Enable webhook-based sync for connected accounts (provider push ' +
-      'notifications on top of polling). Requires publicly reachable ' +
-      'webhook endpoints.',
-    type: ConfigVariableType.BOOLEAN,
-  })
-  IS_CONNECTED_ACCOUNT_WEBHOOK_SUBSCRIPTION_ENABLED = false;
 
   @ConfigVariablesMetadata({
     group: ConfigVariablesGroup.ADVANCED_SETTINGS,
@@ -494,21 +450,6 @@ export class ConfigVariables {
   IS_WORKSPACE_CREATION_LIMITED_TO_SERVER_ADMINS = true;
 
   @ConfigVariablesMetadata({
-    group: ConfigVariablesGroup.SERVER_CONFIG,
-    description:
-      'Deployment region that determines the contracting DPA Processor entity, hosting region and governing law. EU (default) = Twenty.com SAS / Frankfurt / France; US = Twenty, Inc. / United States. Must match where Customer Personal Data actually lives.',
-    type: ConfigVariableType.ENUM,
-    options: Object.values(DpaRegion),
-    // Deployment-fixed: must mirror where data actually lives. Allowing a
-    // runtime DB/admin override could produce a legally incorrect Processor
-    // entity, so this is only configurable via environment variable.
-    isEnvOnly: true,
-  })
-  @IsOptional()
-  @IsEnum(DpaRegion)
-  DPA_DEPLOYMENT_REGION: DpaRegion = DpaRegion.EU;
-
-  @ConfigVariablesMetadata({
     group: ConfigVariablesGroup.STORAGE_CONFIG,
     description: 'Type of storage to use (local or S3)',
     type: ConfigVariableType.ENUM,
@@ -528,13 +469,11 @@ export class ConfigVariables {
 
   @ConfigVariablesMetadata({
     group: ConfigVariablesGroup.STORAGE_CONFIG,
-    description:
-      'Region of the S3 bucket (e.g. "eu-west-3" for AWS, or a provider-specific slug like "fr-par" for Scaleway). Required.',
+    description: 'AWS region of the S3 bucket (e.g. eu-west-3). Required.',
     type: ConfigVariableType.STRING,
   })
   @ValidateIf((env) => env.STORAGE_TYPE === StorageDriverType.S_3)
-  @IsString()
-  @IsNotEmpty()
+  @IsAWSRegion()
   STORAGE_S3_REGION: AwsRegion;
 
   @ConfigVariablesMetadata({
@@ -580,7 +519,7 @@ export class ConfigVariables {
   @ConfigVariablesMetadata({
     group: ConfigVariablesGroup.STORAGE_CONFIG,
     description:
-      'When enabled, file downloads are 302-redirected to S3 presigned URLs and direct uploads go straight to S3 via presigned PUT URLs instead of being proxied through the server. Reduces server load and bandwidth. Requires a bucket CORS policy allowing PUT from the frontend origin.',
+      'When enabled, file downloads are 302-redirected to S3 presigned URLs instead of being proxied through the server. Reduces server load and bandwidth.',
     type: ConfigVariableType.BOOLEAN,
   })
   @ValidateIf((env) => env.STORAGE_TYPE === StorageDriverType.S_3)
@@ -877,40 +816,7 @@ export class ConfigVariables {
   })
   @CastToPositiveNumber()
   @ValidateIf((env) => env.IS_BILLING_ENABLED === true)
-  BILLING_FREE_WORKFLOW_CREDITS_FOR_TRIAL_PERIOD_WITH_CREDIT_CARD = 1_000_000;
-
-  @ConfigVariablesMetadata({
-    group: ConfigVariablesGroup.BILLING_CONFIG,
-    description:
-      'Number of days before a trial WITHOUT a credit card ends to send the reminder to add a payment method',
-    type: ConfigVariableType.NUMBER,
-  })
-  @CastToPositiveNumber()
-  @IsOptional()
-  @ValidateIf((env) => env.IS_BILLING_ENABLED === true)
-  BILLING_TRIAL_WITHOUT_CREDIT_CARD_REMINDER_DAYS_BEFORE = 1;
-
-  @ConfigVariablesMetadata({
-    group: ConfigVariablesGroup.BILLING_CONFIG,
-    description:
-      'Number of days before a trial WITH a credit card ends to send the upcoming-charge reminder',
-    type: ConfigVariableType.NUMBER,
-  })
-  @CastToPositiveNumber()
-  @IsOptional()
-  @ValidateIf((env) => env.IS_BILLING_ENABLED === true)
-  BILLING_TRIAL_WITH_CREDIT_CARD_REMINDER_DAYS_BEFORE = 7;
-
-  @ConfigVariablesMetadata({
-    group: ConfigVariablesGroup.BILLING_CONFIG,
-    description:
-      'Number of days before a yearly subscription renews to send the renewal reminder',
-    type: ConfigVariableType.NUMBER,
-  })
-  @CastToPositiveNumber()
-  @IsOptional()
-  @ValidateIf((env) => env.IS_BILLING_ENABLED === true)
-  BILLING_SUBSCRIPTION_RENEWAL_REMINDER_DAYS_BEFORE = 7;
+  BILLING_FREE_WORKFLOW_CREDITS_FOR_TRIAL_PERIOD_WITH_CREDIT_CARD = 5_000_000;
 
   @ConfigVariablesMetadata({
     group: ConfigVariablesGroup.BILLING_CONFIG,
@@ -933,64 +839,11 @@ export class ConfigVariables {
   @ConfigVariablesMetadata({
     group: ConfigVariablesGroup.BILLING_CONFIG,
     description:
-      'Stripe publishable key for billing, exposed to the frontend to mount Stripe Elements',
-    type: ConfigVariableType.STRING,
-  })
-  @ValidateIf((env) => env.IS_BILLING_ENABLED === true)
-  BILLING_STRIPE_PUBLISHABLE_KEY: string;
-
-  @ConfigVariablesMetadata({
-    group: ConfigVariablesGroup.BILLING_CONFIG,
-    description:
       'Use the ClickHouse-backed poller (instead of Stripe billing alerts) as the source of truth for metered-credit cap enforcement',
     type: ConfigVariableType.BOOLEAN,
   })
   @IsOptional()
   BILLING_USAGE_CAP_CLICKHOUSE_ENABLED = false;
-
-  @ConfigVariablesMetadata({
-    group: ConfigVariablesGroup.BILLING_CONFIG,
-    description:
-      'Free credits granted for completing the import-contacts onboarding step (in microCredits)',
-    type: ConfigVariableType.NUMBER,
-  })
-  @CastToPositiveNumber()
-  @IsInt()
-  @IsOptional()
-  ONBOARDING_IMPORT_CONTACTS_CREDITS_REWARD = 1_000_000;
-
-  @ConfigVariablesMetadata({
-    group: ConfigVariablesGroup.BILLING_CONFIG,
-    description:
-      'Maximum number of invitations that grant credits during the invite-team onboarding step',
-    type: ConfigVariableType.NUMBER,
-  })
-  @CastToPositiveNumber()
-  @IsInt()
-  @IsOptional()
-  ONBOARDING_INVITE_TEAM_MAX_INVITES = 10;
-
-  @ConfigVariablesMetadata({
-    group: ConfigVariablesGroup.BILLING_CONFIG,
-    description:
-      'Free credits granted per user invited during the invite-team onboarding step who signs up (in microCredits)',
-    type: ConfigVariableType.NUMBER,
-  })
-  @CastToPositiveNumber()
-  @IsInt()
-  @IsOptional()
-  ONBOARDING_INVITE_TEAM_CREDITS_REWARD_PER_USER = 500_000;
-
-  @ConfigVariablesMetadata({
-    group: ConfigVariablesGroup.BILLING_CONFIG,
-    description:
-      'Free credits granted per app installed during the install-apps onboarding step (in microCredits)',
-    type: ConfigVariableType.NUMBER,
-  })
-  @CastToPositiveNumber()
-  @IsInt()
-  @IsOptional()
-  ONBOARDING_INSTALL_APPS_CREDITS_REWARD_PER_APP = 500_000;
 
   @ConfigVariablesMetadata({
     group: ConfigVariablesGroup.SERVER_CONFIG,
@@ -1262,26 +1115,6 @@ export class ConfigVariables {
   REDIS_QUEUE_URL: string;
 
   @ConfigVariablesMetadata({
-    group: ConfigVariablesGroup.ADVANCED_SETTINGS,
-    description:
-      'Comma-separated list of queues this worker processes (e.g. workspace-queue). Empty means all queues. Used to dedicate worker pods to specific queues.',
-    isEnvOnly: true,
-    type: ConfigVariableType.ARRAY,
-  })
-  @IsOptional()
-  WORKER_ENABLED_QUEUES: string[] = [];
-
-  @ConfigVariablesMetadata({
-    group: ConfigVariablesGroup.ADVANCED_SETTINGS,
-    description:
-      'Comma-separated list of queues this worker does not process (e.g. workspace-queue). Applied after WORKER_ENABLED_QUEUES. Used to keep long-running queues off general-purpose worker pods.',
-    isEnvOnly: true,
-    type: ConfigVariableType.ARRAY,
-  })
-  @IsOptional()
-  WORKER_EXCLUDED_QUEUES: string[] = [];
-
-  @ConfigVariablesMetadata({
     group: ConfigVariablesGroup.SERVER_CONFIG,
     description: 'Node environment (development, production, etc.)',
     type: ConfigVariableType.ENUM,
@@ -1300,31 +1133,6 @@ export class ConfigVariables {
   @CastToPositiveNumber()
   @IsOptional()
   NODE_PORT = 3000;
-
-  @ConfigVariablesMetadata({
-    group: ConfigVariablesGroup.SERVER_CONFIG,
-    description:
-      'Idle keep-alive timeout (ms) for the HTTP server. Should be higher ' +
-      'than the idle timeout of any reverse proxy / load balancer in front ' +
-      'of it (nginx, ALB, ... default 60s), so the proxy is the side that ' +
-      'closes idle connections.',
-    type: ConfigVariableType.NUMBER,
-    isEnvOnly: true,
-  })
-  @CastToPositiveNumber()
-  @IsOptional()
-  SERVER_KEEP_ALIVE_TIMEOUT_MS = 65000;
-
-  @ConfigVariablesMetadata({
-    group: ConfigVariablesGroup.SERVER_CONFIG,
-    description:
-      'How long (ms) a worker shutdown waits for active AI chat stream jobs to finish before aborting them into a retryable interrupted state. Must be lower than the pod terminationGracePeriodSeconds so the abort and clean exit fit before SIGKILL (default: 300000)',
-    type: ConfigVariableType.NUMBER,
-    isEnvOnly: true,
-  })
-  @CastToPositiveNumber()
-  @IsOptional()
-  AI_STREAM_SHUTDOWN_DRAIN_MS = 300_000;
 
   @ConfigVariablesMetadata({
     group: ConfigVariablesGroup.SERVER_CONFIG,
@@ -1373,23 +1181,12 @@ export class ConfigVariables {
   @ConfigVariablesMetadata({
     group: ConfigVariablesGroup.SERVER_CONFIG,
     description:
-      'Unique identifier for this server instance, generated as UUID v4 during database seeding and persisted in the database. Can be overridden via the environment when IS_CONFIG_VARIABLES_IN_DB_ENABLED is false.',
+      'Unique identifier for this server instance, generated as UUID v4 during database seeding',
     type: ConfigVariableType.STRING,
+    isEnvOnly: true,
   })
   @IsOptional()
   SERVER_ID: string;
-
-  @ConfigVariablesMetadata({
-    group: ConfigVariablesGroup.SERVER_CONFIG,
-    description:
-      "Declares whether this instance is a 'production' (billable per seat) or 'development' (included at no additional cost) enterprise instance. A subscription can register a single free development instance in addition to its production one.",
-    type: ConfigVariableType.ENUM,
-    options: Object.values(ENTERPRISE_INSTANCE_TYPE),
-  })
-  @IsOptional()
-  @IsIn(Object.values(ENTERPRISE_INSTANCE_TYPE))
-  ENTERPRISE_INSTANCE_TYPE: EnterpriseInstanceType =
-    ENTERPRISE_INSTANCE_TYPE.PRODUCTION;
 
   @ConfigVariablesMetadata({
     group: ConfigVariablesGroup.SERVER_CONFIG,
@@ -1399,16 +1196,6 @@ export class ConfigVariables {
   @IsUrl({ require_tld: false, require_protocol: true })
   @IsOptional()
   PUBLIC_DOMAIN_URL: string;
-
-  @ConfigVariablesMetadata({
-    group: ConfigVariablesGroup.SERVER_CONFIG,
-    description:
-      'ISO date from which HTTP logic functions are no longer served on the legacy /s/ route. Functions created on or after this date are only reachable on the isolated public domain (*.withtwenty.com). Only enforced when PUBLIC_DOMAIN_URL is set; leave empty to keep serving every function on /s/ (default for self-hosting).',
-    type: ConfigVariableType.STRING,
-  })
-  @IsDateString()
-  @IsOptional()
-  LOGIC_FUNCTION_LEGACY_ROUTE_CUTOFF: string;
 
   @ConfigVariablesMetadata({
     group: ConfigVariablesGroup.SERVER_CONFIG,
@@ -1463,15 +1250,6 @@ export class ConfigVariables {
   SIGNING_KEY_ROTATION_DAYS?: number;
 
   @ConfigVariablesMetadata({
-    group: ConfigVariablesGroup.ADVANCED_SETTINGS,
-    description:
-      'Register the cron job that syncs the marketplace catalog from the npm registry. Disable to stop the automatic catalog import.',
-    type: ConfigVariableType.BOOLEAN,
-  })
-  @IsOptional()
-  MARKETPLACE_CATALOG_SYNC_CRON_ENABLED = true;
-
-  @ConfigVariablesMetadata({
     group: ConfigVariablesGroup.RATE_LIMITING,
     description: 'Maximum number of records affected by mutations',
     type: ConfigVariableType.NUMBER,
@@ -1479,24 +1257,6 @@ export class ConfigVariables {
   @CastToPositiveNumber()
   @IsOptional()
   MUTATION_MAXIMUM_AFFECTED_RECORDS = 100;
-
-  @ConfigVariablesMetadata({
-    group: ConfigVariablesGroup.RATE_LIMITING,
-    description:
-      'Time-to-live for per-application API rate limiting in milliseconds',
-    type: ConfigVariableType.NUMBER,
-  })
-  @CastToPositiveNumber()
-  APPLICATION_API_RATE_LIMITING_TTL_IN_MS = 60_000;
-
-  @ConfigVariablesMetadata({
-    group: ConfigVariablesGroup.RATE_LIMITING,
-    description:
-      'Maximum number of API requests allowed per application across all workspaces in the rate limiting window',
-    type: ConfigVariableType.NUMBER,
-  })
-  @CastToPositiveNumber()
-  APPLICATION_API_RATE_LIMITING_LIMIT = 500;
 
   @CastToPositiveNumber()
   @ConfigVariablesMetadata({
@@ -2012,25 +1772,6 @@ export class ConfigVariables {
   SES_SNS_TOPIC_ARN_ALLOWLIST: string;
 
   @ConfigVariablesMetadata({
-    group: ConfigVariablesGroup.AWS_SES_SETTINGS,
-    description:
-      'Tatami Monitor ingest webhook URL (SNS HTTPS subscription target for deliverability observability).',
-    type: ConfigVariableType.STRING,
-    isSensitive: true,
-  })
-  @IsOptional()
-  TATAMI_SES_WEBHOOK_URL: string;
-
-  @ConfigVariablesMetadata({
-    group: ConfigVariablesGroup.AWS_SES_SETTINGS,
-    description:
-      'SNS topic ARN that fans out SES events to Tatami Monitor. When set, an SNS event destination is added to each workspace SES configuration set.',
-    type: ConfigVariableType.STRING,
-  })
-  @IsOptional()
-  TATAMI_SNS_TOPIC_ARN: string;
-
-  @ConfigVariablesMetadata({
     group: ConfigVariablesGroup.ADVANCED_SETTINGS,
     description: 'Timeout in milliseconds for primary database queries',
     type: ConfigVariableType.NUMBER,
@@ -2080,27 +1821,6 @@ export class ConfigVariables {
   @IsUrl({ require_tld: false })
   @IsOptional()
   APP_REGISTRY_CDN_URL: string = 'https://unpkg.com';
-
-  @ConfigVariablesMetadata({
-    group: ConfigVariablesGroup.ADVANCED_SETTINGS,
-    description:
-      'Client ID of the GitHub OAuth app used to verify app ownership when claiming a marketplace application',
-    type: ConfigVariableType.STRING,
-  })
-  @IsString()
-  @IsOptional()
-  APP_CLAIM_GITHUB_CLIENT_ID: string;
-
-  @ConfigVariablesMetadata({
-    group: ConfigVariablesGroup.ADVANCED_SETTINGS,
-    isSensitive: true,
-    description:
-      'Client secret of the GitHub OAuth app used to verify app ownership when claiming a marketplace application',
-    type: ConfigVariableType.STRING,
-  })
-  @IsString()
-  @IsOptional()
-  APP_CLAIM_GITHUB_CLIENT_SECRET: string;
 
   @ConfigVariablesMetadata({
     group: ConfigVariablesGroup.ADVANCED_SETTINGS,

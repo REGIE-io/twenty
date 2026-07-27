@@ -9,8 +9,7 @@ import {
   type ObjectRecordUpsertEvent,
 } from 'twenty-shared/database-events';
 import { type ObjectRecord } from 'twenty-shared/types';
-import { isDefined, isNonEmptyArray } from 'twenty-shared/utils';
-import { TRIGGER_STEP_ID } from 'twenty-shared/workflow';
+import { isDefined } from 'twenty-shared/utils';
 import { In, Raw } from 'typeorm';
 
 import { OnDatabaseBatchEvent } from 'src/engine/api/graphql/graphql-query-runner/decorators/on-database-batch-event.decorator';
@@ -32,21 +31,14 @@ import {
   type WorkflowAutomatedTriggerWorkspaceEntity,
 } from 'src/modules/workflow/common/standard-objects/workflow-automated-trigger.workspace-entity';
 import { WorkflowCommonWorkspaceService } from 'src/modules/workflow/common/workspace-services/workflow-common.workspace-service';
-import { evaluateStepFilters } from 'src/modules/workflow/workflow-executor/workflow-actions/filter/utils/evaluate-step-filters.util';
 import {
-  type BaseDatabaseEventTriggerSettings,
   type UpdateEventTriggerSettings,
+  type UpsertEventTriggerSettings,
 } from 'src/modules/workflow/workflow-trigger/automated-trigger/constants/automated-trigger-settings';
 import {
   WorkflowTriggerJob,
   type WorkflowTriggerJobData,
 } from 'src/modules/workflow/workflow-trigger/jobs/workflow-trigger.job';
-
-type TriggerEvaluationArgs = {
-  eventPayload: ObjectRecordEvent;
-  eventListener: WorkflowAutomatedTriggerWorkspaceEntity;
-  action: DatabaseEventAction;
-};
 
 @Injectable()
 export class WorkflowDatabaseEventTriggerListener {
@@ -394,26 +386,27 @@ export class WorkflowDatabaseEventTriggerListener {
     eventPayload,
     eventListener,
     action,
-  }: TriggerEvaluationArgs) {
-    return (
-      this.eventMatchesWatchedFields({ eventPayload, eventListener, action }) &&
-      this.eventMatchesRecordFilter({ eventPayload, eventListener })
-    );
-  }
-
-  private eventMatchesWatchedFields({
-    eventPayload,
-    eventListener,
-    action,
-  }: TriggerEvaluationArgs) {
-    if (
-      action === DatabaseEventAction.UPDATED ||
-      action === DatabaseEventAction.UPSERTED
-    ) {
+  }: {
+    eventPayload: ObjectRecordEvent;
+    eventListener: WorkflowAutomatedTriggerWorkspaceEntity;
+    action: DatabaseEventAction;
+  }) {
+    if (action === DatabaseEventAction.UPDATED) {
       const settings = eventListener.settings as UpdateEventTriggerSettings;
-      const updatedFields =
-        (eventPayload as ObjectRecordUpdateEvent)?.properties?.updatedFields ??
-        [];
+      const updateEventPayload = eventPayload as ObjectRecordUpdateEvent;
+      const updatedFields = updateEventPayload?.properties?.updatedFields ?? [];
+
+      return (
+        !settings.fields ||
+        settings.fields.length === 0 ||
+        settings.fields.some((field) => updatedFields.includes(field))
+      );
+    }
+
+    if (action === DatabaseEventAction.UPSERTED) {
+      const settings = eventListener.settings as UpsertEventTriggerSettings;
+      const upsertEventPayload = eventPayload as ObjectRecordUpsertEvent;
+      const updatedFields = upsertEventPayload?.properties?.updatedFields ?? [];
 
       return (
         !settings.fields ||
@@ -423,33 +416,5 @@ export class WorkflowDatabaseEventTriggerListener {
     }
 
     return true;
-  }
-
-  private eventMatchesRecordFilter({
-    eventPayload,
-    eventListener,
-  }: Pick<TriggerEvaluationArgs, 'eventPayload' | 'eventListener'>) {
-    const { filter } =
-      eventListener.settings as BaseDatabaseEventTriggerSettings;
-
-    if (!isDefined(filter) || !isNonEmptyArray(filter.stepFilters)) {
-      return true;
-    }
-
-    try {
-      return evaluateStepFilters({
-        stepFilters: filter.stepFilters,
-        stepFilterGroups: filter.stepFilterGroups,
-        context: { [TRIGGER_STEP_ID]: eventPayload },
-      });
-    } catch (error) {
-      this.logger.error(
-        `Failed to evaluate database-event trigger filter for workflow ${eventListener.workflowId}: ${
-          error instanceof Error ? error.message : String(error)
-        }`,
-      );
-
-      return false;
-    }
   }
 }

@@ -6,7 +6,6 @@ export type IconComponentProps = {
   size?: number | string;
   stroke?: number | string;
   color?: string;
-  'aria-hidden'?: boolean;
 };
 
 export type IconComponent = FunctionComponent<IconComponentProps>;

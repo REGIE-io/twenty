@@ -7,8 +7,6 @@ import { z } from 'zod';
 import { buildRegistryCdnUrl } from 'src/engine/core-modules/application/application-marketplace/utils/build-registry-cdn-url.util';
 import { TwentyConfigService } from 'src/engine/core-modules/twenty-config/twenty-config.service';
 
-const MAX_REGISTRY_ASSET_SIZE_BYTES = 10 * 1024 * 1024; // 10Mb
-
 export type RegistryPackageInfo = {
   name: string;
   version: string;
@@ -75,31 +73,33 @@ export class MarketplaceService {
     }
   }
 
-  async fetchAssetFromRegistryCdn(
+  async fetchReadmeFromRegistryCdn(
     packageName: string,
     version: string,
-    filePath: string,
-  ): Promise<Buffer | null> {
+  ): Promise<string | null> {
     const cdnBaseUrl = this.twentyConfigService.get('APP_REGISTRY_CDN_URL');
     const url = buildRegistryCdnUrl({
       cdnBaseUrl,
       packageName,
       version,
-      filePath,
+      filePath: 'README.md',
     });
 
     try {
-      const { data } = await axios.get<ArrayBuffer>(url, {
+      const { data } = await axios.get(url, {
         headers: { 'User-Agent': 'Twenty-Marketplace' },
-        timeout: 10_000,
-        responseType: 'arraybuffer',
-        maxContentLength: MAX_REGISTRY_ASSET_SIZE_BYTES,
+        timeout: 5_000,
+        responseType: 'text',
       });
 
-      return Buffer.from(data);
+      if (!data || data.trim().length === 0) {
+        return null;
+      }
+
+      return data;
     } catch {
       this.logger.debug(
-        `Could not fetch asset "${filePath}" from CDN for ${packageName}@${version}`,
+        `Could not fetch README from CDN for ${packageName}@${version}`,
       );
 
       return null;

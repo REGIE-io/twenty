@@ -1,6 +1,5 @@
 import { AGENT_CHAT_STOP_EVENT_NAME } from '@/ai/constants/AgentChatStopEventName';
 import { agentChatInputIsEmptySelector } from '@/ai/states/selectors/agentChatInputIsEmptySelector';
-import { agentChatIsAwaitingFirstChunkComponentFamilyState } from '@/ai/states/agentChatIsAwaitingFirstChunkComponentFamilyState';
 import { agentChatIsLoadingState } from '@/ai/states/agentChatIsLoadingState';
 import { agentChatIsStreamingComponentFamilyState } from '@/ai/states/agentChatIsStreamingComponentFamilyState';
 import { currentAiChatThreadState } from '@/ai/states/currentAiChatThreadState';
@@ -12,13 +11,9 @@ import { RoundedIconButton } from 'twenty-ui/input';
 
 type SendMessageButtonProps = {
   onSend: () => void;
-  isDisabled?: boolean;
 };
 
-export const SendMessageButton = ({
-  onSend,
-  isDisabled = false,
-}: SendMessageButtonProps) => {
+export const SendMessageButton = ({ onSend }: SendMessageButtonProps) => {
   const agentChatInputIsEmpty = useAtomStateValue(
     agentChatInputIsEmptySelector,
   );
@@ -30,16 +25,12 @@ export const SendMessageButton = ({
     agentChatIsStreamingComponentFamilyState,
     { threadId: currentAiChatThread },
   );
-  const agentChatIsAwaitingFirstChunk = useAtomComponentFamilyStateValue(
-    agentChatIsAwaitingFirstChunkComponentFamilyState,
-    { threadId: currentAiChatThread },
-  );
 
   const handleStopClick = () => {
     dispatchBrowserEvent(AGENT_CHAT_STOP_EVENT_NAME);
   };
 
-  if (agentChatIsStreaming || agentChatIsAwaitingFirstChunk) {
+  if (agentChatIsStreaming) {
     return (
       <RoundedIconButton
         Icon={IconPlayerStop}
@@ -54,7 +45,7 @@ export const SendMessageButton = ({
       Icon={IconArrowUp}
       size="medium"
       onClick={onSend}
-      disabled={isDisabled || agentChatInputIsEmpty || agentChatIsLoading}
+      disabled={agentChatInputIsEmpty || agentChatIsLoading}
     />
   );
 };

@@ -4,10 +4,6 @@ import { isDefined } from 'twenty-shared/utils';
 
 import { type EncryptedString } from 'src/engine/core-modules/secret-encryption/branded-strings/encrypted-string.type';
 import { type PlaintextString } from 'src/engine/core-modules/secret-encryption/branded-strings/plaintext-string.type';
-import {
-  SecretEncryptionException,
-  SecretEncryptionExceptionCode,
-} from 'src/engine/core-modules/secret-encryption/exceptions/secret-encryption.exception';
 import { EnvironmentConfigDriver } from 'src/engine/core-modules/twenty-config/drivers/environment-config.driver';
 
 import { computeEncryptionKeyId } from './utils/compute-encryption-key-id.util';
@@ -91,7 +87,7 @@ export class SecretEncryptionService {
     }
 
     return this.maskDecryptedValue(
-      this.decryptVersionedOrThrow(value, { workspaceId }),
+      this.decryptVersioned(value, { workspaceId }),
       mask,
     );
   }
@@ -131,45 +127,7 @@ export class SecretEncryptionService {
     }) as EncryptedString;
   }
 
-  public decryptVersionedOrThrow(
-    value: EncryptedString,
-    opts: VersionedOptions = {},
-  ): PlaintextString {
-    if (!isDefined(value)) {
-      return value;
-    }
-
-    const parsed = parseSecretEncryptionEnvelopeOrThrow({ value });
-
-    if (parsed.version !== 2) {
-      throw new SecretEncryptionException(
-        'Expected an enc:v2 envelope but received a non-versioned value. The 2.5 encryption backfill instance commands must have run before this value can be decrypted.',
-        SecretEncryptionExceptionCode.UNKNOWN_ENVELOPE_VERSION,
-      );
-    }
-
-    const keys = resolveEncryptionKeysOrThrow({
-      environmentConfigDriver: this.environmentConfigDriver,
-    });
-    const rawKey = pickEncryptionKeyByKeyIdOrThrow({
-      keyId: parsed.keyId,
-      keys,
-    });
-
-    return decryptAesGcmV2OrThrow({
-      payloadBase64: parsed.payload,
-      rawKey,
-      workspaceId: opts.workspaceId,
-    }) as PlaintextString;
-  }
-
-  /**
-   * @deprecated Legacy variant kept only for the 2.5 encryption backfill
-   * instance commands, which read pre-v2 rows (legacy AES-CTR ciphertext or
-   * plaintext) and re-encrypt them into the enc:v2 envelope. Runtime and
-   * rotation paths must use `decryptVersionedOrThrow` instead.
-   */
-  public legacyDecryptVersionedWithFallback(
+  public decryptVersioned(
     value: EncryptedString,
     opts: VersionedOptions = {},
   ): PlaintextString {

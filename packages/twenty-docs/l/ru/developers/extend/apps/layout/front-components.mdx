@@ -121,7 +121,7 @@ export default defineFrontComponent({
 * **`Command`** — запускает асинхронный колбэк через проп `execute`.
 * **`CommandLink`** — переходит по пути внутри приложения. Пропы: `to`, `params`, `queryParams`, `options`.
 * **`CommandModal`** — открывает модальное окно подтверждения. Если пользователь подтвердит, выполняет колбэк `execute`. Пропы: `title`, `subtitle`, `execute`, `confirmButtonText`, `confirmButtonAccent`.
-* **`CommandOpenSidePanelPage`** — открывает страницу боковой панели. Пропсы зависят от `page` — например, `ViewRecord` принимает `recordId` + `objectNameSingular`, другие страницы принимают `pageTitle` + `pageIcon`.
+* **`CommandOpenSidePanelPage`** — открывает конкретную страницу боковой панели. Пропы: `page`, `pageTitle`, `pageIcon`.
 
 Полный пример headless фронт-компонента, использующего `Command` для запуска действия из меню команд:
 
@@ -200,29 +200,24 @@ export default defineFrontComponent({
 
 Front-компоненты выполняются в браузере в изолированном Web Worker, в то время как [логические функции](/l/ru/developers/extend/apps/logic/logic-functions) выполняются на стороне сервера. Между ними нет прямого внутрипроцессного вызова — вместо этого front-компонент обращается к логической функции по HTTP.
 
-Логическая функция, объявленная с `httpRouteTriggerSettings`, доступна по HTTP по своему пути маршрута. Twenty внедряет в воркер базовый URL, с которого обслуживаются ваши функции, в виде `TWENTY_FUNCTIONS_URL` вместе с `TWENTY_APP_ACCESS_TOKEN`, который аутентифицирует вызов. Пока что нет отдельного клиентского SDK для вызова ваших собственных функций, поэтому вызывайте их с помощью обычного `fetch`:
+Логическая функция, объявленная с `httpRouteTriggerSettings`, доступна по эндпоинту `/s/` по адресу `${TWENTY_API_URL}/s\<path>`. Ваш front-компонент вызывает этот маршрут с помощью `RestApiClient` из `twenty-client-sdk/rest`, который аутентифицируется с использованием `TWENTY_APP_ACCESS_TOKEN`, который Twenty внедряет в worker.
 
-> **В Twenty Cloud логические функции с HTTP-триггером обслуживаются на выделенном домене для каждого рабочего пространства** по адресу `https://\<your-workspace-subdomain>.twenty.com\<path>` — именно к этому и разрешается `TWENTY_FUNCTIONS_URL`. Для внешних вызовов скопируйте точный URL из настроек **HTTP trigger** функции или на вкладке **Settings** приложения.
-
-<Warning>
-  Устаревший маршрут функции `/s/` **не рекомендуется к использованию** и будет **деактивирован 2026-07-24**. Вместо этого используйте `TWENTY_FUNCTIONS_URL` (выше) и перенесите все жестко заданные URL вида `/s/` до этой даты. Маршрут `/s/` по-прежнему доступен при самостоятельном размещении (self-hosting).
-</Warning>
+`RestApiClient` создан именно для этого. Он считывает `TWENTY_API_URL` и `TWENTY_APP_ACCESS_TOKEN` из окружения worker, добавляет заголовок `Authorization: Bearer`, сериализует и парсит JSON и выбрасывает `RestApiClientError`, когда токен или URL отсутствуют или ответ не является 2xx — чтобы вам не приходилось реализовывать этот шаблонный код в каждом компоненте.
 
 Безголовый front-компонент может выполнить вызов при монтировании через компонент `Command`, а затем автоматически размонтироваться:
 
 ```tsx src/front-components/sync-prs.tsx
 import { defineFrontComponent } from 'twenty-sdk/define';
 import { Command } from 'twenty-sdk/command';
+import { RestApiClient } from 'twenty-client-sdk/rest';
 
 const SyncPrs = () => {
   const execute = async () => {
-    await fetch(`${process.env.TWENTY_FUNCTIONS_URL}/github/fetch-prs`, {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${process.env.TWENTY_APP_ACCESS_TOKEN}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ owner: 'twentyhq', repo: 'twenty' }),
+    const client = new RestApiClient();
+
+    await client.post('/s/github/fetch-prs', {
+      owner: 'twentyhq',
+      repo: 'twenty',
     });
   };
 
@@ -238,7 +233,7 @@ export default defineFrontComponent({
 });
 ```
 
-Путь, добавляемый к `TWENTY_FUNCTIONS_URL`, — это значение `httpRouteTriggerSettings.path` логической функции. Сохраните `isAuthRequired: true`; `TWENTY_APP_ACCESS_TOKEN`, который Twenty выпускает для вашего компонента, аутентифицирует запрос:
+Путь, передаваемый клиенту, — это общедоступный путь маршрута: значение `httpRouteTriggerSettings.path` для логической функции с префиксом `/s`. Сохраните `isAuthRequired: true`; клиент передает токен доступа к приложению, который Twenty выпускает для вашего компонента:
 
 ```ts src/logic-functions/fetch-prs.logic-function.ts
 import { defineLogicFunction } from 'twenty-sdk/define';
@@ -263,12 +258,12 @@ export default defineLogicFunction({
 ```
 
 <Note>
-`TWENTY_FUNCTIONS_URL` и `TWENTY_APP_ACCESS_TOKEN` внедряются автоматически — см. [переменные приложения](#application-variables). Поскольку секретные переменные приложения никогда не раскрываются front-компонентам, храните ключи API и другую конфиденциальную логику в логической функции, а не во front-компоненте.
+`TWENTY_API_URL` и `TWENTY_APP_ACCESS_TOKEN` внедряются автоматически — см. [переменные приложения](#application-variables). Поскольку секретные переменные приложения никогда не раскрываются front-компонентам, храните ключи API и другую конфиденциальную логику в логической функции, а не во front-компоненте.
 </Note>
 
-### Вызов REST API Twenty
+### Справочник по RestApiClient
 
-Чтобы читать или изменять записи Twenty из фронт-компонента, используйте `RestApiClient` из `twenty-client-sdk/rest`. Он принадлежит к тому же семейству клиентов, что и `CoreApiClient` и `MetadataApiClient`, но нацелен на REST API Twenty (`/rest/...`) вместо GraphQL API, считывая базовый URL из `TWENTY_API_URL`.
+Импортируйте `RestApiClient` из `twenty-client-sdk/rest`. Он принадлежит к тому же семейству клиентов, что и `CoreApiClient` и `MetadataApiClient`, но предназначен для HTTP-маршрутов вашего приложения вместо GraphQL API.
 
 | Метод                             | Описание                                  |
 | --------------------------------- | ----------------------------------------- |
@@ -285,7 +280,7 @@ export default defineLogicFunction({
 
 ```ts
 const client = new RestApiClient({
-  baseUrl: 'https://myworkspace.twenty.com',
+  baseUrl: 'https://api.example.com',
   token: 'my-token',
 });
 ```
@@ -298,8 +293,8 @@ import { RestApiClient, RestApiClientError } from 'twenty-client-sdk/rest';
 const client = new RestApiClient();
 
 try {
-  const people = await client.get('/rest/people', {
-    query: { limit: 10 },
+  const prs = await client.get('/s/github/fetch-prs', {
+    query: { state: 'open' },
   });
 } catch (error) {
   if (error instanceof RestApiClientError) {
@@ -381,8 +376,7 @@ export default defineFrontComponent({
 
 | Переменная                | Описание                                                                      |
 | ------------------------- | ----------------------------------------------------------------------------- |
-| `TWENTY_FUNCTIONS_URL`    | Базовый URL, с которого обслуживаются функции HTTP-логики вашего приложения   |
-| `TWENTY_API_URL`          | Базовый URL основного API Twenty                                              |
+| `TWENTY_API_URL`          | Базовый URL API Twenty                                                        |
 | `TWENTY_APP_ACCESS_TOKEN` | Краткоживущий токен с областью действия, ограниченной ролью вашего приложения |
 
 ## API взаимодействия с хостом
@@ -523,43 +517,15 @@ export default defineFrontComponent({
 Компоненты фронтенда поддерживают несколько подходов к стилизации. Вы можете использовать:
 
 * **Встроенные стили** — `style={{ color: 'red' }}`
-* **Twenty UI components** — собственная библиотека компонентов Twenty; см. раздел [Using Twenty UI components](#using-twenty-ui-components) ниже
+* **Компоненты Twenty UI** — импорт из `twenty-sdk/ui` (Button, Tag, Status, Chip, Avatar и другие)
 * **Emotion** — CSS-in-JS с `@emotion/react`
 * **Styled-components** — паттерны `styled.div`
 * **Tailwind CSS** — утилитарные классы
 * **Любая библиотека CSS-in-JS**, совместимая с React
 
-## Использование компонентов Twenty UI
-
-Twenty поставляет свою библиотеку компонентов как пакет [`twenty-ui`](https://www.npmjs.com/package/twenty-ui/v/1.0.0-alpha.1). Компоненты фронтенда могут использовать его для кнопок, тегов, статусных плашек, чипов, аватаров, иконок, типографики и токенов темы, которые автоматически соответствуют светлой и тёмной теме рабочего пространства.
-
-### Установка
-
-Добавьте пакет в своё приложение, зафиксировав его на версии, с которой поставляется ваш экземпляр Twenty:
-
-```bash
-yarn add twenty-ui@1.0.0-alpha.1
-```
-
-`twenty-ui` включается в ваш компонент фронтенда на этапе сборки, поэтому его достаточно иметь в зависимостях вашего приложения — во время выполнения ничего настраивать не нужно.
-
-### Импорт компонентов
-
-Импортируйте из соответствующего подпути, а не из корня пакета, чтобы в ваш бандл попали только те компоненты, которые вы используете:
-
-| Подпуть                     | Что экспортирует                                  |
-| --------------------------- | ------------------------------------------------- |
-| `twenty-ui/input`           | `Button` и элементы ввода формы                   |
-| `twenty-ui/data-display`    | `Tag`, `Status`, `Chip`, `Avatar` и другие        |
-| `twenty-ui/feedback`        | `Callout`, `Banner`, `Info` и другие              |
-| `twenty-ui/typography`      | `H1Title`, `H2Title`, `H3Title`, `Label` и другие |
-| `twenty-ui/icon`            | Компоненты `Icon*` (например, `IconCheck`)        |
-| `twenty-ui/theme-constants` | `ThemeProvider`, `themeCssVariables`              |
-
 ```tsx
 import { defineFrontComponent } from 'twenty-sdk/define';
-import { Status, Tag } from 'twenty-ui/data-display';
-import { Button } from 'twenty-ui/input';
+import { Button, Tag, Status } from 'twenty-sdk/ui';
 
 const StyledWidget = () => {
   return (
@@ -577,43 +543,3 @@ export default defineFrontComponent({
   component: StyledWidget,
 });
 ```
-
-### Иконки
-
-Импортируйте отдельные иконки из `twenty-ui/icon`:
-
-```tsx
-import { IconBox, IconCheck } from 'twenty-ui/icon';
-```
-
-Каждая именованная иконка участвует в tree-shaking, поэтому импорт нескольких иконок почти не увеличит размер вашего бандла. Избегайте `IconsProvider`, `useIcons` и `iconsState` — они подключают весь набор иконок Tabler (несколько мегабайт).
-
-### Темизация и токены темы
-
-Компоненты Twenty UI автоматически подстраиваются под светлую и тёмную темы рабочего пространства — рендерер применяет активную цветовую схему на хосте, а компоненты вычисляют свои цвета относительно неё.
-
-Чтобы использовать те же дизайн‑токены в собственных встроенных стилях, вызовите хук `useTheme()`. Он возвращает токены темы Twenty (отступы, цвета, радиусы, шрифты), привязанные к активной теме, без необходимости настраивать `ThemeProvider` в вашем компоненте:
-
-```tsx
-import { useTheme } from 'twenty-ui/theme-constants';
-
-const Card = () => {
-  const theme = useTheme();
-
-  return (
-    <div
-      style={{
-        padding: theme.spacing[4],
-        background: theme.background.secondary,
-        color: theme.font.color.primary,
-      }}
-    >
-      Themed card
-    </div>
-  );
-};
-```
-
-Поскольку `useTheme()` — это хук, вы читаете токены внутри тела компонента, поэтому значения всегда соответствуют активной теме. Та же карта токенов также экспортируется как константа `themeCssVariables`, но в компонентах фронтенда предпочтительнее использовать `useTheme()` — модульная константа, разыменующая `themeCssVariables`, может быть `undefined`, пока извлекается манифест приложения.
-
-Чтобы явно разветвлять логику по активной цветовой схеме, считайте её с помощью `useColorScheme()` из `twenty-sdk/front-component`, который возвращает `'light'` или `'dark'`.

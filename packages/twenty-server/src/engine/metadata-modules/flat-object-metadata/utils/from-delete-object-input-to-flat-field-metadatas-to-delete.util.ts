@@ -59,10 +59,6 @@ export const fromDeleteObjectInputToFlatFieldMetadatasToDelete = ({
     });
   const flatFieldMetadatasToDelete = objectFlatFieldMetadatas.flatMap(
     (flatFieldMetadata) => {
-      if (flatFieldMetadata.isSystemSideEffect === true) {
-        return [];
-      }
-
       if (
         isMorphOrRelationFlatFieldMetadata(flatFieldMetadata) &&
         flatFieldMetadata.relationTargetObjectMetadataId !==
@@ -91,10 +87,6 @@ export const fromDeleteObjectInputToFlatFieldMetadatasToDelete = ({
   ).filter(
     (flatIndex): flatIndex is FlatIndexMetadata =>
       isDefined(flatIndex) &&
-      !(
-        flatIndex.isSystemSideEffect === true &&
-        flatIndex.objectMetadataId === flatObjectMetadataToDelete.id
-      ) &&
       (flatIndex.objectMetadataId === flatObjectMetadataToDelete.id ||
         flatIndex.flatIndexFieldMetadatas.some((flatIndexField) =>
           fieldIdsToDelete.has(flatIndexField.fieldMetadataId),

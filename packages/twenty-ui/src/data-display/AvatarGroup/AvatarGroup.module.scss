@@ -4,21 +4,9 @@
 }
 
 .itemContainer {
-  display: flex;
+  margin-right: -3px;
 
-  &[data-overlap='right'] {
-    margin-right: calc(-1 * var(--avatar-group-overlap-offset));
-  }
-
-  &[data-overlap='right']:last-child {
+  &:last-child {
     margin-right: 0;
-  }
-
-  &[data-overlap='left'] {
-    margin-left: calc(-1 * var(--avatar-group-overlap-offset));
-  }
-
-  &[data-overlap='left']:first-child {
-    margin-left: 0;
   }
 }

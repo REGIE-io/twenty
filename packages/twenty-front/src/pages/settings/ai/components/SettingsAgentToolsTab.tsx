@@ -50,9 +50,7 @@ export const SettingsAgentToolsTab = () => {
       const searchNormalized = normalizeSearchText(searchTerm);
 
       const matchesSearch =
-        normalizeSearchText(tool.label ?? tool.name).includes(
-          searchNormalized,
-        ) ||
+        normalizeSearchText(tool.name).includes(searchNormalized) ||
         normalizeSearchText(tool.description ?? '').includes(searchNormalized);
 
       if (!matchesSearch) {
@@ -69,7 +67,7 @@ export const SettingsAgentToolsTab = () => {
 
       return showCustomTools;
     })
-    .sort((a, b) => (a.label ?? a.name).localeCompare(b.label ?? b.name));
+    .sort((a, b) => a.name.localeCompare(b.name));
 
   return (
     <Section>

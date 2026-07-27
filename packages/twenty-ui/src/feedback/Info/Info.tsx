@@ -1,9 +1,9 @@
 import { clsx } from 'clsx';
 import { IconInfoCircle } from '@ui/icon/components/TablerIcons';
-import { useTheme } from '@ui/theme-constants';
+import { ThemeContext } from '@ui/theme-constants';
 
 import { Button } from '@ui/input/Button/Button';
-import React from 'react';
+import React, { useContext } from 'react';
 import { Link } from 'react-router-dom';
 
 import styles from './Info.module.scss';
@@ -29,7 +29,7 @@ export const Info = ({
   onClick,
   to,
 }: InfoProps) => {
-  const theme = useTheme();
+  const { theme } = useContext(ThemeContext);
 
   return (
     <div className={clsx(styles.info, INFO_ACCENT_CLASS_NAMES[accent])}>

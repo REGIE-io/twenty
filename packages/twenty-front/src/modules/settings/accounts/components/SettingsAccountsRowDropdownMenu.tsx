@@ -75,11 +75,7 @@ export const SettingsAccountsRowDropdownMenu = ({
         dropdownId={dropdownId}
         dropdownPlacement="right-start"
         clickableComponent={
-          <LightIconButton
-            Icon={IconDotsVertical}
-            accent="tertiary"
-            aria-label={t`More options`}
-          />
+          <LightIconButton Icon={IconDotsVertical} accent="tertiary" />
         }
         dropdownComponents={
           <DropdownContent>

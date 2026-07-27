@@ -114,8 +114,6 @@ export class DraftEmailTool implements Tool {
         html: data.sanitizedHtmlBody,
         attachments: data.attachments,
         inReplyTo: data.inReplyTo,
-        threadExternalId: data.threadExternalId,
-        references: data.references,
       },
       data.connectedAccount,
     );

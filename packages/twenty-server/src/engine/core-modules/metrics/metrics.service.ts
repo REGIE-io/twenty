@@ -229,22 +229,13 @@ export class MetricsService {
     value,
     unit,
     attributes,
-    bucketBoundaries,
   }: {
     key: MetricsKeys;
     value: number;
     unit?: string;
     attributes?: Attributes;
-    bucketBoundaries?: readonly number[];
   }): void {
-    this.getMeter()
-      .createHistogram(key, {
-        unit,
-        ...(isDefined(bucketBoundaries) && {
-          advice: { explicitBucketBoundaries: [...bucketBoundaries] },
-        }),
-      })
-      .record(value, attributes);
+    this.getMeter().createHistogram(key, { unit }).record(value, attributes);
   }
 
   async groupMetrics(

@@ -18,5 +18,5 @@ export const constructViewFromRecordTableWidgetViewSnapshot = (
   viewFilters: snapshot.viewFilters,
   viewFilterGroups: snapshot.viewFilterGroups,
   viewSorts: snapshot.viewSorts,
-  viewGroups: snapshot.viewGroups,
+  viewGroups: [],
 });

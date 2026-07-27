@@ -55,6 +55,5 @@ export const formatSentMessage = (
     direction: MessageDirection.OUTGOING,
     attachments: [],
     participants,
-    isDraft: false,
   };
 };

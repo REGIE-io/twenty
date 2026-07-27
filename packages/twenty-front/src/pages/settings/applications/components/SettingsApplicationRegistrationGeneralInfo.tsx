@@ -33,7 +33,6 @@ import { getSettingsPath, isDefined } from 'twenty-shared/utils';
 import { Section } from 'twenty-ui/layout';
 import { SettingsPath } from 'twenty-shared/types';
 import { SettingsApplicationRegistrationShareLinkButtons } from '~/pages/settings/applications/components/SettingsApplicationRegistrationShareLinkButtons';
-import { getAbsoluteImageUrl } from '~/utils/image/getAbsoluteImageUrl';
 
 const StyledSourceRow = styled.div`
   align-items: center;
@@ -108,26 +107,26 @@ export const SettingsApplicationRegistrationGeneralInfo = ({
       },
     ];
 
-    items.push({
-      Icon: IconTag,
-      label: t`Owner`,
-      value: isDefined(ownerWorkspace?.displayName) ? (
-        <Chip
-          size={ChipSize.Large}
-          variant={ChipVariant.Highlighted}
-          clickable={false}
-          leftComponent={
-            <AvatarOrIcon
-              avatarType="rounded"
-              avatarUrl={getAbsoluteImageUrl(ownerWorkspace?.logo ?? undefined)}
-            />
-          }
-          label={ownerWorkspace.displayName}
-        />
-      ) : (
-        <Tag color="orange" text={t`Unclaimed`} />
-      ),
-    });
+    if (isDefined(ownerWorkspace?.displayName)) {
+      items.push({
+        Icon: IconTag,
+        label: t`Owner`,
+        value: (
+          <Chip
+            size={ChipSize.Large}
+            variant={ChipVariant.Highlighted}
+            clickable={false}
+            leftComponent={
+              <AvatarOrIcon
+                avatarType="rounded"
+                avatarUrl={ownerWorkspace?.logo ?? undefined}
+              />
+            }
+            label={ownerWorkspace.displayName}
+          />
+        ),
+      });
+    }
 
     switch (registration.sourceType) {
       case ApplicationRegistrationSourceType.NPM:

@@ -12,6 +12,7 @@ import {
   searchForWorkspaceRoot,
 } from 'vite';
 import svgr from 'vite-plugin-svgr';
+import tsconfigPaths from 'vite-tsconfig-paths';
 
 import { createWywProfilingPlugin } from 'twenty-shared/vite';
 
@@ -72,6 +73,10 @@ export default defineConfig(({ mode }) => {
     plugins: [
       react({
         plugins: [['@lingui/swc-plugin', {}]],
+      }),
+      tsconfigPaths({
+        root: __dirname,
+        projects: ['tsconfig.json'],
       }),
       svgr(),
       lingui({
@@ -255,11 +260,10 @@ export default defineConfig(({ mode }) => {
       },
     },
     resolve: {
-      tsconfigPaths: true,
       alias: [
         // wyw-in-js 1.x resolves modules in its CSS evaluator via vite's
-        // resolve.alias (not resolve.tsconfigPaths), so the `@/` and `~/`
-        // tsconfig path aliases must be mirrored here.
+        // resolve.alias (it no longer picks up vite-tsconfig-paths), so the
+        // `@/` and `~/` tsconfig path aliases must be mirrored here.
         { find: /^@\//, replacement: path.resolve(__dirname, 'src/modules') + '/' },
         { find: /^~\//, replacement: path.resolve(__dirname, 'src') + '/' },
         { find: 'path', replacement: 'rollup-plugin-node-polyfills/polyfills/path' },

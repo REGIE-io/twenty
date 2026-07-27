@@ -13,7 +13,6 @@ import {
   type User,
   type Workspace,
   WorkspaceActivationStatus,
-  WorkspaceDiscoverability,
   WorkspaceMemberDateFormatEnum,
   WorkspaceMemberTimeFormatEnum,
 } from '~/generated-metadata/graphql';
@@ -69,7 +68,6 @@ export const mockCurrentWorkspace = {
   inviteHash: 'twenty.com-invite-hash',
   logo: workspaceLogoUrl,
   isPublicInviteLinkEnabled: true,
-  workspaceDiscoverability: WorkspaceDiscoverability.PUBLIC,
   allowImpersonation: true,
   activationStatus: WorkspaceActivationStatus.ACTIVE,
   hasValidSignedEnterpriseKey: false,

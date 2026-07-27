@@ -5,12 +5,10 @@ import { type UniversalFlatFrontComponent } from 'src/engine/workspace-manager/w
 export const fromFrontComponentManifestToUniversalFlatFrontComponent = ({
   frontComponentManifest,
   applicationUniversalIdentifier,
-  isSettingsFrontComponent,
   now,
 }: {
   frontComponentManifest: FrontComponentManifest;
   applicationUniversalIdentifier: string;
-  isSettingsFrontComponent: boolean;
   now: string;
 }): UniversalFlatFrontComponent => {
   return {
@@ -22,10 +20,7 @@ export const fromFrontComponentManifestToUniversalFlatFrontComponent = ({
     builtComponentPath: frontComponentManifest.builtComponentPath,
     componentName: frontComponentManifest.componentName,
     builtComponentChecksum: frontComponentManifest.builtComponentChecksum,
-    // A settings front component always renders visible UI.
-    isHeadless: isSettingsFrontComponent
-      ? false
-      : (frontComponentManifest.isHeadless ?? false),
+    isHeadless: frontComponentManifest.isHeadless ?? false,
     usesSdkClient: frontComponentManifest.usesSdkClient ?? false,
     createdAt: now,
     updatedAt: now,

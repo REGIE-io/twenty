@@ -1,3 +1,4 @@
+import { type DropResult } from '@hello-pangea/dnd';
 import { useStore } from 'jotai';
 import { useCallback, useContext } from 'react';
 import { isDefined } from 'twenty-shared/utils';
@@ -40,9 +41,7 @@ export const useProcessBoardCardDrop = () => {
 
   const processBoardCardDrop = useCallback(
     (
-      droppableId: string,
-      draggableId: string,
-      targetIndex: number,
+      boardCardDropResult: DropResult,
       selectedRecordIds: string[],
       options?: { shouldUpdatePosition?: boolean },
     ) => {
@@ -51,9 +50,7 @@ export const useProcessBoardCardDrop = () => {
       const shouldUpdatePosition = options?.shouldUpdatePosition ?? true;
 
       processGroupDrop({
-        droppableId,
-        draggableId,
-        targetIndex,
+        groupDropResult: boardCardDropResult,
         store,
         selectedRecordIds,
         recordIdsByGroupFamilyState:

@@ -99,12 +99,10 @@ describe('Microsoft get messages service', () => {
           role: MessageParticipantRole.TO,
         },
       ],
-      isDraft: false,
       attachments: [],
       messageFolderExternalIds: responseExample1.body.parentFolderId
         ? [responseExample1.body.parentFolderId]
         : [],
-      messageHeaders: [],
     });
 
     const responseExample2 =
@@ -147,12 +145,10 @@ describe('Microsoft get messages service', () => {
           role: MessageParticipantRole.CC,
         },
       ],
-      isDraft: false,
       attachments: [],
       messageFolderExternalIds: responseExample2.body.parentFolderId
         ? [responseExample2.body.parentFolderId]
         : [],
-      messageHeaders: [],
     });
   });
 
@@ -192,12 +188,10 @@ describe('Microsoft get messages service', () => {
           role: MessageParticipantRole.FROM,
         },
       ],
-      isDraft: false,
       attachments: [],
       messageFolderExternalIds: responseExample.body.parentFolderId
         ? [responseExample.body.parentFolderId]
         : [],
-      messageHeaders: [],
     });
   });
 });

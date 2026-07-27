@@ -8,9 +8,10 @@ import { ThemeContext, themeCssVariables } from 'twenty-ui/theme-constants';
 
 import { CodeExecutionDisplay } from '@/ai/components/CodeExecutionDisplay';
 import { ShimmeringText } from '@/ai/components/ShimmeringText';
-import { useToolDisplayContext } from '@/ai/hooks/useToolDisplayContext';
-import { getToolDisplayMessage } from '@/ai/utils/tool-display/get-tool-display-message';
-import { unwrapToolInput } from '@/ai/utils/tool-display/unwrap-tool-input.util';
+import {
+  getToolDisplayMessage,
+  resolveToolInput,
+} from '@/ai/utils/getToolDisplayMessage';
 import { getToolIcon } from '@/ai/utils/getToolIcon';
 import { useLingui } from '@lingui/react/macro';
 import { type DynamicToolUIPart, getToolName, type ToolUIPart } from 'ai';
@@ -142,15 +143,11 @@ export const ToolStepRenderer = ({
   const { input, output, errorText } = toolPart;
   const rawToolName = getToolName(toolPart);
 
-  const { toolInput, toolName } = unwrapToolInput({
-    input,
-    toolName: rawToolName,
-  });
+  const { resolvedInput: toolInput, resolvedToolName: toolName } =
+    resolveToolInput(input, rawToolName);
 
-  const displayContext = useToolDisplayContext();
   const hasError = isDefined(errorText);
-  const isCodeInterpreter = toolName === 'code_interpreter';
-  const isExpandable = isDefined(output) || hasError || isCodeInterpreter;
+  const isExpandable = isDefined(output) || hasError;
   const ToolIcon = getToolIcon(toolName);
 
   const outputObj =
@@ -162,40 +159,42 @@ export const ToolStepRenderer = ({
   const toolError =
     typeof outputObj?.error === 'string' ? outputObj.error : null;
 
-  const codeInput = isCodeInterpreter
-    ? (toolInput as { code?: string } | undefined)
-    : null;
-  const codeOutput = isCodeInterpreter
-    ? (outputObj as {
-        stdout?: string;
-        stderr?: string;
-        exitCode?: number;
-        files?: Array<{
-          fileId: string;
-          filename: string;
-          url: string;
-          mimeType?: string;
-        }>;
-      } | null)
-    : null;
+  if (toolName === 'code_interpreter') {
+    const codeInput = toolInput as { code?: string } | undefined;
+    const codeOutput = outputObj as {
+      stdout?: string;
+      stderr?: string;
+      exitCode?: number;
+      files?: Array<{
+        fileId: string;
+        filename: string;
+        url: string;
+        mimeType?: string;
+      }>;
+    } | null;
+
+    const isRunning = !outputObj && !hasError && isStreaming;
+
+    return (
+      <CodeExecutionDisplay
+        code={codeInput?.code ?? ''}
+        stdout={codeOutput?.stdout ?? ''}
+        stderr={codeOutput?.stderr || errorText || ''}
+        exitCode={codeOutput?.exitCode}
+        files={codeOutput?.files}
+        isRunning={isRunning}
+      />
+    );
+  }
 
   if (!output && !hasError) {
-    const displayText = getToolDisplayMessage({
-      input,
-      toolName: rawToolName,
-      isFinished: !isStreaming,
-      displayContext,
-      output,
-    });
+    const displayText = isStreaming
+      ? getToolDisplayMessage(input, rawToolName, false)
+      : getToolDisplayMessage(input, rawToolName, true);
 
     return (
       <StyledContainer>
-        <StyledToggleButton
-          isExpandable={isCodeInterpreter}
-          onClick={
-            isCodeInterpreter ? () => setIsExpanded(!isExpanded) : undefined
-          }
-        >
+        <StyledToggleButton isExpandable={false}>
           <StyledLeftContent>
             <StyledIconTextContainer>
               <ToolIcon size={theme.icon.size.sm} />
@@ -210,27 +209,8 @@ export const ToolStepRenderer = ({
           </StyledLeftContent>
           <StyledRightContent>
             <StyledToolName>{toolName}</StyledToolName>
-            {isCodeInterpreter &&
-              (isExpanded ? (
-                <IconChevronUp size={theme.icon.size.sm} />
-              ) : (
-                <IconChevronDown size={theme.icon.size.sm} />
-              ))}
           </StyledRightContent>
         </StyledToggleButton>
-        {isCodeInterpreter && (
-          <AnimatedExpandableContainer
-            isExpanded={isExpanded}
-            mode="fit-content"
-          >
-            <CodeExecutionDisplay
-              code={codeInput?.code ?? ''}
-              stdout=""
-              stderr=""
-              isRunning={isStreaming}
-            />
-          </AnimatedExpandableContainer>
-        )}
       </StyledContainer>
     );
   }
@@ -240,73 +220,10 @@ export const ToolStepRenderer = ({
     : rawToolName === 'learn_tools' ||
         rawToolName === 'execute_tool' ||
         rawToolName === 'load_skills'
-      ? getToolDisplayMessage({
-          input,
-          toolName: rawToolName,
-          isFinished: true,
-          displayContext,
-          output,
-        })
-      : (toolMessage ??
-        getToolDisplayMessage({
-          input,
-          toolName: rawToolName,
-          isFinished: true,
-          displayContext,
-          output,
-        }));
+      ? getToolDisplayMessage(input, rawToolName, true)
+      : (toolMessage ?? getToolDisplayMessage(input, rawToolName, true));
 
   const result = toolError ? { error: toolError } : outputObj;
-
-  const renderExpandedContent = () => {
-    if (isCodeInterpreter) {
-      return (
-        <CodeExecutionDisplay
-          code={codeInput?.code ?? ''}
-          stdout={codeOutput?.stdout ?? ''}
-          stderr={codeOutput?.stderr || errorText || ''}
-          exitCode={codeOutput?.exitCode}
-          files={codeOutput?.files}
-        />
-      );
-    }
-
-    if (hasError) {
-      return errorText;
-    }
-
-    return (
-      <>
-        <StyledTabContainer>
-          <StyledTab
-            isActive={activeTab === 'output'}
-            onClick={() => setActiveTab('output')}
-          >
-            {t`Output`}
-          </StyledTab>
-          <StyledTab
-            isActive={activeTab === 'input'}
-            onClick={() => setActiveTab('input')}
-          >
-            {t`Input`}
-          </StyledTab>
-        </StyledTabContainer>
-
-        <StyledJsonTreeContainer>
-          <JsonTree
-            value={(activeTab === 'output' ? result : toolInput) as JsonValue}
-            shouldExpandNodeInitially={() => false}
-            emptyArrayLabel={t`Empty Array`}
-            emptyObjectLabel={t`Empty Object`}
-            emptyStringLabel={t`[empty string]`}
-            arrowButtonCollapsedLabel={t`Expand`}
-            arrowButtonExpandedLabel={t`Collapse`}
-            onNodeValueClick={copyToClipboard}
-          />
-        </StyledJsonTreeContainer>
-      </>
-    );
-  };
 
   return (
     <StyledContainer>
@@ -333,13 +250,43 @@ export const ToolStepRenderer = ({
 
       {isExpandable && (
         <AnimatedExpandableContainer isExpanded={isExpanded} mode="fit-content">
-          {isCodeInterpreter ? (
-            renderExpandedContent()
-          ) : (
-            <StyledContentContainer>
-              {renderExpandedContent()}
-            </StyledContentContainer>
-          )}
+          <StyledContentContainer>
+            {hasError ? (
+              errorText
+            ) : (
+              <>
+                <StyledTabContainer>
+                  <StyledTab
+                    isActive={activeTab === 'output'}
+                    onClick={() => setActiveTab('output')}
+                  >
+                    {t`Output`}
+                  </StyledTab>
+                  <StyledTab
+                    isActive={activeTab === 'input'}
+                    onClick={() => setActiveTab('input')}
+                  >
+                    {t`Input`}
+                  </StyledTab>
+                </StyledTabContainer>
+
+                <StyledJsonTreeContainer>
+                  <JsonTree
+                    value={
+                      (activeTab === 'output' ? result : toolInput) as JsonValue
+                    }
+                    shouldExpandNodeInitially={() => false}
+                    emptyArrayLabel={t`Empty Array`}
+                    emptyObjectLabel={t`Empty Object`}
+                    emptyStringLabel={t`[empty string]`}
+                    arrowButtonCollapsedLabel={t`Expand`}
+                    arrowButtonExpandedLabel={t`Collapse`}
+                    onNodeValueClick={copyToClipboard}
+                  />
+                </StyledJsonTreeContainer>
+              </>
+            )}
+          </StyledContentContainer>
         </AnimatedExpandableContainer>
       )}
     </StyledContainer>

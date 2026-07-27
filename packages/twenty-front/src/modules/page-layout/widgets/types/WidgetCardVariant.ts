@@ -1,5 +1,5 @@
 export type WidgetCardVariant =
-  | 'solo'
+  | 'canvas'
   | 'side-column'
   | 'dashboard'
   | 'standalone'

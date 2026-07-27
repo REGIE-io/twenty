@@ -7,7 +7,7 @@ import { recordStoreFamilySelector } from '@/object-record/record-store/states/s
 import { TextArea } from '@/ui/input/components/TextArea';
 import { useAtomFamilySelectorState } from '@/ui/utilities/state/jotai/hooks/useAtomFamilySelectorState';
 import { styled } from '@linaria/react';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect } from 'react';
 import { themeCssVariables } from 'twenty-ui/theme-constants';
 import { useDebouncedCallback } from 'use-debounce';
 
@@ -46,11 +46,6 @@ export const FieldWidgetTextEditor = ({
   });
 
   const textAreaId = `field-widget-text-editor-${recordId}-${fieldName}`;
-  const fieldTextValue = isFieldTextValue(fieldValue) ? fieldValue : '';
-
-  const [draftText, setDraftText] = useState(fieldTextValue);
-  const [isFocused, setIsFocused] = useState(false);
-  const [isDraftDirty, setIsDraftDirty] = useState(false);
 
   const persistTextDebounced = useDebouncedCallback((text: string) => {
     if (isRecordFieldReadOnly === true) {
@@ -68,28 +63,12 @@ export const FieldWidgetTextEditor = ({
 
   useEffect(() => () => persistTextDebounced.flush(), [persistTextDebounced]);
 
-  useEffect(() => {
-    if (isFocused) {
-      return;
-    }
-
-    setDraftText(fieldTextValue);
-    setIsDraftDirty(false);
-  }, [fieldTextValue, isFocused]);
-
-  const handleFocus = useCallback(() => {
-    setIsFocused(true);
-    setIsDraftDirty(false);
-  }, []);
-
   const handleChange = useCallback(
     (text: string) => {
       if (isRecordFieldReadOnly === true) {
         return;
       }
 
-      setDraftText(text);
-      setIsDraftDirty(true);
       setFieldValue(text);
 
       persistTextDebounced(text);
@@ -98,29 +77,18 @@ export const FieldWidgetTextEditor = ({
   );
 
   const handleBlur = useCallback(() => {
-    setIsFocused(false);
-
-    if (isDraftDirty && isRecordFieldReadOnly !== true) {
-      setFieldValue(draftText);
-    }
-
     persistTextDebounced.flush();
-  }, [
-    draftText,
-    isDraftDirty,
-    isRecordFieldReadOnly,
-    persistTextDebounced,
-    setFieldValue,
-  ]);
+  }, [persistTextDebounced]);
+
+  const fieldTextValue = isFieldTextValue(fieldValue) ? fieldValue : '';
 
   return (
     <StyledContainer>
       <TextArea
         textAreaId={textAreaId}
-        value={draftText}
+        value={fieldTextValue}
         readOnly={isRecordFieldReadOnly}
         onChange={handleChange}
-        onFocus={handleFocus}
         onBlur={handleBlur}
         variant="transparent"
       />

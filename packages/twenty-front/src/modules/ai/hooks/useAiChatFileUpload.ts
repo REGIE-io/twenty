@@ -1,16 +1,19 @@
 import { agentChatSelectedFilesState } from '@/ai/states/agentChatSelectedFilesState';
 import { agentChatUploadedFilesState } from '@/ai/states/agentChatUploadedFilesState';
-import { useDirectFileUpload } from '@/file/hooks/useDirectFileUpload';
 import { useSnackBar } from '@/ui/feedback/snack-bar-manager/hooks/useSnackBar';
 import { useAtomState } from '@/ui/utilities/state/jotai/hooks/useAtomState';
+import { useApolloClient, useMutation } from '@apollo/client/react';
 import { useLingui } from '@lingui/react/macro';
 import { isDefined } from 'twenty-shared/utils';
 
 import { type AgentChatFileUIPart } from '@/ai/types/agent-chat-file-ui-part.type';
-import { FileFolder } from '~/generated-metadata/graphql';
+import { UploadAiChatFileDocument } from '~/generated-metadata/graphql';
 
 export const useAiChatFileUpload = () => {
-  const { uploadFile: directUploadFile } = useDirectFileUpload();
+  const apolloClient = useApolloClient();
+  const [uploadAiChatFile] = useMutation(UploadAiChatFileDocument, {
+    client: apolloClient,
+  });
   const { t } = useLingui();
   const { enqueueErrorSnackBar } = useSnackBar();
   const [agentChatSelectedFiles, setAgentChatSelectedFiles] = useAtomState(
@@ -22,9 +25,17 @@ export const useAiChatFileUpload = () => {
 
   const sendFile = async (file: File): Promise<AgentChatFileUIPart | null> => {
     try {
-      const uploadedFile = await directUploadFile(file, {
-        fileFolder: FileFolder.AgentChat,
+      const result = await uploadAiChatFile({
+        variables: {
+          file,
+        },
       });
+
+      const response = result?.data?.uploadAiChatFile;
+
+      if (!isDefined(response)) {
+        throw new Error(t`Couldn't upload the file.`);
+      }
 
       setAgentChatSelectedFiles(
         agentChatSelectedFiles.filter((f) => f.name !== file.name),
@@ -32,8 +43,8 @@ export const useAiChatFileUpload = () => {
       return {
         filename: file.name,
         mediaType: file.type,
-        url: uploadedFile.url,
-        fileId: uploadedFile.id,
+        url: response.url,
+        fileId: response.id,
         type: 'file',
       };
     } catch {

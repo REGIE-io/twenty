@@ -8,7 +8,7 @@ import { useNavigationMenuItemEditController } from '@/navigation-menu-item/edit
 import { useSelectedNavigationMenuItemEditItem } from '@/navigation-menu-item/edit/hooks/useSelectedNavigationMenuItemEditItem';
 import { SelectableListItem } from '@/ui/layout/selectable-list/components/SelectableListItem';
 import { useQuery } from '@apollo/client/react';
-import { FindOneApplicationNameDocument } from '~/generated-metadata/graphql';
+import { FindOneApplicationDocument } from '~/generated-metadata/graphql';
 
 type SidePanelEditOwnerSectionProps = {
   applicationId?: string | null;
@@ -28,7 +28,7 @@ export const SidePanelEditOwnerSection = ({
 
   const applicationId = applicationIdProp ?? applicationIdFromSection;
 
-  const { data } = useQuery(FindOneApplicationNameDocument, {
+  const { data } = useQuery(FindOneApplicationDocument, {
     variables: { id: applicationId ?? '' },
     skip: !isDefined(applicationId),
   });

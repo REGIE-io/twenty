@@ -1,22 +1,13 @@
 import { i18n } from '@lingui/core';
 import { I18nProvider } from '@lingui/react';
 import { act, renderHook } from '@testing-library/react';
-import { getDefaultStore } from 'jotai';
-import { AppPath, SidePanelPages } from 'twenty-shared/types';
-import { type AppLocale } from 'twenty-shared/translations';
 
-import { MAIN_CONTEXT_STORE_INSTANCE_ID } from '@/context-store/constants/MainContextStoreInstanceId';
-import { contextStoreRecordShowParentViewComponentState } from '@/context-store/states/contextStoreRecordShowParentViewComponentState';
 import { useFrontComponentExecutionContext } from '@/front-components/hooks/useFrontComponentExecutionContext';
 
 const mockNavigateApp = jest.fn();
 const mockRequestAccessTokenRefresh = jest.fn();
 const mockOpenConfirmationModal = jest.fn();
 const mockNavigateSidePanel = jest.fn();
-const mockOpenRecordInSidePanel = jest.fn();
-const mockOpenRichTextInSidePanel = jest.fn();
-const mockOpenComposeEmailInSidePanel = jest.fn();
-const mockOpenFrontComponentInSidePanel = jest.fn();
 const mockSetSidePanelSearch = jest.fn();
 const mockGetIcon = jest.fn((name: string) => `icon-${name}`);
 const mockUnmountEngineCommand = jest.fn();
@@ -27,10 +18,8 @@ const mockEnqueueWarningSnackBar = jest.fn();
 const mockCloseSidePanelMenu = jest.fn();
 const mockSetCommandMenuItemProgress = jest.fn();
 const mockCopyToClipboard = jest.fn();
-const mockSetRecordPageActiveTabId = jest.fn();
 
 let mockCurrentUser: { id: string } | null = { id: 'user-123' };
-let mockIsMobile = false;
 
 jest.mock('~/hooks/useNavigateApp', () => ({
   useNavigateApp: () => mockNavigateApp,
@@ -54,30 +43,6 @@ jest.mock(
 jest.mock('@/side-panel/hooks/useNavigateSidePanel', () => ({
   useNavigateSidePanel: () => ({
     navigateSidePanel: mockNavigateSidePanel,
-  }),
-}));
-
-jest.mock('@/side-panel/hooks/useOpenRecordInSidePanel', () => ({
-  useOpenRecordInSidePanel: () => ({
-    openRecordInSidePanel: mockOpenRecordInSidePanel,
-  }),
-}));
-
-jest.mock('@/side-panel/hooks/useOpenRichTextInSidePanel', () => ({
-  useOpenRichTextInSidePanel: () => ({
-    openRichTextInSidePanel: mockOpenRichTextInSidePanel,
-  }),
-}));
-
-jest.mock('@/side-panel/hooks/useOpenComposeEmailInSidePanel', () => ({
-  useOpenComposeEmailInSidePanel: () => ({
-    openComposeEmailInSidePanel: mockOpenComposeEmailInSidePanel,
-  }),
-}));
-
-jest.mock('@/side-panel/hooks/useOpenFrontComponentInSidePanel', () => ({
-  useOpenFrontComponentInSidePanel: () => ({
-    openFrontComponentInSidePanel: mockOpenFrontComponentInSidePanel,
   }),
 }));
 
@@ -109,10 +74,6 @@ jest.mock('twenty-ui/icon', () => ({
   }),
 }));
 
-jest.mock('twenty-ui/utilities', () => ({
-  useIsMobile: () => mockIsMobile,
-}));
-
 jest.mock('@/ui/utilities/state/jotai/hooks/useAtomStateValue', () => ({
   useAtomStateValue: () => mockCurrentUser,
 }));
@@ -129,11 +90,6 @@ jest.mock('~/hooks/useCopyToClipboard', () => ({
   useCopyToClipboard: () => ({
     copyToClipboard: mockCopyToClipboard,
   }),
-}));
-
-jest.mock('@/page-layout/utils/setRecordPageActiveTabId', () => ({
-  setRecordPageActiveTabId: (params: unknown) =>
-    mockSetRecordPageActiveTabId(params),
 }));
 
 const renderUseFrontComponentExecutionContext = (
@@ -153,25 +109,10 @@ const renderUseFrontComponentExecutionContext = (
 const FRONT_COMPONENT_ID = 'fc-test-id';
 const COMMAND_MENU_ITEM_ID = 'cmd-item-1';
 
-const parentViewAtom =
-  contextStoreRecordShowParentViewComponentState.atomFamily({
-    instanceId: MAIN_CONTEXT_STORE_INSTANCE_ID,
-  });
-
-const createParentView = (parentViewObjectNameSingular: string) => ({
-  parentViewComponentId: 'parent-view-component-id',
-  parentViewObjectNameSingular,
-  parentViewFilterGroups: [],
-  parentViewFilters: [],
-  parentViewSorts: [],
-});
-
 describe('useFrontComponentExecutionContext', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     mockCurrentUser = { id: 'user-123' };
-    mockIsMobile = false;
-    getDefaultStore().set(parentViewAtom, undefined);
   });
 
   describe('executionContext', () => {
@@ -187,7 +128,6 @@ describe('useFrontComponentExecutionContext', () => {
         recordId: 'record-456',
         selectedRecordIds: ['record-456'],
         colorScheme: 'light',
-        locale: i18n.locale as AppLocale,
       });
     });
 
@@ -203,7 +143,6 @@ describe('useFrontComponentExecutionContext', () => {
         recordId: null,
         selectedRecordIds: ['record-1', 'record-2', 'record-3'],
         colorScheme: 'light',
-        locale: i18n.locale as AppLocale,
       });
     });
 
@@ -268,67 +207,6 @@ describe('useFrontComponentExecutionContext', () => {
         { replace: true },
       );
     });
-
-    it('should clear stale parent-view state when navigating to a record of a different object', async () => {
-      const store = getDefaultStore();
-      store.set(parentViewAtom, createParentView('company'));
-
-      const { result } = renderUseFrontComponentExecutionContext({
-        frontComponentId: FRONT_COMPONENT_ID,
-      });
-
-      await act(async () => {
-        await result.current.frontComponentHostCommunicationApi.navigate(
-          AppPath.RecordShowPage,
-          { objectNameSingular: 'person', objectRecordId: 'record-1' },
-        );
-      });
-
-      expect(store.get(parentViewAtom)).toBeUndefined();
-      expect(mockNavigateApp).toHaveBeenCalledWith(
-        AppPath.RecordShowPage,
-        { objectNameSingular: 'person', objectRecordId: 'record-1' },
-        undefined,
-        undefined,
-      );
-    });
-
-    it('should keep parent-view state when navigating to a record of the same object', async () => {
-      const store = getDefaultStore();
-      const parentView = createParentView('company');
-      store.set(parentViewAtom, parentView);
-
-      const { result } = renderUseFrontComponentExecutionContext({
-        frontComponentId: FRONT_COMPONENT_ID,
-      });
-
-      await act(async () => {
-        await result.current.frontComponentHostCommunicationApi.navigate(
-          AppPath.RecordShowPage,
-          { objectNameSingular: 'company', objectRecordId: 'record-2' },
-        );
-      });
-
-      expect(store.get(parentViewAtom)).toEqual(parentView);
-    });
-
-    it('should keep parent-view state when navigating to a non-record page', async () => {
-      const store = getDefaultStore();
-      const parentView = createParentView('company');
-      store.set(parentViewAtom, parentView);
-
-      const { result } = renderUseFrontComponentExecutionContext({
-        frontComponentId: FRONT_COMPONENT_ID,
-      });
-
-      await act(async () => {
-        await result.current.frontComponentHostCommunicationApi.navigate(
-          AppPath.SettingsCatchAll,
-        );
-      });
-
-      expect(store.get(parentViewAtom)).toEqual(parentView);
-    });
   });
 
   describe('openSidePanelPage', () => {
@@ -377,223 +255,6 @@ describe('useFrontComponentExecutionContext', () => {
     });
   });
 
-  describe('openSidePanelPage with a record context', () => {
-    it('should open the record in the side panel when the object is supported', async () => {
-      const { result } = renderUseFrontComponentExecutionContext({
-        frontComponentId: FRONT_COMPONENT_ID,
-      });
-
-      await act(async () => {
-        await result.current.frontComponentHostCommunicationApi.openSidePanelPage(
-          {
-            page: SidePanelPages.ViewRecord,
-            recordId: 'lead-1',
-            objectNameSingular: 'lead',
-            resetNavigationStack: true,
-          },
-        );
-      });
-
-      expect(mockOpenRecordInSidePanel).toHaveBeenCalledWith({
-        recordId: 'lead-1',
-        objectNameSingular: 'lead',
-        resetNavigationStack: true,
-      });
-      expect(mockNavigateApp).not.toHaveBeenCalled();
-      expect(mockNavigateSidePanel).not.toHaveBeenCalled();
-    });
-
-    it('should forward the tab to the side panel record page', async () => {
-      const { result } = renderUseFrontComponentExecutionContext({
-        frontComponentId: FRONT_COMPONENT_ID,
-      });
-
-      await act(async () => {
-        await result.current.frontComponentHostCommunicationApi.openSidePanelPage(
-          {
-            page: SidePanelPages.ViewRecord,
-            recordId: 'lead-1',
-            objectNameSingular: 'lead',
-            tab: 'tab-emails',
-          },
-        );
-      });
-
-      expect(mockOpenRecordInSidePanel).toHaveBeenCalledWith({
-        recordId: 'lead-1',
-        objectNameSingular: 'lead',
-        tab: 'tab-emails',
-        resetNavigationStack: undefined,
-      });
-    });
-
-    it('should set the record page active tab when falling back to full-page navigation', async () => {
-      mockIsMobile = true;
-
-      const { result } = renderUseFrontComponentExecutionContext({
-        frontComponentId: FRONT_COMPONENT_ID,
-      });
-
-      await act(async () => {
-        await result.current.frontComponentHostCommunicationApi.openSidePanelPage(
-          {
-            page: SidePanelPages.ViewRecord,
-            recordId: 'lead-1',
-            objectNameSingular: 'lead',
-            tab: 'tab-emails',
-          },
-        );
-      });
-
-      expect(mockSetRecordPageActiveTabId).toHaveBeenCalledWith({
-        recordId: 'lead-1',
-        objectNameSingular: 'lead',
-        tabId: 'tab-emails',
-        store: expect.anything(),
-      });
-      expect(mockNavigateApp).toHaveBeenCalledWith(
-        AppPath.RecordShowPage,
-        { objectNameSingular: 'lead', objectRecordId: 'lead-1' },
-        undefined,
-        undefined,
-      );
-      expect(mockOpenRecordInSidePanel).not.toHaveBeenCalled();
-    });
-
-    it('should fall back to full-page navigation on mobile', async () => {
-      mockIsMobile = true;
-
-      const { result } = renderUseFrontComponentExecutionContext({
-        frontComponentId: FRONT_COMPONENT_ID,
-      });
-
-      await act(async () => {
-        await result.current.frontComponentHostCommunicationApi.openSidePanelPage(
-          {
-            page: SidePanelPages.ViewRecord,
-            recordId: 'lead-1',
-            objectNameSingular: 'lead',
-          },
-        );
-      });
-
-      expect(mockNavigateApp).toHaveBeenCalledWith(
-        AppPath.RecordShowPage,
-        { objectNameSingular: 'lead', objectRecordId: 'lead-1' },
-        undefined,
-        undefined,
-      );
-      expect(mockOpenRecordInSidePanel).not.toHaveBeenCalled();
-    });
-
-    it('should fall back to full-page navigation when the object cannot open in the side panel', async () => {
-      const { result } = renderUseFrontComponentExecutionContext({
-        frontComponentId: FRONT_COMPONENT_ID,
-      });
-
-      await act(async () => {
-        await result.current.frontComponentHostCommunicationApi.openSidePanelPage(
-          {
-            page: SidePanelPages.ViewRecord,
-            recordId: 'workflow-1',
-            objectNameSingular: 'workflow',
-          },
-        );
-      });
-
-      expect(mockNavigateApp).toHaveBeenCalledWith(
-        AppPath.RecordShowPage,
-        { objectNameSingular: 'workflow', objectRecordId: 'workflow-1' },
-        undefined,
-        undefined,
-      );
-      expect(mockOpenRecordInSidePanel).not.toHaveBeenCalled();
-    });
-  });
-
-  describe('openSidePanelPage with EditRichText', () => {
-    it('should open the rich text editor for a record field', async () => {
-      const { result } = renderUseFrontComponentExecutionContext({
-        frontComponentId: FRONT_COMPONENT_ID,
-      });
-
-      await act(async () => {
-        await result.current.frontComponentHostCommunicationApi.openSidePanelPage(
-          {
-            page: SidePanelPages.EditRichText,
-            recordId: 'note-1',
-            objectNameSingular: 'note',
-            fieldName: 'body',
-          },
-        );
-      });
-
-      expect(mockOpenRichTextInSidePanel).toHaveBeenCalledWith(
-        'note-1',
-        'note',
-        'body',
-      );
-    });
-  });
-
-  describe('openSidePanelPage with ComposeEmail', () => {
-    it('should open the email composer with the provided params', async () => {
-      const { result } = renderUseFrontComponentExecutionContext({
-        frontComponentId: FRONT_COMPONENT_ID,
-      });
-
-      await act(async () => {
-        await result.current.frontComponentHostCommunicationApi.openSidePanelPage(
-          {
-            page: SidePanelPages.ComposeEmail,
-            connectedAccountId: 'account-1',
-            defaultTo: 'lead@example.com',
-            pageIcon: 'IconMail',
-          },
-        );
-      });
-
-      expect(mockOpenComposeEmailInSidePanel).toHaveBeenCalledWith({
-        connectedAccountId: 'account-1',
-        threadId: undefined,
-        defaultTo: 'lead@example.com',
-        defaultSubject: undefined,
-        defaultInReplyTo: undefined,
-        pageTitle: undefined,
-        pageIcon: 'icon-IconMail',
-      });
-    });
-  });
-
-  describe('openSidePanelPage with ViewFrontComponent', () => {
-    it('should open a front component with optional record context', async () => {
-      const { result } = renderUseFrontComponentExecutionContext({
-        frontComponentId: FRONT_COMPONENT_ID,
-      });
-
-      await act(async () => {
-        await result.current.frontComponentHostCommunicationApi.openSidePanelPage(
-          {
-            page: SidePanelPages.ViewFrontComponent,
-            frontComponentId: 'fc-1',
-            pageTitle: 'My Component',
-            pageIcon: 'IconBolt',
-            recordId: 'lead-1',
-            objectNameSingular: 'lead',
-          },
-        );
-      });
-
-      expect(mockOpenFrontComponentInSidePanel).toHaveBeenCalledWith({
-        frontComponentId: 'fc-1',
-        pageTitle: 'My Component',
-        pageIcon: 'icon-IconBolt',
-        resetNavigationStack: undefined,
-        recordContext: { recordId: 'lead-1', objectNameSingular: 'lead' },
-      });
-    });
-  });
-
   describe('openCommandConfirmationModal', () => {
     it('should call openConfirmationModal with frontComponent caller', async () => {
       const { result } = renderUseFrontComponentExecutionContext({
@@ -606,7 +267,7 @@ describe('useFrontComponentExecutionContext', () => {
             title: 'Confirm?',
             subtitle: 'Are you sure?',
             confirmButtonText: 'Yes',
-            confirmButtonAccent: 'danger',
+            confirmButtonAccent: 'danger' as never,
           },
         );
       });
@@ -619,32 +280,6 @@ describe('useFrontComponentExecutionContext', () => {
         title: 'Confirm?',
         subtitle: 'Are you sure?',
         confirmButtonText: 'Yes',
-        confirmButtonAccent: 'danger',
-      });
-    });
-
-    it('should preserve danger as the default confirmation accent', async () => {
-      const { result } = renderUseFrontComponentExecutionContext({
-        frontComponentId: FRONT_COMPONENT_ID,
-      });
-
-      await act(async () => {
-        await result.current.frontComponentHostCommunicationApi.openCommandConfirmationModal(
-          {
-            title: 'Confirm?',
-            subtitle: 'Are you sure?',
-          },
-        );
-      });
-
-      expect(mockOpenConfirmationModal).toHaveBeenCalledWith({
-        caller: {
-          type: 'frontComponent',
-          frontComponentId: FRONT_COMPONENT_ID,
-        },
-        title: 'Confirm?',
-        subtitle: 'Are you sure?',
-        confirmButtonText: undefined,
         confirmButtonAccent: 'danger',
       });
     });

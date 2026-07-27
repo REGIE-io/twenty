@@ -7,13 +7,6 @@ export const VERIFY_EMAILING_DOMAIN = gql`
       domain
       status
       verifiedAt
-      verificationRecords {
-        type
-        key
-        value
-        priority
-        status
-      }
       createdAt
       updatedAt
     }

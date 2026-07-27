@@ -2,7 +2,6 @@ import { defineLogicFunction } from 'twenty-sdk/define';
 import { type RoutePayload } from 'twenty-sdk/logic-function';
 import { CoreApiClient } from 'twenty-client-sdk/core';
 import { type TelemetryEvent } from 'src/logic-functions/types/telemetry-event.type';
-import { isTestOrExampleEmail } from 'src/logic-functions/utils/is-test-or-example-email';
 
 export const main = async (
   params: RoutePayload<TelemetryEvent>,
@@ -39,7 +38,10 @@ export const main = async (
       };
     }
 
-    if (isTestOrExampleEmail(userEmail)) {
+    if (
+      userEmail.toLowerCase().includes('example') ||
+      userEmail.toLowerCase().includes('test')
+    ) {
       return {
         success: true,
         message: `Email '${userEmail}' ignored (contains test/example data)`,

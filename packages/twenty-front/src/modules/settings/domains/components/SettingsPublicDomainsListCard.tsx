@@ -1,14 +1,12 @@
 import { SettingsCard } from '@/settings/components/SettingsCard';
 import { SettingsListCard } from '@/settings/components/SettingsListCard';
 import { SettingPublicDomainRowDropdownMenu } from '@/settings/domains/components/SettingPublicDomainRowDropdownMenu';
-import { useGetAddedRelativeDateDescription } from '@/settings/hooks/useGetAddedRelativeDateDescription';
-import { selectedApplicationIdForPublicDomainState } from '@/settings/domains/states/selectedApplicationIdForPublicDomainState';
 import { selectedPublicDomainState } from '@/settings/domains/states/selectedPublicDomainState';
 import { useSetAtomState } from '@/ui/utilities/state/jotai/hooks/useSetAtomState';
 import { useLingui } from '@lingui/react/macro';
 import { SettingsPath } from 'twenty-shared/types';
 import { Status } from 'twenty-ui/data-display';
-import { IconWorld } from 'twenty-ui/icon';
+import { IconAt, IconMailCog } from 'twenty-ui/icon';
 import { useQuery } from '@apollo/client/react';
 import {
   type PublicDomain,
@@ -16,44 +14,30 @@ import {
 } from '~/generated-metadata/graphql';
 import { useNavigateSettings } from '~/hooks/useNavigateSettings';
 
-export const SettingsPublicDomainsListCard = ({
-  applicationId,
-}: {
-  applicationId: string;
-}) => {
+export const SettingsPublicDomainsListCard = () => {
   const navigate = useNavigateSettings();
 
   const { t } = useLingui();
-  const { getAddedRelativeDateDescription } =
-    useGetAddedRelativeDateDescription();
 
   const setSelectedPublicDomain = useSetAtomState(selectedPublicDomainState);
-  const setSelectedApplicationIdForPublicDomain = useSetAtomState(
-    selectedApplicationIdForPublicDomainState,
-  );
 
   const { data, loading } = useQuery(FindManyPublicDomainsDocument);
 
-  const publicDomains = data?.findManyPublicDomains?.filter(
-    (publicDomain) => publicDomain.applicationId === applicationId,
-  );
+  const publicDomains = data?.findManyPublicDomains;
 
   if (loading || !publicDomains) {
     return null;
   }
 
-  const navigateToCreate = () => {
-    setSelectedPublicDomain(undefined);
-    setSelectedApplicationIdForPublicDomain(applicationId);
-    navigate(SettingsPath.PublicDomain);
-  };
-
   if (publicDomains.length === 0) {
     return (
       <SettingsCard
-        title={t`Add Custom Domain`}
-        Icon={<IconWorld />}
-        onClick={navigateToCreate}
+        title={t`Add Public Domain`}
+        Icon={<IconMailCog />}
+        onClick={() => {
+          setSelectedPublicDomain(undefined);
+          navigate(SettingsPath.PublicDomain);
+        }}
       />
     );
   }
@@ -62,13 +46,10 @@ export const SettingsPublicDomainsListCard = ({
     <SettingsListCard
       items={publicDomains}
       getItemLabel={({ domain }) => domain}
-      getItemDescription={({ createdAt }) =>
-        getAddedRelativeDateDescription(createdAt)
-      }
-      RowIcon={IconWorld}
+      getItemDescription={({ createdAt }) => createdAt}
+      RowIcon={IconAt}
       onRowClick={(publicDomain: PublicDomain) => {
         setSelectedPublicDomain(publicDomain);
-        setSelectedApplicationIdForPublicDomain(applicationId);
         navigate(SettingsPath.PublicDomain);
       }}
       RowRightComponent={({ item: publicDomain }) => (
@@ -80,8 +61,11 @@ export const SettingsPublicDomainsListCard = ({
         </>
       )}
       hasFooter
-      footerButtonLabel={t`Add Custom Domain`}
-      onFooterButtonClick={navigateToCreate}
+      footerButtonLabel={t`Add Public Domain`}
+      onFooterButtonClick={() => {
+        setSelectedPublicDomain(undefined);
+        navigate(SettingsPath.PublicDomain);
+      }}
     />
   );
 };

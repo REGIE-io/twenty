@@ -14,10 +14,7 @@ import { useLingui } from '@lingui/react/macro';
 import { useContext, useState } from 'react';
 import { type StepFilter } from 'twenty-shared/types';
 import { isDefined } from 'twenty-shared/utils';
-import {
-  extractRawVariableNamePart,
-  TRIGGER_STEP_ID,
-} from 'twenty-shared/workflow';
+import { extractRawVariableNamePart } from 'twenty-shared/workflow';
 import { useIcons } from 'twenty-ui/icon';
 import { FieldMetadataType } from '~/generated-metadata/graphql';
 
@@ -33,9 +30,7 @@ const NON_SELECTABLE_FIELD_TYPES = [
 export const WorkflowStepFilterFieldSelect = ({
   stepFilter,
 }: WorkflowStepFilterFieldSelectProps) => {
-  const { readonly, stepId: currentStepId } = useContext(
-    WorkflowStepFilterContext,
-  );
+  const { readonly } = useContext(WorkflowStepFilterContext);
   const { t } = useLingui();
   const { closeDropdown } = useCloseDropdown();
   const { getIcon } = useIcons();
@@ -93,9 +88,7 @@ export const WorkflowStepFilterFieldSelect = ({
 
   const isSelectedFieldNotFound = !isDefined(variableLabel);
   const label = isSelectedFieldNotFound
-    ? currentStepId === TRIGGER_STEP_ID
-      ? t`Select a field`
-      : t`Select a field from a previous step`
+    ? t`Select a field from a previous step`
     : variableLabel;
 
   const fullRecordIconProps = stepFilter.isFullRecord

@@ -85,7 +85,8 @@ const FAILING_TEST_CASES: EachTestingContext<TestContext>[] = [
     },
   },
   {
-    title: 'when filePath is a folder path without extension (bare UUID)',
+    title:
+      'when filePath is a folder path without extension (bare UUID)',
     context: {
       applicationUniversalIdentifier: TEST_APP_ID,
       fileFolder: 'BuiltFrontComponent',
@@ -93,7 +94,8 @@ const FAILING_TEST_CASES: EachTestingContext<TestContext>[] = [
     },
   },
   {
-    title: 'when filePath is a nested folder path without extension',
+    title:
+      'when filePath is a nested folder path without extension',
     context: {
       applicationUniversalIdentifier: TEST_APP_ID,
       fileFolder: 'Source',
@@ -119,8 +121,7 @@ const FAILING_TEST_CASES: EachTestingContext<TestContext>[] = [
     },
   },
   {
-    title:
-      'when filePath has an invalid extension for Source (.js instead of .ts)',
+    title: 'when filePath has an invalid extension for Source (.js instead of .ts)',
     context: {
       applicationUniversalIdentifier: TEST_APP_ID,
       fileFolder: 'Source',

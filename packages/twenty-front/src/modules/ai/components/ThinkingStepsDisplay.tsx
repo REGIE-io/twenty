@@ -14,10 +14,11 @@ import { AnimatedExpandableContainer } from 'twenty-ui/layout';
 import { themeCssVariables } from 'twenty-ui/theme-constants';
 import { type JsonValue } from 'type-fest';
 
-import { useToolDisplayContext } from '@/ai/hooks/useToolDisplayContext';
 import { getToolIcon } from '@/ai/utils/getToolIcon';
-import { getToolDisplayMessage } from '@/ai/utils/tool-display/get-tool-display-message';
-import { unwrapToolInput } from '@/ai/utils/tool-display/unwrap-tool-input.util';
+import {
+  getToolDisplayMessage,
+  resolveToolInput,
+} from '@/ai/utils/getToolDisplayMessage';
 import { getActiveReasoningContent } from '@/ai/utils/getActiveReasoningContent';
 import { getLastReasoningContent } from '@/ai/utils/getLastReasoningContent';
 import { isThinkingStepPartActive } from '@/ai/utils/isThinkingStepPartActive';
@@ -262,20 +263,13 @@ const ThinkingToolStepRow = ({
   const { copyToClipboard } = useCopyToClipboard();
   const [isExpanded, setIsExpanded] = useState(false);
   const rawToolName = getToolName(part);
-  const { toolInput, toolName } = unwrapToolInput({
-    input: part.input,
-    toolName: rawToolName,
-  });
+  const { resolvedInput: toolInput, resolvedToolName } = resolveToolInput(
+    part.input,
+    rawToolName,
+  );
 
-  const displayContext = useToolDisplayContext();
-  const ToolIcon = getToolIcon(toolName);
-  const displayMessage = getToolDisplayMessage({
-    input: part.input,
-    toolName: rawToolName,
-    isFinished: !isActive,
-    displayContext,
-    output: part.output,
-  });
+  const ToolIcon = getToolIcon(resolvedToolName);
+  const label = getToolDisplayMessage(part.input, rawToolName, !isActive);
   const hasError = isDefined(part.errorText);
   const isExpandable = isDefined(part.output) || hasError;
 
@@ -318,7 +312,7 @@ const ThinkingToolStepRow = ({
         <StyledRowLabelContainer>
           <StyledToolRowLabel>
             <OverflowingTextWithTooltip
-              text={displayMessage}
+              text={label}
               tooltipDelay={TooltipDelay.shortDelay}
             />
           </StyledToolRowLabel>

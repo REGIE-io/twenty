@@ -1,9 +1,13 @@
+import tsconfigPaths from 'vite-tsconfig-paths';
 import { defineConfig } from 'vitest/config';
 
 export default defineConfig({
-  resolve: {
-    tsconfigPaths: true,
-  },
+  plugins: [
+    tsconfigPaths({
+      root: __dirname,
+      ignoreConfigErrors: true,
+    }),
+  ],
   test: {
     name: 'twenty-sdk',
     environment: 'node',

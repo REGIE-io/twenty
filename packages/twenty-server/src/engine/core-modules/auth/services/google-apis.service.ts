@@ -154,7 +154,6 @@ export class GoogleAPIsService {
             handle,
             userWorkspaceId,
             workspaceId,
-            provider: ConnectedAccountProvider.GOOGLE,
           },
         });
 

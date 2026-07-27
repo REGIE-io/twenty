@@ -1,27 +1,51 @@
 import { AiChatCompactionIndicator } from '@/ai/components/AiChatCompactionIndicator';
-import { AiChatInitialLoadingIndicator } from '@/ai/components/AiChatInitialLoadingIndicator';
 import { CodeExecutionDisplay } from '@/ai/components/CodeExecutionDisplay';
 import { RoutingStatusDisplay } from '@/ai/components/RoutingStatusDisplay';
 import { ThinkingStepsDisplay } from '@/ai/components/ThinkingStepsDisplay';
+import { IconDotsVertical } from 'twenty-ui/icon';
 
-import { AiChatQuestionStatusRenderer } from '@/ai/components/AiChatQuestionStatusRenderer';
 import { LazyMarkdownRenderer } from '@/ai/components/LazyMarkdownRenderer';
 import { ToolStepRenderer } from '@/ai/components/ToolStepRenderer';
 import { groupContiguousThinkingStepParts } from '@/ai/utils/groupContiguousThinkingStepParts';
 import { isCodeInterpreterToolPart } from '@/ai/utils/isCodeInterpreterToolPart';
 import { styled } from '@linaria/react';
-import { getToolName, isToolUIPart } from 'ai';
-import {
-  ASK_QUESTIONS_TOOL_NAME,
-  type ExtendedUIMessagePart,
-} from 'twenty-shared/ai';
-import { themeCssVariables } from 'twenty-ui/theme-constants';
+import { isToolUIPart } from 'ai';
+import { type ExtendedUIMessagePart } from 'twenty-shared/ai';
+import { useContext } from 'react';
+import { ThemeContext, themeCssVariables } from 'twenty-ui/theme-constants';
 
 const StyledMessagePartsContainer = styled.div`
   display: flex;
   flex-direction: column;
   gap: ${themeCssVariables.spacing[1]};
 `;
+
+const StyledLoadingIconContainer = styled.div`
+  align-items: center;
+  border: 1px solid ${themeCssVariables.border.color.light};
+  border-radius: ${themeCssVariables.border.radius.md};
+  display: flex;
+  justify-content: center;
+  padding-inline: ${themeCssVariables.spacing[1]};
+`;
+
+const StyledLoadingIconWrapper = styled.span`
+  color: ${themeCssVariables.font.color.light};
+  display: flex;
+  transform: rotate(90deg);
+`;
+
+const InitialLoadingIndicator = () => {
+  const { theme } = useContext(ThemeContext);
+
+  return (
+    <StyledLoadingIconContainer>
+      <StyledLoadingIconWrapper>
+        <IconDotsVertical size={theme.icon.size.xl} />
+      </StyledLoadingIconWrapper>
+    </StyledLoadingIconContainer>
+  );
+};
 
 const MessagePartRenderer = ({
   part,
@@ -52,15 +76,6 @@ const MessagePartRenderer = ({
       );
     default:
       if (isToolUIPart(part)) {
-        if (getToolName(part) === ASK_QUESTIONS_TOOL_NAME) {
-          return (
-            <AiChatQuestionStatusRenderer
-              toolPart={part}
-              isStreaming={isStreaming}
-            />
-          );
-        }
-
         return <ToolStepRenderer toolPart={part} isStreaming={isStreaming} />;
       }
       return null;
@@ -87,7 +102,7 @@ export const AiChatAssistantMessageRenderer = ({
   const renderItems = groupContiguousThinkingStepParts(filteredParts);
 
   if (!renderItems.length && !hasError) {
-    return <AiChatInitialLoadingIndicator />;
+    return <InitialLoadingIndicator />;
   }
 
   return (

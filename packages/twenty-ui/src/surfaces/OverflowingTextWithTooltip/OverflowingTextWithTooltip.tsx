@@ -1,10 +1,4 @@
-import {
-  type CSSProperties,
-  type ReactNode,
-  useId,
-  useRef,
-  useState,
-} from 'react';
+import { type CSSProperties, type ReactNode, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 
 import { isNonEmptyString } from '@sniptt/guards';
@@ -41,7 +35,7 @@ export const OverflowingTextWithTooltip = ({
   tooltipDelay = TooltipDelay.mediumDelay,
   alwaysShowTooltip = false,
 }: OverflowingTextWithTooltipProps) => {
-  const textElementId = `title-id-${useId().replace(/:/g, '')}`;
+  const textElementId = `title-id-${+new Date()}`;
 
   const textRef = useRef<HTMLDivElement>(null);
 
@@ -119,7 +113,6 @@ export const OverflowingTextWithTooltip = ({
         (isTitleOverflowing || alwaysShowTooltip) &&
         isDefined(tooltipText) &&
         createPortal(
-          // oxlint-disable-next-line jsx-a11y/no-static-element-interactions, jsx-a11y/click-events-have-key-events
           <div onClick={handleTooltipClick}>
             <AppTooltip
               anchorSelect={`#${textElementId}`}

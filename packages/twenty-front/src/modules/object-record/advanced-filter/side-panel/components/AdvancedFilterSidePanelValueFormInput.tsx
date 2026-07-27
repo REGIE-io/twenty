@@ -144,7 +144,6 @@ export const AdvancedFilterSidePanelValueFormInput = ({
         defaultValue={recordFilter.value}
         onChange={handleRelativeDateFilterChange}
         readonly={readonly}
-        isDateTimeField={recordFilter.type === FieldMetadataType.DATE_TIME}
       />
     );
   }

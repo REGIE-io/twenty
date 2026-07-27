@@ -15,7 +15,7 @@ const StyledDiv = styled.div`
   align-items: center;
   background: inherit;
   border: none;
-  border-radius: ${themeCssVariables.border.radius.md};
+  border-radius: ${themeCssVariables.border.radius.sm};
   box-sizing: border-box;
   color: ${themeCssVariables.font.color.primary};
   cursor: pointer;

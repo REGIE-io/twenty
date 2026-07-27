@@ -10,7 +10,4 @@ export class SubdomainAvailabilityDTO {
 
   @Field(() => String)
   suggestedSubdomain: string;
-
-  @Field(() => [String])
-  suggestedSubdomains: string[];
 }

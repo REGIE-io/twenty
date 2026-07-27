@@ -94,7 +94,7 @@ export const SettingsObjects = () => {
         </Section>
         <Section>
           <H2Title
-            title={t`Objects`}
+            title={t`Existing objects`}
             description={t`Manage objects, fields and relationships`}
           />
           <SettingsObjectTable objectMetadataItems={objectMetadataItems} />

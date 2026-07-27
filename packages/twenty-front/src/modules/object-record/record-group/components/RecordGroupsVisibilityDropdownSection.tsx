@@ -1,4 +1,8 @@
-import { type DraggableListDropResult } from '@/ui/layout/draggable-list/types/DraggableListDropResult';
+import {
+  type DropResult,
+  type OnDragEndResponder,
+  type ResponderProvided,
+} from '@hello-pangea/dnd';
 import { useRef } from 'react';
 
 import { RecordGroupMenuItemDraggable } from '@/object-record/record-group/components/RecordGroupMenuItemDraggable';
@@ -11,7 +15,7 @@ import { StyledDropdownMenuSubheader } from '@/ui/layout/dropdown/components/Sty
 type RecordGroupsVisibilityDropdownSectionProps = {
   recordGroupIds: string[];
   isDraggable: boolean;
-  onDragEnd?: (result: DraggableListDropResult) => void;
+  onDragEnd?: OnDragEndResponder;
   onVisibilityChange: (recordGroup: RecordGroupDefinition) => void;
   title: string;
   showSubheader?: boolean;
@@ -29,8 +33,8 @@ export const RecordGroupsVisibilityDropdownSection = ({
   showDragGrip,
   isVisibleLimitReached = false,
 }: RecordGroupsVisibilityDropdownSectionProps) => {
-  const handleOnDrag = (result: DraggableListDropResult) => {
-    onDragEnd?.(result);
+  const handleOnDrag = (result: DropResult, provided: ResponderProvided) => {
+    onDragEnd?.(result, provided);
   };
 
   const ref = useRef<HTMLDivElement>(null);

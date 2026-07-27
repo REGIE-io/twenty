@@ -2,7 +2,6 @@ name: CI Server
 
 on:
   pull_request:
-  merge_group:
 
 permissions:
   contents: read
@@ -16,7 +15,6 @@ env:
 
 jobs:
   changed-files-check:
-    if: github.event_name != 'merge_group'
     uses: ./.github/workflows/changed-files.yaml
     with:
       files: |
@@ -29,14 +27,6 @@ jobs:
         packages/twenty-client-sdk/**
         packages/twenty-emails/**
         packages/twenty-shared/**
-
-  upgrade-changed-files-check:
-    if: github.event_name != 'merge_group'
-    uses: ./.github/workflows/changed-files.yaml
-    with:
-      files: |
-        packages/twenty-server/src/database/commands/upgrade-version-command/**
-        packages/twenty-server/src/engine/core-modules/upgrade/**
 
   server-build:
     needs: changed-files-check
@@ -80,45 +70,88 @@ jobs:
         uses: ./.github/actions/yarn-install
       - name: Build twenty-shared
         run: npx nx build twenty-shared
-      - name: Server / Run lint, typecheck & lingui extract
+      - name: Server / Run lint & typecheck
         uses: ./.github/actions/nx-affected
         with:
           tag: scope:backend
-          tasks: lint,typecheck,lingui:extract
-      # Separate step so compile never races extract on the .po files.
-      - name: Server / Run lingui compile
-        uses: ./.github/actions/nx-affected
-        with:
-          tag: scope:backend
-          tasks: lingui:compile
+          tasks: lint,typecheck
 
   server-previous-version-upgrade-mutation-guard:
-    if: github.event_name != 'merge_group'
     timeout-minutes: 5
     runs-on: ubuntu-latest
     steps:
       - name: Fetch custom Github Actions and base branch history
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
         with:
-          fetch-depth: 2
-      # HEAD is the pull_request merge ref; its first parent is the exact main
-      # commit it was merged with. pull_request.base.sha can lag behind that,
-      # making commands merged into main since then look added by this PR.
-      - name: Resolve merged base commit
-        id: merged-base
-        shell: bash
-        run: |
-          if git rev-parse -q --verify HEAD^2 >/dev/null; then
-            BASE_SHA=$(git rev-parse HEAD^1)
-          else
-            BASE_SHA="${{ github.event.pull_request.base.sha }}"
-          fi
-          echo "sha=$BASE_SHA" >> "$GITHUB_OUTPUT"
-      - name: Validate upgrade command mutations
-        uses: ./.github/actions/upgrade-mutation-guard
+          fetch-depth: 10
+      - name: Get changed upgrade-version-command files
+        id: changed-files
+        uses: tj-actions/changed-files@48d8f15b2aaa3d255ca5af3eba4870f807ce6b3c # v45.0.9
         with:
-          base_sha: ${{ steps.merged-base.outputs.sha }}
-          allow_previous_version_mutation: ${{ contains(github.event.pull_request.labels.*.name, 'ci:allow-previous-version-upgrade-mutation') }}
+          files: |
+            packages/twenty-server/src/database/commands/upgrade-version-command/**
+      - name: Check upgrade version commands are in current version only
+        if: >
+          steps.changed-files.outputs.any_changed == 'true' &&
+          !contains(github.event.pull_request.labels.*.name, 'ci:allow-previous-version-upgrade-mutation')
+        run: |
+          VERSION_CONSTANT_FILE="packages/twenty-server/src/engine/core-modules/upgrade/constants/twenty-current-version.constant.ts"
+
+          CURRENT_VERSION=$(sed -n "s/.*TWENTY_CURRENT_VERSION = '\([0-9.]*\)'.*/\1/p" "$VERSION_CONSTANT_FILE")
+
+          if [ -z "$CURRENT_VERSION" ]; then
+            echo "::error::Could not extract TWENTY_CURRENT_VERSION from $VERSION_CONSTANT_FILE"
+            exit 1
+          fi
+
+          CURRENT_DIR=$(echo "$CURRENT_VERSION" | sed -E 's/^([0-9]+)\.([0-9]+)\..*/\1-\2/')
+
+          echo "Current version: $CURRENT_VERSION (directory: $CURRENT_DIR)"
+
+          ADDED_OFFENDERS=""
+          MODIFIED_OFFENDERS=""
+
+          check_files() {
+            local category="$1"
+            shift
+            for file in "$@"; do
+              VERSION_DIR=$(echo "$file" | sed -n 's|.*upgrade-version-command/\([0-9]*-[0-9]*\)/.*|\1|p')
+
+              if [ -n "$VERSION_DIR" ] && [ "$VERSION_DIR" != "$CURRENT_DIR" ]; then
+                if [ "$category" = "added" ]; then
+                  ADDED_OFFENDERS="$ADDED_OFFENDERS\n  - $file (version directory: $VERSION_DIR)"
+                else
+                  MODIFIED_OFFENDERS="$MODIFIED_OFFENDERS\n  - $file (version directory: $VERSION_DIR)"
+                fi
+              fi
+            done
+          }
+
+          check_files "added" ${{ steps.changed-files.outputs.added_files }}
+          check_files "modified" ${{ steps.changed-files.outputs.modified_files }}
+
+          if [ -n "$ADDED_OFFENDERS" ] || [ -n "$MODIFIED_OFFENDERS" ]; then
+            echo "This PR touches upgrade command files outside the current version directory ($CURRENT_DIR / $CURRENT_VERSION)."
+
+            if [ -n "$ADDED_OFFENDERS" ]; then
+              echo ""
+              echo "New files added to non-current version directories:"
+              echo -e "$ADDED_OFFENDERS"
+            fi
+
+            if [ -n "$MODIFIED_OFFENDERS" ]; then
+              echo ""
+              echo "Existing files modified in non-current version directories:"
+              echo -e "$MODIFIED_OFFENDERS"
+            fi
+
+            echo ""
+            echo "If this is intentional, add the label 'ci:allow-previous-version-upgrade-mutation' to this PR and re-run CI."
+            echo "Otherwise, please move your changes to the current version directory ($CURRENT_DIR)."
+
+            echo "::error::Upgrade commands were added or modified in non-current version directories."
+            exit 1
+          fi
 
   server-validation:
     needs: server-build
@@ -241,10 +274,6 @@ jobs:
     needs: server-build
     timeout-minutes: 30
     runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        shard: [1, 2, 3, 4]
     steps:
       - name: Fetch custom Github Actions and base branch history
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
@@ -258,8 +287,11 @@ jobs:
           key: ${{ env.SERVER_BUILD_CACHE_KEY }}
       - name: Build twenty-shared
         run: npx nx build twenty-shared
-      - name: Server / Run Tests (shard ${{ matrix.shard }}/4)
-        run: npx nx run twenty-server:test:ci --shard=${{ matrix.shard }}/4
+      - name: Server / Run Tests
+        uses: ./.github/actions/nx-affected
+        with:
+          tag: scope:backend
+          tasks: test
 
   server-integration-test:
     timeout-minutes: 30
@@ -345,47 +377,6 @@ jobs:
           configuration: 'with-db-reset'
           args: --shard=${{ matrix.shard }}/${{ env.SHARD_COUNTER }}
 
-  cross-version-upgrade:
-    needs: [upgrade-changed-files-check, server-build]
-    uses: ./.github/workflows/ci-cross-version-upgrade.yaml
-    with:
-      skip: ${{ needs.upgrade-changed-files-check.outputs.any_changed != 'true' }}
-
-  discover-public-apps:
-    needs: changed-files-check
-    if: needs.changed-files-check.outputs.any_changed == 'true'
-    uses: ./.github/workflows/discover-apps.yaml
-    with:
-      scope: public
-      changed-only: false
-
-  server-apps-install-smoke:
-    needs: [discover-public-apps, server-build]
-    timeout-minutes: 30
-    runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        app: ${{ fromJSON(needs.discover-public-apps.outputs.matrix) }}
-    steps:
-      - name: Checkout
-        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
-        with:
-          fetch-depth: 10
-      - name: Spawn Twenty server from monorepo
-        id: twenty
-        uses: ./.github/actions/spawn-twenty-server
-        with:
-          source: local
-          server-build-cache-key: ${{ env.SERVER_BUILD_CACHE_KEY }}
-      - name: Install app against server
-        uses: ./.github/actions/test-twenty-app
-        with:
-          api-url: ${{ steps.twenty.outputs.server-url }}
-          api-key: ${{ steps.twenty.outputs.api-key }}
-          app-path: ${{ matrix.app.path }}
-          mode: installation-only
-
   ci-server-status-check:
     if: always() && !cancelled()
     timeout-minutes: 5
@@ -399,9 +390,6 @@ jobs:
         server-validation,
         server-test,
         server-integration-test,
-        cross-version-upgrade,
-        discover-public-apps,
-        server-apps-install-smoke,
       ]
     steps:
       - name: Fail job if any needs failed

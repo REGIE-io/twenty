@@ -13,9 +13,6 @@ type LoggedEventMatcher = {
   checked?: boolean;
   key?: string;
   code?: string;
-  inputType?: string;
-  data?: string;
-  clipboardText?: string;
   shiftKey?: boolean;
   ctrlKey?: boolean;
   metaKey?: boolean;

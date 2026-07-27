@@ -16,7 +16,7 @@ import { useIsFeatureEnabled } from '@/workspace/hooks/useIsFeatureEnabled';
 import { t } from '@lingui/core/macro';
 import { isNonEmptyString } from '@sniptt/guards';
 import {
-  IconApps,
+  IconApi,
   IconAt,
   IconCalendarEvent,
   IconColorSwatch,
@@ -28,7 +28,6 @@ import {
   IconLayout,
   IconMail,
   IconMessage,
-  IconMessageCircle,
   IconPlug,
   IconServer,
   IconSettings,
@@ -149,9 +148,9 @@ const useSettingsNavigationItems = (): SettingsNavigationSection[] => {
             !isBillingEnabled || !permissionMap[PermissionFlagType.WORKSPACE],
         },
         {
-          label: t`MCP & APIs`,
+          label: t`APIs & Webhooks`,
           path: SettingsPath.ApiWebhooks,
-          Icon: IconPlug,
+          Icon: IconApi,
           isHidden: !permissionMap[PermissionFlagType.API_KEYS_AND_WEBHOOKS],
         },
         // TODO: Re-enable when integrations page is ready
@@ -164,7 +163,7 @@ const useSettingsNavigationItems = (): SettingsNavigationSection[] => {
         {
           label: t`Apps`,
           path: SettingsPath.Applications,
-          Icon: IconApps,
+          Icon: IconPlug,
           isHidden: !permissionMap[PermissionFlagType.APPLICATIONS],
         },
         {
@@ -174,9 +173,9 @@ const useSettingsNavigationItems = (): SettingsNavigationSection[] => {
           isHidden: !permissionMap[PermissionFlagType.AI_SETTINGS],
         },
         {
-          label: t`Communication`,
-          path: SettingsPath.WorkspaceCommunications,
-          Icon: IconMessageCircle,
+          label: t`Email`,
+          path: SettingsPath.WorkspaceEmail,
+          Icon: IconMail,
           isHidden:
             !isEmailGroupFeatureEnabled ||
             !permissionMap[PermissionFlagType.WORKSPACE],

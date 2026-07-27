@@ -1,20 +1,21 @@
 import { useCallback } from 'react';
 
-import { type FlatView } from '@/metadata-store/types/FlatView';
-import { type FlatViewGroup } from '@/metadata-store/types/FlatViewGroup';
+import { useMetadataErrorHandler } from '@/metadata-error-handler/hooks/useMetadataErrorHandler';
 import { type MetadataRequestResult } from '@/object-metadata/types/MetadataRequestResult.type';
-import { usePerformViewEntityAPIPersistOperation } from '@/views/hooks/internal/usePerformViewEntityAPIPersistOperation';
+import { useSnackBar } from '@/ui/feedback/snack-bar-manager/hooks/useSnackBar';
 import { useViewsSideEffectsOnViewGroups } from '@/views/hooks/useViewsSideEffectsOnViewGroups';
-import { useMutation } from '@apollo/client/react';
+import { CombinedGraphQLErrors } from '@apollo/client/errors';
+import { t } from '@lingui/core/macro';
 import { CrudOperationType } from 'twenty-shared/types';
 import { isDefined } from 'twenty-shared/utils';
 import { v4 } from 'uuid';
+import { useMutation } from '@apollo/client/react';
 import {
-  CreateViewDocument,
   type CreateViewMutationVariables,
-  DestroyViewDocument,
   type DestroyViewMutationVariables,
   ViewType,
+  CreateViewDocument,
+  DestroyViewDocument,
 } from '~/generated-metadata/graphql';
 
 export const usePerformViewAPIPersist = () => {
@@ -23,8 +24,8 @@ export const usePerformViewAPIPersist = () => {
   const { triggerViewGroupOptimisticEffectAtViewCreation } =
     useViewsSideEffectsOnViewGroups();
 
-  const { performViewEntityAPIPersistOperation } =
-    usePerformViewEntityAPIPersistOperation('view');
+  const { handleMetadataError } = useMetadataErrorHandler();
+  const { enqueueErrorSnackBar } = useSnackBar();
 
   const performViewAPICreate = useCallback(
     async (
@@ -33,64 +34,59 @@ export const usePerformViewAPIPersist = () => {
     ): Promise<
       MetadataRequestResult<Awaited<ReturnType<typeof createViewMutation>>>
     > => {
-      const result = await performViewEntityAPIPersistOperation({
-        persist: () => {
-          const newViewId = variables.input.id ?? v4();
-          if (variables.input.type === ViewType.KANBAN) {
-            triggerViewGroupOptimisticEffectAtViewCreation({
-              objectMetadataItemId: objectMetadataItemId,
-              mainGroupByFieldMetadataId:
-                variables.input.mainGroupByFieldMetadataId,
-            });
-          }
+      try {
+        const newViewId = variables.input.id ?? v4();
+        if (variables.input.type === ViewType.KANBAN) {
+          triggerViewGroupOptimisticEffectAtViewCreation({
+            objectMetadataItemId: objectMetadataItemId,
+            mainGroupByFieldMetadataId:
+              variables.input.mainGroupByFieldMetadataId,
+          });
+        }
 
-          return createViewMutation({
-            variables: {
-              input: {
-                ...variables.input,
-                id: newViewId,
-              },
+        const result = await createViewMutation({
+          variables: {
+            input: {
+              ...variables.input,
+              id: newViewId,
             },
+          },
+        });
+
+        const newView = result.data?.createView;
+
+        if (!isDefined(newView)) {
+          return {
+            status: 'failed',
+            error: new Error('Failed to create view'),
+          };
+        }
+
+        return {
+          status: 'successful',
+          response: result,
+        };
+      } catch (error) {
+        if (CombinedGraphQLErrors.is(error)) {
+          handleMetadataError(error, {
+            primaryMetadataName: 'view',
+            operationType: CrudOperationType.CREATE,
           });
-        },
-        applyResultToDraft: (mutationResult, { addToDraft }) => {
-          const newView = mutationResult.data?.createView;
+        } else {
+          enqueueErrorSnackBar({ message: t`An error occurred.` });
+        }
 
-          if (!isDefined(newView)) {
-            throw new Error('Failed to create view');
-          }
-
-          const {
-            __typename,
-            viewFields: _viewFields,
-            viewFieldGroups: _viewFieldGroups,
-            viewFilters: _viewFilters,
-            viewFilterGroups: _viewFilterGroups,
-            viewSorts: _viewSorts,
-            viewGroups,
-            ...flatView
-          } = newView;
-
-          addToDraft({ key: 'views', items: [flatView as FlatView] });
-
-          // The server auto-creates viewGroups for Kanban views (mainGroupByFieldMetadataId)
-          addToDraft({
-            key: 'viewGroups',
-            items: viewGroups.map(
-              ({ __typename: _viewGroupTypename, ...viewGroup }) =>
-                viewGroup as FlatViewGroup,
-            ),
-          });
-        },
-        operationType: CrudOperationType.CREATE,
-      });
-
-      return result;
+        return {
+          status: 'failed',
+          error,
+        };
+      }
     },
     [
       createViewMutation,
       triggerViewGroupOptimisticEffectAtViewCreation,
-      performViewEntityAPIPersistOperation,
+      handleMetadataError,
+      enqueueErrorSnackBar,
     ],
   );
 
@@ -99,17 +95,33 @@ export const usePerformViewAPIPersist = () => {
       variables: DestroyViewMutationVariables,
     ): Promise<
       MetadataRequestResult<Awaited<ReturnType<typeof destroyViewMutation>>>
-    > =>
-      performViewEntityAPIPersistOperation({
-        persist: () =>
-          destroyViewMutation({
-            variables,
-          }),
-        applyResultToDraft: (_result, { removeFromDraft }) =>
-          removeFromDraft({ key: 'views', itemIds: [variables.id] }),
-        operationType: CrudOperationType.DELETE,
-      }),
-    [destroyViewMutation, performViewEntityAPIPersistOperation],
+    > => {
+      try {
+        const result = await destroyViewMutation({
+          variables,
+        });
+
+        return {
+          status: 'successful',
+          response: result,
+        };
+      } catch (error) {
+        if (CombinedGraphQLErrors.is(error)) {
+          handleMetadataError(error, {
+            primaryMetadataName: 'view',
+            operationType: CrudOperationType.DELETE,
+          });
+        } else {
+          enqueueErrorSnackBar({ message: t`An error occurred.` });
+        }
+
+        return {
+          status: 'failed',
+          error,
+        };
+      }
+    },
+    [destroyViewMutation, handleMetadataError, enqueueErrorSnackBar],
   );
 
   return {

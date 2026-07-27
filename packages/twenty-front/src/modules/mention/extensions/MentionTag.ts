@@ -1,4 +1,3 @@
-import { formatRecordReference } from '@/ai/utils/formatRecordReference';
 import { MentionChip } from '@/mention/components/MentionChip';
 import { Node } from '@tiptap/core';
 import { mergeAttributes, ReactNodeViewRenderer } from '@tiptap/react';
@@ -58,10 +57,6 @@ export const MentionTag = Node.create({
   renderText: ({ node }) => {
     const { objectNameSingular, recordId, label } = node.attrs;
 
-    return formatRecordReference({
-      objectNameSingular,
-      recordId,
-      displayName: label,
-    });
+    return `[[record:${objectNameSingular}:${recordId}:${label}]]`;
   },
 });

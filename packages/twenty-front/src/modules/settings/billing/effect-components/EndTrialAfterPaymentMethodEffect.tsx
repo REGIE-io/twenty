@@ -8,7 +8,7 @@ import { jotaiStore } from '@/ui/utilities/state/jotai/jotaiStore';
 import { useSubscriptionStatus } from '@/workspace/hooks/useSubscriptionStatus';
 import { isNonEmptyString } from '@sniptt/guards';
 import { t } from '@lingui/core/macro';
-import { useCallback, useEffect } from 'react';
+import { useEffect } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { isDefined } from 'twenty-shared/utils';
 import { SubscriptionStatus } from '~/generated-metadata/graphql';
@@ -24,9 +24,7 @@ export const EndTrialAfterPaymentMethodEffect = () => {
   const searchParams = new URLSearchParams(location.search);
   const askAiThreadId = searchParams.get(ASK_AI_THREAD_ID_QUERY_PARAM);
 
-  const cleanUpQueryParams = useCallback(() => {
-    const searchParams = new URLSearchParams(location.search);
-
+  const cleanUpQueryParams = () => {
     searchParams.delete(START_SUBSCRIPTION_AFTER_PAYMENT_METHOD_QUERY_PARAM);
     searchParams.delete(ASK_AI_THREAD_ID_QUERY_PARAM);
 
@@ -36,9 +34,9 @@ export const EndTrialAfterPaymentMethodEffect = () => {
       `${location.pathname}${cleanedSearch.length > 0 ? `?${cleanedSearch}` : ''}${location.hash}`,
       { replace: true },
     );
-  }, [location.hash, location.pathname, location.search, navigate]);
+  };
 
-  const startSubscription = useCallback(async () => {
+  const startSubscription = async () => {
     if (subscriptionStatus !== SubscriptionStatus.Trialing) {
       cleanUpQueryParams();
       return;
@@ -67,21 +65,23 @@ export const EndTrialAfterPaymentMethodEffect = () => {
       cleanUpQueryParams();
       jotaiStore.set(isEndingSubscriptionTrialPeriodState.atom, false);
     }
-  }, [
-    askAiThreadId,
-    cleanUpQueryParams,
-    endTrialPeriod,
-    enqueueErrorSnackBar,
-    openAskAiThread,
-    subscriptionStatus,
-  ]);
+  };
 
   useEffect(() => {
     if (!isDefined(subscriptionStatus)) {
       return;
     }
     void startSubscription();
-  }, [startSubscription, subscriptionStatus]);
+  }, [
+    location.search,
+    location.pathname,
+    location.hash,
+    navigate,
+    subscriptionStatus,
+    endTrialPeriod,
+    openAskAiThread,
+    enqueueErrorSnackBar,
+  ]);
 
   return null;
 };

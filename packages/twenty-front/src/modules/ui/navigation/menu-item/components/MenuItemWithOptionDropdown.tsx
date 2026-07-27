@@ -44,7 +44,6 @@ export type MenuItemWithOptionDropdownProps = {
   text: ReactNode;
   hasSubMenu?: boolean;
   dropdownPlacement?: Placement;
-  selected?: boolean;
 };
 
 // TODO: refactor this
@@ -63,7 +62,6 @@ export const MenuItemWithOptionDropdown = ({
   text,
   hasSubMenu = false,
   dropdownPlacement = 'bottom-end',
-  selected = false,
 }: MenuItemWithOptionDropdownProps) => {
   const { theme } = useContext(ThemeContext);
   const handleMenuItemClick = (event: MouseEvent<HTMLDivElement>) => {
@@ -83,7 +81,6 @@ export const MenuItemWithOptionDropdown = ({
       isIconDisplayedOnHoverOnly={isIconDisplayedOnHoverOnly}
       onMouseEnter={onMouseEnter}
       onMouseLeave={onMouseLeave}
-      focused={selected}
     >
       <StyledMenuItemLeftContent>
         <MenuItemLeftContent LeftIcon={LeftIcon ?? undefined} text={text} />

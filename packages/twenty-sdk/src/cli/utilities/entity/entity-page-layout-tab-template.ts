@@ -9,7 +9,7 @@ export default definePageLayoutTab({
   title: '${name}',
   position: 1000,
   icon: 'IconLayout',
-  layoutMode: PageLayoutTabLayoutMode.VERTICAL_LIST,
+  layoutMode: PageLayoutTabLayoutMode.CANVAS,
   widgets: [],
 });
 `;

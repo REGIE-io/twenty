@@ -39,9 +39,7 @@ export const InformationBannerFailPaymentInfo = () => {
           ? t`Last payment failed. Please update your billing details.`
           : t`Last payment failed. Please contact your admin.`
       }
-      buttonTitle={
-        hasPermissionToUpdateBillingDetails ? t`Update payment` : undefined
-      }
+      buttonTitle={hasPermissionToUpdateBillingDetails ? t`Update` : undefined}
       buttonOnClick={() => openBillingPortal()}
       isButtonDisabled={loading || !isDefined(data)}
     />

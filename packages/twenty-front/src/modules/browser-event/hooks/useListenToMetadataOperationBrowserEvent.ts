@@ -11,20 +11,14 @@ export const useListenToMetadataOperationBrowserEvent = <
   onMetadataOperationBrowserEvent,
   metadataName,
   operationTypes,
-  skip = false,
 }: {
   onMetadataOperationBrowserEvent: (
     detail: MetadataOperationBrowserEventDetail<T>,
   ) => void;
   metadataName?: BroadcastEntityName;
   operationTypes?: MetadataOperation<T>['type'][];
-  skip?: boolean;
 }) => {
   useEffect(() => {
-    if (skip) {
-      return;
-    }
-
     const handleMetadataOperationEvent = (
       event: CustomEvent<MetadataOperationBrowserEventDetail<T>>,
     ) => {
@@ -55,5 +49,5 @@ export const useListenToMetadataOperationBrowserEvent = <
         handleMetadataOperationEvent as EventListener,
       );
     };
-  }, [metadataName, onMetadataOperationBrowserEvent, operationTypes, skip]);
+  }, [metadataName, onMetadataOperationBrowserEvent, operationTypes]);
 };

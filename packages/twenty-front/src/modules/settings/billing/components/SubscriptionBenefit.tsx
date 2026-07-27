@@ -14,7 +14,6 @@ const StyledCheckContainer = styled.div`
   align-items: center;
   background-color: ${themeCssVariables.background.tertiary};
   border-radius: 50%;
-  corner-shape: round;
   display: flex;
   height: 16px;
   justify-content: center;

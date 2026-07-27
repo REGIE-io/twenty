@@ -2,7 +2,7 @@ import { renderHook, waitFor } from '@testing-library/react';
 import { type MockedResponse } from '@apollo/client/testing';
 import { useApplicationManifest } from '~/pages/settings/layout/hooks/useApplicationManifest';
 import {
-  FindMarketplaceAppManifestDocument,
+  FindMarketplaceAppDetailDocument,
   FindOneApplicationDocument,
 } from '~/generated-metadata/graphql';
 import { getJestMetadataAndApolloMocksWrapper } from '~/testing/jest/getJestMetadataAndApolloMocksWrapper';
@@ -20,11 +20,11 @@ const findOneApplicationMock = (
   result: { data: { findOneApplication: application } },
 });
 
-const findMarketplaceAppManifestMock = (
+const findMarketplaceAppDetailMock = (
   manifest: object | null,
 ): MockedResponse => ({
   request: {
-    query: FindMarketplaceAppManifestDocument,
+    query: FindMarketplaceAppDetailDocument,
     variables: { universalIdentifier: APP_UID },
   },
   result: {
@@ -52,7 +52,7 @@ describe('useApplicationManifest', () => {
           universalIdentifier: APP_UID,
           name: 'My App',
         }),
-        findMarketplaceAppManifestMock(null),
+        findMarketplaceAppDetailMock(null),
       ],
     });
 

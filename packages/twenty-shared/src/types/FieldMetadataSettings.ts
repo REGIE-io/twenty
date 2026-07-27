@@ -62,6 +62,11 @@ type FieldMetadataFilesSettings = {
   maxNumberOfValues: number;
 };
 
+type FieldMetadataTsVectorSettings = {
+  asExpression?: string;
+  generatedType?: 'STORED' | 'VIRTUAL';
+};
+
 export type FieldMetadataSettingsMapping = {
   [FieldMetadataType.NUMBER]: FieldMetadataNumberSettings | null;
   [FieldMetadataType.CURRENCY]: FieldMetadataCurrencySettings | null;
@@ -71,7 +76,7 @@ export type FieldMetadataSettingsMapping = {
   [FieldMetadataType.RELATION]: FieldMetadataRelationSettings;
   [FieldMetadataType.ADDRESS]: FieldMetadataAddressSettings | null;
   [FieldMetadataType.MORPH_RELATION]: FieldMetadataRelationSettings;
-  [FieldMetadataType.TS_VECTOR]: null;
+  [FieldMetadataType.TS_VECTOR]: FieldMetadataTsVectorSettings | null;
   [FieldMetadataType.PHONES]: FieldMetadataMultiItemSettings | null;
   [FieldMetadataType.EMAILS]: FieldMetadataMultiItemSettings | null;
   [FieldMetadataType.LINKS]: FieldMetadataMultiItemSettings | null;

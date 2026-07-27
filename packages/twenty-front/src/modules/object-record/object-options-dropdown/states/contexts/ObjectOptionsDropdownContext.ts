@@ -1,7 +1,7 @@
 import { type EnrichedObjectMetadataItem } from '@/object-metadata/types/EnrichedObjectMetadataItem';
 import { type ObjectOptionsContentId } from '@/object-record/object-options-dropdown/types/ObjectOptionsContentId';
 import { type ViewType } from '@/views/types/ViewType';
-import { type DraggableListDropResult } from '@/ui/layout/draggable-list/types/DraggableListDropResult';
+import { type OnDragEndResponder } from '@hello-pangea/dnd';
 import { createContext } from 'react';
 
 export type ObjectOptionsDropdownContextValue = {
@@ -12,9 +12,7 @@ export type ObjectOptionsDropdownContextValue = {
   onContentChange: (key: ObjectOptionsContentId) => void;
   resetContent: () => void;
   dropdownId: string;
-  handleRecordGroupOrderChangeWithModal?: (
-    result: DraggableListDropResult,
-  ) => void;
+  handleRecordGroupOrderChangeWithModal?: OnDragEndResponder;
 };
 
 export const ObjectOptionsDropdownContext =

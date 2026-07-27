@@ -32,7 +32,6 @@ const connectionParameters = z
 
 export const connectionImapSmtpCalDav = z
   .object({
-    name: z.string().trim(),
     handle: z.email('Invalid email address'),
     IMAP: connectionParameters.optional(),
     SMTP: connectionParameters.optional(),
@@ -53,7 +52,6 @@ export const connectionImapSmtpCalDav = z
 
 export const connectionImapSmtpCalDavUpdate = z
   .object({
-    name: z.string().trim(),
     handle: z.email('Invalid email address'),
     IMAP: connectionParameters.optional(),
     SMTP: connectionParameters.optional(),

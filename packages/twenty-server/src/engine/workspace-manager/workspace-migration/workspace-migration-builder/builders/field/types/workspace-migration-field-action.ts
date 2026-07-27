@@ -23,9 +23,7 @@ export type UniversalCreateFieldAction =
   };
 
 export type UniversalUpdateFieldAction =
-  BaseUniversalUpdateWorkspaceMigrationAction<'fieldMetadata'> & {
-    rebuildSearchVector?: boolean;
-  };
+  BaseUniversalUpdateWorkspaceMigrationAction<'fieldMetadata'>;
 
 export type UniversalDeleteFieldAction =
   BaseUniversalDeleteWorkspaceMigrationAction<'fieldMetadata'>;
@@ -37,9 +35,7 @@ export type FlatCreateFieldAction =
   };
 
 export type FlatUpdateFieldAction =
-  BaseFlatUpdateWorkspaceMigrationAction<'fieldMetadata'> & {
-    rebuildSearchVector?: boolean;
-  };
+  BaseFlatUpdateWorkspaceMigrationAction<'fieldMetadata'>;
 
 export type FlatDeleteFieldAction =
   BaseFlatDeleteWorkspaceMigrationAction<'fieldMetadata'>;

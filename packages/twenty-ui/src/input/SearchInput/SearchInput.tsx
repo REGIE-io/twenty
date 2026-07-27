@@ -1,10 +1,10 @@
 import { Input } from '@base-ui/react/input';
 import { clsx } from 'clsx';
-import { type ReactNode, useId, useState } from 'react';
+import { type ReactNode, useContext, useState } from 'react';
 
 import { IconFilter, IconSearch } from '@ui/icon';
 import { IconButton } from '@ui/input/IconButton/IconButton';
-import { useTheme } from '@ui/theme-constants';
+import { ThemeContext } from '@ui/theme-constants';
 
 import styles from './SearchInput.module.scss';
 
@@ -16,10 +16,6 @@ export type SearchInputProps = {
   autoFocus?: boolean;
   disabled?: boolean;
   className?: string;
-  id?: string;
-  filterButtonAriaLabel?: string;
-  'aria-label'?: string;
-  'aria-labelledby'?: string;
 };
 
 export const SearchInput = ({
@@ -30,23 +26,11 @@ export const SearchInput = ({
   autoFocus,
   disabled,
   className,
-  id,
-  filterButtonAriaLabel = 'Filter',
-  'aria-label': ariaLabel,
-  'aria-labelledby': ariaLabelledby,
 }: SearchInputProps) => {
-  const theme = useTheme();
+  const { theme } = useContext(ThemeContext);
   const [isFocused, setIsFocused] = useState(false);
-  const generatedId = useId();
-  const inputId = id ?? generatedId;
 
-  const filterButton = (
-    <IconButton
-      Icon={IconFilter}
-      variant="secondary"
-      ariaLabel={filterButtonAriaLabel}
-    />
-  );
+  const filterButton = <IconButton Icon={IconFilter} variant="secondary" />;
 
   return (
     <div className={clsx(styles.wrapper, className)}>
@@ -54,12 +38,10 @@ export const SearchInput = ({
         <div
           className={styles.iconContainer}
           data-focused={isFocused || undefined}
-          aria-hidden
         >
           <IconSearch size={theme.icon.size.md} />
         </div>
         <Input
-          id={inputId}
           className={styles.input}
           value={value}
           onValueChange={(newValue) => onChange(newValue)}
@@ -68,8 +50,6 @@ export const SearchInput = ({
           placeholder={placeholder}
           autoFocus={autoFocus}
           disabled={disabled}
-          aria-label={ariaLabelledby ? undefined : (ariaLabel ?? placeholder)}
-          aria-labelledby={ariaLabelledby}
         />
       </div>
       {filterDropdown && filterDropdown(filterButton)}

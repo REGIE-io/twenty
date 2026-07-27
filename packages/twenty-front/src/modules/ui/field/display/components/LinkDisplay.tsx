@@ -1,7 +1,6 @@
 import { isNonEmptyString } from '@sniptt/guards';
-import { RoundedLink, SocialLink } from 'twenty-ui/navigation';
+import { LinkType, RoundedLink, SocialLink } from 'twenty-ui/navigation';
 import { checkUrlType } from '~/utils/checkUrlType';
-import { isSocialLinkType } from '~/utils/isSocialLinkType';
 import { getSafeUrl } from 'twenty-shared/utils';
 
 type LinkDisplayProps = {
@@ -23,8 +22,12 @@ export const LinkDisplay = ({ value }: LinkDisplayProps) => {
 
   const type = checkUrlType(absoluteUrl);
 
-  if (isSocialLinkType(type)) {
-    return <SocialLink href={absoluteUrl} type={type} label={value.label} />;
+  if (
+    type === LinkType.LinkedIn ||
+    type === LinkType.Twitter ||
+    type === LinkType.Facebook
+  ) {
+    return <SocialLink href={absoluteUrl} type={type} label={displayedValue} />;
   }
 
   return <RoundedLink href={absoluteUrl} label={displayedValue} />;

@@ -38,6 +38,7 @@ export const RecordTableBodyLoading = () => {
         >
           <RecordTableRowDraggableContextProvider
             value={{
+              dragHandleProps: {} as any,
               isDragging: false,
             }}
           >

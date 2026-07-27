@@ -52,12 +52,7 @@ export class CodeInterpreterDriverFactory extends DriverFactoryBase<CodeInterpre
           );
         }
 
-        return new LocalDriver({
-          timeoutMs,
-          idleTimeoutMs: this.twentyConfigService.get(
-            'CODE_INTERPRETER_IDLE_TIMEOUT_MS',
-          ),
-        });
+        return new LocalDriver({ timeoutMs });
       }
 
       case CodeInterpreterDriverType.E_2_B: {

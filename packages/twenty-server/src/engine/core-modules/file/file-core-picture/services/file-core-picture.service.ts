@@ -4,6 +4,8 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { buffer as streamToBuffer } from 'node:stream/consumers';
 
 import { isNonEmptyString } from '@sniptt/guards';
+import { FileTypeParser } from 'file-type';
+import { detectPdf } from '@file-type/pdf';
 import { FileFolder } from 'twenty-shared/types';
 import { isDefined } from 'twenty-shared/utils';
 import { WorkspaceActivationStatus } from 'twenty-shared/workspace';
@@ -18,7 +20,7 @@ import {
   AuthException,
   AuthExceptionCode,
 } from 'src/engine/core-modules/auth/auth.exception';
-import { FileStorageService } from 'src/engine/core-modules/file-storage/services/file-storage.service';
+import { FileStorageService } from 'src/engine/core-modules/file-storage/file-storage.service';
 import { FileWithSignedUrlDTO } from 'src/engine/core-modules/file/dtos/file-with-sign-url.dto';
 import { FileEntity } from 'src/engine/core-modules/file/entities/file.entity';
 import { FileUrlService } from 'src/engine/core-modules/file/file-url/file-url.service';
@@ -29,7 +31,7 @@ import { UserWorkspaceEntity } from 'src/engine/core-modules/user-workspace/user
 import { WorkspaceEntity } from 'src/engine/core-modules/workspace/workspace.entity';
 import { InjectWorkspaceScopedRepository } from 'src/engine/twenty-orm/workspace-scoped-repository/inject-workspace-scoped-repository.decorator';
 import { WorkspaceScopedRepository } from 'src/engine/twenty-orm/workspace-scoped-repository/workspace-scoped-repository';
-import { fetchImageWithTypeFromUrl } from 'src/utils/image';
+import { getImageBufferFromUrl } from 'src/utils/image';
 
 @Injectable()
 export class FileCorePictureService {
@@ -239,7 +241,16 @@ export class FileCorePictureService {
         shouldResetTimeout: true,
       });
 
-      return await fetchImageWithTypeFromUrl(imageUrl, httpClient);
+      const buffer = await getImageBufferFromUrl(imageUrl, httpClient);
+
+      const parser = new FileTypeParser({ customDetectors: [detectPdf] });
+      const type = await parser.fromBuffer(buffer);
+
+      if (!isDefined(type) || !type.mime.startsWith('image/')) {
+        return undefined;
+      }
+
+      return { buffer, extension: type.ext };
     } catch (error) {
       this.logger.warn(
         `Failed to fetch image from URL: ${imageUrl} — ${error instanceof Error ? error.message : String(error)}`,

@@ -1,7 +1,6 @@
 import { type EnrichedObjectMetadataItem } from '@/object-metadata/types/EnrichedObjectMetadataItem';
 
 import { useDeleteOneObjectMetadataItem } from '@/object-metadata/hooks/useDeleteOneObjectMetadataItem';
-import { useGetIsMetadataItemCustom } from '@/object-metadata/hooks/useGetIsMetadataItemCustom';
 import { useUpdateOneObjectMetadataItem } from '@/object-metadata/hooks/useUpdateOneObjectMetadataItem';
 import { isDDLLockedState } from '@/client-config/states/isDDLLockedState';
 import { isObjectMetadataReadOnly } from '@/object-record/read-only/utils/isObjectMetadataReadOnly';
@@ -56,7 +55,6 @@ export const ObjectSettings = ({
 }: ObjectSettingsProps) => {
   const { t } = useLingui();
   const navigate = useNavigateSettings();
-  const getIsMetadataItemCustom = useGetIsMetadataItemCustom();
   const { updateOneObjectMetadataItem } = useUpdateOneObjectMetadataItem();
   const { deleteOneObjectMetadataItem } = useDeleteOneObjectMetadataItem();
   const { enqueueSuccessSnackBar } = useSnackBar();
@@ -167,7 +165,7 @@ export const ObjectSettings = ({
                 size="small"
                 onClick={handleDisable}
               />
-              {getIsMetadataItemCustom(objectMetadataItem) && (
+              {objectMetadataItem.isCustom && (
                 <Button
                   Icon={IconTrash}
                   title={t`Delete`}

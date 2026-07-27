@@ -3,9 +3,8 @@ import { Injectable, Logger } from '@nestjs/common';
 import { msg } from '@lingui/core/macro';
 import { ImapFlow } from 'imapflow';
 import { createTransport } from 'nodemailer';
-import { isNonEmptyString } from '@sniptt/guards';
 import { ACCOUNT_TYPES } from 'twenty-shared/constants';
-import { assertUnreachable, isDefined } from 'twenty-shared/utils';
+import { assertUnreachable } from 'twenty-shared/utils';
 
 import { UserInputError } from 'src/engine/core-modules/graphql/utils/graphql-errors.util';
 import { type EmailAccountConnectionParametersInput } from 'src/engine/core-modules/imap-smtp-caldav-connection/dtos/imap-smtp-caldav-connection.input';
@@ -224,14 +223,6 @@ export class ImapSmtpCaldavService {
     existingConnectionParameters: PlaintextImapSmtpCaldavParams | null;
   }): Promise<PlaintextImapSmtpCaldavParams> {
     const validatedParams: PlaintextImapSmtpCaldavParams = {};
-
-    if (isDefined(connectionParameters.name)) {
-      const trimmedName = connectionParameters.name.trim();
-
-      validatedParams.name = isNonEmptyString(trimmedName) ? trimmedName : null;
-    } else if (isDefined(existingConnectionParameters?.name)) {
-      validatedParams.name = existingConnectionParameters.name;
-    }
 
     for (const protocol of ACCOUNT_TYPES) {
       const params = connectionParameters[protocol];

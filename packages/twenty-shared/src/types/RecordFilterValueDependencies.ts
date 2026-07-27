@@ -1,8 +1,5 @@
 export interface RecordFilterValueDependencies {
   currentWorkspaceMemberId?: string;
-  currentRecord?: {
-    id: string;
-    objectMetadataNameSingular: string;
-  };
+  currentRecordId?: string;
   timeZone?: string;
 }

@@ -4,7 +4,6 @@ import { PageLayoutComponentInstanceContext } from '@/page-layout/states/context
 import { pageLayoutDraftComponentState } from '@/page-layout/states/pageLayoutDraftComponentState';
 import { pageLayoutEditingWidgetIdComponentState } from '@/page-layout/states/pageLayoutEditingWidgetIdComponentState';
 import { pageLayoutTabSettingsOpenTabIdComponentState } from '@/page-layout/states/pageLayoutTabSettingsOpenTabIdComponentState';
-import { getTabPresentation } from '@/page-layout/utils/getTabPresentation';
 import { useSidePanelMenu } from '@/side-panel/hooks/useSidePanelMenu';
 import { useIsDashboardPageLayout } from '@/side-panel/pages/page-layout/hooks/useIsDashboardPageLayout';
 import { useNavigatePageLayoutSidePanel } from '@/side-panel/pages/page-layout/hooks/useNavigatePageLayoutSidePanel';
@@ -15,7 +14,6 @@ import { useSetAtomComponentState } from '@/ui/utilities/state/jotai/hooks/useSe
 import { useSetAtomState } from '@/ui/utilities/state/jotai/hooks/useSetAtomState';
 import { t } from '@lingui/core/macro';
 import { SidePanelPages } from 'twenty-shared/types';
-import { isDefined } from 'twenty-shared/utils';
 import {
   PageLayoutTabLayoutMode,
   WidgetType,
@@ -134,15 +132,7 @@ export const useOpenWidgetSettingsInSidePanel = (
         tab.widgets.some((w) => w.id === widgetId),
       );
 
-      const isContainingTabSolo =
-        isDefined(containingTab) &&
-        getTabPresentation({
-          widgets: containingTab.widgets.filter((w) => w.isActive),
-          layoutMode:
-            containingTab.layoutMode ?? PageLayoutTabLayoutMode.VERTICAL_LIST,
-        }) === 'solo';
-
-      if (isContainingTabSolo) {
+      if (containingTab?.layoutMode === PageLayoutTabLayoutMode.CANVAS) {
         setPageLayoutTabSettingsOpenTabId(containingTab.id);
         navigatePageLayoutSidePanel({
           sidePanelPage: SidePanelPages.PageLayoutTabSettings,

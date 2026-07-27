@@ -2,13 +2,11 @@ import react from '@vitejs/plugin-react-swc';
 import * as path from 'path';
 import { defineConfig } from 'vite';
 import svgr from 'vite-plugin-svgr';
+import tsconfigPaths from 'vite-tsconfig-paths';
 
 import packageJson from './package.json';
 
-const depNames = Object.keys({
-  ...(packageJson.dependencies || {}),
-  ...(packageJson.peerDependencies || {}),
-});
+const depNames = Object.keys(packageJson.dependencies || {});
 
 const isExternal = (id: string): boolean =>
   depNames.some((dep) => id === dep || id.startsWith(dep + '/'));
@@ -16,7 +14,6 @@ const isExternal = (id: string): boolean =>
 export default defineConfig(() => {
   return {
     resolve: {
-      tsconfigPaths: true,
       alias: {
         '@ui/': path.resolve(__dirname, 'src') + '/',
         '@assets/': path.resolve(__dirname, 'src/assets') + '/',
@@ -43,7 +40,14 @@ export default defineConfig(() => {
     root: __dirname,
     cacheDir: '../../node_modules/.vite/packages/twenty-ui-individual',
     assetsInclude: ['src/**/*.svg'],
-    plugins: [react(), svgr()],
+    plugins: [
+      react(),
+      tsconfigPaths({
+        root: __dirname,
+        projects: ['tsconfig.json'],
+      }),
+      svgr(),
+    ],
     build: {
       cssCodeSplit: false,
       minify: 'esbuild',

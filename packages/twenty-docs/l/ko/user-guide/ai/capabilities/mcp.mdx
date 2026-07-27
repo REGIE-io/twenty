@@ -3,6 +3,10 @@ title: MCP 서버
 description: Model Context Protocol을 사용하여 AI 어시스턴트를 Twenty 워크스페이스에 연결하세요.
 ---
 
+<Warning>
+MCP는 현재 **알파** 단계이며 일부 워크스페이스에서만 사용할 수 있습니다. 아직 귀하의 워크스페이스에서 활성화되지 않았을 수 있습니다.
+</Warning>
+
 Twenty는 Claude Desktop, Claude Code, Cursor, ChatGPT 등 AI 어시스턴트가 자연어로 CRM 데이터를 읽고 쓸 수 있도록 [MCP](https://modelcontextprotocol.io/) 서버를 제공합니다.
 
 MCP 엔드포인트로 **워크스페이스 URL**(Twenty에 접속할 때 사용하는 URL)을 사용하세요. Twenty Cloud에서는 워크스페이스 URL이 `https://{mycompany}.twenty.com` 또는 커스텀 도메인일 수 있습니다. 서버는 다음 위치에서 사용할 수 있습니다:
@@ -68,20 +72,20 @@ MCP 클라이언트가 OAuth를 지원하지 않거나 정적 자격 증명을 �
 API 키는 워크스페이스 데이터에 대한 액세스를 부여합니다. 버전 관리와 공유 도트파일에 포함하지 마세요.
 </Warning>
 
-API 키를 생성하려면 **Settings → MCP & APIs → API → + Create key**로 이동하세요. 자세한 내용은 [API](/l/ko/developers/extend/api#create-an-api-key)를 참조하세요.
+API 키를 생성하려면 **Settings > APIs & Webhooks > + Create key**로 이동하세요. 자세한 내용은 [API](/l/ko/developers/extend/api#create-an-api-key)를 참조하세요.
 
 ## 빠른 시작
 
 ### 1. 구성 복사
 
-Twenty에서 **Settings → MCP & APIs → MCP**로 이동하세요. 인증 방법(OAuth 또는 API Key)을 선택하고, JSON 스니펫(이미 워크스페이스 URL이 포함되어 있습니다)을 복사하여 MCP 클라이언트의 구성 파일에 붙여넣으세요.
+Twenty에서 **Settings > AI > More > MCP Server**로 이동하세요. 인증 방법(OAuth 또는 API Key)을 선택하고, JSON 스니펫(이미 워크스페이스 URL이 포함되어 있습니다)을 복사하여 MCP 클라이언트의 구성 파일에 붙여넣으세요.
 
 | 클라이언트              | 구성 파일 위치                                                                                                                                     |
 | ------------------ | -------------------------------------------------------------------------------------------------------------------------------------------- |
 | **Claude Desktop** | `~/Library/Application Support/Claude/claude_desktop_config.json` (macOS) 또는 `%APPDATA%\Claude\claude_desktop_config.json` (Windows)         |
 | **Claude Code**    | `~/.claude.json` (사용자) 또는 `.mcp.json` (프로젝트)                                                                                                 |
 | **Cursor**         | 프로젝트의 `.cursor/mcp.json`, 또는 전역 `~/.cursor/mcp.json`                                                                                         |
-| **ChatGPT**        | **Settings → Apps & Connectors → Advanced settings**에서 Developer Mode를 켠 다음, **Settings → Apps & Connectors**의 **Create**를 사용해 MCP 서버를 추가하세요 |
+| **ChatGPT**        | **Settings > Apps & Connectors > Advanced settings**에서 Developer Mode를 켠 다음, **Settings > Apps & Connectors**의 **Create**를 사용해 MCP 서버를 추가하세요 |
 
 ### 2. 연결
 
@@ -109,7 +113,7 @@ AI 어시스턴트에게 CRM과 상호작용하도록 요청하세요:
 MCP 연결은 인증된 사용자(OAuth)의 권한 또는 API 키에 할당된 역할을 상속합니다. MCP 서버가 수행할 수 있는 작업을 제한하려면:
 
 * **OAuth**: 사용자의 워크스페이스 역할이 적용됩니다.
-* **API Key**: **Settings → Members → Roles**에서 API 키에 역할을 할당하세요. 자세한 내용은 [권한](/l/ko/user-guide/permissions-access/capabilities/permissions)을 참조하세요.
+* **API Key**: **Settings > Roles**에서 API 키에 역할을 할당하세요. 자세한 내용은 [권한](/l/ko/user-guide/permissions-access/capabilities/permissions)을 참조하세요.
 
 ## 자가 호스팅 구성
 

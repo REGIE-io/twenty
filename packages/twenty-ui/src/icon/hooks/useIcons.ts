@@ -1,10 +1,10 @@
-import { useContext } from 'react';
+import { useAtomValue } from 'jotai';
 
 import { Icon123 } from '@ui/icon/components/TablerIcons';
-import { IconsContext } from '@ui/icon/internal/IconsContext';
+import { iconsState } from '@ui/icon/states/iconsState';
 
 export const useIcons = () => {
-  const icons = useContext(IconsContext);
+  const icons = useAtomValue(iconsState);
   const defaultIcon = Icon123;
 
   const getIcons = () => {

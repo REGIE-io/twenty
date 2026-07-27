@@ -1,13 +1,15 @@
 import {
   type AggregateOperations,
+  type AggregateOrderByWithGroupByField,
   type ObjectRecordGroupByDateGranularity,
-  type OrderByWithGroupBy,
+  type ObjectRecordOrderByForCompositeField,
+  type ObjectRecordOrderByForRelationField,
+  type ObjectRecordOrderByForScalarField,
+  type ObjectRecordOrderByWithGroupByDateField,
 } from 'twenty-shared/types';
 import { assertUnreachable, isDefined } from 'twenty-shared/utils';
 
-import { type FlatEntityMaps } from 'src/engine/metadata-modules/flat-entity/types/flat-entity-maps.type';
 import { type FlatFieldMetadata } from 'src/engine/metadata-modules/flat-field-metadata/types/flat-field-metadata.type';
-import { type FlatObjectMetadata } from 'src/engine/metadata-modules/flat-object-metadata/types/flat-object-metadata.type';
 import { GraphOrderBy } from 'src/engine/metadata-modules/page-layout-widget/enums/graph-order-by.enum';
 import { buildAggregateFieldKey } from 'src/modules/dashboard/chart-data/utils/build-aggregate-field-key.util';
 import { getFieldOrderBy } from 'src/modules/dashboard/chart-data/utils/get-field-order-by.util';
@@ -20,8 +22,6 @@ export const getGroupByOrderBy = ({
   aggregateOperation,
   aggregateFieldMetadata,
   dateGranularity,
-  flatObjectMetadataMaps,
-  flatFieldMetadataMaps,
 }: {
   graphOrderBy: GraphOrderBy;
   groupByFieldMetadata: FlatFieldMetadata;
@@ -29,20 +29,22 @@ export const getGroupByOrderBy = ({
   aggregateOperation?: AggregateOperations;
   aggregateFieldMetadata?: FlatFieldMetadata;
   dateGranularity?: ObjectRecordGroupByDateGranularity;
-  flatObjectMetadataMaps: FlatEntityMaps<FlatObjectMetadata>;
-  flatFieldMetadataMaps: FlatEntityMaps<FlatFieldMetadata>;
-}): OrderByWithGroupBy | undefined => {
+}):
+  | AggregateOrderByWithGroupByField
+  | ObjectRecordOrderByForScalarField
+  | ObjectRecordOrderByWithGroupByDateField
+  | ObjectRecordOrderByForCompositeField
+  | ObjectRecordOrderByForRelationField
+  | undefined => {
   switch (graphOrderBy) {
     case GraphOrderBy.FIELD_ASC:
     case GraphOrderBy.FIELD_DESC:
-      return getFieldOrderBy({
+      return getFieldOrderBy(
         groupByFieldMetadata,
         groupBySubFieldName,
         dateGranularity,
-        direction: mapOrderByToDirection(graphOrderBy),
-        flatObjectMetadataMaps,
-        flatFieldMetadataMaps,
-      });
+        mapOrderByToDirection(graphOrderBy),
+      );
     case GraphOrderBy.VALUE_ASC:
     case GraphOrderBy.VALUE_DESC: {
       if (
@@ -59,13 +61,11 @@ export const getGroupByOrderBy = ({
         aggregateFieldMetadata,
       });
 
-      return [
-        {
-          aggregate: {
-            [aggregateFieldKey]: mapOrderByToDirection(graphOrderBy),
-          },
+      return {
+        aggregate: {
+          [aggregateFieldKey]: mapOrderByToDirection(graphOrderBy),
         },
-      ];
+      };
     }
     case GraphOrderBy.FIELD_POSITION_ASC:
     case GraphOrderBy.FIELD_POSITION_DESC:

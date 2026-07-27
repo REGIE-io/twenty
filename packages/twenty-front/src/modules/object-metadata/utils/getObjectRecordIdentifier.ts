@@ -1,5 +1,4 @@
 import { type EnrichedObjectMetadataItem } from '@/object-metadata/types/EnrichedObjectMetadataItem';
-import { getImageIdentifierFieldMetadataItem } from '@/object-metadata/utils/getImageIdentifierFieldMetadataItem';
 import { getLabelIdentifierFieldMetadataItem } from '@/object-metadata/utils/getLabelIdentifierFieldMetadataItem';
 import { type ObjectRecord } from '@/object-record/types/ObjectRecord';
 import { type ObjectRecordIdentifier } from '@/object-record/types/ObjectRecordIdentifier';
@@ -32,11 +31,13 @@ export const getObjectRecordIdentifier = ({
     labelIdentifierFieldMetadataItem,
   );
 
-  const imageIdentifierFieldMetadata =
-    getImageIdentifierFieldMetadataItem(objectMetadataItem);
+  const imageIdentifierFieldMetadata = objectMetadataItem.fields.find(
+    (field) => field.id === objectMetadataItem.imageIdentifierFieldMetadataId,
+  );
 
-  const avatarType = getAvatarType(objectMetadataItem);
+  const avatarType = getAvatarType(objectMetadataItem.nameSingular);
 
+  // TODO: This is a temporary solution before we seed imageIdentifierFieldMetadataId in the database
   const avatarUrl = getAvatarUrl(
     objectMetadataItem.nameSingular,
     record,

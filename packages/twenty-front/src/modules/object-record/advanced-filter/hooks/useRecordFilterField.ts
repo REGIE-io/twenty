@@ -21,9 +21,6 @@ export const useRecordFilterField = (recordFilterId: string) => {
     recordFilter?.fieldMetadataId ?? '',
   );
 
-  const { fieldMetadataItem: relationTargetFieldMetadataItem } =
-    useFieldMetadataItemById(recordFilter?.relationTargetFieldMetadataId ?? '');
-
   const { getIcon } = useIcons();
 
   const icon = isDefined(fieldMetadataItem?.icon)
@@ -41,15 +38,9 @@ export const useRecordFilterField = (recordFilterId: string) => {
         )
       : '';
 
-  const fieldLabel = fieldMetadataItem?.label ?? '';
-
-  const baseLabel = isDefined(relationTargetFieldMetadataItem)
-    ? `${fieldLabel} → ${relationTargetFieldMetadataItem.label}`
-    : fieldLabel;
-
   const label = isNonEmptyString(subFieldLabel)
-    ? `${baseLabel} / ${subFieldLabel}`
-    : baseLabel;
+    ? `${recordFilter?.label} / ${subFieldLabel}`
+    : (recordFilter?.label ?? '');
 
   return {
     label,

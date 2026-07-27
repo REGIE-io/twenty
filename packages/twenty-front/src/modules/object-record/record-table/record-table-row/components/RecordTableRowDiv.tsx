@@ -10,8 +10,6 @@ const StyledTr = styled.div<{
   display: flex;
   flex-direction: row;
 
-  position: relative;
-
   &[data-focused='true'],
   &[data-active='true'] {
     div.table-cell,

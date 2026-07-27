@@ -10,7 +10,6 @@ const STRUCTURAL_EXEMPTIONS = new Set<string>([
   'UserWorkspaceEntity',
   'AppTokenEntity',
   'ApplicationRegistrationEntity',
-  'ApplicationRegistrationClaimEntity',
   'ApplicationRegistrationVariableEntity',
   // nullable workspaceId — both rows support instance-level and per-workspace use
   'KeyValuePairEntity',
@@ -51,9 +50,6 @@ const WORKSPACE_SCOPED_EXEMPTIONS = new Set<string>([
   // Only injection lives in a frozen historical upgrade-version-command
   // directory that CI's mutation-guard refuses to let us edit.
   'DataSourceEntity',
-  // The domain column is globally unique across workspaces, so duplicate
-  // preflight checks must query cross-workspace; writes stay on the wrapper.
-  'EmailingDomainEntity',
 ]);
 
 // Everything else must use @InjectWorkspaceScopedRepository.

@@ -1,3 +1,4 @@
+import { type DropResult } from '@hello-pangea/dnd';
 import type { Store } from 'jotai/vanilla/store';
 import { isDefined } from 'twenty-shared/utils';
 
@@ -9,9 +10,7 @@ import { getDragOperationType } from './getDragOperationType';
 import { processMultiDrag } from './processMultiDrag';
 
 type ProcessGroupDropParams = {
-  droppableId: string;
-  draggableId: string;
-  targetIndex: number;
+  groupDropResult: DropResult;
   store: Store;
   selectedRecordIds: string[];
   recordIdsByGroupFamilyState: any;
@@ -25,38 +24,44 @@ type ProcessGroupDropParams = {
 };
 
 export const processGroupDrop = ({
-  droppableId,
-  draggableId,
-  targetIndex,
+  groupDropResult,
   store,
   selectedRecordIds,
   recordIdsByGroupFamilyState,
   onUpdateRecord,
 }: ProcessGroupDropParams) => {
+  if (!groupDropResult.destination) {
+    return;
+  }
+
+  const destinationGroupId = groupDropResult.destination.droppableId;
+
   const recordGroup = store.get(
-    recordGroupDefinitionFamilyState.atomFamily(droppableId),
+    recordGroupDefinitionFamilyState.atomFamily(destinationGroupId),
   );
 
   if (!isDefined(recordGroup)) {
     throw new Error('Record group is not defined');
   }
 
-  const targetRecordIds = store.get(
-    recordIdsByGroupFamilyState(droppableId),
+  const destinationRecordIds = store.get(
+    recordIdsByGroupFamilyState(destinationGroupId),
   ) as string[];
 
+  const draggedRecordId = groupDropResult.draggableId;
+
   const dragOperationType = getDragOperationType({
-    draggedRecordId: draggableId,
+    draggedRecordId,
     selectedRecordIds,
   });
 
-  const targetGroupIsEmpty = targetRecordIds.length === 0;
+  const targetGroupIsEmpty = destinationRecordIds.length === 0;
 
   if (targetGroupIsEmpty) {
     if (dragOperationType === 'single') {
       onUpdateRecord(
         {
-          recordId: draggableId,
+          recordId: draggedRecordId,
           position: 1,
         },
         recordGroup.value,
@@ -76,13 +81,18 @@ export const processGroupDrop = ({
     return;
   }
 
-  const recordsWithPosition = extractRecordPositions(targetRecordIds, store);
+  const recordsWithPosition = extractRecordPositions(
+    destinationRecordIds,
+    store,
+  );
 
-  const isDroppedAfterList = targetIndex >= recordsWithPosition.length;
+  const destinationIndex = groupDropResult.destination.index;
+
+  const isDroppedAfterList = destinationIndex >= recordsWithPosition.length;
 
   const targetRecord = isDroppedAfterList
     ? recordsWithPosition.at(-1)
-    : recordsWithPosition.at(targetIndex);
+    : recordsWithPosition.at(groupDropResult.destination.index);
 
   if (!isDefined(targetRecord)) {
     throw new Error(
@@ -92,7 +102,7 @@ export const processGroupDrop = ({
 
   if (dragOperationType === 'single') {
     const singleDragResult = processSingleDrag({
-      sourceRecordId: draggableId,
+      sourceRecordId: draggedRecordId,
       targetRecordId: targetRecord.id,
       recordsWithPosition: recordsWithPosition,
       isDroppedAfterList,
@@ -111,7 +121,7 @@ export const processGroupDrop = ({
     );
   } else {
     const multiDragResult = processMultiDrag({
-      draggedRecordId: draggableId,
+      draggedRecordId,
       selectedRecordIds,
       recordsWithPosition,
       targetRecordId: targetRecord.id,

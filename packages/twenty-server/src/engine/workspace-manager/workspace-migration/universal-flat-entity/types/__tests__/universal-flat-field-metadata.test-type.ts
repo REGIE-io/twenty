@@ -39,7 +39,6 @@ type OneToManyUniversalIdentifierArrays = {
   viewFilterUniversalIdentifiers: string[];
   kanbanAggregateOperationViewUniversalIdentifiers: string[];
   calendarViewUniversalIdentifiers: string[];
-  calendarEndViewUniversalIdentifiers: string[];
   mainGroupByFieldMetadataViewUniversalIdentifiers: string[];
 };
 

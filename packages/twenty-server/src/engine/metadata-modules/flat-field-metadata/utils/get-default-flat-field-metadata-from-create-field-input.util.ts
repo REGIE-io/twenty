@@ -4,6 +4,7 @@ import {
 } from 'twenty-shared/utils';
 import { v4 } from 'uuid';
 
+import { type FlatApplication } from 'src/engine/core-modules/application/types/flat-application.type';
 import { type CreateFieldInput } from 'src/engine/metadata-modules/field-metadata/dtos/create-field.input';
 import { generateDefaultValue } from 'src/engine/metadata-modules/field-metadata/utils/generate-default-value';
 import { generateNullable } from 'src/engine/metadata-modules/field-metadata/utils/generate-nullable';
@@ -13,15 +14,13 @@ import { type UniversalFlatFieldMetadata } from 'src/engine/workspace-manager/wo
 
 type GetDefaultFlatFieldMetadataArgs = {
   createFieldInput: Omit<CreateFieldInput, 'workspaceId' | 'objectMetadataId'>;
-  applicationUniversalIdentifier: string;
+  flatApplication: FlatApplication;
   objectMetadataUniversalIdentifier: string;
-  isSystemSideEffect?: boolean;
 };
 export const getDefaultFlatFieldMetadata = ({
   createFieldInput,
-  applicationUniversalIdentifier,
+  flatApplication,
   objectMetadataUniversalIdentifier,
-  isSystemSideEffect = false,
 }: GetDefaultFlatFieldMetadataArgs) => {
   const { defaultValue, settings } = extractAndSanitizeObjectStringFields(
     createFieldInput,
@@ -42,11 +41,11 @@ export const getDefaultFlatFieldMetadata = ({
       createFieldInput.isRemoteCreation,
     ),
     isSystem: createFieldInput.isSystem ?? false,
-    isSystemSideEffect,
+    isSystemSideEffect: false,
     isUnique: createFieldInput.isUnique ?? false,
     label: createFieldInput.label,
     name: createFieldInput.name,
-    overrides: null,
+    standardOverrides: null,
     type: createFieldInput.type,
     universalIdentifier: createFieldInput.universalIdentifier ?? v4(),
     options: createFieldInput.options ?? null,
@@ -66,7 +65,7 @@ export const getDefaultFlatFieldMetadata = ({
         ? !createFieldInput.isUIReadOnly
         : true),
     morphId: null,
-    applicationUniversalIdentifier,
+    applicationUniversalIdentifier: flatApplication.universalIdentifier,
     objectMetadataUniversalIdentifier,
     relationTargetObjectMetadataUniversalIdentifier: null,
     relationTargetFieldMetadataUniversalIdentifier: null,
@@ -75,10 +74,8 @@ export const getDefaultFlatFieldMetadata = ({
     fieldPermissionUniversalIdentifiers: [],
     kanbanAggregateOperationViewUniversalIdentifiers: [],
     calendarViewUniversalIdentifiers: [],
-    calendarEndViewUniversalIdentifiers: [],
     mainGroupByFieldMetadataViewUniversalIdentifiers: [],
     universalSettings: settings ?? null,
     viewSortUniversalIdentifiers: [],
-    searchFieldMetadataUniversalIdentifiers: [],
   } as const satisfies UniversalFlatFieldMetadata;
 };

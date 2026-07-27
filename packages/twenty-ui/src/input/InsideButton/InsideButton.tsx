@@ -1,8 +1,8 @@
 import { clsx } from 'clsx';
-import React from 'react';
+import React, { useContext } from 'react';
 
 import { type IconComponent } from '@ui/icon';
-import { useTheme } from '@ui/theme-constants';
+import { ThemeContext } from '@ui/theme-constants';
 
 import styles from './InsideButton.module.scss';
 
@@ -21,7 +21,7 @@ export const InsideButton = ({
   onClick,
   disabled = false,
 }: InsideButtonProps) => {
-  const theme = useTheme();
+  const { theme } = useContext(ThemeContext);
 
   return (
     <button
@@ -31,7 +31,7 @@ export const InsideButton = ({
       disabled={disabled}
       data-disabled={disabled || undefined}
     >
-      {Icon && <Icon size={theme.icon.size.sm} aria-hidden={!!ariaLabel} />}
+      {Icon && <Icon size={theme.icon.size.sm} />}
     </button>
   );
 };

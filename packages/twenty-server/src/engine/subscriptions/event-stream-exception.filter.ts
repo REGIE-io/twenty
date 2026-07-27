@@ -3,7 +3,7 @@ import { GqlExceptionFilter } from '@nestjs/graphql';
 
 import { assertUnreachable } from 'twenty-shared/utils';
 
-import { ForbiddenError } from 'src/engine/core-modules/graphql/utils/graphql-errors.util';
+import { InternalServerError } from 'src/engine/core-modules/graphql/utils/graphql-errors.util';
 import {
   EventStreamException,
   EventStreamExceptionCode,
@@ -15,7 +15,7 @@ export class EventStreamExceptionFilter implements GqlExceptionFilter {
     switch (exception.code) {
       case EventStreamExceptionCode.EVENT_STREAM_ALREADY_EXISTS:
       case EventStreamExceptionCode.NOT_AUTHORIZED:
-        throw new ForbiddenError(exception.message, {
+        throw new InternalServerError(exception.message, {
           subCode: exception.code,
           userFriendlyMessage: exception.userFriendlyMessage,
         });

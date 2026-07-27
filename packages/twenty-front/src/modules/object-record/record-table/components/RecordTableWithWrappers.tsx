@@ -11,17 +11,6 @@ import { RecordTableRecordLimitReloadEffect } from '@/object-record/record-table
 import { PageFocusId } from '@/types/PageFocusId';
 import { useHotkeysOnFocusedElement } from '@/ui/utilities/hotkey/hooks/useHotkeysOnFocusedElement';
 import { ScrollWrapper } from '@/ui/utilities/scroll/components/ScrollWrapper';
-import { styled } from '@linaria/react';
-
-const StyledRecordTablePrintBoundary = styled.div`
-  display: contents;
-
-  @media print {
-    display: block;
-    max-height: 100vh;
-    overflow: hidden;
-  }
-`;
 
 type RecordTableWithWrappersProps = {
   objectNameSingular: string;
@@ -71,14 +60,12 @@ export const RecordTableWithWrappers = ({
         onRecordIdentifierClick={handleRecordIdentifierClick}
       >
         <EntityDeleteContext.Provider value={deleteOneRecord}>
-          <StyledRecordTablePrintBoundary>
-            <ScrollWrapper
-              componentInstanceId={`record-table-scroll-${recordTableId}`}
-            >
-              <RecordTableRecordLimitReloadEffect />
-              <RecordTable />
-            </ScrollWrapper>
-          </StyledRecordTablePrintBoundary>
+          <ScrollWrapper
+            componentInstanceId={`record-table-scroll-${recordTableId}`}
+          >
+            <RecordTableRecordLimitReloadEffect />
+            <RecordTable />
+          </ScrollWrapper>
         </EntityDeleteContext.Provider>
       </RecordTableContextProvider>
     </RecordTableComponentInstance>

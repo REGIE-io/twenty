@@ -85,34 +85,19 @@ export const handleFieldMetadataDeactivationSideEffects = ({
     flatEntityMaps: flatViewMaps,
   });
 
-  const kanbanAggregateOperationViewIds = new Set(
-    fromFlatFieldMetadata.kanbanAggregateOperationViewIds,
-  );
-  const calendarEndViewIds = new Set(fromFlatFieldMetadata.calendarEndViewIds);
-  const viewIdsToUpdate = [
-    ...new Set([...kanbanAggregateOperationViewIds, ...calendarEndViewIds]),
-  ].filter((viewId) => !viewIdsToDelete.includes(viewId));
+  const viewIdsToUpdate =
+    fromFlatFieldMetadata.kanbanAggregateOperationViewIds.filter(
+      (viewId) => !viewIdsToDelete.includes(viewId),
+    );
   const flatViewsToUpdate = findManyFlatEntityByIdInFlatEntityMapsOrThrow({
     flatEntityIds: viewIdsToUpdate,
     flatEntityMaps: flatViewMaps,
-  }).map((flatView) => {
-    const shouldClearKanbanAggregateOperation =
-      kanbanAggregateOperationViewIds.has(flatView.id);
-    const shouldClearCalendarEndField = calendarEndViewIds.has(flatView.id);
-
-    return {
-      ...flatView,
-      ...(shouldClearKanbanAggregateOperation && {
-        kanbanAggregateOperation: null,
-        kanbanAggregateOperationFieldMetadataId: null,
-        kanbanAggregateOperationFieldMetadataUniversalIdentifier: null,
-      }),
-      ...(shouldClearCalendarEndField && {
-        calendarEndFieldMetadataId: null,
-        calendarEndFieldMetadataUniversalIdentifier: null,
-      }),
-    };
-  });
+  }).map((flatView) => ({
+    ...flatView,
+    kanbanAggregateOperation: null,
+    kanbanAggregateOperationFieldMetadataId: null,
+    kanbanAggregateOperationFieldMetadataUniversalIdentifier: null,
+  }));
 
   return {
     flatViewsToUpdate,

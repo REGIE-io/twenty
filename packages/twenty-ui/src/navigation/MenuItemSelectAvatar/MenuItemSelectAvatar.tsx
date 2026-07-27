@@ -1,4 +1,4 @@
-import { type ReactNode } from 'react';
+import { type ReactNode, useContext } from 'react';
 
 import {
   StyledMenuItemIconCheck,
@@ -8,7 +8,7 @@ import {
 } from '@ui/navigation/MenuItem/parts/StyledMenuItemBase';
 
 import { OverflowingTextWithTooltip } from '@ui/surfaces';
-import { useTheme } from '@ui/theme-constants';
+import { ThemeContext } from '@ui/theme-constants';
 import { StyledMenuItemSelect } from '@ui/navigation/MenuItemSelect/MenuItemSelect';
 
 import styles from './MenuItemSelectAvatar.module.scss';
@@ -36,7 +36,7 @@ export const MenuItemSelectAvatar = ({
   focused,
   testId,
 }: MenuItemSelectAvatarProps) => {
-  const theme = useTheme();
+  const { theme } = useContext(ThemeContext);
 
   return (
     <StyledMenuItemSelect

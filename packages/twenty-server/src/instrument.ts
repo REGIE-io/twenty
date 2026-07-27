@@ -35,20 +35,6 @@ if (process.env.EXCEPTION_HANDLER_DRIVER === ExceptionHandlerDriver.SENTRY) {
       Sentry.expressIntegration(),
       Sentry.graphqlIntegration(),
       Sentry.postgresIntegration(),
-      Sentry.nodeRuntimeMetricsIntegration({
-        collectionIntervalMs: 30_000,
-        collect: {
-          cpuUtilization: false,
-          memHeapUsed: false,
-          memHeapTotal: false,
-          memRss: false,
-          eventLoopDelayP50: false,
-          eventLoopDelayP99: true,
-          eventLoopDelayMax: true,
-          eventLoopUtilization: true,
-          uptime: false,
-        },
-      }),
       Sentry.vercelAIIntegration({
         recordInputs: true,
         recordOutputs: true,

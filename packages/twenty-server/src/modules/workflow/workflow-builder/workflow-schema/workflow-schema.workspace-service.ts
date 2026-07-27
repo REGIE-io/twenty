@@ -11,17 +11,14 @@ import {
   buildManualTriggerMetadataNode,
   BulkRecordsAvailability,
   extractRawVariableNamePart,
-  getCurrentItemSchemaFromFlattenedArrayOutputSchema,
   GlobalAvailability,
   isBaseOutputSchemaV2,
-  isFlattenedArrayOutputSchema,
   navigateOutputSchemaProperty,
   SingleRecordAvailability,
   TRIGGER_STEP_ID,
   WORKFLOW_TRIGGER_METADATA_KEY,
   WORKFLOW_TRIGGER_PAYLOAD_KEY,
-  WORKFLOW_TRIGGER_RECORD_LABEL,
-  WORKFLOW_TRIGGER_RECORDS_LABEL,
+  WORKFLOW_TRIGGER_PAYLOAD_LABEL,
   WorkflowActionType,
 } from 'twenty-shared/workflow';
 
@@ -100,7 +97,6 @@ export class WorkflowSchemaWorkspaceService {
       case WorkflowActionType.UPDATE_RECORD:
       case WorkflowActionType.DELETE_RECORD:
       case WorkflowActionType.UPSERT_RECORD:
-      case WorkflowActionType.PICK_RECORD:
         return this.computeRecordOutputSchema({
           objectType: step.settings.input.objectName,
           workspaceId,
@@ -175,10 +171,7 @@ export class WorkflowSchemaWorkspaceService {
     workspaceId: string;
     workflowVersionId: string;
   }): Promise<WorkflowAction> {
-    const BACKEND_ENRICHED_TYPES = [
-      WorkflowActionType.ITERATOR,
-      WorkflowActionType.AI_AGENT,
-    ];
+    const BACKEND_ENRICHED_TYPES = [WorkflowActionType.ITERATOR];
 
     if (!BACKEND_ENRICHED_TYPES.includes(step.type)) {
       return step;
@@ -380,27 +373,7 @@ export class WorkflowSchemaWorkspaceService {
   }
 
   private computeSendEmailActionOutputSchema(): OutputSchema {
-    return {
-      success: { isLeaf: true, type: 'boolean', value: true },
-      headerMessageId: {
-        isLeaf: true,
-        type: 'string',
-        label: 'Message-ID header',
-        value: '<message-id@mail.example.com>',
-      },
-      messageId: {
-        isLeaf: true,
-        type: 'string',
-        label: 'Message record ID',
-        value: '',
-      },
-      messageThreadId: {
-        isLeaf: true,
-        type: 'string',
-        label: 'Message thread ID',
-        value: '',
-      },
-    };
+    return { success: { isLeaf: true, type: 'boolean', value: true } };
   }
 
   private async computeAiAgentActionOutputSchema({
@@ -507,7 +480,7 @@ export class WorkflowSchemaWorkspaceService {
       const payload: Node = {
         isLeaf: false,
         type: 'object',
-        label: WORKFLOW_TRIGGER_RECORD_LABEL,
+        label: WORKFLOW_TRIGGER_PAYLOAD_LABEL,
         value: recordOutputSchema,
       };
 
@@ -527,7 +500,7 @@ export class WorkflowSchemaWorkspaceService {
       const payload: Node = {
         isLeaf: false,
         type: 'object',
-        label: WORKFLOW_TRIGGER_RECORDS_LABEL,
+        label: WORKFLOW_TRIGGER_PAYLOAD_LABEL,
         value: {
           [objectMetadataInfo.flatObjectMetadata.namePlural]: {
             label: objectMetadataInfo.flatObjectMetadata.labelPlural,
@@ -678,26 +651,8 @@ export class WorkflowSchemaWorkspaceService {
       case WorkflowActionType.HTTP_REQUEST:
       case WorkflowActionType.LOGIC_FUNCTION: {
         const propertyPath = extractPropertyPathFromVariable(items);
-        const outputSchema = this.getOutputSchemaWithExpectedFallback(
-          step.settings,
-        );
-
-        const variableTargetsWholeStepOutput = propertyPath.length === 0;
-
-        if (variableTargetsWholeStepOutput) {
-          if (!isFlattenedArrayOutputSchema(outputSchema)) {
-            return DEFAULT_ITERATOR_CURRENT_ITEM;
-          }
-
-          return (
-            getCurrentItemSchemaFromFlattenedArrayOutputSchema({
-              schema: outputSchema,
-            }) ?? DEFAULT_ITERATOR_CURRENT_ITEM
-          );
-        }
-
         const schemaNode = navigateOutputSchemaProperty({
-          schema: outputSchema,
+          schema: this.getOutputSchemaWithExpectedFallback(step.settings),
           propertyPath,
         });
 

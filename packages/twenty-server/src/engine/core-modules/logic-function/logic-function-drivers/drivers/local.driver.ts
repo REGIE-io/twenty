@@ -90,8 +90,6 @@ export class LocalDriver implements LogicFunctionDriver {
 
   async delete(): Promise<void> {}
 
-  async deleteApplicationResources(): Promise<void> {}
-
   async installPrebuiltBundle(
     params: LogicFunctionInstallPrebuiltBundleParams,
   ): Promise<void> {

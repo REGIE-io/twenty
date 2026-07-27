@@ -10,12 +10,7 @@ import {
   SignInUpStep,
   signInUpStepState,
 } from '@/auth/states/signInUpStepState';
-import {
-  StyledTwoFactorInstructions,
-  StyledTwoFactorMainContent,
-} from '@/auth/sign-in-up/components/internal/SignInUpTwoFactorAuthenticationStyles';
 import { useReadCaptchaToken } from '@/captcha/hooks/useReadCaptchaToken';
-import { ONBOARDING_CONTENT_BLOCK_WIDTH } from '@/onboarding/constants/OnboardingContentBlockWidth';
 import { useCaptcha } from '@/client-config/hooks/useCaptcha';
 import { useSnackBar } from '@/ui/feedback/snack-bar-manager/hooks/useSnackBar';
 import { Trans, useLingui } from '@lingui/react/macro';
@@ -30,12 +25,17 @@ import { useNavigateApp } from '~/hooks/useNavigateApp';
 import { useAtomStateValue } from '@/ui/utilities/state/jotai/hooks/useAtomStateValue';
 import { useSetAtomState } from '@/ui/utilities/state/jotai/hooks/useSetAtomState';
 
+const StyledMainContentContainer = styled.div`
+  margin-bottom: ${themeCssVariables.spacing[8]};
+  margin-top: ${themeCssVariables.spacing[4]};
+  text-align: center;
+`;
+
 const StyledForm = styled.form`
   align-items: center;
   display: flex;
   flex-direction: column;
-  max-width: 100%;
-  width: ${ONBOARDING_CONTENT_BLOCK_WIDTH}px;
+  width: 100%;
 `;
 
 const StyledSlot = styled.div<{ isActive: boolean }>`
@@ -135,8 +135,7 @@ const StyledDashContainer = styled.div`
 
 const StyledDash = styled.div`
   background-color: ${themeCssVariables.font.color.primary};
-  border-radius: ${themeCssVariables.border.radius.pill};
-  corner-shape: round;
+  border-radius: 9999px;
   height: 0.25rem;
   width: 0.75rem;
 `;
@@ -160,6 +159,15 @@ const StyledOTPContainer = styled.div`
 
 const StyledSlotGroup = styled.div`
   display: flex;
+`;
+const StyledTextContainer = styled.div`
+  align-items: center;
+  color: ${themeCssVariables.font.color.tertiary};
+  font-size: ${themeCssVariables.font.size.sm};
+
+  margin-bottom: ${themeCssVariables.spacing[4]};
+  max-width: 280px;
+  text-align: center;
 `;
 
 const StyledActionBackLinkContainer = styled.div`
@@ -219,10 +227,10 @@ export const SignInUpTOTPVerification = () => {
 
   return (
     <StyledForm onSubmit={form.handleSubmit(submitOTP)}>
-      <StyledTwoFactorInstructions>
+      <StyledTextContainer>
         <Trans>Paste the code below</Trans>
-      </StyledTwoFactorInstructions>
-      <StyledTwoFactorMainContent>
+      </StyledTextContainer>
+      <StyledMainContentContainer>
         {/* // oxlint-disable-next-line react/jsx-props-no-spreading */}
         <Controller
           name="otp"
@@ -233,7 +241,6 @@ export const SignInUpTOTPVerification = () => {
               onBlur={onBlur}
               onChange={onChange}
               value={value}
-              autoFocus
               render={({ slots }) => (
                 <StyledOTPContainer>
                   <StyledSlotGroup>
@@ -262,7 +269,7 @@ export const SignInUpTOTPVerification = () => {
             />
           )}
         />
-      </StyledTwoFactorMainContent>
+      </StyledMainContentContainer>
       <MainButton
         title={t`Submit`}
         type="submit"

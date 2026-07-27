@@ -51,8 +51,7 @@ const StyledMonthSeperator = styled.div`
 `;
 const StyledMonthSeperatorLine = styled.div`
   background: ${themeCssVariables.border.color.light};
-  border-radius: ${themeCssVariables.border.radius.pill};
-  corner-shape: round;
+  border-radius: 50px;
   flex: 1 0 0;
   height: 1px;
 `;

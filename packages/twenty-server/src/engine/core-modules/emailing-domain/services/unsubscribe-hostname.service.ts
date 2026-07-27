@@ -90,10 +90,7 @@ export class UnsubscribeHostnameService {
   }
 
   async deprovision(emailingDomain: EmailingDomainEntity): Promise<void> {
-    if (
-      !this.dnsManagerService.isConfigured() ||
-      !isNonEmptyString(emailingDomain.unsubscribeHostname)
-    ) {
+    if (!isNonEmptyString(emailingDomain.unsubscribeHostname)) {
       return;
     }
 
@@ -107,10 +104,6 @@ export class UnsubscribeHostnameService {
     emailingDomainId: string,
     { provision }: { provision: boolean },
   ): Promise<void> {
-    if (!this.dnsManagerService.isConfigured()) {
-      return;
-    }
-
     try {
       const emailingDomain = await this.emailingDomainRepository.findOneOrFail(
         workspaceId,
@@ -172,7 +165,6 @@ export class UnsubscribeHostnameService {
         type: 'CNAME' as const,
         key: record.key,
         value: record.value,
-        status: record.status,
       }));
     } catch (error) {
       this.logger.warn(

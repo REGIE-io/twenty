@@ -98,9 +98,6 @@ export const ALL_MANY_TO_ONE_METADATA_FOREIGN_KEY = {
     calendarFieldMetadata: {
       foreignKey: 'calendarFieldMetadataId',
     },
-    calendarEndFieldMetadata: {
-      foreignKey: 'calendarEndFieldMetadataId',
-    },
     kanbanAggregateOperationFieldMetadata: {
       foreignKey: 'kanbanAggregateOperationFieldMetadataId',
     },
@@ -169,9 +166,6 @@ export const ALL_MANY_TO_ONE_METADATA_FOREIGN_KEY = {
   roleTarget: {
     role: {
       foreignKey: 'roleId',
-    },
-    agent: {
-      foreignKey: 'agentId',
     },
     apiKey: null,
     workspace: null,
@@ -308,19 +302,6 @@ export const ALL_MANY_TO_ONE_METADATA_FOREIGN_KEY = {
   connectionProvider: {
     workspace: null,
     application: null,
-  },
-  searchFieldMetadata: {
-    workspace: null,
-    application: null,
-    objectMetadata: {
-      foreignKey: 'objectMetadataId',
-    },
-    fieldMetadata: {
-      foreignKey: 'fieldMetadataId',
-    },
-    tsVectorFieldMetadata: {
-      foreignKey: 'tsVectorFieldMetadataId',
-    },
   },
 } as const satisfies ManyToOneMetadataRelationsProperties;
 

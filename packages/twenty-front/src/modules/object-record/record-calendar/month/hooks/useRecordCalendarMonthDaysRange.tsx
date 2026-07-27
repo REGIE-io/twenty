@@ -26,12 +26,14 @@ export const useRecordCalendarMonthDaysRange = (
   const currentWorkspaceMember = useAtomStateValue(currentWorkspaceMemberState);
   const dateLocale = useAtomStateValue(dateLocaleState);
 
-  const calendarStartDay =
-    currentWorkspaceMember?.calendarStartDay ?? CalendarStartDay.SYSTEM;
+  if (!currentWorkspaceMember) {
+    throw new Error('Current workspace member not found');
+  }
+
   const weekStartsOnDayIndex = (
-    calendarStartDay === CalendarStartDay.SYSTEM
+    currentWorkspaceMember?.calendarStartDay === CalendarStartDay.SYSTEM
       ? CalendarStartDay[detectCalendarStartDay()]
-      : calendarStartDay
+      : (currentWorkspaceMember?.calendarStartDay ?? 0)
   ) as 0 | 1 | 2 | 3 | 4 | 5 | 6;
 
   const firstDayOfMonth = selectedDate.with({ day: 1 });

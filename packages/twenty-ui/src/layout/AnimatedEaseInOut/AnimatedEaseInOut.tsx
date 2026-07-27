@@ -1,7 +1,7 @@
-import { Collapsible } from '@base-ui/react/collapsible';
+import { AnimatePresence, motion } from 'framer-motion';
+import { useContext } from 'react';
 import { type AnimationDuration } from '@ui/theme';
-
-import styles from './AnimatedEaseInOut.module.scss';
+import { ThemeContext } from '@ui/theme-constants';
 
 type AnimatedEaseInOutProps = {
   isOpen: boolean;
@@ -18,19 +18,30 @@ export const AnimatedEaseInOut = ({
   marginBottom,
   marginTop,
   duration = 'normal',
-}: AnimatedEaseInOutProps) => (
-  <Collapsible.Root open={isOpen}>
-    <Collapsible.Panel
-      className={styles.panel}
-      data-duration={duration}
-      style={
-        {
-          '--animated-ease-in-out-margin-top': marginTop ?? '0',
-          '--animated-ease-in-out-margin-bottom': marginBottom ?? '0',
-        } as React.CSSProperties
-      }
-    >
-      {children}
-    </Collapsible.Panel>
-  </Collapsible.Root>
-);
+  initial = true,
+}: AnimatedEaseInOutProps) => {
+  const { theme } = useContext(ThemeContext);
+
+  return (
+    <AnimatePresence initial={initial}>
+      {isOpen && (
+        <motion.div
+          initial={{
+            marginBottom: marginBottom ?? 0,
+            marginTop: marginTop ?? 0,
+            height: 0,
+            opacity: 0,
+          }}
+          animate={{ height: 'fit-content', opacity: 1 }}
+          exit={{ height: 0, opacity: 0, marginBottom: 0, marginTop: 0 }}
+          transition={{
+            duration: theme.animation.duration[duration],
+            ease: 'easeInOut',
+          }}
+        >
+          {children}
+        </motion.div>
+      )}
+    </AnimatePresence>
+  );
+};

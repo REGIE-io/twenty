@@ -86,7 +86,6 @@ export class ApprovedAccessDomainService {
           workspaceId: workspace.id,
         }),
       },
-      hash: 'invite',
     });
 
     if (!isDefined(sender.userEmail)) {

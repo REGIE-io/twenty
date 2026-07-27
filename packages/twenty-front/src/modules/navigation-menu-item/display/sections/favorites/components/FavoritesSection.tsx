@@ -20,7 +20,6 @@ import { NavigationMenuItemDroppableSlot } from '@/navigation-menu-item/display/
 import { NavigationMenuItemSortableItem } from '@/navigation-menu-item/display/dnd/components/NavigationMenuItemSortableItem';
 import { useIsDropDisabledForSection } from '@/navigation-menu-item/display/dnd/hooks/useIsDropDisabledForSection';
 import { useNavigationMenuItemsByFolder } from '@/navigation-menu-item/display/folder/hooks/useNavigationMenuItemsByFolder';
-import { useReadableNavigationMenuItems } from '@/navigation-menu-item/display/hooks/useReadableNavigationMenuItems';
 import { useSortedNavigationMenuItems } from '@/navigation-menu-item/display/hooks/useSortedNavigationMenuItems';
 import { NavigationMenuItemOrphanDropTarget } from '@/navigation-menu-item/display/sections/components/NavigationMenuItemOrphanDropTarget';
 import { NavigationMenuItemSection } from '@/navigation-menu-item/display/sections/components/NavigationMenuItemSection';
@@ -72,26 +71,18 @@ export const FavoritesSection = () => {
     'Favorites',
   );
 
-  const allTopLevelItems = useMemo(
+  const topLevelItems = useMemo(
     () => navigationMenuItemsSorted.filter((item) => !item.folderId),
     [navigationMenuItemsSorted],
   );
 
-  const allFolderChildrenById = useMemo(() => {
+  const folderChildrenById = useMemo(() => {
     const map = new Map<string, NavigationMenuItem[]>();
     for (const folder of userNavigationMenuItemsByFolder) {
       map.set(folder.id, folder.navigationMenuItems);
     }
     return map;
   }, [userNavigationMenuItemsByFolder]);
-
-  const {
-    displayTopLevelItems: topLevelItems,
-    displayFolderChildrenById: folderChildrenById,
-  } = useReadableNavigationMenuItems({
-    topLevelItems: allTopLevelItems,
-    folderChildrenById: allFolderChildrenById,
-  });
 
   const folderCount = useMemo(
     () => topLevelItems.filter(isNavigationMenuItemFolder).length,

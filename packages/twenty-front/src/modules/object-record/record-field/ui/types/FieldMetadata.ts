@@ -15,7 +15,7 @@ import { type RelationType } from '~/generated-metadata/graphql';
 type BaseFieldMetadata = {
   fieldName: string;
   objectMetadataNameSingular?: string;
-  applicationId?: string | null;
+  isCustom?: boolean;
   isUIEditable?: boolean;
 };
 

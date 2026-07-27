@@ -1,12 +1,6 @@
 import { Injectable } from '@nestjs/common';
 
-import { isDefined } from 'twenty-shared/utils';
-
 import { buildUrlWithPathnameAndSearchParams } from 'src/engine/core-modules/domain/domain-server-config/utils/build-url-with-pathname-and-search-params.util';
-import {
-  getHostnameFromUrlOrUndefined,
-  isHostUnderPublicFunctionDomain,
-} from 'src/engine/core-modules/domain/domain-server-config/utils/public-function-domain.util';
 import { TwentyConfigService } from 'src/engine/core-modules/twenty-config/twenty-config.service';
 
 @Injectable()
@@ -37,12 +31,6 @@ export class DomainServerConfigService {
     return new URL(this.twentyConfigService.get('PUBLIC_DOMAIN_URL'));
   }
 
-  getPublicBaseHostnameOrUndefined(): string | undefined {
-    return getHostnameFromUrlOrUndefined(
-      this.twentyConfigService.get('PUBLIC_DOMAIN_URL'),
-    );
-  }
-
   buildBaseUrl({
     pathname,
     searchParams,
@@ -64,38 +52,14 @@ export class DomainServerConfigService {
 
     const isFrontdomain = originHostname.endsWith(`.${frontDomain}`);
 
-    if (isFrontdomain) {
-      const subdomain = originHostname.replace(`.${frontDomain}`, '');
-
-      return {
-        subdomain: this.isDefaultSubdomain(subdomain) ? undefined : subdomain,
-        domain: null,
-        isPublicDomainOrigin: false,
-      };
-    }
-
-    const publicBaseDomain = this.getPublicBaseHostnameOrUndefined();
-
-    if (
-      isDefined(publicBaseDomain) &&
-      isHostUnderPublicFunctionDomain({
-        host: originHostname,
-        publicDomainBaseHostname: publicBaseDomain,
-      })
-    ) {
-      const subdomain = originHostname.replace(`.${publicBaseDomain}`, '');
-
-      return {
-        subdomain: this.isDefaultSubdomain(subdomain) ? undefined : subdomain,
-        domain: null,
-        isPublicDomainOrigin: true,
-      };
-    }
+    const subdomain = originHostname.replace(`.${frontDomain}`, '');
 
     return {
-      subdomain: undefined,
-      domain: originHostname,
-      isPublicDomainOrigin: false,
+      subdomain:
+        isFrontdomain && !this.isDefaultSubdomain(subdomain)
+          ? subdomain
+          : undefined,
+      domain: isFrontdomain ? null : originHostname,
     };
   };
 

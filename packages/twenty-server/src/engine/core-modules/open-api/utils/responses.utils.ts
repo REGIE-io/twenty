@@ -33,9 +33,11 @@ export const getFindManyResponse200 = (
                 hasNextPage: { type: 'boolean' },
                 startCursor: {
                   type: 'string',
+                  format: 'uuid',
                 },
                 endCursor: {
                   type: 'string',
+                  format: 'uuid',
                 },
               },
             },

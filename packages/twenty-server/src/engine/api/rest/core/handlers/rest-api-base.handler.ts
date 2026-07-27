@@ -159,7 +159,6 @@ export abstract class RestApiBaseHandler {
       flatObjectMetadata,
       flatObjectMetadataMaps,
       flatFieldMetadataMaps,
-      flatIndexMaps,
       objectIdByNameSingular,
     } = await this.getObjectMetadata(request, parsedObject);
 
@@ -170,7 +169,6 @@ export abstract class RestApiBaseHandler {
       flatObjectMetadata,
       flatObjectMetadataMaps,
       flatFieldMetadataMaps,
-      flatIndexMaps,
       objectIdByNameSingular,
     };
   }

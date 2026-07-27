@@ -1,6 +1,6 @@
 ---
 title: チェックマーク
-icon: circle-check
+image: '""'
 ---
 
 <Frame>
@@ -10,25 +10,19 @@ icon: circle-check
 成功したまたは完了したアクションを示します。
 
 <Tabs>
-<Tab title="使用方法">
+  <Tab title="使用方法">
+    ```jsx
+    import { Checkmark } from 'twenty-ui/display';
 
-```jsx
-import { Checkmark } from 'twenty-ui/display';
+    export const MyComponent = () => {
+      return <Checkmark />;
+    };
+    ```
+  </Tab>
 
-export const MyComponent = () => {
-  return <Checkmark />;
-};
-```
-
-
-</Tab>
-
-<Tab title="プロパティ">
-
-`div` 要素の全てのプロパティを受け取る他、`React.ComponentPropsWithoutRef<'div'>`を拡張します。
-
-</Tab>
-
+  <Tab title="プロパティ">
+    `div` 要素の全てのプロパティを受け取る他、`React.ComponentPropsWithoutRef<'div'>`を拡張します。
+  </Tab>
 </Tabs>
 
 ## アニメーション付きチェックマーク
@@ -36,38 +30,29 @@ export const MyComponent = () => {
 アニメーション機能を追加したチェックマークアイコンを示します。
 
 <Tabs>
+  <Tab title="使用方法">
+    ```jsx
+    import { AnimatedCheckmark } from 'twenty-ui/display';
 
-<Tab title="使用方法">
+    export const MyComponent = () => {
+      return (
+        <AnimatedCheckmark
+          isAnimating={true}
+          color="green"
+          duration={0.5}
+          size={30}
+        />
+      );
+    };
+    ```
+  </Tab>
 
-```jsx
-import { AnimatedCheckmark } from 'twenty-ui/display';
-
-export const MyComponent = () => {
-  return (
-    <AnimatedCheckmark
-      isAnimating={true}
-      color="green"
-      duration={0.5}
-      size={30}
-    />
-  );
-};
-```
-
-</Tab>
-
-<Tab title="プロパティ">
-
-
-| プロパティ      | タイプ    | 説明                    | デフォルト  |
-| ---------- | ------ | --------------------- | ------ |
-| アニメーションの有無 | ブール型   | チェックマークのアニメーションを制御します | 偽      |
-| カラー        | string | チェックマークの色             |        |
-| 継続時間       | 数      | アニメーションの持続時間（秒）       | 0.5秒   |
-| サイズ        | 数      | チェックマークのサイズ           | 28ピクセル |
-
-
-
-</Tab>
-
+  <Tab title="プロパティ">
+    | プロパティ      | タイプ    | 説明                    | デフォルト  |
+    | ---------- | ------ | --------------------- | ------ |
+    | アニメーションの有無 | ブール型   | チェックマークのアニメーションを制御します | 偽      |
+    | カラー        | string | チェックマークの色             |        |
+    | 継続時間       | 数      | アニメーションの持続時間（秒）       | 0.5秒   |
+    | サイズ        | 数      | チェックマークのサイズ           | 28ピクセル |
+  </Tab>
 </Tabs>

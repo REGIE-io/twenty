@@ -1,3 +1,4 @@
+import { AuthModal } from '@/auth/components/AuthModal';
 import { AppErrorBoundary } from '@/error-handler/components/AppErrorBoundary';
 import { AppFullScreenErrorFallback } from '@/error-handler/components/AppFullScreenErrorFallback';
 import { AppPageErrorFallback } from '@/error-handler/components/AppPageErrorFallback';
@@ -8,9 +9,19 @@ import { LayoutCustomizationBar } from '@/layout-customization/components/Layout
 import { AppNavigationDrawer } from '@/navigation/components/AppNavigationDrawer';
 import { MobileNavigationBar } from '@/navigation/components/MobileNavigationBar';
 import { PageDragDropProvider } from '@/navigation-menu-item/display/dnd/providers/PageDragDropProvider';
+import { BackgroundMockNavigationDrawer } from '@/sign-in-background-mock/components/BackgroundMockNavigationDrawer';
+import { Suspense, lazy } from 'react';
+
+const BackgroundMockPage = lazy(() =>
+  import('@/sign-in-background-mock/components/BackgroundMockPage').then(
+    (module) => ({ default: module.BackgroundMockPage }),
+  ),
+);
 import { useShowFullscreen } from '@/ui/layout/fullscreen/hooks/useShowFullscreen';
+import { useShowAuthModal } from '@/ui/layout/hooks/useShowAuthModal';
 import { useIsMobile } from '@/ui/utilities/responsive/hooks/useIsMobile';
 import { styled } from '@linaria/react';
+import { AnimatePresence, LayoutGroup } from 'framer-motion';
 import { Outlet } from 'react-router-dom';
 import { themeCssVariables } from 'twenty-ui/theme-constants';
 const StyledLayout = styled.div`
@@ -18,21 +29,13 @@ const StyledLayout = styled.div`
   display: flex;
   flex-direction: column;
   height: 100dvh;
-  overflow: hidden;
   position: relative;
   scrollbar-color: ${themeCssVariables.border.color.medium} transparent;
   scrollbar-width: 4px;
   width: 100%;
 
   *::-webkit-scrollbar-thumb {
-    border-radius: ${themeCssVariables.border.radius.md};
-  }
-
-  @media print {
-    background: ${themeCssVariables.background.primary};
-    height: auto;
-    min-height: 100%;
-    overflow: visible;
+    border-radius: ${themeCssVariables.border.radius.sm};
   }
 `;
 
@@ -42,21 +45,10 @@ const StyledPageContainer = styled.div`
   flex-direction: row;
   min-height: 0;
   min-width: 0;
-
-  @media print {
-    display: block;
-    min-height: auto;
-    min-width: auto;
-    overflow: visible;
-  }
 `;
 
 const StyledNavigationDrawerWrapper = styled.div`
   flex-shrink: 0;
-
-  @media print {
-    display: none;
-  }
 `;
 
 const StyledMainContainer = styled.div`
@@ -64,16 +56,11 @@ const StyledMainContainer = styled.div`
   flex: 0 1 100%;
   min-width: 0;
   overflow: hidden;
-
-  @media print {
-    display: block;
-    min-width: auto;
-    overflow: visible;
-  }
 `;
 
 export const DefaultLayout = () => {
   const isMobile = useIsMobile();
+  const showAuthModal = useShowAuthModal();
   const useShowFullScreen = useShowFullscreen();
 
   return (
@@ -85,20 +72,41 @@ export const DefaultLayout = () => {
             <LayoutCustomizationBar />
             <StyledPageContainer>
               <PageDragDropProvider>
-                <KeyboardShortcutMenu />
-                {useShowFullScreen ? null : (
+                {!showAuthModal && <KeyboardShortcutMenu />}
+                {showAuthModal ? (
+                  <StyledNavigationDrawerWrapper>
+                    <BackgroundMockNavigationDrawer />
+                  </StyledNavigationDrawerWrapper>
+                ) : useShowFullScreen ? null : (
                   <StyledNavigationDrawerWrapper>
                     <AppNavigationDrawer />
                   </StyledNavigationDrawerWrapper>
                 )}
-                <StyledMainContainer>
-                  <AppErrorBoundary FallbackComponent={AppPageErrorFallback}>
-                    <Outlet />
-                  </AppErrorBoundary>
-                </StyledMainContainer>
+                {showAuthModal ? (
+                  <>
+                    <StyledMainContainer>
+                      <Suspense fallback={null}>
+                        <BackgroundMockPage />
+                      </Suspense>
+                    </StyledMainContainer>
+                    <AnimatePresence mode="wait">
+                      <LayoutGroup>
+                        <AuthModal>
+                          <Outlet />
+                        </AuthModal>
+                      </LayoutGroup>
+                    </AnimatePresence>
+                  </>
+                ) : (
+                  <StyledMainContainer>
+                    <AppErrorBoundary FallbackComponent={AppPageErrorFallback}>
+                      <Outlet />
+                    </AppErrorBoundary>
+                  </StyledMainContainer>
+                )}
               </PageDragDropProvider>
             </StyledPageContainer>
-            {isMobile && <MobileNavigationBar />}
+            {isMobile && !showAuthModal && <MobileNavigationBar />}
           </AppErrorBoundary>
         </StyledLayout>
       </FileUploadProvider>

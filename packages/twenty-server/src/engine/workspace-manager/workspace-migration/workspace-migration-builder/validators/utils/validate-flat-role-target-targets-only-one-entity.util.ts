@@ -15,14 +15,14 @@ export const validateFlatRoleTargetTargetsOnlyOneEntity = ({
   const definedIdentifiersCount = [
     isDefined(flatRoleTarget.apiKeyId),
     isDefined(flatRoleTarget.userWorkspaceId),
-    isDefined(flatRoleTarget.agentUniversalIdentifier),
+    isDefined(flatRoleTarget.agentId),
   ].filter(Boolean).length;
 
   if (definedIdentifiersCount !== 1) {
     errors.push({
       code: RoleTargetExceptionCode.ROLE_TARGET_MISSING_IDENTIFIER,
-      message: t`Role target must have exactly one of: apiKeyId, userWorkspaceId, or agentUniversalIdentifier`,
-      userFriendlyMessage: msg`Role target must have exactly one of: apiKeyId, userWorkspaceId, or agentUniversalIdentifier`,
+      message: t`Role target must have exactly one of: apiKeyId, userWorkspaceId, or agentId`,
+      userFriendlyMessage: msg`Role target must have exactly one of: apiKeyId, userWorkspaceId, or agentId`,
     });
   }
 

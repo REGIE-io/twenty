@@ -12,7 +12,6 @@ import { OverflowingTextWithTooltip } from 'twenty-ui/surfaces';
 import { ThemeContext, themeCssVariables } from 'twenty-ui/theme-constants';
 import { type Agent, type ApiKeyForRole } from '~/generated-metadata/graphql';
 import { dateLocaleState } from '~/localization/states/dateLocaleState';
-import { getAbsoluteImageUrl } from '~/utils/image/getAbsoluteImageUrl';
 import { formatDateString } from '~/utils/string/formatDateString';
 import { type PartialWorkspaceMember } from '@/settings/roles/types/RoleWithPartialMembers';
 
@@ -64,7 +63,7 @@ export const SettingsRoleAssignmentTableRow = ({
         );
         return (
           <Avatar
-            avatarUrl={getAbsoluteImageUrl(enrichedWorkspaceMember?.avatarUrl)}
+            avatarUrl={enrichedWorkspaceMember?.avatarUrl}
             placeholderColorSeed={enrichedWorkspaceMember?.id}
             placeholder={enrichedWorkspaceMember?.name.firstName ?? ''}
             type="rounded"
@@ -74,12 +73,10 @@ export const SettingsRoleAssignmentTableRow = ({
       }
       case 'agent': {
         const Icon = getIcon(roleTarget.data.icon || 'IconRobot');
-        return <Icon size={theme.icon.size.md} stroke={theme.icon.stroke.sm} />;
+        return <Icon size={theme.icon.size.md} />;
       }
       case 'apiKey': {
-        return (
-          <IconKey size={theme.icon.size.md} stroke={theme.icon.stroke.sm} />
-        );
+        return <IconKey size={theme.icon.size.md} />;
       }
     }
   };

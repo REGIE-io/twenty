@@ -17,8 +17,7 @@
   font-weight: inherit;
   background-color: inherit;
   border: none;
-  border-radius: var(--t-border-radius-sm-round);
-  corner-shape: round;
+  border-radius: var(--t-border-radius-sm);
 
   & > svg {
     flex-shrink: 0;

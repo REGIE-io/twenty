@@ -180,7 +180,6 @@ export type LeafFilter =
   | AddressFilter
   | LinksFilter
   | ActorFilter
-  | EmailsFilter
   | PhonesFilter
   | ArrayFilter
   | RawJsonFilter

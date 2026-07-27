@@ -1,4 +1,4 @@
-import { type DraggableListDropResult } from '@/ui/layout/draggable-list/types/DraggableListDropResult';
+import { type DropResult } from '@hello-pangea/dnd';
 
 import { usePageLayoutIdFromContextStore } from '@/side-panel/pages/page-layout/hooks/usePageLayoutIdFromContextStore';
 import { useUpdateCurrentWidgetConfig } from '@/side-panel/pages/page-layout/hooks/useUpdateCurrentWidgetConfig';
@@ -51,7 +51,7 @@ export const ChartManualSortSubMenuContent = ({
     currentManualSortOrder,
   );
 
-  const handleDragEnd = (result: DraggableListDropResult) => {
+  const handleDragEnd = (result: DropResult) => {
     if (!isDefined(result.destination)) {
       return;
     }

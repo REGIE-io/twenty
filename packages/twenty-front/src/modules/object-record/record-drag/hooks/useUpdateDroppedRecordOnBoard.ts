@@ -4,7 +4,6 @@ import { RecordBoardContext } from '@/object-record/record-board/contexts/Record
 import { extractRecordPositions } from '@/object-record/record-drag/utils/extractRecordPositions';
 import { recordGroupDefinitionsComponentSelector } from '@/object-record/record-group/states/selectors/recordGroupDefinitionsComponentSelector';
 import { type RecordGroupDefinition } from '@/object-record/record-group/types/RecordGroupDefinition';
-import { getFieldMetadataItemGqlFieldName } from '@/object-metadata/utils/getFieldMetadataItemGqlFieldName';
 import { recordIndexRecordIdsByGroupComponentFamilyState } from '@/object-record/record-index/states/recordIndexRecordIdsByGroupComponentFamilyState';
 import { useUpsertRecordsInStore } from '@/object-record/record-store/hooks/useUpsertRecordsInStore';
 import { recordStoreFamilyState } from '@/object-record/record-store/states/recordStoreFamilyState';
@@ -86,10 +85,6 @@ export const useUpdateDroppedRecordOnBoard = () => {
 
       const targetRecordGroupId = targetRecordGroup.id;
 
-      const recordGroupColumnName = getFieldMetadataItemGqlFieldName(
-        selectFieldMetadataItem,
-      );
-
       const movingInsideSameRecordGroup =
         initialRecordGroupId === targetRecordGroupId;
 
@@ -165,7 +160,7 @@ export const useUpdateDroppedRecordOnBoard = () => {
             __typename:
               (initialRecord as { __typename?: string })?.__typename ??
               'Record',
-            [recordGroupColumnName]: targetRecordGroupValue,
+            [selectFieldMetadataItem.name]: targetRecordGroupValue,
             ...(isDefined(newPosition) && { position: newPosition }),
           } as ObjectRecord,
         ],
@@ -174,7 +169,7 @@ export const useUpdateDroppedRecordOnBoard = () => {
       updateOneRecord({
         idToUpdate: recordId,
         updateOneRecordInput: {
-          [recordGroupColumnName]: targetRecordGroupValue,
+          [selectFieldMetadataItem.name]: targetRecordGroupValue,
           ...(isDefined(newPosition) && { position: newPosition }),
         },
       });

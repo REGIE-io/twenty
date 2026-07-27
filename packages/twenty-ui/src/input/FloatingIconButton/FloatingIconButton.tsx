@@ -1,8 +1,8 @@
 import { clsx } from 'clsx';
-import React from 'react';
+import React, { useContext } from 'react';
 
 import { type IconComponent } from '@ui/icon';
-import { useTheme } from '@ui/theme-constants';
+import { ThemeContext } from '@ui/theme-constants';
 
 import styles from './FloatingIconButton.module.scss';
 
@@ -40,7 +40,7 @@ export const FloatingIconButton = ({
   onClick,
   isActive,
 }: FloatingIconButtonProps) => {
-  const theme = useTheme();
+  const { theme } = useContext(ThemeContext);
 
   return (
     <button
@@ -55,7 +55,7 @@ export const FloatingIconButton = ({
       data-is-active={isActive || undefined}
       onClick={onClick}
     >
-      {Icon && <Icon size={theme.icon.size.md} aria-hidden={!!ariaLabel} />}
+      {Icon && <Icon size={theme.icon.size.md} />}
     </button>
   );
 };

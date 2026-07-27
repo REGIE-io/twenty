@@ -1,9 +1,9 @@
 import { SettingsApplicationInstallPermissionValidationModal } from '@/marketplace/components/SettingsApplicationInstallPermissionValidationModal';
 import { useInstallMarketplaceAppWithPermissionValidation } from '@/marketplace/hooks/useInstallMarketplaceAppWithPermissionValidation';
-import { getMarketplaceAppDefaultRoleManifest } from '@/marketplace/utils/getMarketplaceAppDefaultRoleManifest';
 import { styled } from '@linaria/react';
 import { useLingui } from '@lingui/react/macro';
 import { useQuery } from '@apollo/client/react';
+import { type Manifest } from 'twenty-shared/application';
 import { isDefined } from 'twenty-shared/utils';
 import {
   IconArrowUpRight,
@@ -49,10 +49,15 @@ export const SettingsApplicationRegistrationShareLinkButtons = ({
     skip: !installable || !isDefined(universalIdentifier),
   });
 
-  const detail = detailData?.findMarketplaceAppDetail;
-  const displayName = detail?.name ?? '';
+  const manifest = detailData?.findMarketplaceAppDetail?.manifest as
+    | Manifest
+    | undefined;
+  const app = manifest?.application;
+  const displayName = app?.displayName ?? '';
 
-  const defaultRole = getMarketplaceAppDefaultRoleManifest(detail);
+  const defaultRole = manifest?.roles?.find(
+    (r) => r.universalIdentifier === app?.defaultRoleUniversalIdentifier,
+  );
 
   const handleInstall = async () => {
     if (installable) {
@@ -74,7 +79,7 @@ export const SettingsApplicationRegistrationShareLinkButtons = ({
           <SettingsApplicationInstallPermissionValidationModal
             modalInstanceId={modalInstanceId}
             appDisplayName={displayName}
-            appLogoUrl={detail?.logo ?? undefined}
+            appLogoUrl={app?.logoUrl}
             defaultRole={defaultRole}
             onAuthorize={handleInstall}
             isInstalling={isInstalling}

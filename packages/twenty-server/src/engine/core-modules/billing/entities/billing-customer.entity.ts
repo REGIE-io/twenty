@@ -1,6 +1,8 @@
 /* @license Enterprise */
 
 import { Field, ObjectType } from '@nestjs/graphql';
+
+import { IDField } from '@ptc-org/nestjs-query-graphql';
 import {
   Column,
   CreateDateColumn,
@@ -23,7 +25,7 @@ import { WorkspaceRelatedEntity } from 'src/engine/workspace-manager/types/works
   unique: true,
 })
 export class BillingCustomerEntity extends WorkspaceRelatedEntity {
-  @Field(() => UUIDScalarType)
+  @IDField(() => UUIDScalarType)
   @PrimaryGeneratedColumn('uuid')
   id: string;
 

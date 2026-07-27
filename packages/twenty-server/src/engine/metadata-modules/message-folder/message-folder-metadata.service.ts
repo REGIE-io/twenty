@@ -3,10 +3,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 
 import { In, Repository } from 'typeorm';
 
-import {
-  ConnectedAccountProvider,
-  MessageFolderPendingSyncAction,
-} from 'twenty-shared/types';
+import { MessageFolderPendingSyncAction } from 'twenty-shared/types';
 
 import { ConnectedAccountMetadataService } from 'src/engine/metadata-modules/connected-account/connected-account-metadata.service';
 import { MessageFolderDTO } from 'src/engine/metadata-modules/message-folder/dtos/message-folder.dto';
@@ -186,7 +183,7 @@ export class MessageFolderMetadataService {
     return this.repository.findOneOrFail({ where: { id, workspaceId } });
   }
 
-  async setSyncStatus({
+  async updateMany({
     ids,
     workspaceId,
     data,
@@ -195,53 +192,10 @@ export class MessageFolderMetadataService {
     workspaceId: string;
     data: Partial<MessageFolderEntity>;
   }): Promise<MessageFolderDTO[]> {
-    await this.repository.manager.transaction(async (manager) => {
-      if (!data.isSynced) {
-        await manager.update(
-          MessageFolderEntity,
-          { id: In(ids), workspaceId },
-          { isSynced: false },
-        );
-        await manager.update(
-          MessageFolderEntity,
-          {
-            id: In(ids),
-            workspaceId,
-            pendingSyncAction: MessageFolderPendingSyncAction.FOLDER_IMPORT,
-          },
-          { pendingSyncAction: MessageFolderPendingSyncAction.NONE },
-        );
-
-        return;
-      }
-
-      const folderIdsToBackfill = (
-        await manager.find(MessageFolderEntity, {
-          where: {
-            id: In(ids),
-            workspaceId,
-            isSynced: false,
-            messageChannel: {
-              connectedAccount: { provider: ConnectedAccountProvider.GOOGLE },
-            },
-          },
-        })
-      ).map((folder) => folder.id);
-
-      await manager.update(
-        MessageFolderEntity,
-        { id: In(ids), workspaceId },
-        { isSynced: true },
-      );
-
-      if (folderIdsToBackfill.length > 0) {
-        await manager.update(
-          MessageFolderEntity,
-          { id: In(folderIdsToBackfill), workspaceId },
-          { pendingSyncAction: MessageFolderPendingSyncAction.FOLDER_IMPORT },
-        );
-      }
-    });
+    await this.repository.update(
+      { id: In(ids), workspaceId },
+      data as Record<string, unknown>,
+    );
 
     return this.repository.find({ where: { id: In(ids), workspaceId } });
   }

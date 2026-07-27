@@ -63,7 +63,7 @@ const StyledEditor = styled.div`
     backdrop-filter: ${themeCssVariables.blur.medium};
     background: ${themeCssVariables.background.transparent.secondary};
     border: 1px solid ${themeCssVariables.border.color.medium};
-    border-radius: ${themeCssVariables.border.radius.md};
+    border-radius: 8px;
     box-shadow:
       0px 2px 4px rgba(0, 0, 0, 0.04),
       2px 4px 16px rgba(0, 0, 0, 0.12);
@@ -76,18 +76,8 @@ const StyledEditor = styled.div`
     padding-inline: 0px;
   }
 
-  & .bn-block-content {
-    min-width: 0;
-  }
-
-  & .bn-block-content,
   & .bn-inline-content {
-    overflow-wrap: anywhere;
-  }
-
-  & .bn-inline-content {
-    max-width: 100%;
-    min-width: 0;
+    width: 100%;
   }
 
   & .bn-container .bn-suggestion-menu-item:hover {
@@ -98,7 +88,7 @@ const StyledEditor = styled.div`
     backdrop-filter: ${themeCssVariables.blur.medium};
     background: ${themeCssVariables.background.transparent.secondary};
     border: 1px solid ${themeCssVariables.border.color.medium};
-    border-radius: ${themeCssVariables.border.radius.md};
+    border-radius: 8px;
     padding: 4px;
   }
 
@@ -139,7 +129,7 @@ const StyledEditor = styled.div`
   & .bn-inline-content code {
     background-color: ${themeCssVariables.background.transparent.light};
     border: 1px solid ${themeCssVariables.font.color.extraLight};
-    border-radius: ${themeCssVariables.border.radius.sm};
+    border-radius: 4px;
     color: ${themeCssVariables.font.color.danger};
     font-family: monospace;
     font-size: 0.9rem;

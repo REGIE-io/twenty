@@ -1,14 +1,14 @@
 import { defineConfig } from '@lingui/conf';
 import { formatter } from '@lingui/format-po';
-import { DOCUMENTATION_DEFAULT_LANGUAGE } from 'twenty-shared/constants';
+import { SOURCE_LOCALE } from 'twenty-shared/translations';
 
-import { WEBSITE_LOCALE_LIST } from './src/platform/i18n/website-locale-list';
+import { WEBSITE_LOCALE_LIST } from './src/lib/i18n/locales';
 
 export default defineConfig({
-  sourceLocale: DOCUMENTATION_DEFAULT_LANGUAGE,
+  sourceLocale: SOURCE_LOCALE,
   locales: [...WEBSITE_LOCALE_LIST],
   fallbackLocales: {
-    default: DOCUMENTATION_DEFAULT_LANGUAGE,
+    default: SOURCE_LOCALE,
   },
   catalogs: [
     {

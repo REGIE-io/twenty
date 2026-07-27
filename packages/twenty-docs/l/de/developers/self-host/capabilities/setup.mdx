@@ -1,6 +1,6 @@
 ---
 title: Einrichtung
-icon: gear
+icon: Zahnrad
 ---
 
 # Konfigurationsverwaltung
@@ -16,7 +16,7 @@ Twenty bietet **zwei Konfigurationsmodi**, um unterschiedlichen Implementierungs
 ## 1. Admin-Panel-Konfiguration (Standard)
 
 ```bash
-IS_CONFIG_VARIABLES_IN_DB_ENABLED=true  # default
+IS_CONFIG_VARIABLES_IN_DB_ENABLED=true  # Standard
 ```
 
 **Die meiste Konfiguration erfolgt über die Benutzeroberfläche** nach der Installation:
@@ -255,7 +255,7 @@ Nachdem Sie Gmail-, Google Kalender- oder Microsoft 365-Integrationen konfigurie
 Registrieren Sie die folgenden wiederkehrenden Aufgaben in Ihrem Worker-Container:
 
 ```bash
-# from your worker container
+# von Ihrem Worker-Container
 yarn command:prod cron:messaging:messages-import
 yarn command:prod cron:messaging:message-list-fetch
 yarn command:prod cron:calendar:calendar-event-list-fetch

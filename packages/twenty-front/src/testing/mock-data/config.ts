@@ -44,13 +44,6 @@ export const mockedClientConfig: ClientConfig = {
     siteKey: 'MOCKED_SITE_KEY',
   },
   api: { mutationMaximumAffectedRecords: 100 },
-  onboarding: {
-    importContactsCreditsReward: 2,
-    inviteTeamMaxCreditsReward: 9,
-    inviteTeamCreditsRewardPerUser: 3,
-    upgradeCreditsReward: 5,
-    installAppsCreditsRewardPerApp: 1,
-  },
   canManageFeatureFlags: true,
   publicFeatureFlags: [],
   isMicrosoftMessagingEnabled: true,

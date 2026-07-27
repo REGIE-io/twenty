@@ -12,40 +12,78 @@ export const resolveRelativeDateTimeFilter = (
 ) => {
   const { direction, amount, unit, firstDayOfTheWeek } = relativeDateFilter;
 
+  const isSubDayUnit = ['SECOND', 'MINUTE', 'HOUR'].includes(unit);
+
   switch (direction) {
     case 'NEXT': {
       if (!isDefined(amount)) {
         throw new Error('Amount is required');
       }
 
-      const startOfNextPeriod = getNextPeriodStart(
-        referenceZonedDateTime,
-        unit,
-        firstDayOfTheWeek,
-      );
+      if (unit === 'QUARTER') {
+        const startOfNextQuarter = getNextPeriodStart(
+          referenceZonedDateTime,
+          'QUARTER',
+        );
 
-      return {
-        ...relativeDateFilter,
-        start: startOfNextPeriod,
-        end: addUnitToZonedDateTime(startOfNextPeriod, unit, amount),
-      };
+        return {
+          ...relativeDateFilter,
+          start: startOfNextQuarter,
+          end: addUnitToZonedDateTime(startOfNextQuarter, unit, amount),
+        };
+      }
+
+      if (isSubDayUnit) {
+        return {
+          ...relativeDateFilter,
+          start: referenceZonedDateTime,
+          end: addUnitToZonedDateTime(referenceZonedDateTime, unit, amount),
+        };
+      } else {
+        const startOfNextDay = referenceZonedDateTime
+          .startOfDay()
+          .add({ days: 1 });
+
+        return {
+          ...relativeDateFilter,
+          start: startOfNextDay,
+          end: addUnitToZonedDateTime(startOfNextDay, unit, amount),
+        };
+      }
     }
     case 'PAST': {
       if (!isDefined(amount)) {
         throw new Error('Amount is required');
       }
 
-      const startOfCurrentPeriod = getPeriodStart(
-        referenceZonedDateTime,
-        unit,
-        firstDayOfTheWeek,
-      );
+      if (unit === 'QUARTER') {
+        const startOfCurrentQuarter = getPeriodStart(
+          referenceZonedDateTime,
+          'QUARTER',
+        );
 
-      return {
-        ...relativeDateFilter,
-        start: subUnitFromZonedDateTime(startOfCurrentPeriod, unit, amount),
-        end: startOfCurrentPeriod,
-      };
+        return {
+          ...relativeDateFilter,
+          start: subUnitFromZonedDateTime(startOfCurrentQuarter, unit, amount),
+          end: startOfCurrentQuarter,
+        };
+      }
+
+      if (isSubDayUnit) {
+        return {
+          ...relativeDateFilter,
+          start: subUnitFromZonedDateTime(referenceZonedDateTime, unit, amount),
+          end: referenceZonedDateTime,
+        };
+      } else {
+        const startOfDay = referenceZonedDateTime.startOfDay();
+
+        return {
+          ...relativeDateFilter,
+          start: subUnitFromZonedDateTime(startOfDay, unit, amount),
+          end: startOfDay,
+        };
+      }
     }
     case 'THIS':
       return {

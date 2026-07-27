@@ -6,15 +6,13 @@ import { Repository } from 'typeorm';
 import { WorkspaceSchemaFactory } from 'src/engine/api/graphql/workspace-schema.factory';
 import { ApplicationEntity } from 'src/engine/core-modules/application/application.entity';
 import { ApplicationService } from 'src/engine/core-modules/application/application.service';
-import { FileStorageService } from 'src/engine/core-modules/file-storage/services/file-storage.service';
+import { FileStorageService } from 'src/engine/core-modules/file-storage/file-storage.service';
 import { getQueueToken } from 'src/engine/core-modules/message-queue/utils/get-queue-token.util';
 import { MessageQueue } from 'src/engine/core-modules/message-queue/message-queue.constants';
 import { MessageQueueService } from 'src/engine/core-modules/message-queue/services/message-queue.service';
-import { MetricsService } from 'src/engine/core-modules/metrics/metrics.service';
 import { GENERATE_SDK_CLIENT_JOB_NAME } from 'src/engine/core-modules/sdk-client/jobs/generate-sdk-client.job-constants';
 import { SdkClientGenerationService } from 'src/engine/core-modules/sdk-client/sdk-client-generation.service';
 import { WorkspaceEntity } from 'src/engine/core-modules/workspace/workspace.entity';
-import { WorkspaceEventBroadcaster } from 'src/engine/subscriptions/workspace-event-broadcaster/workspace-event-broadcaster.service';
 import { WorkspaceCacheService } from 'src/engine/workspace-cache/services/workspace-cache.service';
 
 describe('SdkClientGenerationService', () => {
@@ -26,9 +24,6 @@ describe('SdkClientGenerationService', () => {
     >
   >;
   let messageQueueService: jest.Mocked<Pick<MessageQueueService, 'add'>>;
-  let workspaceCacheService: jest.Mocked<
-    Pick<WorkspaceCacheService, 'getOrRecompute'>
-  >;
 
   beforeEach(async () => {
     applicationService = {
@@ -36,9 +31,6 @@ describe('SdkClientGenerationService', () => {
     };
     messageQueueService = {
       add: jest.fn().mockResolvedValue(undefined),
-    };
-    workspaceCacheService = {
-      getOrRecompute: jest.fn(),
     };
 
     const module: TestingModule = await Test.createTestingModule({
@@ -53,23 +45,12 @@ describe('SdkClientGenerationService', () => {
           provide: getRepositoryToken(WorkspaceEntity),
           useValue: {} as Repository<WorkspaceEntity>,
         },
-        { provide: WorkspaceCacheService, useValue: workspaceCacheService },
+        { provide: WorkspaceCacheService, useValue: {} },
         { provide: WorkspaceSchemaFactory, useValue: {} },
         { provide: ApplicationService, useValue: applicationService },
         {
           provide: getQueueToken(MessageQueue.workspaceQueue),
           useValue: messageQueueService,
-        },
-        {
-          provide: WorkspaceEventBroadcaster,
-          useValue: { broadcast: jest.fn().mockResolvedValue(undefined) },
-        },
-        {
-          provide: MetricsService,
-          useValue: {
-            incrementCounterBy: jest.fn(),
-            recordHistogram: jest.fn(),
-          },
         },
       ],
     }).compile();
@@ -107,7 +88,6 @@ describe('SdkClientGenerationService', () => {
           workspaceId,
           applicationId: 'std-app-id',
           applicationUniversalIdentifier: 'twenty-standard',
-          trigger: 'workspace-activation',
         },
         {
           id: `sdk-client:${workspaceId}:std-app-id`,
@@ -121,7 +101,6 @@ describe('SdkClientGenerationService', () => {
           workspaceId,
           applicationId: 'custom-app-id',
           applicationUniversalIdentifier: 'workspace-custom',
-          trigger: 'workspace-activation',
         },
         {
           id: `sdk-client:${workspaceId}:custom-app-id`,

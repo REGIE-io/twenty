@@ -4,28 +4,24 @@ import { type FieldMultiSelectValue } from '@/object-record/record-field/ui/type
 import { SelectControl } from '@/ui/input/components/SelectControl';
 import { Dropdown } from '@/ui/layout/dropdown/components/Dropdown';
 import { DropdownContent } from '@/ui/layout/dropdown/components/DropdownContent';
+import { DropdownMenuHeader } from '@/ui/layout/dropdown/components/DropdownMenuHeader/DropdownMenuHeader';
+import { DropdownMenuHeaderLeftComponent } from '@/ui/layout/dropdown/components/DropdownMenuHeader/internal/DropdownMenuHeaderLeftComponent';
 import { DropdownMenuItemsContainer } from '@/ui/layout/dropdown/components/DropdownMenuItemsContainer';
 import { DropdownMenuSearchInput } from '@/ui/layout/dropdown/components/DropdownMenuSearchInput';
 import { DropdownMenuSeparator } from '@/ui/layout/dropdown/components/DropdownMenuSeparator';
 import { GenericDropdownContentWidth } from '@/ui/layout/dropdown/constants/GenericDropdownContentWidth';
 import { useCloseDropdown } from '@/ui/layout/dropdown/hooks/useCloseDropdown';
-import { SelectableList } from '@/ui/layout/selectable-list/components/SelectableList';
-import { SelectableListItem } from '@/ui/layout/selectable-list/components/SelectableListItem';
-import { selectedItemIdComponentState } from '@/ui/layout/selectable-list/states/selectedItemIdComponentState';
-import { useAtomComponentStateValue } from '@/ui/utilities/state/jotai/hooks/useAtomComponentStateValue';
 import { WorkflowFieldsMultiSelect } from '@/workflow/components/WorkflowEditUpdateEventFieldsMultiSelect';
 import { type WorkflowDatabaseEventTrigger } from '@/workflow/types/Workflow';
 import { splitWorkflowTriggerEventName } from '@/workflow/utils/splitWorkflowTriggerEventName';
 import { WorkflowStepBody } from '@/workflow/workflow-steps/components/WorkflowStepBody';
 import { WorkflowStepFooter } from '@/workflow/workflow-steps/components/WorkflowStepFooter';
-import { WorkflowStepFilterBuilder } from '@/workflow/workflow-steps/filters/components/WorkflowStepFilterBuilder';
-import { type FilterSettings } from '@/workflow/workflow-steps/filters/types/FilterSettings';
 import { styled } from '@linaria/react';
-import { useLingui } from '@lingui/react/macro';
-import { useMemo, useState } from 'react';
+import { Trans, useLingui } from '@lingui/react/macro';
+import { useCallback, useMemo, useState } from 'react';
 import { isDefined } from 'twenty-shared/utils';
 import { TRIGGER_STEP_ID } from 'twenty-shared/workflow';
-import { type SelectOption } from 'twenty-ui/input';
+import { IconChevronLeft, IconSettings } from 'twenty-ui/icon';
 import { MenuItem } from 'twenty-ui/navigation';
 import { themeCssVariables } from 'twenty-ui/theme-constants';
 
@@ -41,18 +37,13 @@ const StyledRecordTypeSelectContainer = styled.div<{ fullWidth?: boolean }>`
   width: ${({ fullWidth }) => (fullWidth ? '100%' : 'auto')};
 `;
 
-const filterOptionsBySearch = <T extends { label: string; value: string }>(
+const filterOptionsBySearch = <T extends { label: string }>(
   options: T[],
   searchValue: string,
 ): T[] => {
-  if (searchValue === '') return options;
-
-  const searchValueLowerCase = searchValue.toLowerCase();
-
+  if (!searchValue) return options;
   return options.filter((option) =>
-    [option.label, option.value].some((searchableValue) =>
-      searchableValue.toLowerCase().includes(searchValueLowerCase),
-    ),
+    option.label.toLowerCase().includes(searchValue.toLowerCase()),
   );
 };
 
@@ -77,6 +68,7 @@ export const WorkflowEditTriggerDatabaseEventForm = ({
   const { getSelectIconPropsFromObjectMetadataItem } =
     useObjectMetadataSelectHelpers();
   const [searchInputValue, setSearchInputValue] = useState('');
+  const [isSystemObjectsOpen, setIsSystemObjectsOpen] = useState(false);
   const dropdownId = 'workflow-edit-trigger-record-type';
 
   const { closeDropdown } = useCloseDropdown();
@@ -90,46 +82,29 @@ export const WorkflowEditTriggerDatabaseEventForm = ({
   const isUpsertEvent = triggerEvent.event === 'upserted';
   const isFieldFilteringSupported = isUpdateEvent || isUpsertEvent;
 
-  const defaultSelectedOption = useMemo<SelectOption<string>>(
+  const defaultSelectedOption = useMemo(
     () => ({ label: t`Select an option`, value: '' }),
     [t],
   );
 
-  const { regularObjects, systemObjects } = useMemo(() => {
-    return objectMetadataItems.reduce<{
-      regularObjects: SelectOption<string>[];
-      systemObjects: SelectOption<string>[];
-    }>(
-      (accumulator, item) => {
-        if (item.isActive === false) {
-          return accumulator;
-        }
+  const regularObjects = objectMetadataItems
+    .filter((item) => item.isActive && !item.isSystem)
+    .map((item) => ({
+      label: item.labelPlural,
+      value: item.nameSingular,
+      ...getSelectIconPropsFromObjectMetadataItem(item),
+    }));
 
-        const option = {
-          label: item.labelPlural,
-          value: item.nameSingular,
-          ...getSelectIconPropsFromObjectMetadataItem(item),
-        };
-
-        if (item.isSystem === true) {
-          accumulator.systemObjects.push(option);
-        } else {
-          accumulator.regularObjects.push(option);
-        }
-
-        return accumulator;
-      },
-      { regularObjects: [], systemObjects: [] },
-    );
-  }, [getSelectIconPropsFromObjectMetadataItem, objectMetadataItems]);
-
-  const selectableOptions = useMemo(
-    () => [...regularObjects, ...systemObjects],
-    [regularObjects, systemObjects],
-  );
+  const systemObjects = objectMetadataItems
+    .filter((item) => item.isActive && item.isSystem)
+    .map((item) => ({
+      label: item.labelPlural,
+      value: item.nameSingular,
+      ...getSelectIconPropsFromObjectMetadataItem(item),
+    }));
 
   const selectedOption =
-    selectableOptions.find(
+    [...regularObjects, ...systemObjects].find(
       (option) => option.value === triggerEvent?.objectType,
     ) || defaultSelectedOption;
 
@@ -137,19 +112,14 @@ export const WorkflowEditTriggerDatabaseEventForm = ({
     (item) => item.nameSingular === selectedOption.value,
   );
 
-  const filteredObjects = useMemo(
-    () => [
-      ...filterOptionsBySearch(regularObjects, searchInputValue),
-      ...filterOptionsBySearch(systemObjects, searchInputValue),
-    ],
-    [regularObjects, searchInputValue, systemObjects],
+  const filteredRegularObjects = useMemo(
+    () => filterOptionsBySearch(regularObjects, searchInputValue),
+    [regularObjects, searchInputValue],
   );
 
-  const selectableItemIdArray = filteredObjects.map((option) => option.value);
-
-  const selectedItemId = useAtomComponentStateValue(
-    selectedItemIdComponentState,
-    dropdownId,
+  const filteredSystemObjects = useMemo(
+    () => filterOptionsBySearch(systemObjects, searchInputValue),
+    [systemObjects, searchInputValue],
   );
 
   const handleOptionClick = (value: string) => {
@@ -185,22 +155,22 @@ export const WorkflowEditTriggerDatabaseEventForm = ({
     });
   };
 
-  const handleFilterSettingsUpdate = (filterSettings: FilterSettings) => {
-    if (triggerOptions.readonly === true) {
-      return;
-    }
-
-    triggerOptions.onTriggerUpdate({
-      ...trigger,
-      settings: {
-        ...trigger.settings,
-        filter: {
-          stepFilterGroups: filterSettings.stepFilterGroups ?? [],
-          stepFilters: filterSettings.stepFilters ?? [],
-        },
-      },
-    });
+  const handleSystemObjectsClick = () => {
+    setIsSystemObjectsOpen(true);
+    setSearchInputValue('');
   };
+
+  const handleBack = () => {
+    setIsSystemObjectsOpen(false);
+    setSearchInputValue('');
+  };
+
+  const handleSearchInputChange = useCallback(
+    (event: React.ChangeEvent<HTMLInputElement>) => {
+      setSearchInputValue(event.target.value);
+    },
+    [],
+  );
 
   return (
     <>
@@ -208,7 +178,7 @@ export const WorkflowEditTriggerDatabaseEventForm = ({
         <StyledRecordTypeSelectContainer fullWidth>
           <StyledLabel>{t`Record Type`}</StyledLabel>
           <Dropdown
-            dropdownId={dropdownId}
+            dropdownId="workflow-edit-trigger-record-type"
             dropdownPlacement="bottom-start"
             clickableComponent={
               <SelectControl
@@ -218,42 +188,71 @@ export const WorkflowEditTriggerDatabaseEventForm = ({
             }
             dropdownComponents={
               <>
-                {!triggerOptions.readonly && (
-                  <DropdownContent
-                    widthInPixels={GenericDropdownContentWidth.ExtraLarge}
-                  >
-                    <DropdownMenuSearchInput
-                      autoFocus
-                      value={searchInputValue}
-                      onChange={(event) =>
-                        setSearchInputValue(event.target.value)
-                      }
-                    />
-                    <DropdownMenuSeparator />
-                    <DropdownMenuItemsContainer hasMaxHeight>
-                      <SelectableList
-                        selectableListInstanceId={dropdownId}
-                        focusId={dropdownId}
-                        selectableItemIdArray={selectableItemIdArray}
+                {!triggerOptions.readonly &&
+                  (isSystemObjectsOpen ? (
+                    <DropdownContent
+                      widthInPixels={GenericDropdownContentWidth.ExtraLarge}
+                    >
+                      <DropdownMenuHeader
+                        StartComponent={
+                          <DropdownMenuHeaderLeftComponent
+                            onClick={handleBack}
+                            Icon={IconChevronLeft}
+                          />
+                        }
                       >
-                        {filteredObjects.map((option) => (
-                          <SelectableListItem
+                        <Trans>Advanced</Trans>
+                      </DropdownMenuHeader>
+                      <DropdownMenuSearchInput
+                        autoFocus
+                        value={searchInputValue}
+                        onChange={handleSearchInputChange}
+                      />
+                      <DropdownMenuSeparator />
+                      <DropdownMenuItemsContainer hasMaxHeight>
+                        {filteredSystemObjects.map((option) => (
+                          <MenuItem
                             key={option.value}
-                            itemId={option.value}
-                            onEnter={() => handleOptionClick(option.value)}
-                          >
-                            <MenuItem
-                              focused={selectedItemId === option.value}
-                              LeftIcon={option.Icon}
-                              text={option.label}
-                              onClick={() => handleOptionClick(option.value)}
-                            />
-                          </SelectableListItem>
+                            LeftIcon={option.Icon}
+                            text={option.label}
+                            onClick={() => handleOptionClick(option.value)}
+                          />
                         ))}
-                      </SelectableList>
-                    </DropdownMenuItemsContainer>
-                  </DropdownContent>
-                )}
+                      </DropdownMenuItemsContainer>
+                    </DropdownContent>
+                  ) : (
+                    <DropdownContent
+                      widthInPixels={GenericDropdownContentWidth.ExtraLarge}
+                    >
+                      <DropdownMenuSearchInput
+                        autoFocus
+                        value={searchInputValue}
+                        onChange={handleSearchInputChange}
+                      />
+                      <DropdownMenuSeparator />
+                      <DropdownMenuItemsContainer hasMaxHeight>
+                        {filteredRegularObjects.map((option) => (
+                          <MenuItem
+                            key={option.value}
+                            LeftIcon={option.Icon}
+                            text={option.label}
+                            onClick={() => handleOptionClick(option.value)}
+                          />
+                        ))}
+                        {(!searchInputValue ||
+                          'advanced'.includes(
+                            searchInputValue.toLowerCase(),
+                          )) && (
+                          <MenuItem
+                            text={t`Advanced`}
+                            LeftIcon={IconSettings}
+                            onClick={handleSystemObjectsClick}
+                            hasSubMenu
+                          />
+                        )}
+                      </DropdownMenuItemsContainer>
+                    </DropdownContent>
+                  ))}
               </>
             }
             dropdownOffset={{ y: 4 }}
@@ -267,20 +266,7 @@ export const WorkflowEditTriggerDatabaseEventForm = ({
             handleFieldsChange={handleFieldsChange}
             readonly={triggerOptions.readonly ?? false}
             defaultFields={trigger.settings.fields}
-            actionType="DATABASE_EVENT"
-          />
-        )}
-        {isDefined(selectedObjectMetadataItem) && (
-          <WorkflowStepFilterBuilder
-            instanceId={TRIGGER_STEP_ID}
-            defaultValue={
-              trigger.settings.filter ?? {
-                stepFilterGroups: [],
-                stepFilters: [],
-              }
-            }
-            readonly={triggerOptions.readonly ?? false}
-            onFilterSettingsUpdate={handleFilterSettingsUpdate}
+            actionType="UPDATE_RECORD"
           />
         )}
       </WorkflowStepBody>

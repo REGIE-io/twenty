@@ -24,7 +24,7 @@ export const WorkflowFieldsMultiSelect = ({
   handleFieldsChange: (field: FieldMultiSelectValue | string) => void;
   readonly: boolean;
   defaultFields: string[] | undefined | null;
-  actionType: 'UPDATE_RECORD' | 'UPSERT_RECORD' | 'DATABASE_EVENT';
+  actionType: 'UPDATE_RECORD' | 'UPSERT_RECORD';
   hint?: string;
 }) => {
   const { getIcon } = useIcons();

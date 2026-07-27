@@ -1,8 +1,8 @@
 import { clsx } from 'clsx';
-import { type MouseEvent } from 'react';
+import { type MouseEvent, useContext } from 'react';
 
 import { type IconComponent } from '@ui/icon';
-import { useTheme } from '@ui/theme-constants';
+import { ThemeContext } from '@ui/theme-constants';
 
 import styles from './LightButton.module.scss';
 
@@ -31,7 +31,7 @@ export const LightButton = ({
   type = 'button',
   onClick,
 }: LightButtonProps) => {
-  const theme = useTheme();
+  const { theme } = useContext(ThemeContext);
 
   return (
     <button
@@ -44,7 +44,7 @@ export const LightButton = ({
       data-disabled={disabled || undefined}
       data-focus={(focus && !disabled) || undefined}
     >
-      {!!Icon && <Icon size={theme.icon.size.md} aria-hidden />}
+      {!!Icon && <Icon size={theme.icon.size.md} />}
       {title}
     </button>
   );

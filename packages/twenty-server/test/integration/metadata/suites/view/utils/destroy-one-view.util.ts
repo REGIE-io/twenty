@@ -4,26 +4,6 @@ import { type CommonResponseBody } from 'test/integration/metadata/types/common-
 import { warnIfErrorButNotExpectedToFail } from 'test/integration/metadata/utils/warn-if-error-but-not-expected-to-fail.util';
 import { warnIfNoErrorButExpectedToFail } from 'test/integration/metadata/utils/warn-if-no-error-but-expected-to-fail.util';
 
-// Regie fork: standard objects are provisioned without any views (UI metadata is
-// skipped during tenant provisioning), so a suite's sole view on a standard object is
-// the object's only view. Twenty forbids deleting the only view, so afterAll cleanup
-// that destroys it hits this rule. Tolerate only that specific rule so cleanup is a
-// no-op instead of failing the suite; every other error still asserts as before.
-const CANNOT_DELETE_ONLY_VIEW_MESSAGE =
-  'Cannot delete the only view for this object';
-
-const isCannotDeleteOnlyViewError = (errors: unknown): boolean => {
-  if (!Array.isArray(errors) || errors.length === 0) {
-    return false;
-  }
-
-  return errors.every(
-    (error) =>
-      error?.extensions?.userFriendlyMessage ===
-      CANNOT_DELETE_ONLY_VIEW_MESSAGE,
-  );
-};
-
 export const destroyOneView = async ({
   viewId,
   expectToFail,
@@ -46,10 +26,7 @@ export const destroyOneView = async ({
     });
   }
 
-  if (
-    expectToFail === false &&
-    !isCannotDeleteOnlyViewError(response.body.errors)
-  ) {
+  if (expectToFail === false) {
     warnIfErrorButNotExpectedToFail({
       response,
       errorMessage: 'View destruction has failed but should not',

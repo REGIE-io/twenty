@@ -7,13 +7,12 @@ import {
   useState,
 } from 'react';
 
-import { ExpandableListResizeEffect } from '@/ui/layout/expandable-list/components/ExpandableListResizeEffect';
 import { ExpandedListDropdown } from '@/ui/layout/expandable-list/components/ExpandedListDropdown';
 import { isFirstOverflowingChildElement } from '@/ui/layout/expandable-list/utils/isFirstOverflowingChildElement';
 import { isDefined } from 'twenty-shared/utils';
 import { ChipSize } from 'twenty-ui/data-display';
-import { AnimatedContainer } from 'twenty-ui/layout';
 import { OverflowingTextWithTooltip } from 'twenty-ui/surfaces';
+import { AnimatedContainer } from 'twenty-ui/layout';
 import { themeCssVariables } from 'twenty-ui/theme-constants';
 
 const StyledContainer = styled.div`
@@ -53,8 +52,6 @@ const StyledUnShrinkableContainer = styled.div`
 
 export type ExpandableListProps = {
   isChipCountDisplayed?: boolean;
-  // Caps children mounted inline; the dropdown still renders all.
-  maxInlineCount?: number;
 };
 
 export type ChildrenProperty = {
@@ -65,13 +62,9 @@ export type ChildrenProperty = {
 export const ExpandableList = ({
   children,
   isChipCountDisplayed: isChipCountDisplayedFromProps,
-  maxInlineCount,
 }: {
   children: ReactElement[];
 } & ExpandableListProps) => {
-  const cappedChildren = isDefined(maxInlineCount)
-    ? children.slice(0, maxInlineCount)
-    : children;
   // isChipCountDisplayedInternal => uncontrolled display of the chip count.
   // isChipCountDisplayedFromProps => controlled display of the chip count.
   // If isChipCountDisplayedFromProps is provided, isChipCountDisplayedInternal is not taken into account.
@@ -95,15 +88,11 @@ export const ExpandableList = ({
   const containerRef = useRef<HTMLDivElement>(null);
 
   const [firstHiddenChildIndex, setFirstHiddenChildIndex] = useState(
-    cappedChildren.length,
+    children.length,
   );
 
   const hiddenChildrenCount = children.length - firstHiddenChildIndex;
   const canDisplayChipCount = isChipCountDisplayed && hiddenChildrenCount > 0;
-
-  const visibleChildren = isChipCountDisplayed
-    ? cappedChildren.slice(0, firstHiddenChildIndex)
-    : cappedChildren;
 
   const handleChipCountClick = useCallback((event: React.MouseEvent) => {
     event.stopPropagation();
@@ -111,12 +100,15 @@ export const ExpandableList = ({
   }, []);
 
   const resetFirstHiddenChildIndex = useCallback(() => {
-    setFirstHiddenChildIndex(cappedChildren.length);
-  }, [cappedChildren.length]);
+    setFirstHiddenChildIndex(children.length);
+  }, [children.length]);
 
+  // Recompute first hidden child when:
+  // - isChipCountDisplayed changes
+  // - children length changes
   useEffect(() => {
     resetFirstHiddenChildIndex();
-  }, [isChipCountDisplayed, cappedChildren.length, resetFirstHiddenChildIndex]);
+  }, [isChipCountDisplayed, children.length, resetFirstHiddenChildIndex]);
 
   const handleClickOutside = () => {
     setIsListExpanded(false);
@@ -145,31 +137,22 @@ export const ExpandableList = ({
           : () => setIsChipCountDisplayedInternal(false)
       }
     >
-      {isChipCountDisplayed && (
-        <ExpandableListResizeEffect
-          containerRef={containerRef}
-          onContainerWidthChange={resetFirstHiddenChildIndex}
-        />
-      )}
       <StyledChildrenContainer ref={setChildrenContainerElement}>
-        {visibleChildren.map((child, index) => (
+        {children.slice(0, firstHiddenChildIndex).map((child, index) => (
           <StyledChildContainer
             key={index}
-            ref={
-              isChipCountDisplayed
-                ? (childElement) => {
-                    if (
-                      index > 0 &&
-                      isFirstOverflowingChildElement({
-                        containerElement: childrenContainerElement,
-                        childElement,
-                      })
-                    ) {
-                      setFirstHiddenChildIndex(index);
-                    }
-                  }
-                : undefined
-            }
+            ref={(childElement) => {
+              if (
+                // First element is always displayed.
+                index > 0 &&
+                isFirstOverflowingChildElement({
+                  containerElement: childrenContainerElement,
+                  childElement,
+                })
+              ) {
+                setFirstHiddenChildIndex(index);
+              }
+            }}
           >
             {child}
           </StyledChildContainer>

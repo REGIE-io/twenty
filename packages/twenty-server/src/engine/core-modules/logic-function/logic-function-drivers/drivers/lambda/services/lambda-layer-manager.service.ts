@@ -5,16 +5,14 @@ import {
   type GetFunctionCommandOutput,
   ListLayerVersionsCommand,
   PublishLayerVersionCommand,
-  ResourceNotFoundException,
 } from '@aws-sdk/client-lambda';
-import { Logger } from '@nestjs/common';
 import { isDefined } from 'twenty-shared/utils';
 
 import { type FlatApplication } from 'src/engine/core-modules/application/types/flat-application.type';
 import { SDK_LAYER_PREFIX_IN_ZIP } from 'src/engine/core-modules/logic-function/logic-function-drivers/drivers/lambda/constants/lambda-driver.constant';
+import { type LambdaDriverOptions } from 'src/engine/core-modules/logic-function/logic-function-drivers/drivers/lambda/types/lambda-driver.type';
 import { type LambdaAwsClientService } from 'src/engine/core-modules/logic-function/logic-function-drivers/drivers/lambda/services/lambda-aws-client.service';
 import { type LambdaToolFunctionsService } from 'src/engine/core-modules/logic-function/logic-function-drivers/drivers/lambda/services/lambda-tool-functions.service';
-import { type LambdaDriverOptions } from 'src/engine/core-modules/logic-function/logic-function-drivers/drivers/lambda/types/lambda-driver.type';
 import { getLambdaDepsLayerName } from 'src/engine/core-modules/logic-function/logic-function-drivers/drivers/lambda/utils/get-lambda-deps-layer-name.util';
 import { getLambdaSdkLayerName } from 'src/engine/core-modules/logic-function/logic-function-drivers/drivers/lambda/utils/get-lambda-sdk-layer-name.util';
 import { reprefixLambdaZipEntries } from 'src/engine/core-modules/logic-function/logic-function-drivers/drivers/lambda/utils/reprefix-lambda-zip-entries.util';
@@ -29,13 +27,8 @@ type LayerAppContext = {
 };
 
 export class LambdaLayerManagerService {
-  private readonly logger = new Logger(LambdaLayerManagerService.name);
-
   constructor(
-    private readonly options: Pick<
-      LambdaDriverOptions,
-      'layerBucket' | 'resourceNamespace'
-    >,
+    private readonly options: Pick<LambdaDriverOptions, 'layerBucket'>,
     private readonly awsClient: LambdaAwsClientService,
     private readonly toolFunctions: LambdaToolFunctionsService,
     private readonly logicFunctionResourceService: LogicFunctionResourceService,
@@ -43,10 +36,7 @@ export class LambdaLayerManagerService {
   ) {}
 
   async ensureDepsLayer(context: LayerAppContext): Promise<string> {
-    const layerName = getLambdaDepsLayerName({
-      flatApplication: context.flatApplication,
-      namespace: this.options.resourceNamespace,
-    });
+    const layerName = getLambdaDepsLayerName(context.flatApplication);
 
     const existingArn = await this.awsClient.getExistingLayerArn(layerName);
 
@@ -106,21 +96,6 @@ export class LambdaLayerManagerService {
     return arn;
   }
 
-  async deleteSdkLayer({
-    workspaceId,
-    applicationUniversalIdentifier,
-  }: {
-    workspaceId: string;
-    applicationUniversalIdentifier: string;
-  }): Promise<void> {
-    const layerName = getLambdaSdkLayerName({
-      workspaceId,
-      applicationUniversalIdentifier,
-    });
-
-    await this.deleteAllLayerVersions(layerName);
-  }
-
   hasExpectedLayers({
     lambdaExecutor,
     flatApplication,
@@ -134,10 +109,7 @@ export class LambdaLayerManagerService {
       return false;
     }
 
-    const depsLayerName = getLambdaDepsLayerName({
-      flatApplication,
-      namespace: this.options.resourceNamespace,
-    });
+    const depsLayerName = getLambdaDepsLayerName(flatApplication);
     const sdkLayerName = getLambdaSdkLayerName({
       workspaceId: flatApplication.workspaceId,
       applicationUniversalIdentifier,
@@ -254,45 +226,25 @@ export class LambdaLayerManagerService {
     let marker: string | undefined;
 
     do {
-      let listResult;
-
-      try {
-        listResult = await lambdaClient.send(
-          new ListLayerVersionsCommand({
-            LayerName: layerName,
-            MaxItems: 50,
-            Marker: marker,
-          }),
-        );
-      } catch (error) {
-        // Layer never existed or already fully removed. Idempotent.
-        if (error instanceof ResourceNotFoundException) {
-          return;
-        }
-
-        throw error;
-      }
+      const listResult = await lambdaClient.send(
+        new ListLayerVersionsCommand({
+          LayerName: layerName,
+          MaxItems: 50,
+          Marker: marker,
+        }),
+      );
 
       const versions = listResult.LayerVersions ?? [];
 
       await Promise.all(
-        versions.map(async (version) => {
-          try {
-            await lambdaClient.send(
-              new DeleteLayerVersionCommand({
-                LayerName: layerName,
-                VersionNumber: version.Version,
-              }),
-            );
-          } catch (error) {
-            // Already gone: another concurrent cleanup removed it. Idempotent.
-            if (error instanceof ResourceNotFoundException) {
-              return;
-            }
-
-            throw error;
-          }
-        }),
+        versions.map((version) =>
+          lambdaClient.send(
+            new DeleteLayerVersionCommand({
+              LayerName: layerName,
+              VersionNumber: version.Version,
+            }),
+          ),
+        ),
       );
 
       marker = listResult.NextMarker;

@@ -30,7 +30,6 @@ export class UpdateRecordService {
       objectRecord,
       fieldsToUpdate,
       authContext,
-      rolePermissionConfig,
     } = params;
 
     if (!isDefined(objectRecordId) || !isValidUuid(objectRecordId)) {
@@ -50,7 +49,6 @@ export class UpdateRecordService {
       } = await this.commonApiContextBuilder.build({
         authContext,
         objectName,
-        rolePermissionConfig,
       });
 
       if (

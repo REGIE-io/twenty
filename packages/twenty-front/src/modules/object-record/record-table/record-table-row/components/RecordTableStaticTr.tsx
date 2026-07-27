@@ -25,6 +25,7 @@ export const RecordTableStaticTr = ({
       <RecordTableRowDraggableContextProvider
         value={{
           isDragging: false,
+          dragHandleProps: null,
         }}
       >
         {children}

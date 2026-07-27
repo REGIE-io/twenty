@@ -20,7 +20,7 @@ const StyledTableRow = styled.div<{
       : isExpanded === true
         ? themeCssVariables.background.transparent.light
         : 'transparent'};
-  border-radius: ${themeCssVariables.border.radius.md};
+  border-radius: ${themeCssVariables.border.radius.sm};
   cursor: ${({ cursor }) => cursor ?? 'default'};
   display: grid;
   grid-auto-columns: ${({ gridAutoColumns }) => gridAutoColumns ?? '1fr'};

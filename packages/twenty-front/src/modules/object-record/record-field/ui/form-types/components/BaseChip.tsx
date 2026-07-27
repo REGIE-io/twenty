@@ -1,87 +1,47 @@
 import { styled } from '@linaria/react';
-import { type MouseEvent, type ReactNode, useContext } from 'react';
+import { useContext } from 'react';
 import { IconX } from 'twenty-ui/icon';
 import { ThemeContext, themeCssVariables } from 'twenty-ui/theme-constants';
 
-const StyledChip = styled.div<{
-  deletable: boolean;
-  danger: boolean;
-  selected: boolean;
-}>`
+const StyledChip = styled.div<{ deletable: boolean; danger: boolean }>`
   align-items: center;
-  background-color: ${({ danger, selected }) =>
-    selected
-      ? danger
-        ? themeCssVariables.color.red
-        : themeCssVariables.color.blue
-      : danger
-        ? themeCssVariables.color.red3
-        : themeCssVariables.color.blue3};
-  border-color: ${({ danger, selected }) =>
-    selected
-      ? danger
-        ? themeCssVariables.color.red
-        : themeCssVariables.color.blue
-      : danger
-        ? themeCssVariables.color.red5
-        : themeCssVariables.color.blue5};
-  border-radius: ${themeCssVariables.border.radius.smRound};
+  background-color: ${({ danger }) =>
+    danger ? themeCssVariables.color.red3 : themeCssVariables.color.blue3};
+  border-color: ${({ danger }) =>
+    danger ? themeCssVariables.color.red5 : themeCssVariables.color.blue5};
+  border-radius: 4px;
   border-style: solid;
   border-width: 1px;
   box-sizing: border-box;
-  color: ${({ danger, selected }) =>
-    selected
-      ? themeCssVariables.font.color.inverted
-      : danger
-        ? themeCssVariables.color.red
-        : themeCssVariables.color.blue};
   column-gap: ${themeCssVariables.spacing[1]};
-  corner-shape: round;
   cursor: ${({ deletable }) => (deletable ? 'pointer' : 'default')};
   display: inline-flex;
   flex-direction: row;
   flex-shrink: 0;
   height: 20px;
-  max-width: 100%;
   padding-left: ${themeCssVariables.spacing[1]};
   padding-right: ${({ deletable }) =>
     deletable ? '0' : themeCssVariables.spacing[1]};
 
   user-select: none;
   white-space: nowrap;
-
-  @keyframes base-chip-flash {
-    0%,
-    100% {
-      filter: none;
-    }
-    50% {
-      filter: brightness(0.85);
-    }
-  }
-
-  &[data-flashing='true'] {
-    animation: base-chip-flash 300ms ease-in-out 2;
-  }
 `;
 
-const StyledLabel = styled.span<{ maxWidth?: number }>`
+const StyledLabel = styled.span<{ danger: boolean }>`
+  color: ${({ danger }) =>
+    danger ? themeCssVariables.color.red : themeCssVariables.color.blue};
   line-height: 140%;
-  max-width: ${({ maxWidth }) =>
-    maxWidth === undefined ? 'none' : `${maxWidth}px`};
-  overflow: hidden;
-  text-overflow: ellipsis;
 `;
 
 const StyledDelete = styled.button<{ danger: boolean }>`
   align-items: center;
   background: none;
   border: none;
-  border-bottom-right-radius: ${themeCssVariables.border.radius.smRound};
-  border-top-right-radius: ${themeCssVariables.border.radius.smRound};
+  border-bottom-right-radius: ${themeCssVariables.border.radius.sm};
+  border-top-right-radius: ${themeCssVariables.border.radius.sm};
   box-sizing: border-box;
-  color: inherit;
-  corner-shape: round;
+  color: ${({ danger }) =>
+    danger ? themeCssVariables.color.red : themeCssVariables.color.blue};
   cursor: pointer;
   display: flex;
   font-size: ${themeCssVariables.font.size.sm};
@@ -99,46 +59,29 @@ const StyledDelete = styled.button<{ danger: boolean }>`
 `;
 
 type BaseChipProps = {
-  chipId?: string;
   label: string;
   title?: string;
-  onRemove?: (event: MouseEvent) => void;
+  onRemove?: () => void;
   removeAriaLabel?: string;
   danger?: boolean;
-  selected?: boolean;
-  isFlashing?: boolean;
-  onDoubleClick?: () => void;
-  maxWidth?: number;
-  leftIcon?: ReactNode;
+  leftIcon?: React.ReactNode;
 };
 
 export const BaseChip = ({
-  chipId,
   label,
   title,
   onRemove,
   removeAriaLabel = 'Remove',
   danger = false,
-  selected = false,
-  isFlashing = false,
-  onDoubleClick,
-  maxWidth,
   leftIcon,
 }: BaseChipProps) => {
   const { theme } = useContext(ThemeContext);
   const isDeletable = onRemove !== undefined;
 
   return (
-    <StyledChip
-      id={chipId}
-      deletable={isDeletable}
-      danger={danger}
-      selected={selected}
-      data-flashing={isFlashing}
-      onDoubleClick={onDoubleClick}
-    >
+    <StyledChip deletable={isDeletable} danger={danger}>
       {leftIcon}
-      <StyledLabel title={title ?? label} maxWidth={maxWidth}>
+      <StyledLabel title={title ?? label} danger={danger}>
         {label}
       </StyledLabel>
 

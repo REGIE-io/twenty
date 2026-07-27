@@ -33,6 +33,7 @@ import {
   AnimatedPlaceholderEmptySubTitle,
   AnimatedPlaceholderEmptyTextContainer,
   AnimatedPlaceholderEmptyTitle,
+  EMPTY_PLACEHOLDER_TRANSITION_PROPS,
 } from 'twenty-ui/feedback';
 import { FieldDisplayMode } from '~/generated-metadata/graphql';
 
@@ -73,7 +74,10 @@ export const FieldWidget = ({ widget }: FieldWidgetProps) => {
     return (
       <SidePanelProvider value={{ isInSidePanel }}>
         <StyledContainer>
-          <AnimatedPlaceholderEmptyContainer>
+          <AnimatedPlaceholderEmptyContainer
+            // oxlint-disable-next-line react/jsx-props-no-spreading
+            {...EMPTY_PLACEHOLDER_TRANSITION_PROPS}
+          >
             <AnimatedPlaceholder type="noRecord" />
             <AnimatedPlaceholderEmptyTextContainer>
               <AnimatedPlaceholderEmptyTitle>
@@ -132,15 +136,6 @@ export const FieldWidget = ({ widget }: FieldWidgetProps) => {
             relationValue={record}
             isInSidePanel={isInSidePanel}
             sourceObjectMetadataId={objectMetadataItem.id}
-          />
-        );
-      }
-
-      if (fieldDisplayMode === FieldDisplayMode.TABLE) {
-        return (
-          <FieldWidgetRelationTable
-            fieldDefinition={fieldDefinition}
-            recordId={targetRecord.id}
           />
         );
       }

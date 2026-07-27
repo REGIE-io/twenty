@@ -6,13 +6,13 @@ import { useDebouncedCallback } from 'use-debounce';
 import { FormAdvancedTextFieldInput } from '@/object-record/record-field/ui/form-types/components/FormAdvancedTextFieldInput';
 import { AdvancedSettingsWrapper } from '@/settings/components/AdvancedSettingsWrapper';
 import { SaveAndCancelButtons } from '@/settings/components/SaveAndCancelButtons/SaveAndCancelButtons';
-import { SettingsEditableTitle } from '@/settings/components/SettingsEditableTitle';
 import { SettingsOptionCardContentToggle } from '@/settings/components/SettingsOptions/SettingsOptionCardContentToggle';
 import { SettingsPageContainer } from '@/settings/components/SettingsPageContainer';
 import { useSnackBar } from '@/ui/feedback/snack-bar-manager/hooks/useSnackBar';
 import { IconPicker } from '@/ui/input/components/IconPicker';
 import { SettingsTextInput } from '@/ui/input/components/SettingsTextInput';
 import { TextArea } from '@/ui/input/components/TextArea';
+import { TitleInput } from '@/ui/input/components/TitleInput';
 import { SettingsPageLayout } from '@/settings/components/layout/SettingsPageLayout';
 import { t } from '@lingui/core/macro';
 import { AppPath, SettingsPath } from 'twenty-shared/types';
@@ -23,7 +23,6 @@ import {
   IconInfoCircle,
   IconRefresh,
   IconTrash,
-  useIcons,
 } from 'twenty-ui/icon';
 import { AppTooltip, Card, TooltipDelay } from 'twenty-ui/surfaces';
 import { H2Title } from 'twenty-ui/typography';
@@ -76,6 +75,17 @@ const StyledAdvancedSettingsContainer = styled.div`
   width: 100%;
 `;
 
+const StyledHeaderTitle = styled.div`
+  color: ${themeCssVariables.font.color.primary};
+  font-size: ${themeCssVariables.font.size.lg};
+  font-weight: ${themeCssVariables.font.weight.semiBold};
+  max-width: 420px;
+  width: fit-content;
+  & > input:disabled {
+    color: ${themeCssVariables.font.color.primary};
+  }
+`;
+
 const StyledDangerButtonsContainer = styled.div`
   display: flex;
   gap: ${themeCssVariables.spacing[2]};
@@ -94,7 +104,6 @@ const DELETE_SKILL_MODAL_ID = 'delete-skill-modal';
 
 export const SettingsSkillForm = ({ mode }: { mode: 'create' | 'edit' }) => {
   const { theme } = useContext(ThemeContext);
-  const { getIcon } = useIcons();
   const { skillId = '' } = useParams<{ skillId: string }>();
   const navigate = useNavigateSettings();
   const navigateApp = useNavigateApp();
@@ -103,9 +112,6 @@ export const SettingsSkillForm = ({ mode }: { mode: 'create' | 'edit' }) => {
   const [isReadonlyMode, setIsReadonlyMode] = useState(false);
   const [originalFormValues, setOriginalFormValues] =
     useState<SkillFormValues | null>(null);
-  const [initializedSkillId, setInitializedSkillId] = useState<string | null>(
-    null,
-  );
   const { openModal, closeModal } = useModal();
 
   const isEditMode = mode === 'edit';
@@ -133,13 +139,9 @@ export const SettingsSkillForm = ({ mode }: { mode: 'create' | 'edit' }) => {
     if (data) {
       const skill = data?.skill;
       if (isDefined(skill)) {
-        if (initializedSkillId === skill.id) {
-          return;
+        if (!skill.isCustom) {
+          setIsReadonlyMode(true);
         }
-
-        setInitializedSkillId(skill.id);
-        setIsReadonlyMode(!skill.isCustom);
-
         const computedNameFromLabel = computeMetadataNameFromLabel(skill.label);
         const isLabelSyncedWithName = skill.name === computedNameFromLabel;
 
@@ -160,7 +162,7 @@ export const SettingsSkillForm = ({ mode }: { mode: 'create' | 'edit' }) => {
         navigateApp(AppPath.NotFound);
       }
     }
-  }, [data, enqueueErrorSnackBar, initializedSkillId, navigateApp]);
+  }, [data, enqueueErrorSnackBar, navigateApp]);
 
   useEffect(() => {
     if (skillQueryError) {
@@ -406,21 +408,21 @@ export const SettingsSkillForm = ({ mode }: { mode: 'create' | 'edit' }) => {
   ) : loading ? (
     t`Skill`
   ) : (
-    <SettingsEditableTitle
-      instanceId="skill-label-input"
-      disabled={isReadonlyMode}
-      value={formValues.label}
-      onChange={(value) => handleFieldChange('label', value)}
-      placeholder={t`Skill name`}
-    />
+    <StyledHeaderTitle>
+      <TitleInput
+        instanceId="skill-label-input"
+        disabled={isReadonlyMode}
+        sizeVariant="md"
+        value={formValues.label}
+        onChange={(value) => handleFieldChange('label', value)}
+        placeholder={t`Skill name`}
+      />
+    </StyledHeaderTitle>
   );
-
-  const SkillIcon = getIcon(formValues.icon || 'IconSparkles');
 
   return (
     <SettingsPageLayout
       title={title}
-      icon={<SkillIcon size={theme.icon.size.md} color={theme.color.blue9} />}
       actionButton={
         isCreateMode ? (
           <SaveAndCancelButtons
@@ -464,7 +466,7 @@ export const SettingsSkillForm = ({ mode }: { mode: 'create' | 'edit' }) => {
                   />
                   <StyledNameContainer>
                     <SettingsTextInput
-                      instanceId="skill-label-field-input"
+                      instanceId="skill-label-input"
                       placeholder={t`Skill name`}
                       value={formValues.label}
                       onChange={(value) => handleFieldChange('label', value)}

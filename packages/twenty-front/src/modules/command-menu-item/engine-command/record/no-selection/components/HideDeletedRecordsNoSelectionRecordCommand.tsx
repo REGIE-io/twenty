@@ -4,7 +4,6 @@ import { useCheckIsSoftDeleteFilter } from '@/object-record/record-filter/hooks/
 import { useRemoveRecordFilter } from '@/object-record/record-filter/hooks/useRemoveRecordFilter';
 import { currentRecordFiltersComponentState } from '@/object-record/record-filter/states/currentRecordFiltersComponentState';
 import { useHandleToggleTrashColumnFilter } from '@/object-record/record-index/hooks/useHandleToggleTrashColumnFilter';
-import { useSidePanelMenu } from '@/side-panel/hooks/useSidePanelMenu';
 import { useAtomComponentStateValue } from '@/ui/utilities/state/jotai/hooks/useAtomComponentStateValue';
 import { isDefined } from 'twenty-shared/utils';
 
@@ -35,7 +34,6 @@ export const HideDeletedRecordsNoSelectionRecordCommand = () => {
   );
 
   const { removeRecordFilter } = useRemoveRecordFilter(recordIndexId);
-  const { closeSidePanelMenu } = useSidePanelMenu();
 
   const handleExecute = () => {
     if (!isDefined(deletedFilter)) {
@@ -44,7 +42,6 @@ export const HideDeletedRecordsNoSelectionRecordCommand = () => {
 
     removeRecordFilter({ recordFilterId: deletedFilter.id });
     toggleSoftDeleteFilterState(false);
-    closeSidePanelMenu();
   };
 
   return <HeadlessEngineCommandWrapperEffect execute={handleExecute} />;

@@ -1,16 +1,16 @@
-import { useStore } from 'jotai';
-import { useCallback } from 'react';
-
 import { useUpdateRecordField } from '@/object-record/record-field/hooks/useUpdateRecordField';
-import { visibleRecordFieldsComponentSelector } from '@/object-record/record-field/states/visibleRecordFieldsComponentSelector';
-import { useAtomComponentSelectorCallbackState } from '@/ui/utilities/state/jotai/hooks/useAtomComponentSelectorCallbackState';
+import { currentRecordFieldsComponentState } from '@/object-record/record-field/states/currentRecordFieldsComponentState';
+import { useAtomComponentStateCallbackState } from '@/ui/utilities/state/jotai/hooks/useAtomComponentStateCallbackState';
 import { useSaveCurrentViewFields } from '@/views/hooks/useSaveCurrentViewFields';
 import { mapRecordFieldToViewField } from '@/views/utils/mapRecordFieldToViewField';
+import { useCallback } from 'react';
+import { sortByProperty } from '~/utils/array/sortByProperty';
+import { useStore } from 'jotai';
 
 export const useMoveRecordField = (recordTableId?: string) => {
   const store = useStore();
-  const visibleRecordFields = useAtomComponentSelectorCallbackState(
-    visibleRecordFieldsComponentSelector,
+  const currentRecordFields = useAtomComponentStateCallbackState(
+    currentRecordFieldsComponentState,
     recordTableId,
   );
 
@@ -26,9 +26,11 @@ export const useMoveRecordField = (recordTableId?: string) => {
       direction: 'before' | 'after';
       fieldMetadataItemIdToMove: string;
     }) => {
-      const visibleRecordFieldsValue = store.get(visibleRecordFields);
+      const sortedRecordFields = store
+        .get(currentRecordFields)
+        .toSorted(sortByProperty('position'));
 
-      const indexOfRecordFieldToMove = visibleRecordFieldsValue.findIndex(
+      const indexOfRecordFieldToMove = sortedRecordFields.findIndex(
         (recordField) =>
           recordField.fieldMetadataItemId === fieldMetadataItemIdToMove,
       );
@@ -37,45 +39,48 @@ export const useMoveRecordField = (recordTableId?: string) => {
         return;
       }
 
+      const newRecordFields = [...sortedRecordFields];
+
       const targetArrayIndex =
         direction === 'before'
           ? indexOfRecordFieldToMove - 1
           : indexOfRecordFieldToMove + 1;
 
+      const targetArraySize = newRecordFields.length - 1;
+
       if (
-        targetArrayIndex < 0 ||
-        targetArrayIndex > visibleRecordFieldsValue.length - 1
+        indexOfRecordFieldToMove >= 0 &&
+        targetArrayIndex >= 0 &&
+        indexOfRecordFieldToMove <= targetArraySize &&
+        targetArrayIndex <= targetArraySize
       ) {
-        return;
-      }
+        const currentRecordField = newRecordFields[indexOfRecordFieldToMove];
+        const targetRecordField = newRecordFields[targetArrayIndex];
 
-      const currentRecordField =
-        visibleRecordFieldsValue[indexOfRecordFieldToMove];
-      const targetRecordField = visibleRecordFieldsValue[targetArrayIndex];
+        const targetRecordFieldNewPosition = currentRecordField.position;
+        const currentRecordFieldNewPosition = targetRecordField.position;
 
-      const targetRecordFieldNewPosition = currentRecordField.position;
-      const currentRecordFieldNewPosition = targetRecordField.position;
-
-      updateRecordField(targetRecordField.fieldMetadataItemId, {
-        position: targetRecordFieldNewPosition,
-      });
-
-      updateRecordField(currentRecordField.fieldMetadataItemId, {
-        position: currentRecordFieldNewPosition,
-      });
-
-      await saveViewFields([
-        mapRecordFieldToViewField({
-          ...targetRecordField,
+        updateRecordField(targetRecordField.fieldMetadataItemId, {
           position: targetRecordFieldNewPosition,
-        }),
-        mapRecordFieldToViewField({
-          ...currentRecordField,
+        });
+
+        updateRecordField(currentRecordField.fieldMetadataItemId, {
           position: currentRecordFieldNewPosition,
-        }),
-      ]);
+        });
+
+        await saveViewFields([
+          mapRecordFieldToViewField({
+            ...targetRecordField,
+            position: targetRecordFieldNewPosition,
+          }),
+          mapRecordFieldToViewField({
+            ...currentRecordField,
+            position: currentRecordFieldNewPosition,
+          }),
+        ]);
+      }
     },
-    [visibleRecordFields, saveViewFields, updateRecordField, store],
+    [currentRecordFields, saveViewFields, updateRecordField, store],
   );
 
   return { moveRecordField };

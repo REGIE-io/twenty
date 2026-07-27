@@ -4,6 +4,8 @@ import {
   ObjectType,
   registerEnumType,
 } from '@nestjs/graphql';
+
+import { IDField } from '@ptc-org/nestjs-query-graphql';
 import GraphQLJSON from 'graphql-type-json';
 import {
   PageLayoutWidgetConditionalDisplay,
@@ -36,7 +38,7 @@ export class GridPositionDTO {
 
 @ObjectType('PageLayoutWidget')
 export class PageLayoutWidgetDTO {
-  @Field(() => UUIDScalarType)
+  @IDField(() => UUIDScalarType)
   id: string;
 
   @Field(() => UUIDScalarType, { nullable: false })

@@ -3,7 +3,7 @@ import { type Meta, type StoryObj } from '@storybook/react-vite';
 import { HttpResponse, graphql } from 'msw';
 
 import { CalendarEventsCard } from '@/activities/calendar/components/CalendarEventsCard';
-import { getTimelineCalendarEventsFromObjectRecord } from '@/activities/calendar/graphql/queries/getTimelineCalendarEventsFromObjectRecord';
+import { getTimelineCalendarEventsFromCompanyId } from '@/activities/calendar/graphql/queries/getTimelineCalendarEventsFromCompanyId';
 import { CoreObjectNameSingular } from 'twenty-shared/types';
 import { LayoutRenderingProvider } from '@/ui/layout/contexts/LayoutRenderingContext';
 import { ComponentDecorator } from 'twenty-ui/testing';
@@ -41,12 +41,12 @@ const meta: Meta<typeof CalendarEventsCard> = {
       handlers: [
         ...graphqlMocks.handlers,
         graphql.query(
-          getOperationName(getTimelineCalendarEventsFromObjectRecord) ?? '',
+          getOperationName(getTimelineCalendarEventsFromCompanyId) ?? '',
           ({ variables }) => {
             if (variables.page > 1) {
               return HttpResponse.json({
                 data: {
-                  getTimelineCalendarEventsFromObjectRecord: {
+                  getTimelineCalendarEventsFromCompanyId: {
                     __typename: 'TimelineCalendarEventsWithTotal',
                     totalNumberOfCalendarEvents: 3,
                     timelineCalendarEvents: [],
@@ -56,7 +56,7 @@ const meta: Meta<typeof CalendarEventsCard> = {
             }
             return HttpResponse.json({
               data: {
-                getTimelineCalendarEventsFromObjectRecord: {
+                getTimelineCalendarEventsFromCompanyId: {
                   __typename: 'TimelineCalendarEventsWithTotal',
                   totalNumberOfCalendarEvents: 3,
                   timelineCalendarEvents: mockedTimelineCalendarEvents,

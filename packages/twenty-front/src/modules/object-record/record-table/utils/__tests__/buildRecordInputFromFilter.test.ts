@@ -62,7 +62,6 @@ describe('buildRecordInputFromFilter', () => {
         }),
       ],
       objectMetadataItem: mockObjectMetadataItem,
-      timeZone: 'UTC',
     });
 
     expect(result).toEqual({ companyName: 'Acme' });
@@ -81,13 +80,9 @@ describe('buildRecordInputFromFilter', () => {
         }),
       ],
       objectMetadataItem: mockObjectMetadataItem,
-      timeZone: 'UTC',
     });
 
-    expect(typeof result.createdAt).toBe('string');
-    expect(new Date(result.createdAt as string).getTime()).toBe(
-      new Date('2025-06-15T10:29:00.000Z').getTime(),
-    );
+    expect(result.createdAt).toEqual(new Date('2025-06-15T10:29:00.000Z'));
   });
 
   it('should not subtract a minute for DATE_TIME with IS operand', () => {
@@ -103,33 +98,9 @@ describe('buildRecordInputFromFilter', () => {
         }),
       ],
       objectMetadataItem: mockObjectMetadataItem,
-      timeZone: 'UTC',
     });
 
-    expect(typeof result.createdAt).toBe('string');
-    expect(new Date(result.createdAt as string).getTime()).toBe(
-      filterDate.getTime(),
-    );
-  });
-
-  it('should assign an ISO string (not a Date) for DATE_TIME with IS_RELATIVE operand', () => {
-    const result = buildRecordInputFromFilter({
-      currentRecordFilters: [
-        createFilter({
-          fieldMetadataId: FIELD_ID_DATE_TIME,
-          type: 'DATE_TIME',
-          operand: ViewFilterOperand.IS_RELATIVE,
-          value: 'THIS_QUARTER',
-        }),
-      ],
-      objectMetadataItem: mockObjectMetadataItem,
-      timeZone: 'UTC',
-    });
-
-    expect(typeof result.createdAt).toBe('string');
-    expect(() =>
-      new Date(result.createdAt as string).toISOString(),
-    ).not.toThrow();
+    expect(result.createdAt).toEqual(filterDate);
   });
 
   it('should deep-merge a single composite address sub-field starting from empty object', () => {
@@ -144,7 +115,6 @@ describe('buildRecordInputFromFilter', () => {
         }),
       ],
       objectMetadataItem: mockObjectMetadataItem,
-      timeZone: 'UTC',
     });
 
     expect(result.address).toEqual({ addressCity: 'Paris' });
@@ -170,7 +140,6 @@ describe('buildRecordInputFromFilter', () => {
         }),
       ],
       objectMetadataItem: mockObjectMetadataItem,
-      timeZone: 'UTC',
     });
 
     expect(result.address).toEqual({
@@ -190,7 +159,6 @@ describe('buildRecordInputFromFilter', () => {
         }),
       ],
       objectMetadataItem: mockObjectMetadataItem,
-      timeZone: 'UTC',
     });
 
     expect(result).toEqual({});
@@ -207,7 +175,6 @@ describe('buildRecordInputFromFilter', () => {
         }),
       ],
       objectMetadataItem: mockObjectMetadataItem,
-      timeZone: 'UTC',
     });
 
     expect(result).toEqual({});
@@ -224,7 +191,6 @@ describe('buildRecordInputFromFilter', () => {
         }),
       ],
       objectMetadataItem: mockObjectMetadataItem,
-      timeZone: 'UTC',
     });
 
     expect(result).toEqual({ revenue: 42 });

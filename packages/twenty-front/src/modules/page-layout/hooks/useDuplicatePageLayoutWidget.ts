@@ -1,5 +1,4 @@
 import { useDuplicateFieldsWidgetForPageLayout } from '@/page-layout/hooks/useDuplicateFieldsWidgetForPageLayout';
-import { useDuplicateRecordTableWidgetForPageLayout } from '@/page-layout/hooks/useDuplicateRecordTableWidgetForPageLayout';
 import { PageLayoutComponentInstanceContext } from '@/page-layout/states/contexts/PageLayoutComponentInstanceContext';
 import { pageLayoutCurrentLayoutsComponentState } from '@/page-layout/states/pageLayoutCurrentLayoutsComponentState';
 import { pageLayoutDraftComponentState } from '@/page-layout/states/pageLayoutDraftComponentState';
@@ -51,11 +50,6 @@ export const useDuplicatePageLayoutWidget = (
     pageLayoutId,
   });
 
-  const { duplicateRecordTableWidget } =
-    useDuplicateRecordTableWidgetForPageLayout({
-      pageLayoutId,
-    });
-
   const duplicateWidget = useCallback(
     (widgetId: string): string => {
       const pageLayoutDraft = store.get(pageLayoutDraftState);
@@ -82,14 +76,15 @@ export const useDuplicatePageLayoutWidget = (
 
       const newWidgetId = uuidv4();
 
-      const widgetViewCopyResult =
-        duplicateFieldsWidget({ sourceWidget, newWidgetId }) ??
-        duplicateRecordTableWidget({ sourceWidget, newWidgetId });
+      const fieldsWidgetCopyResult = duplicateFieldsWidget({
+        sourceWidget,
+        newWidgetId,
+      });
 
-      const clonedConfiguration = isDefined(widgetViewCopyResult)
+      const clonedConfiguration = isDefined(fieldsWidgetCopyResult)
         ? {
             ...sourceWidget.configuration,
-            viewId: widgetViewCopyResult.newViewId,
+            viewId: fieldsWidgetCopyResult.newViewId,
           }
         : sourceWidget.configuration;
 
@@ -161,7 +156,6 @@ export const useDuplicatePageLayoutWidget = (
     },
     [
       duplicateFieldsWidget,
-      duplicateRecordTableWidget,
       pageLayoutCurrentLayoutsState,
       pageLayoutDraftState,
       setPageLayoutEditingWidgetId,

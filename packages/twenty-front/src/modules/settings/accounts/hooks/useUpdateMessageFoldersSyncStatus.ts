@@ -2,7 +2,6 @@ import { useCallback } from 'react';
 
 import { UPDATE_MESSAGE_FOLDERS } from '@/settings/accounts/graphql/mutations/updateMessageFolders';
 import { useApolloClient } from '@apollo/client/react';
-import { MessageFolderPendingSyncAction } from 'twenty-shared/types';
 
 type UpdateMessageFoldersSyncStatusArgs = {
   messageFolderIds: string[];
@@ -34,7 +33,6 @@ export const useUpdateMessageFoldersSyncStatus = () => {
             __typename: 'MessageFolder',
             id,
             isSynced,
-            pendingSyncAction: MessageFolderPendingSyncAction.NONE,
           })),
         },
       });

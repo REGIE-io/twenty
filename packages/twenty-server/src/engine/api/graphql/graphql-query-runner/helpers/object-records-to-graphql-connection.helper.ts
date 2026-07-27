@@ -17,7 +17,6 @@ import {
 import { encodeCursor } from 'src/engine/api/graphql/graphql-query-runner/utils/cursors.util';
 import { getTargetObjectMetadataOrThrow } from 'src/engine/api/graphql/graphql-query-runner/utils/get-target-object-metadata.util';
 import { type AggregationField } from 'src/engine/api/graphql/workspace-schema-builder/utils/get-available-aggregations-from-object-fields.util';
-import { RelationType } from 'src/engine/metadata-modules/field-metadata/interfaces/relation-type.interface';
 import { type CompositeFieldMetadataType } from 'src/engine/metadata-modules/field-metadata/types/composite-field-metadata-type.type';
 import { isCompositeFieldMetadataType } from 'src/engine/metadata-modules/field-metadata/utils/is-composite-field-metadata-type.util';
 import { type FlatEntityMaps } from 'src/engine/metadata-modules/flat-entity/types/flat-entity-maps.type';
@@ -222,13 +221,7 @@ export class ObjectRecordsToGraphqlConnectionHelper {
             objectRecord[fieldMetadataNameWithId];
         }
 
-        const isToManyRelation =
-          fieldMetadata.settings?.relationType === RelationType.ONE_TO_MANY;
-
-        const objectValue =
-          !isDefined(objectRecord[fieldMetadata.name]) && isToManyRelation
-            ? []
-            : objectRecord[fieldMetadata.name];
+        const objectValue = objectRecord[fieldMetadata.name];
 
         if (!isDefined(objectValue)) {
           continue;

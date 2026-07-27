@@ -1,5 +1,4 @@
 import { type EnrichedObjectMetadataItem } from '@/object-metadata/types/EnrichedObjectMetadataItem';
-import { useRecordIndexContextOrThrow } from '@/object-record/record-index/contexts/RecordIndexContext';
 import { useLoadRecordIndexStates } from '@/object-record/record-index/hooks/useLoadRecordIndexStates';
 import { lastLoadedRecordTableWidgetViewIdComponentState } from '@/object-record/record-table-widget/states/lastLoadedRecordTableWidgetViewIdComponentState';
 import { computeRecordTableWidgetViewLoadContentSignature } from '@/object-record/record-table-widget/utils/computeRecordTableWidgetViewLoadContentSignature';
@@ -25,8 +24,6 @@ export const RecordTableWidgetViewLoadEffect = ({
   objectMetadataItem,
 }: RecordTableWidgetViewLoadEffectProps) => {
   const { loadRecordIndexStates } = useLoadRecordIndexStates();
-
-  const { recordIndexId } = useRecordIndexContextOrThrow();
 
   const [
     lastLoadedRecordTableWidgetViewId,
@@ -80,7 +77,6 @@ export const RecordTableWidgetViewLoadEffect = ({
 
     loadRecordIndexStates(currentView, objectMetadataItem, {
       skipGlobalIndexStates: true,
-      recordIndexId,
     });
 
     setLastLoadedRecordTableWidgetViewId({
@@ -96,7 +92,6 @@ export const RecordTableWidgetViewLoadEffect = ({
     viewHasFields,
     objectMetadataItem,
     loadRecordIndexStates,
-    recordIndexId,
   ]);
 
   return null;

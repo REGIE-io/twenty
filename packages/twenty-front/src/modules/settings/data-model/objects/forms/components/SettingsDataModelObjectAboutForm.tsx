@@ -1,4 +1,3 @@
-import { useGetIsMetadataItemCustom } from '@/object-metadata/hooks/useGetIsMetadataItemCustom';
 import { type EnrichedObjectMetadataItem } from '@/object-metadata/types/EnrichedObjectMetadataItem';
 import { AdvancedSettingsWrapper } from '@/settings/components/AdvancedSettingsWrapper';
 import { SettingsOptionCardContentToggle } from '@/settings/components/SettingsOptions/SettingsOptionCardContentToggle';
@@ -81,25 +80,21 @@ export const SettingsDataModelObjectAboutForm = ({
     useFormContext<SettingsDataModelObjectAboutFormValues>();
   const { t } = useLingui();
   const navigateSettings = useNavigateSettings();
-  const getIsMetadataItemCustom = useGetIsMetadataItemCustom();
 
   const isLabelSyncedWithName = watch('isLabelSyncedWithName');
   const labelSingular = watch('labelSingular');
   const labelPlural = watch('labelPlural');
   const isStandardObject =
-    isDefined(objectMetadataItem) &&
-    !getIsMetadataItemCustom(objectMetadataItem);
+    isDefined(objectMetadataItem?.isCustom) && !objectMetadataItem.isCustom;
   const showObjectColorInIconPicker =
     !isStandardObject &&
-    (!isDefined(objectMetadataItem) ||
-      getIsMetadataItemCustom(objectMetadataItem));
+    (!isDefined(objectMetadataItem) || objectMetadataItem.isCustom);
   watch('description');
   watch('icon');
   const objectIconColor = watch('color');
 
   const apiNameTooltipText =
-    !isDefined(objectMetadataItem) ||
-    getIsMetadataItemCustom(objectMetadataItem)
+    !isDefined(objectMetadataItem) || objectMetadataItem.isCustom
       ? isLabelSyncedWithName
         ? t`Deactivate "Synchronize Objects Labels and API Names" to set a custom API name`
         : t`Input must be in camel case and cannot start with a number`
@@ -375,7 +370,7 @@ export const SettingsDataModelObjectAboutForm = ({
                           onChange(value);
                           const isCustomObject =
                             isDefined(objectMetadataItem) &&
-                            getIsMetadataItemCustom(objectMetadataItem);
+                            objectMetadataItem.isCustom;
                           const isbeingCreatedObject =
                             !isDefined(objectMetadataItem);
                           if (

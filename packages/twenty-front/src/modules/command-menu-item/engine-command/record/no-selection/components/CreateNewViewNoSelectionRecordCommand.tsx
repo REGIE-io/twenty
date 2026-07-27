@@ -1,6 +1,5 @@
 import { HeadlessEngineCommandWrapperEffect } from '@/command-menu-item/engine-command/components/HeadlessEngineCommandWrapperEffect';
 import { useHeadlessCommandContextApi } from '@/command-menu-item/engine-command/hooks/useHeadlessCommandContextApi';
-import { useSidePanelMenu } from '@/side-panel/hooks/useSidePanelMenu';
 import { useOpenDropdown } from '@/ui/layout/dropdown/hooks/useOpenDropdown';
 import { useSetAtomComponentState } from '@/ui/utilities/state/jotai/hooks/useSetAtomComponentState';
 import { VIEW_PICKER_DROPDOWN_ID } from '@/views/view-picker/constants/ViewPickerDropdownId';
@@ -12,7 +11,6 @@ export const CreateNewViewNoSelectionRecordCommand = () => {
   const { currentViewId, recordIndexId } = useHeadlessCommandContextApi();
 
   const { openDropdown } = useOpenDropdown();
-  const { closeSidePanelMenu } = useSidePanelMenu();
 
   if (!isDefined(currentViewId) || !isDefined(recordIndexId)) {
     throw new Error(
@@ -28,8 +26,6 @@ export const CreateNewViewNoSelectionRecordCommand = () => {
   const { setViewPickerMode } = useViewPickerMode(recordIndexId);
 
   const handleExecute = () => {
-    closeSidePanelMenu();
-
     if (currentViewId) {
       setViewPickerReferenceViewId(currentViewId);
     }

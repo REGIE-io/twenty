@@ -41,13 +41,13 @@ export class SendEmailTool implements Tool {
 
       const sendResult = await this.sendEmailService.sendComposedEmail(data);
 
-      const persistedMessage = data.shouldPersistMessage
-        ? await this.sendEmailService.persistSentMessage(
-            sendResult,
-            data,
-            context.workspaceId,
-          )
-        : undefined;
+      if (data.shouldPersistMessage) {
+        await this.sendEmailService.persistSentMessage(
+          sendResult,
+          data,
+          context.workspaceId,
+        );
+      }
 
       this.logger.log(
         `Email sent successfully to ${data.toRecipientsDisplay}${data.attachments.length > 0 ? ` with ${data.attachments.length} attachments` : ''}`,
@@ -65,10 +65,6 @@ export class SendEmailTool implements Tool {
           plainTextBody: data.plainTextBody,
           connectedAccountId: data.connectedAccount.id,
           attachmentCount: data.attachments.length,
-          headerMessageId: sendResult.headerMessageId,
-          threadExternalId: sendResult.threadExternalId,
-          messageId: persistedMessage?.messageId,
-          messageThreadId: persistedMessage?.messageThreadId,
         },
       };
     } catch (error) {

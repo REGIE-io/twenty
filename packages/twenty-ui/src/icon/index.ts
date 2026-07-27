@@ -26,7 +26,6 @@ export { IconMicrosoftOutlook } from './components/IconMicrosoftOutlook';
 export { IconModelClaude } from './components/IconModelClaude';
 export { IconProviderOpenai } from './components/IconProviderOpenai';
 export { IconRelationManyToOne } from './components/IconRelationManyToOne';
-export { IconSparkle2 } from './components/IconSparkle2';
 export { IconTrashXOff } from './components/IconTrashXOff';
 export { IconTwentyStar } from './components/IconTwentyStar';
 export { IconTwentyStarFilled } from './components/IconTwentyStarFilled';
@@ -108,7 +107,6 @@ export {
   IconBrandLinkedin,
   IconBrandNpm,
   IconBrandOpenai,
-  IconBrandWhatsapp,
   IconBrandX,
   IconBriefcase,
   IconBroadcast,
@@ -336,7 +334,6 @@ export {
   IconMathXy,
   IconMaximize,
   IconMessage,
-  IconMessageCircle,
   IconMessageCirclePlus,
   IconMinus,
   IconMoneybag,
@@ -487,10 +484,10 @@ export {
   IconWebhook,
   IconWindow,
   IconWorld,
-  IconWorldWww,
   IconX,
 } from './components/TablerIcons';
 export { ThinkingOrbitLoaderIcon } from './components/ThinkingOrbitLoaderIcon';
 export { useIcons } from './hooks/useIcons';
 export { IconsProvider } from './providers/IconsProvider';
+export { iconsState } from './states/iconsState';
 export type { IconComponentProps, IconComponent } from './types/IconComponent';

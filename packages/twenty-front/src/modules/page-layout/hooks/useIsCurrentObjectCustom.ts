@@ -1,4 +1,3 @@
-import { useGetIsMetadataItemCustom } from '@/object-metadata/hooks/useGetIsMetadataItemCustom';
 import { objectMetadataItemFamilySelector } from '@/object-metadata/states/objectMetadataItemFamilySelector';
 import { useLayoutRenderingContext } from '@/ui/layout/contexts/LayoutRenderingContext';
 import { useAtomFamilySelectorValue } from '@/ui/utilities/state/jotai/hooks/useAtomFamilySelectorValue';
@@ -6,8 +5,6 @@ import { isDefined } from 'twenty-shared/utils';
 
 export const useIsCurrentObjectCustom = () => {
   const { targetRecordIdentifier } = useLayoutRenderingContext();
-
-  const getIsMetadataItemCustom = useGetIsMetadataItemCustom();
 
   const objectMetadataItem = useAtomFamilySelectorValue(
     objectMetadataItemFamilySelector,
@@ -25,5 +22,5 @@ export const useIsCurrentObjectCustom = () => {
     return { isCustom: true };
   }
 
-  return { isCustom: getIsMetadataItemCustom(objectMetadataItem) };
+  return { isCustom: objectMetadataItem.isCustom };
 };

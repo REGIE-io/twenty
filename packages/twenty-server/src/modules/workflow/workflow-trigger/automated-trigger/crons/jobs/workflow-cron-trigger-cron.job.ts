@@ -9,7 +9,6 @@ import { InjectCacheStorage } from 'src/engine/core-modules/cache-storage/decora
 import { CacheStorageService } from 'src/engine/core-modules/cache-storage/services/cache-storage.service';
 import { CacheStorageNamespace } from 'src/engine/core-modules/cache-storage/types/cache-storage-namespace.enum';
 import { SentryCronMonitor } from 'src/engine/core-modules/cron/sentry-cron-monitor.decorator';
-import { CronTriggerDeduplicationService } from 'src/engine/core-modules/cron/services/cron-trigger-deduplication.service';
 import { ExceptionHandlerService } from 'src/engine/core-modules/exception-handler/exception-handler.service';
 import { InjectMessageQueue } from 'src/engine/core-modules/message-queue/decorators/message-queue.decorator';
 import { Process } from 'src/engine/core-modules/message-queue/decorators/process.decorator';
@@ -27,6 +26,7 @@ import {
   WorkflowTriggerJob,
   type WorkflowTriggerJobData,
 } from 'src/modules/workflow/workflow-trigger/jobs/workflow-trigger.job';
+import { shouldRunNow } from 'src/utils/should-run-now.utils';
 
 export const WORKFLOW_CRON_TRIGGER_CRON_PATTERN = '* * * * *';
 
@@ -44,7 +44,6 @@ export class WorkflowCronTriggerCronJob {
     private readonly exceptionHandlerService: ExceptionHandlerService,
     @InjectCacheStorage(CacheStorageNamespace.ModuleWorkflow)
     private readonly cacheStorageService: CacheStorageService,
-    private readonly cronTriggerDeduplicationService: CronTriggerDeduplicationService,
   ) {}
 
   @Process(WorkflowCronTriggerCronJob.name)
@@ -83,14 +82,7 @@ export class WorkflowCronTriggerCronJob {
           continue;
         }
 
-        const shouldDispatch =
-          await this.cronTriggerDeduplicationService.shouldDispatch(
-            `workflow-cron:${trigger.workspaceId}:${trigger.workflowId}`,
-            trigger.pattern,
-            now,
-          );
-
-        if (!shouldDispatch) {
+        if (!shouldRunNow(trigger.pattern, now)) {
           continue;
         }
 
@@ -186,14 +178,7 @@ export class WorkflowCronTriggerCronJob {
 
         triggersToCache.push(cachedTrigger);
 
-        const shouldDispatch =
-          await this.cronTriggerDeduplicationService.shouldDispatch(
-            `workflow-cron:${workspaceId}:${trigger.workflowId}`,
-            settings.pattern,
-            now,
-          );
-
-        if (shouldDispatch) {
+        if (shouldRunNow(settings.pattern, now)) {
           this.logger.log(
             `Trigger ${trigger.id}: enqueuing WorkflowTriggerJob for workflow ${trigger.workflowId}`,
           );

@@ -3,7 +3,6 @@ import { v4 } from 'uuid';
 import { getDefaultFormFieldSettings } from '@/workflow/workflow-steps/workflow-actions/form-action/utils/getDefaultFormFieldSettings';
 
 jest.mock('uuid', () => ({
-  ...jest.requireActual('uuid'),
   v4: jest.fn(() => 'test-uuid-123'),
 }));
 

@@ -4,7 +4,6 @@ import { usePageLayoutIdFromContextStore } from '@/side-panel/pages/page-layout/
 import { useUpdateCurrentWidgetConfig } from '@/side-panel/pages/page-layout/hooks/useUpdateCurrentWidgetConfig';
 import { type ChartWidget } from '@/side-panel/pages/page-layout/types/ChartWidget';
 import { type ChartWidgetConfiguration } from '@/side-panel/pages/page-layout/types/ChartWidgetConfiguration';
-import { dropChartRecordFiltersWithDeletedFields } from '@/side-panel/pages/page-layout/utils/dropChartRecordFiltersWithDeletedFields';
 import { getChartFiltersSettingsInstanceId } from '@/side-panel/pages/page-layout/utils/getChartFiltersSettingsInstanceId';
 
 import { type EnrichedObjectMetadataItem } from '@/object-metadata/types/EnrichedObjectMetadataItem';
@@ -76,23 +75,12 @@ export const ChartFiltersSettings = ({
     const existingRecordFilters = store.get(currentRecordFilters);
     const existingRecordFilterGroups = store.get(currentRecordFilterGroups);
 
-    const {
-      recordFilters: sanitizedRecordFilters,
-      recordFilterGroups: sanitizedRecordFilterGroups,
-    } = dropChartRecordFiltersWithDeletedFields({
-      chartFilters: {
-        recordFilters: existingRecordFilters,
-        recordFilterGroups: existingRecordFilterGroups,
-      },
-      validFieldMetadataIds,
-    });
-
     updateCurrentWidgetConfig({
       objectMetadataId: objectMetadataItem.id,
       configToUpdate: {
         filter: {
-          recordFilters: sanitizedRecordFilters,
-          recordFilterGroups: sanitizedRecordFilterGroups,
+          recordFilters: existingRecordFilters,
+          recordFilterGroups: existingRecordFilterGroups,
         },
       } satisfies Partial<ChartWidgetConfiguration>,
     });

@@ -1,7 +1,8 @@
 import { type IconComponent } from '@ui/icon';
 import { type JsonNodeHighlighting } from '@ui/json-visualizer/types/JsonNodeHighlighting';
-import { useTheme } from '@ui/theme-constants';
+import { ThemeContext } from '@ui/theme-constants';
 import { clsx } from 'clsx';
+import { useContext } from 'react';
 
 import styles from './JsonNodeLabel.module.scss';
 
@@ -14,7 +15,7 @@ export const JsonNodeLabel = ({
   Icon: IconComponent;
   highlighting?: JsonNodeHighlighting | undefined;
 }) => {
-  const theme = useTheme();
+  const { theme } = useContext(ThemeContext);
 
   return (
     <span

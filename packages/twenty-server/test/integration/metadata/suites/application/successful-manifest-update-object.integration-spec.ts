@@ -15,7 +15,7 @@ const buildManifest = (
 ) => buildBaseManifest({ appId: TEST_APP_ID, roleId: TEST_ROLE_ID, overrides });
 
 const OBJECT_GQL_FIELDS =
-  'id nameSingular namePlural labelSingular labelPlural description icon isActive universalIdentifier';
+  'id nameSingular namePlural labelSingular labelPlural description icon isCustom isActive universalIdentifier';
 
 const findCustomObjects = async () => {
   const { objects } = await findManyObjectMetadata({
@@ -27,7 +27,7 @@ const findCustomObjects = async () => {
     expectToFail: false,
   });
 
-  return objects;
+  return objects.filter((object) => object.isCustom);
 };
 
 describe('Manifest update - objects', () => {
@@ -48,7 +48,6 @@ describe('Manifest update - objects', () => {
 
   it('should create a new object when added to manifest on second sync', async () => {
     const ticketObject = buildDefaultObjectManifest({
-      applicationUniversalIdentifier: TEST_APP_ID,
       nameSingular: 'ticket',
       namePlural: 'tickets',
       labelSingular: 'Ticket',
@@ -76,7 +75,6 @@ describe('Manifest update - objects', () => {
     });
 
     const invoiceObject = buildDefaultObjectManifest({
-      applicationUniversalIdentifier: TEST_APP_ID,
       nameSingular: 'invoice',
       namePlural: 'invoices',
       labelSingular: 'Invoice',
@@ -109,13 +107,13 @@ describe('Manifest update - objects', () => {
       labelPlural: 'Invoices',
       description: 'A billing invoice',
       icon: 'IconFileInvoice',
+      isCustom: true,
     });
   }, 60000);
 
   it('should update object properties when changed in manifest on second sync', async () => {
     const universalIdentifier = uuidv4();
     const ticketObject = buildDefaultObjectManifest({
-      applicationUniversalIdentifier: TEST_APP_ID,
       nameSingular: 'ticket',
       namePlural: 'tickets',
       labelSingular: 'Ticket',
@@ -176,7 +174,6 @@ describe('Manifest update - objects', () => {
 
   it('should delete an object when removed from manifest on second sync', async () => {
     const ticketObject = buildDefaultObjectManifest({
-      applicationUniversalIdentifier: TEST_APP_ID,
       nameSingular: 'ticket',
       namePlural: 'tickets',
       labelSingular: 'Ticket',
@@ -186,7 +183,6 @@ describe('Manifest update - objects', () => {
     });
 
     const invoiceObject = buildDefaultObjectManifest({
-      applicationUniversalIdentifier: TEST_APP_ID,
       nameSingular: 'invoice',
       namePlural: 'invoices',
       labelSingular: 'Invoice',

@@ -1,5 +1,4 @@
 import { styled } from '@linaria/react';
-import { useLingui } from '@lingui/react/macro';
 import { useCallback } from 'react';
 import { themeCssVariables } from 'twenty-ui/theme-constants';
 
@@ -24,8 +23,6 @@ const StyledContainer = styled.div`
 `;
 
 export const RecordTableCellCheckbox = () => {
-  const { t } = useLingui();
-
   const { isSelected } = useRecordTableRowContextOrThrow();
 
   const { setCurrentRowSelected } = useSetCurrentRowSelected();
@@ -47,7 +44,7 @@ export const RecordTableCellCheckbox = () => {
       widthClassName={RECORD_TABLE_COLUMN_CHECKBOX_WIDTH_CLASS_NAME}
     >
       <StyledContainer onClick={handleClick} data-select-disable>
-        <Checkbox hoverable checked={isSelected} aria-label={t`Select row`} />
+        <Checkbox hoverable checked={isSelected} />
       </StyledContainer>
     </RecordTableCellStyleWrapper>
   );

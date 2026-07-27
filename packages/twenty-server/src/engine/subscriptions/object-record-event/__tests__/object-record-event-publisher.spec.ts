@@ -1,7 +1,6 @@
 import { Test, type TestingModule } from '@nestjs/testing';
 
 import {
-  FieldMetadataType,
   type ObjectsPermissionsByRoleId,
   type RecordGqlOperationFilter,
 } from 'twenty-shared/types';
@@ -12,6 +11,7 @@ import { createEmptyFlatEntityMaps } from 'src/engine/metadata-modules/flat-enti
 import { WorkspaceManyOrAllFlatEntityMapsCacheService } from 'src/engine/metadata-modules/flat-entity/services/workspace-many-or-all-flat-entity-maps-cache.service';
 import { type FlatEntityMaps } from 'src/engine/metadata-modules/flat-entity/types/flat-entity-maps.type';
 import { addFlatEntityToFlatEntityMapsOrThrow } from 'src/engine/metadata-modules/flat-entity/utils/add-flat-entity-to-flat-entity-maps-or-throw.util';
+import { COMPANY_FLAT_FIELDS_MOCK } from 'src/engine/metadata-modules/flat-field-metadata/__mocks__/company-flat-fields.mock';
 import { getFlatFieldMetadataMock } from 'src/engine/metadata-modules/flat-field-metadata/__mocks__/get-flat-field-metadata.mock';
 import { type FlatFieldMetadata } from 'src/engine/metadata-modules/flat-field-metadata/types/flat-field-metadata.type';
 import { COMPANY_FLAT_OBJECT_MOCK } from 'src/engine/metadata-modules/flat-object-metadata/__mocks__/company-flat-object.mock';
@@ -104,14 +104,7 @@ describe('ObjectRecordEventPublisher', () => {
 
   const companyObjectMetadata: FlatObjectMetadata = COMPANY_FLAT_OBJECT_MOCK;
 
-  const companyNameField = getFlatFieldMetadataMock({
-    objectMetadataId: COMPANY_FLAT_OBJECT_MOCK.id,
-    type: FieldMetadataType.TEXT,
-    name: 'name',
-    label: 'Name',
-    universalIdentifier: 'company-name-field-universal-id',
-    workspaceId,
-  });
+  const companyNameField = COMPANY_FLAT_FIELDS_MOCK.name;
 
   const mockFlatFieldMetadataMaps = buildFlatFieldMetadataMaps([
     companyNameField,
@@ -473,7 +466,7 @@ describe('ObjectRecordEventPublisher', () => {
     it('should filter restricted fields from events', async () => {
       const restrictedField = getFlatFieldMetadataMock({
         objectMetadataId: companyObjectMetadata.id,
-        type: FieldMetadataType.TEXT,
+        type: COMPANY_FLAT_FIELDS_MOCK.name.type,
         name: 'secretField',
         universalIdentifier: 'restricted-field-universal-id',
         workspaceId,
@@ -543,7 +536,7 @@ describe('ObjectRecordEventPublisher', () => {
     it('should skip update events when all updated fields are restricted', async () => {
       const restrictedField = getFlatFieldMetadataMock({
         objectMetadataId: companyObjectMetadata.id,
-        type: FieldMetadataType.TEXT,
+        type: COMPANY_FLAT_FIELDS_MOCK.name.type,
         name: 'secretField',
         universalIdentifier: 'restricted-field-universal-id',
         workspaceId,
@@ -604,7 +597,7 @@ describe('ObjectRecordEventPublisher', () => {
     it('should filter diff when restricted fields are updated', async () => {
       const restrictedField = getFlatFieldMetadataMock({
         objectMetadataId: companyObjectMetadata.id,
-        type: FieldMetadataType.TEXT,
+        type: COMPANY_FLAT_FIELDS_MOCK.name.type,
         name: 'secretField',
         universalIdentifier: 'restricted-field-universal-id',
         workspaceId,

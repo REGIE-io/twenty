@@ -52,10 +52,7 @@ export class LambdaToolFunctionsService {
   private builderFunctionName: string | undefined;
 
   constructor(
-    private readonly options: Pick<
-      LambdaDriverOptions,
-      'lambdaRole' | 'resourceNamespace'
-    >,
+    private readonly options: Pick<LambdaDriverOptions, 'lambdaRole'>,
     private readonly awsClient: LambdaAwsClientService,
   ) {}
 
@@ -325,8 +322,7 @@ export class LambdaToolFunctionsService {
     ]);
 
     this.commonLayerName = computeHashedLambdaResourceName({
-      resourceNamePrefix: COMMON_LAYER_NAME_PREFIX,
-      namespace: this.options.resourceNamespace,
+      prefix: COMMON_LAYER_NAME_PREFIX,
       contents: [packageJson, yarnLock],
     });
 
@@ -344,8 +340,7 @@ export class LambdaToolFunctionsService {
     );
 
     this.yarnInstallFunctionName = computeHashedLambdaResourceName({
-      resourceNamePrefix: YARN_INSTALL_FUNCTION_NAME_PREFIX,
-      namespace: this.options.resourceNamespace,
+      prefix: YARN_INSTALL_FUNCTION_NAME_PREFIX,
       contents: [handlerContent],
     });
 
@@ -360,8 +355,7 @@ export class LambdaToolFunctionsService {
     const handlerContent = await fs.readFile(BUILDER_HANDLER_PATH, 'utf-8');
 
     this.builderFunctionName = computeHashedLambdaResourceName({
-      resourceNamePrefix: BUILDER_FUNCTION_NAME_PREFIX,
-      namespace: this.options.resourceNamespace,
+      prefix: BUILDER_FUNCTION_NAME_PREFIX,
       contents: [handlerContent],
     });
 

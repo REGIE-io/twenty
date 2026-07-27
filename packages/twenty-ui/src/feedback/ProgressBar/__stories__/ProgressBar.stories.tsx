@@ -1,4 +1,5 @@
 import { type Meta, type StoryObj } from '@storybook/react-vite';
+import { useProgressAnimation } from '@ui/feedback/ProgressBar/hooks/useProgressAnimation';
 import { ComponentDecorator } from '@ui/testing/decorators/ComponentDecorator';
 import { ProgressBar } from '@ui/feedback/ProgressBar/ProgressBar';
 
@@ -23,16 +24,25 @@ export const Default: Story = {
   },
 };
 
-export const Countdown: Story = {
+export const Animated: Story = {
   tags: ['!test'],
   argTypes: {
     value: { control: false },
   },
-  args: {
-    value: 100,
-    ariaLabel: 'Progress',
-    countdownDurationInMs: 10000,
-  },
+  decorators: [
+    (Story) => {
+      const { value } = useProgressAnimation({
+        autoPlay: true,
+        initialValue: 0,
+        finalValue: 100,
+        options: {
+          duration: 10000,
+        },
+      });
+
+      return <Story args={{ value }} />;
+    },
+  ],
   parameters: {
     chromatic: { disableSnapshot: true },
   },

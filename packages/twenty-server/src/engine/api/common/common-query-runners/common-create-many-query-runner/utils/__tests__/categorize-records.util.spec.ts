@@ -7,15 +7,15 @@ import { categorizeRecords } from 'src/engine/api/common/common-query-runners/co
 describe('categorizeRecords', () => {
   const conflictingFieldGroups: ConflictingFieldGroup[] = [
     {
-      baseFields: ['id'],
+      baseField: 'id',
       conflictingProperties: [{ fullPath: 'id', column: 'id' }],
     },
     {
-      baseFields: ['uniqueText'],
+      baseField: 'uniqueText',
       conflictingProperties: [{ fullPath: 'uniqueText', column: 'uniqueText' }],
     },
     {
-      baseFields: ['emailsField'],
+      baseField: 'emailsField',
       conflictingProperties: [
         {
           fullPath: 'emailsField.primaryEmail',

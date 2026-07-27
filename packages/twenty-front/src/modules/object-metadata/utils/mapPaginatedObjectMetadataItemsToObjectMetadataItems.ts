@@ -1,6 +1,5 @@
 import { type IndexFieldMetadataItem } from '@/object-metadata/types/IndexFieldMetadataItem';
 import { type IndexMetadataItem } from '@/object-metadata/types/IndexMetadataItem';
-import { type SearchFieldMetadataItem } from '@/object-metadata/types/SearchFieldMetadataItem';
 import { objectMetadataItemSchema } from '@/object-metadata/validation-schemas/objectMetadataItemSchema';
 import { type ObjectMetadataItemsQuery } from '~/generated-metadata/graphql';
 import { type EnrichedObjectMetadataItem } from '@/object-metadata/types/EnrichedObjectMetadataItem';
@@ -22,12 +21,8 @@ export const mapPaginatedObjectMetadataItemsToObjectMetadataItems = ({
           object.node.labelIdentifierFieldMetadataId,
         );
 
-      const {
-        fieldsList,
-        indexMetadataList,
-        searchFieldMetadataList,
-        ...objectWithoutFieldsList
-      } = object.node;
+      const { fieldsList, indexMetadataList, ...objectWithoutFieldsList } =
+        object.node;
 
       return {
         ...objectWithoutFieldsList,
@@ -35,12 +30,6 @@ export const mapPaginatedObjectMetadataItemsToObjectMetadataItems = ({
           ...field,
         })),
         labelIdentifierFieldMetadataId,
-        searchFieldMetadatas: searchFieldMetadataList.map(
-          (searchFieldMetadata) =>
-            ({
-              ...searchFieldMetadata,
-            }) satisfies SearchFieldMetadataItem,
-        ),
         indexMetadatas: indexMetadataList.map(
           ({ indexFieldMetadataList: indexFields, ...indexRest }) =>
             ({

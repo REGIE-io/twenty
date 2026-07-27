@@ -96,11 +96,7 @@ export class MessageQueueCoreModule extends ConfigurableModuleClass {
   static async createDriver(config: typeof OPTIONS_TYPE) {
     switch (config.type) {
       case MessageQueueDriverType.BullMQ: {
-        return new BullMQDriver(
-          config.options,
-          config.metricsService,
-          config.twentyConfigService,
-        );
+        return new BullMQDriver(config.options, config.metricsService);
       }
       case MessageQueueDriverType.Sync: {
         return new SyncDriver();

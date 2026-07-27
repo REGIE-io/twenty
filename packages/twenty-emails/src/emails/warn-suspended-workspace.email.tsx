@@ -11,7 +11,6 @@ type WarnSuspendedWorkspaceEmailProps = {
   inactiveDaysBeforeDelete: number;
   userName: string;
   workspaceDisplayName: string | undefined;
-  link: string;
   locale: keyof typeof APP_LOCALES;
 };
 
@@ -20,7 +19,6 @@ export const WarnSuspendedWorkspaceEmail = ({
   inactiveDaysBeforeDelete,
   userName,
   workspaceDisplayName,
-  link,
   locale,
 }: WarnSuspendedWorkspaceEmailProps) => {
   const i18n = createI18nInstance(locale);
@@ -30,32 +28,38 @@ export const WarnSuspendedWorkspaceEmail = ({
 
   return (
     <BaseEmail width={333} locale={locale}>
-      <Title value={i18n._('Your workspace is paused')} />
+      <Title value={i18n._('Suspended Workspace')} />
       <MainText>
         {userName?.length > 1 ? (
-          <Trans id="Hi {userName}," values={{ userName }} />
+          <Trans id="Dear {userName}," values={{ userName }} />
         ) : (
           <Trans id="Hello," />
         )}
         <br />
         <br />
         <Trans
-          id="Good news first: your workspace <0>{workspaceDisplayName}</0> is only paused — none of your data is gone."
-          values={{ workspaceDisplayName }}
+          id="It appears that your workspace <0>{workspaceDisplayName}</0> has been suspended for {daysSinceInactive} days."
+          values={{ workspaceDisplayName, daysSinceInactive }}
           components={{ 0: <b /> }}
         />
         <br />
         <br />
         <Trans
-          id="Reactivate it within the next {remainingDays} {dayOrDays} and you'll pick up exactly where you left off, with every record, view and setting right where you left it."
+          id="The workspace will be deactivated in {remainingDays} {dayOrDays}, and all its data will be deleted."
           values={{ remainingDays, dayOrDays }}
         />
         <br />
         <br />
-        <Trans id="After that, the workspace and all of its data will be permanently deleted — and we won't be able to bring it back." />
+        <Trans
+          id="If you wish to continue using Twenty, please update your subscription within the next {remainingDays} {dayOrDays}."
+          values={{ remainingDays, dayOrDays }}
+        />
       </MainText>
       <br />
-      <CallToAction href={link} value={i18n._('Reactivate workspace')} />
+      <CallToAction
+        href="https://app.twenty.com/settings/billing"
+        value={i18n._('Update your subscription')}
+      />
       <br />
       <br />
     </BaseEmail>
@@ -67,7 +71,6 @@ WarnSuspendedWorkspaceEmail.PreviewProps = {
   inactiveDaysBeforeDelete: 14,
   userName: 'John Doe',
   workspaceDisplayName: 'Acme Inc.',
-  link: 'https://acme.twenty.com/settings/billing',
   locale: 'en',
 };
 

@@ -408,7 +408,6 @@ export class WorkflowCommonWorkspaceService {
         await workflowRepository.update(
           workflowId,
           { statuses: newStatuses },
-          undefined,
           queryRunner.manager,
         );
       }
@@ -418,7 +417,6 @@ export class WorkflowCommonWorkspaceService {
           await workflowVersionRepository.update(
             workflowVersion.id,
             { status: WorkflowVersionStatus.DEACTIVATED },
-            undefined,
             queryRunner.manager,
           );
         }

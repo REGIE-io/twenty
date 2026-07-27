@@ -20,7 +20,6 @@ export type CurrentWorkspace = Pick<
   | 'currentBillingSubscription'
   | 'workspaceMembersCount'
   | 'isPublicInviteLinkEnabled'
-  | 'workspaceDiscoverability'
   | 'isGoogleAuthEnabled'
   | 'isGoogleAuthBypassEnabled'
   | 'isMicrosoftAuthEnabled'
@@ -33,6 +32,7 @@ export type CurrentWorkspace = Pick<
   | 'subdomain'
   | 'customDomain'
   | 'workspaceUrls'
+  | 'metadataVersion'
   | 'isTwoFactorAuthenticationEnforced'
   | 'trashRetentionDays'
   | 'eventLogRetentionDays'
@@ -48,7 +48,7 @@ export type CurrentWorkspace = Pick<
   workspaceCustomApplication: Pick<Application, 'id'> | null;
   installedApplications: Pick<
     Application,
-    'id' | 'name' | 'universalIdentifier' | 'logo' | 'logoUrl'
+    'id' | 'name' | 'universalIdentifier' | 'logo'
   >[];
 };
 

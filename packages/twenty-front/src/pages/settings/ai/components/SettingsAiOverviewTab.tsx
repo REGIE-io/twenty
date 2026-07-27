@@ -9,12 +9,7 @@ import { useMutation, useQuery } from '@apollo/client/react';
 import { styled } from '@linaria/react';
 import { t } from '@lingui/core/macro';
 import { Fragment, useContext, useState } from 'react';
-import {
-  IconMessage,
-  IconSparkle2,
-  IconSparkles,
-  IconTool,
-} from 'twenty-ui/icon';
+import { IconMessage, IconRobot, IconSparkles, IconTool } from 'twenty-ui/icon';
 import { H2Title } from 'twenty-ui/typography';
 import { Section } from 'twenty-ui/layout';
 import { UndecoratedLink } from 'twenty-ui/navigation';
@@ -121,7 +116,7 @@ export const SettingsAiOverviewTab = () => {
         />
         <UndecoratedLink to={MCP_DEEP_LINK}>
           <SettingsCard
-            Icon={<IconSparkle2 size={theme.icon.size.md} />}
+            Icon={<IconRobot size={theme.icon.size.md} />}
             title={t`Set up MCP`}
           />
         </UndecoratedLink>

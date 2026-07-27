@@ -48,7 +48,7 @@ export const formatFieldMetadataItemAsFieldDefinition = ({
     options: field.options,
     settings: field.settings,
     isNullable: field.isNullable,
-    applicationId: field.applicationId,
+    isCustom: field.isCustom ?? false,
     isUIEditable: field.isUIEditable ?? true,
   };
 

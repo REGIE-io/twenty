@@ -71,7 +71,7 @@ export const useRecordIndexGroupCommonQueryVariables = () => {
 
   const recordGqlFields = useRelevantRecordsGqlFields({
     objectMetadataItem,
-    additionalFieldMetadataIds: [recordIndexGroupFieldMetadataItem?.id],
+    additionalFieldMetadataId: recordIndexGroupFieldMetadataItem?.id,
   });
 
   const recordGroupDefinitions = useAtomComponentSelectorValue(

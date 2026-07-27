@@ -1,7 +1,6 @@
 import { isDefined } from 'twenty-shared/utils';
 import { z } from 'zod';
 
-import { type RolePermissionConfig } from 'src/engine/twenty-orm/types/role-permission-config';
 import { buildSystemAuthContext } from 'src/engine/twenty-orm/utils/build-system-auth-context.util';
 import {
   WorkflowVersionStatus,
@@ -12,10 +11,6 @@ import {
   type WorkflowToolContext,
   type WorkflowToolDependencies,
 } from 'src/modules/workflow/workflow-tools/types/workflow-tool-dependencies.type';
-
-type GetWorkflowCurrentVersionToolContext = WorkflowToolContext & {
-  rolePermissionConfig: RolePermissionConfig;
-};
 
 const getWorkflowCurrentVersionSchema = z.object({
   workflowId: z
@@ -30,7 +25,7 @@ type GetWorkflowCurrentVersionInput = z.infer<
 
 export const createGetWorkflowCurrentVersionTool = (
   deps: Pick<WorkflowToolDependencies, 'globalWorkspaceOrmManager'>,
-  context: GetWorkflowCurrentVersionToolContext,
+  context: WorkflowToolContext,
 ) => ({
   name: 'get_workflow_current_version' as const,
   description:
@@ -46,7 +41,7 @@ export const createGetWorkflowCurrentVersionTool = (
             await deps.globalWorkspaceOrmManager.getRepository<WorkflowWorkspaceEntity>(
               context.workspaceId,
               'workflow',
-              context.rolePermissionConfig,
+              { shouldBypassPermissionChecks: true },
             );
 
           const workflow = await workflowRepository.findOne({
@@ -64,7 +59,7 @@ export const createGetWorkflowCurrentVersionTool = (
             await deps.globalWorkspaceOrmManager.getRepository<WorkflowVersionWorkspaceEntity>(
               context.workspaceId,
               'workflowVersion',
-              context.rolePermissionConfig,
+              { shouldBypassPermissionChecks: true },
             );
 
           const versions = await workflowVersionRepository.find({

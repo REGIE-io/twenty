@@ -1,7 +1,9 @@
-import { Field, ID, InputType } from '@nestjs/graphql';
+import { ID, InputType } from '@nestjs/graphql';
+
+import { IDField } from '@ptc-org/nestjs-query-graphql';
 
 @InputType()
 export class LogicFunctionIdInput {
-  @Field(() => ID, { description: 'The id of the function.' })
+  @IDField(() => ID, { description: 'The id of the function.' })
   id!: string;
 }

@@ -1,27 +1,15 @@
 // Idempotent. Re-run after every install/reinstall — the app manifest can't ship RLS
-// predicates. Does three things:
+// predicates. Does two things:
 //
-// 1. Upserts row-level-permission predicates on the Partner role:
-//    - "partnerUser IS the current member" on partner/person/company/partnerLink/partnerService/partnerContent
-//    - "(partnerUser IS me) OR (lastActivityAt IS EMPTY)" on application. RLS is validated on
-//      INSERT against the row exactly as submitted, but a partner's Apply workflow creates the
-//      row with partnerUser=null (on-application-created stamps it AFTER insert, as the app).
-//      A strict "partnerUser IS me" would reject every apply, so the OR adds an escape hatch:
-//      a freshly-created row (lastActivityAt null, set by the same handler) passes insert and
-//      is readable by its creator until the handler stamps it.
-//      ponytail: trade-off — an unstamped row is briefly readable by ANY partner (sub-second
-//      window; permanent only if the handler fails to stamp). Acceptable for an internal
-//      partner marketplace; tighten by setting partnerUser at insert if a current-member
-//      workflow variable ever lands.
-//    - "(partnerUser IS me) OR (isListed = true)" on opportunity (marketplace briefs)
-//    - "id IS the current member" on workspaceMember (self-scope; internal roster hidden)
+// 1. Upserts row-level-permission predicates on the Partner role: "partnerUser IS the
+//    current member" on each of partner/person/company/opportunity, plus "id IS the
+//    current member" on workspaceMember so the partner sees only its own member record
+//    (member-typed relations still resolve; the internal roster stays hidden).
 //
 // 2. Verifies (does NOT set) the Opportunity field permissions from `partner.role.ts`.
 //    upsertFieldPermissions rejects out-of-band changes to app-owned roles
 //    (ROLE_BELONGS_TO_ANOTHER_APPLICATION), so those must come from the manifest; if any
 //    expected lock is missing, the script exits non-zero and tells you to re-sync.
-//
-// 3. Verifies Application field permissions the same way (pitch editable; rest locked).
 //
 // Usage:
 //   yarn rls:configure          # against .env.local
@@ -39,31 +27,12 @@ const requireEnv = (name: string): string => {
   return value;
 };
 
-const SIMPLE_TARGET_OBJECTS = [
-  'partner',
-  'person',
-  'company',
-  'partnerLink',
-  'partnerService',
-  'partnerContent',
-] as const;
-type SimpleTargetObject = (typeof SIMPLE_TARGET_OBJECTS)[number];
+const TARGET_OBJECTS = ['partner', 'person', 'company', 'opportunity'] as const;
+type TargetObject = (typeof TARGET_OBJECTS)[number];
 
-// application + opportunity use OR groups (handled separately), but still need existence checks.
-const ALL_TARGET_OBJECTS = [
-  ...SIMPLE_TARGET_OBJECTS,
-  'application',
-  'opportunity',
-] as const;
-
-// Stable ids for the OR predicate groups — re-runs upsert in place instead of creating
-// duplicate groups.
-const OPPORTUNITY_RLS_OR_GROUP_ID = 'b7e7f3a0-4c5d-4e8f-9a1b-2c3d4e5f6789';
-const APPLICATION_RLS_OR_GROUP_ID = 'a9c1f3d2-5b6e-4a7c-8d9f-1e2b3c4d5e6f';
-
-// Opportunity fields that must NOT be locked: system columns and updatedBy/position
-// (server-managed — locking them breaks every update; see src/roles/partner.role.ts).
-// Stage + amount are expected locked (admin-only for partners). Everything else too.
+// Opportunity fields that must NOT be locked: system columns, the editable business
+// fields (stage, amount), and updatedBy/position (server-managed — locking them breaks
+// every update; see src/roles/partner.role.ts). Everything else is expected to be locked.
 const OPPORTUNITY_FIELD_LOCK_SKIP = new Set([
   'id',
   'createdAt',
@@ -71,29 +40,8 @@ const OPPORTUNITY_FIELD_LOCK_SKIP = new Set([
   'deletedAt',
   'updatedBy',
   'position',
-]);
-
-// Application fields that must be locked (pitch + opportunity are partner-editable).
-const APPLICATION_FIELD_LOCK_EXPECTED = new Set([
-  'name',
-  'partner',
-  'partnerUser',
-  'state',
-  'lastActivityAt',
-]);
-
-// Application fields that must NOT be locked: system columns, pitch + opportunity
-// (editable), and updatedBy/position (server-managed — locking them breaks every update).
-const APPLICATION_FIELD_LOCK_SKIP = new Set([
-  'id',
-  'createdAt',
-  'updatedAt',
-  'deletedAt',
-  'updatedBy',
-  'position',
-  'searchVector',
-  'pitch',
-  'opportunity',
+  'stage',
+  'amount',
 ]);
 
 type ObjectInfo = {
@@ -265,27 +213,6 @@ type PredicateResult = {
   operand: string;
   workspaceMemberFieldMetadataId: string | null;
   roleId: string;
-  rowLevelPermissionPredicateGroupId: string | null;
-  positionInRowLevelPermissionPredicateGroup: number | null;
-};
-
-type UpsertPredicatesInput = {
-  roleId: string;
-  objectMetadataId: string;
-  predicates: {
-    fieldMetadataId: string;
-    operand: string;
-    workspaceMemberFieldMetadataId?: string | null;
-    value?: boolean | null;
-    rowLevelPermissionPredicateGroupId?: string | null;
-    positionInRowLevelPermissionPredicateGroup?: number | null;
-  }[];
-  predicateGroups: {
-    id?: string;
-    objectMetadataId: string;
-    logicalOperator: string;
-    parentRowLevelPermissionPredicateGroupId?: string | null;
-  }[];
 };
 
 async function main() {
@@ -309,7 +236,7 @@ async function main() {
     objectsData.objects.edges.map((e) => [e.node.nameSingular, e.node.id]),
   );
 
-  for (const name of ALL_TARGET_OBJECTS) {
+  for (const name of TARGET_OBJECTS) {
     if (!objectIdByName.has(name)) {
       throw new Error(
         `Object "${name}" not found in workspace metadata. ` +
@@ -324,9 +251,9 @@ async function main() {
 
   const workspaceMemberId = objectIdByName.get('workspaceMember') as string;
 
-  const objectInfoByName = new Map<SimpleTargetObject, ObjectInfo>();
+  const objectInfoByName = new Map<TargetObject, ObjectInfo>();
 
-  for (const name of SIMPLE_TARGET_OBJECTS) {
+  for (const name of TARGET_OBJECTS) {
     const objectId = objectIdByName.get(name) as string;
     const partnerUserFieldMetadataId = await findFieldByName(
       metadataUrl,
@@ -340,40 +267,6 @@ async function main() {
       partnerUserFieldMetadataId,
     });
   }
-
-  const opportunityObjectId = objectIdByName.get('opportunity') as string;
-  const opportunityPartnerUserFieldId = await findFieldByName(
-    metadataUrl,
-    apiKey,
-    opportunityObjectId,
-    'opportunity',
-    'partnerUser',
-  );
-  const opportunityIsListedFieldId = await findFieldByName(
-    metadataUrl,
-    apiKey,
-    opportunityObjectId,
-    'opportunity',
-    'isListed',
-  );
-
-  const applicationObjectIdForPredicate = objectIdByName.get(
-    'application',
-  ) as string;
-  const applicationPartnerUserFieldId = await findFieldByName(
-    metadataUrl,
-    apiKey,
-    applicationObjectIdForPredicate,
-    'application',
-    'partnerUser',
-  );
-  const applicationLastActivityAtFieldId = await findFieldByName(
-    metadataUrl,
-    apiKey,
-    applicationObjectIdForPredicate,
-    'application',
-    'lastActivityAt',
-  );
 
   // ── 2. Resolve workspaceMember.id field metadata id ──────────────────────────
 
@@ -436,51 +329,14 @@ async function main() {
           operand
           workspaceMemberFieldMetadataId
           roleId
-          rowLevelPermissionPredicateGroupId
-          positionInRowLevelPermissionPredicateGroup
         }
       }
     }
   `;
 
-  const upsertPredicates = async (
-    input: UpsertPredicatesInput,
-    label: string,
-  ): Promise<PredicateResult[]> => {
-    try {
-      const data = await metadataFetch<{
-        upsertRowLevelPermissionPredicates: { predicates: PredicateResult[] };
-      }>(metadataUrl, apiKey, MUTATION, { input });
-
-      return data.upsertRowLevelPermissionPredicates.predicates;
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      const canRetryWithoutGroups =
-        input.predicateGroups.length > 0 &&
-        message.includes('rowLevelPermissionPredicateGroup');
-
-      if (!canRetryWithoutGroups) {
-        throw error;
-      }
-
-      console.log(
-        `[rls:configure] ${label}: predicate group upsert failed; ` +
-          'retrying with predicates only (group already exists)',
-      );
-
-      const data = await metadataFetch<{
-        upsertRowLevelPermissionPredicates: { predicates: PredicateResult[] };
-      }>(metadataUrl, apiKey, MUTATION, {
-        input: { ...input, predicateGroups: [] },
-      });
-
-      return data.upsertRowLevelPermissionPredicates.predicates;
-    }
-  };
-
   const results: PredicateResult[] = [];
 
-  for (const name of SIMPLE_TARGET_OBJECTS) {
+  for (const name of TARGET_OBJECTS) {
     const info = objectInfoByName.get(name) as ObjectInfo;
 
     const data = await metadataFetch<{
@@ -499,7 +355,7 @@ async function main() {
           },
         ],
         predicateGroups: [],
-      } satisfies UpsertPredicatesInput,
+      },
     });
 
     const predicate =
@@ -515,109 +371,6 @@ async function main() {
     console.log(
       `[rls:configure] ✓ ${name}: predicate id=${predicate.id} ` +
         `(fieldMetadataId=${predicate.fieldMetadataId}, operand=${predicate.operand})`,
-    );
-  }
-
-  // Opportunity: (partnerUser IS me) OR (isListed = true) — listed briefs visible to all partners.
-  {
-    const oppPredicates = await upsertPredicates(
-      {
-        roleId: partnerRole.id,
-        objectMetadataId: opportunityObjectId,
-        predicateGroups: [
-          {
-            id: OPPORTUNITY_RLS_OR_GROUP_ID,
-            objectMetadataId: opportunityObjectId,
-            logicalOperator: 'OR',
-            parentRowLevelPermissionPredicateGroupId: null,
-          },
-        ],
-        predicates: [
-          {
-            fieldMetadataId: opportunityPartnerUserFieldId,
-            operand: 'IS',
-            workspaceMemberFieldMetadataId: workspaceMemberIdFieldId,
-            rowLevelPermissionPredicateGroupId: OPPORTUNITY_RLS_OR_GROUP_ID,
-            positionInRowLevelPermissionPredicateGroup: 0,
-          },
-          {
-            fieldMetadataId: opportunityIsListedFieldId,
-            operand: 'IS',
-            value: true,
-            rowLevelPermissionPredicateGroupId: OPPORTUNITY_RLS_OR_GROUP_ID,
-            positionInRowLevelPermissionPredicateGroup: 1,
-          },
-        ],
-      } satisfies UpsertPredicatesInput,
-      'opportunity',
-    );
-
-    if (oppPredicates.length < 2) {
-      throw new Error(
-        'upsertRowLevelPermissionPredicates returned fewer than 2 predicates for opportunity OR group',
-      );
-    }
-
-    for (const predicate of oppPredicates) {
-      results.push(predicate);
-    }
-
-    console.log(
-      `[rls:configure] ✓ opportunity: OR group id=${OPPORTUNITY_RLS_OR_GROUP_ID} ` +
-        `(${oppPredicates.length} predicates: partnerUser IS me OR isListed = true)`,
-    );
-  }
-
-  // Application: (partnerUser IS me) OR (lastActivityAt IS EMPTY). The IS-EMPTY branch lets a
-  // partner CREATE their own application — RLS is validated on insert against the row as
-  // submitted (partnerUser is null until on-application-created stamps it). A scalar IS_EMPTY
-  // on lastActivityAt resolves to `{ is: 'NULL' }`, which is unambiguous on both the insert
-  // check and the SQL read path (a relation IS_EMPTY is riskier there). See header for the leak.
-  {
-    const appPredicates = await upsertPredicates(
-      {
-        roleId: partnerRole.id,
-        objectMetadataId: applicationObjectIdForPredicate,
-        predicateGroups: [
-          {
-            id: APPLICATION_RLS_OR_GROUP_ID,
-            objectMetadataId: applicationObjectIdForPredicate,
-            logicalOperator: 'OR',
-            parentRowLevelPermissionPredicateGroupId: null,
-          },
-        ],
-        predicates: [
-          {
-            fieldMetadataId: applicationPartnerUserFieldId,
-            operand: 'IS',
-            workspaceMemberFieldMetadataId: workspaceMemberIdFieldId,
-            rowLevelPermissionPredicateGroupId: APPLICATION_RLS_OR_GROUP_ID,
-            positionInRowLevelPermissionPredicateGroup: 0,
-          },
-          {
-            fieldMetadataId: applicationLastActivityAtFieldId,
-            operand: 'IS_EMPTY',
-            rowLevelPermissionPredicateGroupId: APPLICATION_RLS_OR_GROUP_ID,
-            positionInRowLevelPermissionPredicateGroup: 1,
-          },
-        ],
-      } satisfies UpsertPredicatesInput,
-      'application',
-    );
-
-    if (appPredicates.length < 2) {
-      throw new Error(
-        'upsertRowLevelPermissionPredicates returned fewer than 2 predicates for application OR group',
-      );
-    }
-
-    for (const predicate of appPredicates) {
-      results.push(predicate);
-    }
-
-    console.log(
-      `[rls:configure] ✓ application: OR group id=${APPLICATION_RLS_OR_GROUP_ID} ` +
-        `(${appPredicates.length} predicates: partnerUser IS me OR lastActivityAt IS EMPTY)`,
     );
   }
 
@@ -638,7 +391,7 @@ async function main() {
           },
         ],
         predicateGroups: [],
-      } satisfies UpsertPredicatesInput,
+      },
     });
 
     const wmPredicate =
@@ -659,19 +412,21 @@ async function main() {
 
   console.log(
     `\n[rls:configure] Done — ${results.length} predicates upserted on Partner role ` +
-      `(${SIMPLE_TARGET_OBJECTS.length} simple objects + application OR group + opportunity OR group + workspaceMember self-scope)`,
+      `(${TARGET_OBJECTS.length} objects + workspaceMember self-scope)`,
   );
 
   // ── 5. Verify Opportunity field permissions (set via manifest, not here — see header) ─
+  // Read back the role's existing fieldPermissions so one run confirms the full state.
 
-  const oppObjectId = opportunityObjectId;
+  const oppInfo = objectInfoByName.get('opportunity') as ObjectInfo;
+  const oppObjectId = oppInfo.objectMetadataId;
 
   const allOppFields = await collectAllFields(metadataUrl, apiKey, oppObjectId);
   const oppFieldIdToName = new Map<string, string>(
     allOppFields.map((f) => [f.id, f.name]),
   );
 
-  // Build the expected lock set: every non-system Opportunity field (incl. stage + amount).
+  // Build the expected lock set: every non-system, non-stage Opportunity field.
   const expectedLockedNames = new Set<string>(
     allOppFields
       .filter((f) => !OPPORTUNITY_FIELD_LOCK_SKIP.has(f.name))
@@ -692,6 +447,17 @@ async function main() {
       ),
   );
 
+  const stageIsLocked = oppLockedFps.some(
+    (fp) => oppFieldIdToName.get(fp.fieldMetadataId) === 'stage',
+  );
+
+  if (stageIsLocked) {
+    console.warn(
+      `[rls:configure] WARNING: stage field is locked — it should be editable. ` +
+        `Remove it from fieldPermissions in partner.role.ts and re-sync.`,
+    );
+  }
+
   if (missingLocks.length > 0) {
     console.error(
       `\n[rls:configure] DRIFT DETECTED: ${missingLocks.length} Opportunity field(s) ` +
@@ -708,84 +474,7 @@ async function main() {
   }
 
   console.log(
-    `[rls:configure] ✓ ${oppLockedFps.length} Opportunity fields locked (stage + amount read-only) — field permissions verified`,
-  );
-
-  // ── 6. Verify Application field permissions (set via manifest, not here — see header) ─
-
-  const applicationObjectId = objectIdByName.get('application') as string;
-
-  const allAppFields = await collectAllFields(
-    metadataUrl,
-    apiKey,
-    applicationObjectId,
-  );
-  const appFieldIdToName = new Map<string, string>(
-    allAppFields.map((field) => [field.id, field.name]),
-  );
-
-  const appLockedFps = partnerRole.fieldPermissions.filter(
-    (fieldPermission) =>
-      fieldPermission.objectMetadataId === applicationObjectId &&
-      fieldPermission.canUpdateFieldValue === false,
-  );
-
-  const missingAppLocks = [...APPLICATION_FIELD_LOCK_EXPECTED].filter(
-    (name) =>
-      !appLockedFps.some(
-        (fieldPermission) =>
-          appFieldIdToName.get(fieldPermission.fieldMetadataId) === name,
-      ),
-  );
-
-  const unexpectedAppLocks = appLockedFps
-    .map((fieldPermission) =>
-      appFieldIdToName.get(fieldPermission.fieldMetadataId),
-    )
-    .filter(
-      (name): name is string =>
-        name !== undefined &&
-        !APPLICATION_FIELD_LOCK_EXPECTED.has(name) &&
-        !APPLICATION_FIELD_LOCK_SKIP.has(name),
-    );
-
-  const pitchIsLocked = appLockedFps.some(
-    (fieldPermission) =>
-      appFieldIdToName.get(fieldPermission.fieldMetadataId) === 'pitch',
-  );
-
-  if (pitchIsLocked) {
-    console.warn(
-      `[rls:configure] WARNING: pitch field is locked — it should be editable. ` +
-        `Remove it from fieldPermissions in partner.role.ts and re-sync.`,
-    );
-  }
-
-  if (missingAppLocks.length > 0) {
-    console.error(
-      `\n[rls:configure] DRIFT DETECTED: ${missingAppLocks.length} Application field(s) ` +
-        `are NOT locked (canUpdateFieldValue: false) on the Partner role:\n` +
-        `  ${missingAppLocks.join(', ')}\n\n` +
-        `These permissions are declared in partner.role.ts and must be deployed via the\n` +
-        `app manifest. Run the following to deploy them:\n\n` +
-        `  yarn twenty dev --once -r <remote>\n\n` +
-        `(e.g. \`yarn twenty dev --once\` for local, ` +
-        `\`yarn twenty dev --once -r partner-twenty-com\` for prod)\n`,
-    );
-    process.exitCode = 1;
-    return;
-  }
-
-  if (unexpectedAppLocks.length > 0) {
-    console.warn(
-      `[rls:configure] NOTE: ${unexpectedAppLocks.length} extra Application field(s) ` +
-        `are locked beyond the expected set (platform fields may be locked intentionally):\n` +
-        `  ${unexpectedAppLocks.join(', ')}`,
-    );
-  }
-
-  console.log(
-    `[rls:configure] ✓ ${appLockedFps.length} Application fields locked (pitch editable) — field permissions verified`,
+    `[rls:configure] ✓ ${oppLockedFps.length} Opportunity fields locked (stage + amount editable) — field permissions verified`,
   );
 }
 

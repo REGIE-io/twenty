@@ -16,7 +16,6 @@ export const buildSubscription = ({
   licensedPriceId = LICENSE_PRICE_PRO_MONTH_ID,
   resourceCreditPriceId = METER_PRICE_PRO_MONTH_ID,
   seats = 1,
-  status = SubscriptionStatus.Active,
   workspaceId = 'ws_1',
   stripeSubscriptionId = 'sub_1',
   currentPeriodEnd = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
@@ -26,7 +25,6 @@ export const buildSubscription = ({
   licensedPriceId?: string;
   resourceCreditPriceId?: string;
   seats?: number;
-  status?: SubscriptionStatus;
   workspaceId?: string;
   stripeSubscriptionId?: string;
   currentPeriodEnd?: Date;
@@ -35,7 +33,7 @@ export const buildSubscription = ({
     id: 'sub_db_1',
     workspaceId,
     stripeSubscriptionId,
-    status,
+    status: SubscriptionStatus.Active,
     interval,
     currentPeriodEnd,
     billingSubscriptionItems: [

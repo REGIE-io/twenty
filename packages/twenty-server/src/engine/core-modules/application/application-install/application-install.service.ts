@@ -2,37 +2,30 @@ import { Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 
 import { promises as fs } from 'fs';
-import { isAbsolute, relative, resolve } from 'path';
+import { resolve } from 'path';
 
+import semver from 'semver';
 import { Manifest } from 'twenty-shared/application';
 import { FileFolder } from 'twenty-shared/types';
 import { isDefined } from 'twenty-shared/utils';
 import { Repository } from 'typeorm';
 
-import { buildApplicationFileList } from 'src/engine/core-modules/application/application-install/utils/build-application-file-list.util';
-import { ApplicationManifestApplyService } from 'src/engine/core-modules/application/application-manifest/application-manifest-apply.service';
-import { ApplicationSyncService } from 'src/engine/core-modules/application/application-manifest/application-sync.service';
-import {
-  ApplicationPackageFetcherService,
-  type ResolvedPackage,
-} from 'src/engine/core-modules/application/application-package/application-package-fetcher.service';
-import { ApplicationVersionValidationService } from 'src/engine/core-modules/application/application-package/application-version-validation.service';
-import {
-  VERSION_PROGRESSION_REASON_TO_INSTALL_EXCEPTION_CODE,
-  VERSION_REASON_TO_APPLICATION_EXCEPTION_CODE,
-} from 'src/engine/core-modules/application/application-package/constants/version-reason-to-exception-code.constant';
-import { ApplicationRegistrationEntity } from 'src/engine/core-modules/application/application-registration/application-registration.entity';
-import { ApplicationRegistrationSourceType } from 'src/engine/core-modules/application/application-registration/enums/application-registration-source-type.enum';
-import { isImageFilePath } from 'src/engine/core-modules/application/application-registration/utils/is-image-file-path.util';
-import { ApplicationEntity } from 'src/engine/core-modules/application/application.entity';
 import {
   ApplicationException,
   ApplicationExceptionCode,
 } from 'src/engine/core-modules/application/application.exception';
+import { ApplicationRegistrationEntity } from 'src/engine/core-modules/application/application-registration/application-registration.entity';
+import { ApplicationRegistrationSourceType } from 'src/engine/core-modules/application/application-registration/enums/application-registration-source-type.enum';
+import { ApplicationEntity } from 'src/engine/core-modules/application/application.entity';
 import { ApplicationService } from 'src/engine/core-modules/application/application.service';
+import { ApplicationPackageFetcherService } from 'src/engine/core-modules/application/application-package/application-package-fetcher.service';
+import {
+  ApplicationVersionValidationService,
+  type VersionValidationFailureReason,
+} from 'src/engine/core-modules/application/application-package/application-version-validation.service';
+import { ApplicationSyncService } from 'src/engine/core-modules/application/application-manifest/application-sync.service';
 import { CacheLockService } from 'src/engine/core-modules/cache-lock/cache-lock.service';
-import { FileStorageService } from 'src/engine/core-modules/file-storage/services/file-storage.service';
-import { LogicFunctionExecutorService } from 'src/engine/core-modules/logic-function/logic-function-executor/logic-function-executor.service';
+import { FileStorageService } from 'src/engine/core-modules/file-storage/file-storage.service';
 import {
   LogicFunctionTriggerJob,
   type LogicFunctionTriggerJobData,
@@ -40,13 +33,23 @@ import {
 import { InjectMessageQueue } from 'src/engine/core-modules/message-queue/decorators/message-queue.decorator';
 import { MessageQueue } from 'src/engine/core-modules/message-queue/message-queue.constants';
 import { MessageQueueService } from 'src/engine/core-modules/message-queue/services/message-queue.service';
-import { MetricsService } from 'src/engine/core-modules/metrics/metrics.service';
-import { MetricsKeys } from 'src/engine/core-modules/metrics/types/metrics-keys.type';
+import { SdkClientGenerationService } from 'src/engine/core-modules/sdk-client/sdk-client-generation.service';
 import { WorkspaceCacheService } from 'src/engine/workspace-cache/services/workspace-cache.service';
+import { LogicFunctionExecutorService } from 'src/engine/core-modules/logic-function/logic-function-executor/logic-function-executor.service';
 
 @Injectable()
 export class ApplicationInstallService {
   private readonly logger = new Logger(ApplicationInstallService.name);
+
+  private static readonly VERSION_REASON_TO_EXCEPTION_CODE: Record<
+    VersionValidationFailureReason,
+    ApplicationExceptionCode
+  > = {
+    INVALID_REQUIRED_VERSION:
+      ApplicationExceptionCode.INVALID_APP_ENGINE_REQUIREMENT,
+    INVALID_SERVER_VERSION: ApplicationExceptionCode.INVALID_SERVER_VERSION,
+    INCOMPATIBLE: ApplicationExceptionCode.SERVER_VERSION_INCOMPATIBLE,
+  };
 
   constructor(
     @InjectRepository(ApplicationRegistrationEntity)
@@ -55,21 +58,19 @@ export class ApplicationInstallService {
     private readonly applicationPackageFetcherService: ApplicationPackageFetcherService,
     private readonly applicationVersionValidationService: ApplicationVersionValidationService,
     private readonly applicationSyncService: ApplicationSyncService,
-    private readonly applicationManifestApplyService: ApplicationManifestApplyService,
     private readonly fileStorageService: FileStorageService,
     private readonly logicFunctionExecutorService: LogicFunctionExecutorService,
     private readonly cacheLockService: CacheLockService,
+    private readonly sdkClientGenerationService: SdkClientGenerationService,
     @InjectMessageQueue(MessageQueue.logicFunctionQueue)
     private readonly messageQueueService: MessageQueueService,
     private readonly workspaceCacheService: WorkspaceCacheService,
-    private readonly metricsService: MetricsService,
   ) {}
 
   async installApplication(params: {
     appRegistrationId: string;
     version?: string;
     workspaceId: string;
-    skipWorkspaceCompatibilityCheck?: boolean;
   }): Promise<boolean> {
     const appRegistration = await this.appRegistrationRepository.findOne({
       where: { id: params.appRegistrationId },
@@ -110,8 +111,6 @@ export class ApplicationInstallService {
         this.doInstallApplication(appRegistration, {
           version: params.version,
           workspaceId: params.workspaceId,
-          skipWorkspaceCompatibilityCheck:
-            params.skipWorkspaceCompatibilityCheck,
         }),
       lockKey,
       { ttl: 60_000, ms: 500, maxRetries: 120 },
@@ -119,41 +118,9 @@ export class ApplicationInstallService {
   }
 
   private async doInstallApplication(
-    preLockAppRegistration: ApplicationRegistrationEntity,
-    params: {
-      version?: string;
-      workspaceId: string;
-      skipWorkspaceCompatibilityCheck?: boolean;
-    },
+    appRegistration: ApplicationRegistrationEntity,
+    params: { version?: string; workspaceId: string },
   ): Promise<boolean> {
-    // Re-read inside the lock so the authorization below cannot act on stale
-    // listing or ownership state.
-    const appRegistration = await this.appRegistrationRepository.findOne({
-      where: { id: preLockAppRegistration.id },
-    });
-
-    if (!appRegistration) {
-      throw new ApplicationException(
-        `Application registration with id ${preLockAppRegistration.id} not found`,
-        ApplicationExceptionCode.APPLICATION_NOT_FOUND,
-      );
-    }
-
-    // Tarball registrations that are neither listed nor pre-installed are
-    // only installable by their owner workspace.
-    if (
-      appRegistration.sourceType ===
-        ApplicationRegistrationSourceType.TARBALL &&
-      !appRegistration.isListed &&
-      !appRegistration.isPreInstalled &&
-      appRegistration.ownerWorkspaceId !== params.workspaceId
-    ) {
-      throw new ApplicationException(
-        `Application registration ${appRegistration.universalIdentifier} is not available for this workspace`,
-        ApplicationExceptionCode.FORBIDDEN,
-      );
-    }
-
     const resolvedPackage =
       await this.applicationPackageFetcherService.resolvePackage(
         appRegistration,
@@ -164,122 +131,34 @@ export class ApplicationInstallService {
       return true;
     }
 
-    try {
-      const existingApplication =
-        await this.applicationService.findByUniversalIdentifier({
-          universalIdentifier: appRegistration.universalIdentifier,
-          workspaceId: params.workspaceId,
-        });
+    const requiredServerVersion =
+      resolvedPackage.packageJson.engines?.['twenty'];
 
-      return await this.runInstallWithMetrics({
-        appRegistration,
-        params,
-        resolvedPackage,
-        existingApplication,
-      });
-    } finally {
+    const versionValidation =
+      await this.applicationVersionValidationService.validateServerCompatibility(
+        requiredServerVersion,
+      );
+
+    if (!versionValidation.compatible) {
       await this.applicationPackageFetcherService.cleanupExtractedDir(
         resolvedPackage.cleanupDir,
       );
+
+      throw new ApplicationException(
+        versionValidation.message,
+        ApplicationInstallService.VERSION_REASON_TO_EXCEPTION_CODE[
+          versionValidation.reason
+        ],
+      );
     }
-  }
 
-  private async runInstallWithMetrics({
-    appRegistration,
-    params,
-    resolvedPackage,
-    existingApplication,
-  }: {
-    appRegistration: ApplicationRegistrationEntity;
-    params: {
-      version?: string;
-      workspaceId: string;
-      skipWorkspaceCompatibilityCheck?: boolean;
-    };
-    resolvedPackage: ResolvedPackage;
-    existingApplication: ApplicationEntity | null;
-  }): Promise<boolean> {
-    const isVersionUpgrade = isDefined(existingApplication);
-
-    const attributes = {
-      universal_identifier: appRegistration.universalIdentifier,
-      app_name: resolvedPackage.manifest.application.displayName,
-      source_type: appRegistration.sourceType,
-      version: resolvedPackage.packageJson.version ?? 'unknown',
-    };
-
-    try {
-      const result = await this.runInstall({
-        appRegistration,
-        params,
-        resolvedPackage,
-        existingApplication,
-      });
-
-      this.metricsService.incrementCounterBy({
-        key: isVersionUpgrade
-          ? MetricsKeys.AppUpgradeSucceeded
-          : MetricsKeys.AppInstallSucceeded,
-        amount: 1,
-        attributes,
-      });
-
-      return result;
-    } catch (error) {
-      this.metricsService.incrementCounterBy({
-        key: isVersionUpgrade
-          ? MetricsKeys.AppUpgradeFailed
-          : MetricsKeys.AppInstallFailed,
-        amount: 1,
-        attributes: {
-          ...attributes,
-          error_code:
-            error instanceof ApplicationException ? error.code : 'UNKNOWN',
-        },
-      });
-
-      throw error;
-    }
-  }
-
-  private async runInstall({
-    appRegistration,
-    params,
-    resolvedPackage,
-    existingApplication,
-  }: {
-    appRegistration: ApplicationRegistrationEntity;
-    params: {
-      version?: string;
-      workspaceId: string;
-      skipWorkspaceCompatibilityCheck?: boolean;
-    };
-    resolvedPackage: ResolvedPackage;
-    existingApplication: ApplicationEntity | null;
-  }): Promise<boolean> {
     const universalIdentifier = appRegistration.universalIdentifier;
 
-    if (params.skipWorkspaceCompatibilityCheck !== true) {
-      const requiredServerVersion =
-        resolvedPackage.packageJson.engines?.['twenty'];
-
-      const versionValidation =
-        await this.applicationVersionValidationService.validateWorkspaceCompatibility(
-          {
-            requiredServerVersion,
-            workspaceId: params.workspaceId,
-          },
-        );
-
-      if (!versionValidation.compatible) {
-        throw new ApplicationException(
-          versionValidation.message,
-          VERSION_REASON_TO_APPLICATION_EXCEPTION_CODE[
-            versionValidation.reason
-          ],
-        );
-      }
-    }
+    const existingApplication =
+      await this.applicationService.findByUniversalIdentifier({
+        universalIdentifier,
+        workspaceId: params.workspaceId,
+      });
 
     const isVersionUpgrade = isDefined(existingApplication);
 
@@ -298,10 +177,7 @@ export class ApplicationInstallService {
       existingApplication,
       universalIdentifier,
       name: resolvedPackage.manifest.application.displayName,
-      logo:
-        resolvedPackage.manifest.application.logo ??
-        resolvedPackage.manifest.application.logoUrl ??
-        null,
+      logo: resolvedPackage.manifest.application.logoUrl ?? null,
       workspaceId: params.workspaceId,
       applicationRegistrationId: appRegistration.id,
       sourceType: appRegistration.sourceType,
@@ -309,30 +185,33 @@ export class ApplicationInstallService {
 
     const incomingVersion = resolvedPackage.packageJson.version;
 
-    // Rollback is scoped to the work after the application row exists: reaching
-    // this catch means creation succeeded, so a fresh install (not an upgrade)
-    // is the only case that needs uninstalling.
     try {
       if (
         isVersionUpgrade &&
         isDefined(application.version) &&
         isDefined(incomingVersion)
       ) {
-        const progression =
-          this.applicationVersionValidationService.validateVersionProgression({
-            incomingVersion,
-            currentVersion: application.version,
-            universalIdentifier,
-            action: 'install',
-          });
-
-        if (!progression.allowed) {
+        if (!isDefined(semver.valid(incomingVersion))) {
           throw new ApplicationException(
-            progression.message,
-            VERSION_PROGRESSION_REASON_TO_INSTALL_EXCEPTION_CODE[
-              progression.reason
-            ],
+            `Invalid version "${incomingVersion}" in package.json. Must be a valid semver version.`,
+            ApplicationExceptionCode.INVALID_INPUT,
           );
+        }
+
+        if (isDefined(semver.valid(application.version))) {
+          if (semver.eq(incomingVersion, application.version)) {
+            throw new ApplicationException(
+              `${universalIdentifier}@${incomingVersion} is already installed in this workspace.`,
+              ApplicationExceptionCode.APP_ALREADY_INSTALLED,
+            );
+          }
+
+          if (semver.lt(incomingVersion, application.version)) {
+            throw new ApplicationException(
+              `Cannot install ${universalIdentifier}@${incomingVersion}: version ${application.version} is already installed and downgrading is not allowed.`,
+              ApplicationExceptionCode.CANNOT_DOWNGRADE_APPLICATION,
+            );
+          }
         }
       }
 
@@ -342,20 +221,6 @@ export class ApplicationInstallService {
         universalIdentifier,
         params.workspaceId,
       );
-
-      const logoFileId = await this.importLogoFile({
-        extractedDir: resolvedPackage.extractedDir,
-        manifest: resolvedPackage.manifest,
-        applicationUniversalIdentifier: universalIdentifier,
-        workspaceId: params.workspaceId,
-      });
-
-      if (application.logoFileId !== logoFileId) {
-        await this.applicationService.update(application.id, {
-          logoFileId: logoFileId ?? null,
-          workspaceId: params.workspaceId,
-        });
-      }
 
       await this.runPreInstallHook({
         manifest: resolvedPackage.manifest,
@@ -367,12 +232,20 @@ export class ApplicationInstallService {
         universalIdentifier,
       });
 
-      await this.applicationManifestApplyService.applyManifestToWorkspace({
-        workspaceId: params.workspaceId,
-        manifest: resolvedPackage.manifest,
-        applicationRegistrationId: appRegistration.id,
-        application,
-      });
+      const { hasSchemaMetadataChanged } =
+        await this.applicationSyncService.synchronizeFromManifest({
+          workspaceId: params.workspaceId,
+          manifest: resolvedPackage.manifest,
+          applicationRegistrationId: appRegistration.id,
+        });
+
+      if (!isVersionUpgrade || hasSchemaMetadataChanged) {
+        await this.sdkClientGenerationService.generateSdkClientForApplication({
+          workspaceId: params.workspaceId,
+          applicationId: application.id,
+          applicationUniversalIdentifier: universalIdentifier,
+        });
+      }
 
       await this.runPostInstallHook({
         manifest: resolvedPackage.manifest,
@@ -382,15 +255,6 @@ export class ApplicationInstallService {
         isVersionUpgrade,
         universalIdentifier,
       });
-
-      await this.applicationManifestApplyService.refreshRegistrationFromManifest(
-        {
-          applicationRegistrationId: appRegistration.id,
-          manifest: resolvedPackage.manifest,
-          latestAvailableVersion: newVersion,
-          preventVersionDowngrade: true,
-        },
-      );
 
       this.logger.log(
         `Successfully installed app ${universalIdentifier} v${resolvedPackage.packageJson.version ?? 'unknown'}`,
@@ -403,16 +267,19 @@ export class ApplicationInstallService {
       );
 
       if (!isVersionUpgrade) {
-        // Rollback of a failed fresh install: the app never finished
-        // installing, so the uninstall hook must not run.
         await this.applicationSyncService.uninstallApplication({
           applicationUniversalIdentifier: universalIdentifier,
           workspaceId: params.workspaceId,
-          shouldRunUninstallHook: false,
         });
       }
 
       throw error;
+    } finally {
+      if (resolvedPackage) {
+        await this.applicationPackageFetcherService.cleanupExtractedDir(
+          resolvedPackage.cleanupDir,
+        );
+      }
     }
   }
 
@@ -563,13 +430,15 @@ export class ApplicationInstallService {
     );
 
     if (!shouldRunSynchronously) {
-      await this.messageQueueService.add<LogicFunctionTriggerJobData>(
+      await this.messageQueueService.add<LogicFunctionTriggerJobData[]>(
         LogicFunctionTriggerJob.name,
-        {
-          logicFunctionId: flatLogicFunction.id,
-          workspaceId,
-          payload,
-        },
+        [
+          {
+            logicFunctionId: flatLogicFunction.id,
+            workspaceId,
+            payload,
+          },
+        ],
         { retryLimit: 3 },
       );
       return;
@@ -593,55 +462,29 @@ export class ApplicationInstallService {
     }
   }
 
-  private resolveWithinDirOrThrow(
-    extractedDir: string,
-    relativePath: string,
-  ): string {
-    const absolutePath = resolve(extractedDir, relativePath);
-    const relativeToDir = relative(extractedDir, absolutePath);
-
-    if (relativeToDir.startsWith('..') || isAbsolute(relativeToDir)) {
-      throw new ApplicationException(
-        `Path traversal detected for file: ${relativePath}`,
-        ApplicationExceptionCode.INVALID_INPUT,
-      );
-    }
-
-    return absolutePath;
-  }
-
   private async writeFilesToStorage(
     extractedDir: string,
     manifest: Manifest,
     applicationUniversalIdentifier: string,
     workspaceId: string,
   ): Promise<void> {
-    const filesToWrite = buildApplicationFileList(manifest);
+    const filesToWrite = this.buildFileList(manifest);
 
-    for (const { relativePath, fileFolder, isRequired } of filesToWrite) {
-      const absolutePath = this.resolveWithinDirOrThrow(
-        extractedDir,
-        relativePath,
-      );
+    for (const { relativePath, fileFolder } of filesToWrite) {
+      const absolutePath = resolve(extractedDir, relativePath);
+
+      if (!absolutePath.startsWith(extractedDir)) {
+        throw new ApplicationException(
+          `Path traversal detected for file: ${relativePath}`,
+          ApplicationExceptionCode.INVALID_INPUT,
+        );
+      }
 
       let content: Buffer;
 
       try {
         content = await fs.readFile(absolutePath);
-      } catch (error) {
-        if (
-          !isRequired &&
-          error instanceof Error &&
-          'code' in error &&
-          error.code === 'ENOENT'
-        ) {
-          this.logger.warn(
-            `Source file not found in package: ${relativePath}; skipping for backward compatibility`,
-          );
-
-          continue;
-        }
-
+      } catch {
         throw new ApplicationException(
           `File not found in package: ${relativePath}`,
           ApplicationExceptionCode.PACKAGE_RESOLUTION_FAILED,
@@ -659,59 +502,38 @@ export class ApplicationInstallService {
     }
   }
 
-  private async importLogoFile({
-    extractedDir,
-    manifest,
-    applicationUniversalIdentifier,
-    workspaceId,
-  }: {
-    extractedDir: string;
-    manifest: Manifest;
-    applicationUniversalIdentifier: string;
-    workspaceId: string;
-  }): Promise<string | null> {
-    const logo = manifest.application.logo ?? manifest.application.logoUrl;
+  private buildFileList(
+    manifest: Manifest,
+  ): Array<{ relativePath: string; fileFolder: FileFolder }> {
+    const files: Array<{ relativePath: string; fileFolder: FileFolder }> = [];
 
-    if (
-      !isDefined(logo) ||
-      logo.startsWith('http://') ||
-      logo.startsWith('https://')
-    ) {
-      return null;
+    files.push(
+      { relativePath: 'package.json', fileFolder: FileFolder.Dependencies },
+      { relativePath: 'manifest.json', fileFolder: FileFolder.Source },
+    );
+
+    for (const logicFunction of manifest.logicFunctions ?? []) {
+      files.push({
+        relativePath: logicFunction.builtHandlerPath,
+        fileFolder: FileFolder.BuiltLogicFunction,
+      });
     }
 
-    if (!isImageFilePath(logo)) {
-      this.logger.warn(
-        `Logo "${logo}" is not a supported image type; skipping logo import for ${applicationUniversalIdentifier}`,
-      );
-
-      return null;
+    for (const frontComponent of manifest.frontComponents ?? []) {
+      files.push({
+        relativePath: frontComponent.builtComponentPath,
+        fileFolder: FileFolder.BuiltFrontComponent,
+      });
     }
 
-    const absolutePath = this.resolveWithinDirOrThrow(extractedDir, logo);
-
-    let content: Buffer;
-
-    try {
-      content = await fs.readFile(absolutePath);
-    } catch {
-      this.logger.warn(
-        `Logo "${logo}" declared in manifest but not found in package for ${applicationUniversalIdentifier}; skipping logo import`,
-      );
-
-      return null;
+    for (const publicAsset of manifest.publicAssets ?? []) {
+      files.push({
+        relativePath: publicAsset.filePath,
+        fileFolder: FileFolder.PublicAsset,
+      });
     }
 
-    const file = await this.fileStorageService.writeFile({
-      sourceFile: content,
-      fileFolder: FileFolder.PublicAsset,
-      applicationUniversalIdentifier,
-      workspaceId,
-      resourcePath: logo,
-      settings: { isTemporaryFile: false, toDelete: false },
-    });
-
-    return file.id;
+    return files;
   }
 
   private async ensureApplicationExists(params: {

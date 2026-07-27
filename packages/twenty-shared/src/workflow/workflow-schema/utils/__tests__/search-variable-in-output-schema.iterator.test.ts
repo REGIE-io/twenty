@@ -108,21 +108,6 @@ describe('searchVariableInOutputSchema - iterator output schema', () => {
     });
   });
 
-  it('should handle selecting the whole currentItem correctly', () => {
-    const result = searchVariableThroughIteratorOutputSchema({
-      stepName: 'Iterate Companies',
-      iteratorOutputSchema: mockIteratorSchema,
-      rawVariableName: '{{step1.currentItem}}',
-      isFullRecord: false,
-    });
-
-    expect(result).toEqual({
-      variableLabel: 'Current Item',
-      variablePathLabel: 'Iterate Companies > Current Item',
-      variableType: 'unknown',
-    });
-  });
-
   it('should return undefined for invalid field name', () => {
     const result = searchVariableThroughIteratorOutputSchema({
       stepName: 'Iterate Companies',

@@ -14,6 +14,7 @@ const objectsQuery = {
             labelSingular
             labelPlural
             description
+            isCustom
           }
         }
       }
@@ -26,6 +27,7 @@ type ObjectNode = {
   labelSingular: string;
   labelPlural: string;
   description: string;
+  isCustom: boolean;
 };
 
 const updateWorkspaceMemberLocale = async (locale: string) => {

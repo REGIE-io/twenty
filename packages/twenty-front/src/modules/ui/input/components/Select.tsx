@@ -23,7 +23,6 @@ import { type IconComponent } from 'twenty-ui/icon';
 import { type SelectOption } from 'twenty-ui/input';
 import { MenuItem, MenuItemSelect } from 'twenty-ui/navigation';
 import { themeCssVariables } from 'twenty-ui/theme-constants';
-import { normalizeSearchText } from '~/utils/normalizeSearchText';
 
 export type SelectSizeVariant = 'small' | 'default';
 
@@ -125,20 +124,15 @@ export const Select = <Value extends SelectValue>({
     return null;
   }, [emptyOption, options, pinnedOption, value]);
 
-  const filteredOptions = useMemo(() => {
-    if (!isNonEmptyString(searchInputValue)) {
-      return options;
-    }
-
-    const normalizedSearch = normalizeSearchText(searchInputValue);
-
-    return options.filter(
-      ({ label, searchKeywords }) =>
-        normalizeSearchText(label).includes(normalizedSearch) ||
-        (isDefined(searchKeywords) &&
-          normalizeSearchText(searchKeywords).includes(normalizedSearch)),
-    );
-  }, [options, searchInputValue]);
+  const filteredOptions = useMemo(
+    () =>
+      searchInputValue
+        ? options.filter(({ label }) =>
+            label.toLowerCase().includes(searchInputValue.toLowerCase()),
+          )
+        : options,
+    [options, searchInputValue],
+  );
 
   const isDisabled =
     disabledFromProps ||

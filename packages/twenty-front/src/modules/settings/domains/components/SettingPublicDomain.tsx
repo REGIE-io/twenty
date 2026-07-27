@@ -6,9 +6,10 @@ import { getSettingsPath, isDefined } from 'twenty-shared/utils';
 import { SettingsPath } from 'twenty-shared/types';
 import { SettingsPageLayout } from '@/settings/components/layout/SettingsPageLayout';
 import { SettingsPageContainer } from '@/settings/components/SettingsPageContainer';
+import { Select } from '@/ui/input/components/Select';
 import { TextInput } from '@/ui/input/components/TextInput';
 import { useNavigateSettings } from '~/hooks/useNavigateSettings';
-import { Button, ButtonGroup } from 'twenty-ui/input';
+import { Button, ButtonGroup, type SelectOption } from 'twenty-ui/input';
 import { styled } from '@linaria/react';
 import { SettingsDomainRecords } from '@/settings/domains/components/SettingsDomainRecords';
 import { useCheckPublicDomainValidRecords } from '@/settings/domains/hooks/useCheckPublicDomainValidRecords';
@@ -16,14 +17,14 @@ import { useMutation, useQuery } from '@apollo/client/react';
 import {
   CreatePublicDomainDocument,
   DeletePublicDomainDocument,
+  FindManyApplicationsDocument,
   FindManyPublicDomainsDocument,
+  UpdatePublicDomainDocument,
 } from '~/generated-metadata/graphql';
 import { useSnackBar } from '@/ui/feedback/snack-bar-manager/hooks/useSnackBar';
 import { CheckPublicDomainValidRecordsEffect } from '@/settings/domains/components/CheckPublicDomainValidRecordsEffect';
-import { selectedApplicationIdForPublicDomainState } from '@/settings/domains/states/selectedApplicationIdForPublicDomainState';
 import { selectedPublicDomainState } from '@/settings/domains/states/selectedPublicDomainState';
 import { useAtomState } from '@/ui/utilities/state/jotai/hooks/useAtomState';
-import { useAtomStateValue } from '@/ui/utilities/state/jotai/hooks/useAtomStateValue';
 import { useState } from 'react';
 import { SaveAndCancelButtons } from '@/settings/components/SaveAndCancelButtons/SaveAndCancelButtons';
 import { getDomainValidationSchema } from '@/settings/domains/utils/getDomainValidationSchema';
@@ -56,9 +57,6 @@ export const SettingPublicDomain = () => {
   const [selectedPublicDomain, setSelectedPublicDomain] = useAtomState(
     selectedPublicDomainState,
   );
-  const selectedApplicationIdForPublicDomain = useAtomStateValue(
-    selectedApplicationIdForPublicDomainState,
-  );
   const { t } = useLingui();
   const navigate = useNavigateSettings();
   const { enqueueSuccessSnackBar, enqueueErrorSnackBar } = useSnackBar();
@@ -67,9 +65,21 @@ export const SettingPublicDomain = () => {
     CreatePublicDomainDocument,
   );
 
+  const [updatePublicDomain] = useMutation(UpdatePublicDomainDocument);
+
   const [newPublicDomain, setNewPublicDomain] = useState<string | undefined>(
     selectedPublicDomain?.domain ?? '',
   );
+
+  // Holds the chosen application before the public domain is created.
+  // Once selectedPublicDomain exists, the dropdown reads from it directly.
+  const [draftApplicationId, setDraftApplicationId] = useState<string | null>(
+    null,
+  );
+
+  const selectedApplicationId = isDefined(selectedPublicDomain)
+    ? (selectedPublicDomain.applicationId ?? null)
+    : draftApplicationId;
 
   const [newPublicDomainError, setNewPublicDomainError] = useState<
     string | undefined
@@ -78,6 +88,20 @@ export const SettingPublicDomain = () => {
   const { refetch: refetchPublicDomains } = useQuery(
     FindManyPublicDomainsDocument,
   );
+
+  const { data: applicationsData } = useQuery(FindManyApplicationsDocument);
+
+  const applicationPinnedOption: SelectOption<string | null> = {
+    value: null,
+    label: t`Workspace (all apps)`,
+  };
+
+  const applicationOptions: SelectOption<string | null>[] = (
+    applicationsData?.findManyApplications ?? []
+  ).map((application) => ({
+    value: application.id,
+    label: application.name,
+  }));
 
   const [deletePublicDomain] = useMutation(DeletePublicDomainDocument);
 
@@ -93,7 +117,7 @@ export const SettingPublicDomain = () => {
       variables: { domain: selectedPublicDomain.domain },
       onCompleted: () => {
         enqueueSuccessSnackBar({
-          message: t`Custom domain successfully deleted`,
+          message: t`Public domain successfully deleted`,
         });
         navigate(SettingsPath.Applications);
         refetchPublicDomains();
@@ -108,10 +132,7 @@ export const SettingPublicDomain = () => {
   const validationSchema = getDomainValidationSchema();
 
   const onCreate = async () => {
-    if (
-      !isDefined(newPublicDomain) ||
-      !isDefined(selectedApplicationIdForPublicDomain)
-    ) {
+    if (!isDefined(newPublicDomain)) {
       return;
     }
 
@@ -127,12 +148,12 @@ export const SettingPublicDomain = () => {
     await createPublicDomain({
       variables: {
         domain: newPublicDomain,
-        applicationId: selectedApplicationIdForPublicDomain,
+        applicationId: draftApplicationId,
       },
       onCompleted: (data) => {
         setSelectedPublicDomain(data.createPublicDomain);
         enqueueSuccessSnackBar({
-          message: t`Custom domain successfully created`,
+          message: t`Public domain created successfully`,
         });
       },
       onError: (error) => {
@@ -144,9 +165,38 @@ export const SettingPublicDomain = () => {
     });
   };
 
+  const onApplicationChange = async (nextApplicationId: string | null) => {
+    if (!isDefined(selectedPublicDomain)) {
+      setDraftApplicationId(nextApplicationId);
+      return;
+    }
+
+    if (nextApplicationId === (selectedPublicDomain.applicationId ?? null)) {
+      return;
+    }
+
+    await updatePublicDomain({
+      variables: {
+        domain: selectedPublicDomain.domain,
+        applicationId: nextApplicationId,
+      },
+      onCompleted: (data) => {
+        setSelectedPublicDomain(data.updatePublicDomain);
+        enqueueSuccessSnackBar({
+          message: t`Public domain updated successfully`,
+        });
+        refetchPublicDomains();
+      },
+      onError: (error) =>
+        enqueueErrorSnackBar({
+          apolloError: error,
+        }),
+    });
+  };
+
   return (
     <SettingsPageLayout
-      title={t`Custom Domain`}
+      title={t`Public domain`}
       links={[
         {
           children: <Trans>Workspace</Trans>,
@@ -156,7 +206,7 @@ export const SettingPublicDomain = () => {
           children: <Trans>Apps</Trans>,
           href: getSettingsPath(SettingsPath.Applications),
         },
-        { children: <Trans>Custom Domain</Trans> },
+        { children: <Trans>Public Domain</Trans> },
       ]}
       actionButton={
         <SaveAndCancelButtons
@@ -169,8 +219,8 @@ export const SettingPublicDomain = () => {
       <SettingsPageContainer>
         <Section>
           <H2Title
-            title={t`Custom Domain`}
-            description={t`Set the name of your custom domain and configure your DNS records.`}
+            title={t`Public domain`}
+            description={t`Set the name of your public domain and configure your DNS records.`}
           />
           {isDefined(selectedPublicDomain) && (
             <CheckPublicDomainValidRecordsEffect
@@ -184,7 +234,7 @@ export const SettingPublicDomain = () => {
               error={newPublicDomainError}
               type="text"
               disabled={isDefined(selectedPublicDomain)}
-              placeholder="app.yourdomain.com"
+              placeholder="crm.yourPublicDomain.com"
               fullWidth
             />
             {isDefined(selectedPublicDomain) && (
@@ -220,6 +270,21 @@ export const SettingPublicDomain = () => {
               )}
             </StyledRecordsWrapper>
           )}
+        </Section>
+        <Section>
+          <H2Title
+            title={t`Bound App`}
+            description={t`Restrict this domain to the HTTP routes of a specific app. Leave empty to expose all workspace HTTP routes.`}
+          />
+          <Select
+            dropdownId="public-domain-application"
+            label={t`Application`}
+            fullWidth
+            value={selectedApplicationId}
+            pinnedOption={applicationPinnedOption}
+            options={applicationOptions}
+            onChange={onApplicationChange}
+          />
         </Section>
       </SettingsPageContainer>
     </SettingsPageLayout>

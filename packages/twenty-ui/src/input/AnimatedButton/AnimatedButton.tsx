@@ -1,9 +1,10 @@
 import { clsx } from 'clsx';
-import React, { useMemo } from 'react';
+import { type MotionProps, motion } from 'framer-motion';
+import React, { useContext, useMemo } from 'react';
 import { Link } from 'react-router-dom';
 
 import { Pill } from '@ui/data-display/Pill/Pill';
-import { themeCssVariables, useTheme } from '@ui/theme-constants';
+import { ThemeContext, themeCssVariables } from '@ui/theme-constants';
 import { GRAY_SCALE_LIGHT } from '@ui/theme/constants/GrayScaleLight';
 import { useIsMobile } from '@ui/utilities';
 import { getOsShortcutSeparator } from '@ui/utilities/device/getOsShortcutSeparator';
@@ -16,12 +17,13 @@ import {
 
 import styles from './AnimatedButton.module.scss';
 
-export type AnimatedButtonProps = ButtonProps & {
-  animatedSvg: React.ReactNode;
-  soonLabel?: string;
-  // Renders a square icon-only button (width matches the size-based height).
-  square?: boolean;
-};
+export type AnimatedButtonProps = ButtonProps &
+  Pick<MotionProps, 'animate' | 'transition'> & {
+    animatedSvg: React.ReactNode;
+    soonLabel?: string;
+    // Renders a square icon-only button (width matches the size-based height).
+    square?: boolean;
+  };
 
 type AnimatedButtonDynamicStyles = {
   background: string;
@@ -327,11 +329,13 @@ export const AnimatedButton = ({
   dataTestId,
   hotkeys,
   ariaLabel,
+  animate,
+  transition,
   dataClickOutsideId,
   dataGloballyPreventClickOutside,
   soonLabel = 'Soon',
 }: AnimatedButtonProps) => {
-  const theme = useTheme();
+  const { theme } = useContext(ThemeContext);
   const isMobile = useIsMobile();
   const isDisabled = soon || disabled;
 
@@ -388,11 +392,23 @@ export const AnimatedButton = ({
       data-globally-prevent-click-outside={dataGloballyPreventClickOutside}
     >
       {Icon && (
-        <div className={styles.motion}>
-          <Icon size={theme.icon.size.sm} aria-hidden />
-        </div>
+        <motion.div
+          className={styles.motion}
+          animate={animate}
+          transition={transition}
+        >
+          <Icon size={theme.icon.size.sm} />
+        </motion.div>
       )}
-      {animatedSvg && <div className={styles.motion}>{animatedSvg}</div>}
+      {animatedSvg && (
+        <motion.div
+          className={styles.motion}
+          animate={animate}
+          transition={transition}
+        >
+          {animatedSvg}
+        </motion.div>
+      )}
       {title}
       {hotkeys && !isMobile && (
         <>

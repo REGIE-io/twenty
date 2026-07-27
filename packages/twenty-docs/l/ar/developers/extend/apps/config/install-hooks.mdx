@@ -1,12 +1,12 @@
 ---
 title: خطافات التثبيت
-description: تشغيل المنطق أثناء دورة حياة التثبيت أو الترقية أو إلغاء التثبيت — مثل تعبئة البيانات الأوّلية، ونسخ السجلات احتياطيًا، والتحقق من الترقية، وتنظيف الموارد الخارجية.
+description: شغّل منطقًا قبل التثبيت أو بعده — لتهيئة البيانات، أو نسخ السجلات احتياطيًا، أو التحقّق من صحة الترقية.
 icon: wrench
 ---
 
-خطافات التثبيت هي دوال منطقية خاصة تعمل أثناء دورة حياة التثبيت أو الترقية أو إلغاء التثبيت. تستخدم نفس وقت تشغيل المعالج مثل [دوال المنطق](/l/ar/developers/extend/apps/logic/logic-functions) العادية، ولكن يتم التصريح عنها بدوال تعريف خاصة بها وتعمل خارج نموذج المشغّل المعتاد (HTTP، وcron، وأحداث قاعدة البيانات). تتلقى خطافات التثبيت `InstallPayload` (`{ previousVersion?: string; newVersion: string }` — تكون قيمة `previousVersion` هي `undefined` في حالة التثبيت الجديد)، بينما يتلقى خطاف إلغاء التثبيت `UninstallPayload` (`{ version?: string }` — الإصدار الذي تتم إزالته).
+خطافات التثبيت هي دوال منطقية خاصة تعمل أثناء دورة حياة التثبيت أو الترقية. تستخدم نفس وقت تشغيل المعالج مثل [دوال المنطق](/l/ar/developers/extend/apps/logic/logic-functions) العادية وتتلقى `InstallPayload`، ولكن يتم التصريح عنها بدوال تعريف خاصة بها — `definePostInstallLogicFunction()` و`definePreInstallLogicFunction()` — وتعمل خارج نموذج المشغّل المعتاد (HTTP، وcron، وأحداث قاعدة البيانات).
 
-يمكن لكل تطبيق تعريف **خطاف واحد كحد أقصى** من كل نوع (قبل التثبيت، بعد التثبيت، إلغاء التثبيت). سيُنتِج إنشاء ملف البيان خطأً إذا تم اكتشاف أكثر من خطاف واحد من أي نوع.
+يمكن لكل تطبيق تعريف دالة واحدة على الأكثر لما قبل التثبيت ودالة واحدة على الأكثر لما بعد التثبيت. سيُنتِج إنشاء ملف البيان خطأً إذا تم اكتشاف أكثر من واحدة من أيٍّ منهما.
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
@@ -19,59 +19,111 @@ icon: wrench
 └─────────────────────────────────────────────────────────────┘
 ```
 
-## لمحة سريعة
-
-|                    | `definePreInstallLogicFunction`                                                            | `definePostInstallLogicFunction`                                                                                              |
-| ------------------ | ------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------- |
-| عمليات التشغيل     | قبل ترحيل البيانات الوصفية — لا يزال المخطط والبيانات **السابقة** سليمين                   | بعد الترحيل وإنشاء الـ SDK — أصبح المخطط **الجديد** في مكانه                                                                  |
-| التنفيذ            | دائمًا متزامن؛ يحجب عملية التثبيت                                                          | غير متزامن بشكل افتراضي (يُوضَع في قائمة الانتظار، 3 محاولات إعادة)؛ تفعيل التزامن اختياري عبر `shouldRunSynchronously: true` |
-| عند الفشل          | يتم **إحباط** التثبيت قبل أي تغيير في المخطط                                               | غير متزامن: تُعاد المحاولة حتى 3 مرات. متزامن: يتلقى المستدعي `POST_INSTALL_ERROR` (لن يتم التراجع عن تغييرات المخطط).        |
-| الاستخدام النموذجي | انسخ البيانات احتياطيًا أو أصلح بيانات قد يفقدها الترحيل؛ ارفض ترقية خطِرة بإلقاء استثناء. | بذر بيانات افتراضية، تهيئة مساحة العمل، تسجيل موارد خارجية                                                                    |
-
-**قاعدة عامة:** اجعل الافتراضي هو post-install. الجأ إلى ما قبل التثبيت فقط عندما يكون الترحيل نفسه هدّامًا وتحتاج إلى التقاط الحالة السابقة قبل أن تزول.
-
-| ترغب في...                                                       | استخدام                                                                   |
-| ---------------------------------------------------------------- | ------------------------------------------------------------------------- |
-| بذر البيانات، تهيئة مساحة العمل، تسجيل موارد خارجية              | `post-install`                                                            |
-| عمل طويل الأمد لا ينبغي أن يحجب استجابة التثبيت                  | `post-install` (الوضع غير المتزامن الافتراضي، مع محاولات إعادة من العامل) |
-| إعداد سريع يعتمد عليه المستدعي مباشرةً بعد عودة التثبيت          | `post-install` مع `shouldRunSynchronously: true`                          |
-| قراءة البيانات أو نسخها احتياطيًا والتي قد يفقدها الترحيل القادم | `pre-install`                                                             |
-| رفض ترقية قد تُفسد البيانات الحالية                              | `pre-install` (ارمِ من المعالج)                                           |
-| تنفيذ مواءمة في كل ترقية                                         | أي من الخطافين مع `shouldRunOnVersionUpgrade: true`                       |
-
-## السلوك المشترك بين كلا الخطافين
-
-* إعداد التهيئة هو إعداد `defineLogicFunction` نفسه مطروحًا منه إعدادات المشغّل، مضافًا إليه `shouldRunOnVersionUpgrade`.
-* **موعد تشغيله**: في عمليات التثبيت الجديدة فقط، افتراضيًا. عيِّن `shouldRunOnVersionUpgrade: true` لتشغيله أيضًا عند الترقيات. استخدم `previousVersion` / `newVersion` للتفرع حسب مسار الترقية.
-* **أهمية اللاّتغيّر (Idempotency)**: قد يُعاد تشغيل post-install غير المتزامن، وأيٌّ من الخطافين يُعاد تشغيله عند الترقيات عندما يكون `shouldRunOnVersionUpgrade` مفعّلًا.
-* يتم حقن بيئة دوال المنطق المعتادة (`APPLICATION_ID`، و`APP_ACCESS_TOKEN`، و`API_URL`)، لذا يمكنك استدعاء Twenty API باستخدام رمز التطبيق الخاص بك.
-* يُربَط الخطّاف تلقائيًا بملف بيان التطبيق وقت الإنشاء (`preInstallLogicFunction` / `postInstallLogicFunction`) — لا حاجة للإشارة إليه في [`defineApplication()`](/l/ar/developers/extend/apps/config/application).
-* القيمة الافتراضية لـ `timeoutSeconds` هي 300 للسماح بمهام إعداد أطول مثل بذر البيانات.
-* **غير منفَّذ في نمط التطوير**: يتخطى `yarn twenty dev` تدفق التثبيت ويزامن الملفات مباشرةً، لذا لا تعمل الخطافات هناك مطلقًا. بدلًا من ذلك، شغّلها يدويًا:
-
-```bash filename="Terminal"
-yarn twenty dev:function:exec --postInstall
-yarn twenty dev:function:exec --preInstall
-```
-
 <AccordionGroup>
 <Accordion title="definePostInstallLogicFunction" description="تعمل بعد تطبيق ترحيل البيانات الوصفية لمساحة العمل">
 
-يعمل بعد انتهاء تثبيت تطبيقك: تمت مزامنة البيانات الوصفية، وتم إنشاء عميل SDK، وأصبح من الممكن الاستعلام عن المخطط الجديد. مثال — بذر سجل افتراضي في عمليات التثبيت الجديدة:
+تعمل دالة ما بعد التثبيت تلقائيًا بمجرد انتهاء تثبيت تطبيقك على مساحة عمل. ينفّذه الخادم **بعد** مزامنة البيانات الوصفية للتطبيق وإنشاء عميل SDK، بحيث تكون مساحة العمل جاهزة تمامًا للاستخدام ويكون المخطط الجديد مطبَّقًا. تشمل حالات الاستخدام النموذجية تهيئة البيانات الافتراضية، وإنشاء السجلات الأولية، وتكوين إعدادات مساحة العمل، أو توفير الموارد على خدمات جهات خارجية.
 
 ```ts src/logic-functions/post-install.ts
 import { definePostInstallLogicFunction, type InstallPayload } from 'twenty-sdk/define';
-import { CoreApiClient } from 'twenty-client-sdk/core';
+
+const handler = async (payload: InstallPayload): Promise<void> => {
+  console.log('Post install logic function executed successfully!', payload.previousVersion);
+};
+
+export default definePostInstallLogicFunction({
+  universalIdentifier: 'f7a2b9c1-3d4e-5678-abcd-ef9876543210',
+  name: 'post-install',
+  description: 'Runs after installation to set up the application.',
+  timeoutSeconds: 300,
+  shouldRunOnVersionUpgrade: false,
+  shouldRunSynchronously: false,
+  handler,
+});
+```
+
+يمكنك أيضًا تنفيذ دالة ما بعد التثبيت يدويًا في أي وقت باستخدام CLI:
+
+```bash filename="Terminal"
+yarn twenty dev:function:exec --postInstall
+```
+
+النقاط الرئيسية:
+* تستخدم دوال ما بعد التثبيت `definePostInstallLogicFunction()` — إصدارًا متخصصًا يستبعد إعدادات المُشغِّل (`cronTriggerSettings` و`databaseEventTriggerSettings` و`httpRouteTriggerSettings` و`toolTriggerSettings` و`workflowActionTriggerSettings`).
+* يتلقى المعالج `InstallPayload` يحتوي على `{ previousVersion?: string; newVersion: string }` — حيث إن `newVersion` هو الإصدار الجاري تثبيته، و`previousVersion` هو الإصدار الذي كان مُثبّتًا سابقًا (أو `undefined` عند التثبيت الأولي). استخدم هذه القيم للتمييز بين عمليات التثبيت الجديدة والترقيات ولتشغيل منطق الترحيل الخاص بالإصدار.
+* **موعد تشغيل الخطاف**: في عمليات التثبيت الجديدة فقط، افتراضيًا. مرّر `shouldRunOnVersionUpgrade: true` إذا كنت تريد تشغيله أيضًا عند ترقية التطبيق من إصدار سابق. عند إغفاله، تكون القيمة الافتراضية للعلم `false`، وتتجاوز الترقيات هذا الخطاف.
+* **نموذج التنفيذ — غير متزامن افتراضيًا، والتزامني اختياري**: يتحكّم العلم `shouldRunSynchronously` في كيفية تنفيذ ما بعد التثبيت.
+  * `shouldRunSynchronously: false` *(الإعداد الافتراضي)* — يتم **إدراج الخطاف في قائمة الرسائل** مع `retryLimit: 3` ويعمل بشكل غير متزامن داخل عامل عمل. يعود ردّ التثبيت بمجرد وضع المهمة في الطابور، لذا فإن معالجًا بطيئًا أو متعطلًا لا يحجب المستدعي. سيُجرِّب العامل إعادة المحاولة حتى ثلاث مرات. **استخدم هذا للمهام طويلة التشغيل** — بَذر مجموعات بيانات كبيرة، استدعاء واجهات برمجة تطبيقات خارجية بطيئة، تهيئة موارد خارجية، أو أي شيء قد يتجاوز نافذة استجابة HTTP المعقولة.
+  * `shouldRunSynchronously: true` — يُنفّذ الخطاف **ضمن تدفّق التثبيت مباشرةً** (نفس المنفِّذ كما قبل التثبيت). يَحجُب طلب التثبيت حتى ينتهي المعالج، وإذا رمى استثناءً، سيتلقى مستدعي التثبيت `POST_INSTALL_ERROR`. لا توجد محاولات إعادة تلقائية. **استخدم هذا للمهام السريعة التي يجب إكمالها قبل الاستجابة** — مثل إظهار خطأ تحقق للمستخدم، أو إعداد سريع سيعتمد عليه العميل مباشرةً بعد عودة نداء التثبيت. ضع في اعتبارك أن ترحيل البيانات الوصفية يكون قد طُبِّق بالفعل عند تشغيل ما بعد التثبيت، لذلك فإن فشل الوضع المتزامن **لا** يعيد التغييرات على المخطط إلى الوراء — بل يكتفي بإبراز الخطأ.
+* تأكّد من أن معالجك قابل للتنفيذ المتكرر دون آثار جانبية. في الوضع غير المتزامن قد تُعيد قائمة الانتظار المحاولة حتى ثلاث مرات؛ وفي أي من الوضعين قد يعمل الخطاف مجددًا أثناء الترقيات عند ضبط `shouldRunOnVersionUpgrade: true`.
+* متغيرات البيئة `APPLICATION_ID` و`APP_ACCESS_TOKEN` و`API_URL` متاحة داخل المعالج (كما في أي دالة منطق أخرى)، لذا يمكنك استدعاء واجهة Twenty API باستخدام رمز وصول للتطبيق مقيّد بنطاق تطبيقك.
+* يُسمح بدالة ما بعد التثبيت واحدة فقط لكل تطبيق. سيُنتج إنشاء ملف البيان خطأً إذا تم اكتشاف أكثر من واحدة.
+* تُرفَق خصائص الدالة `universalIdentifier` و`shouldRunOnVersionUpgrade` و`shouldRunSynchronously` تلقائيًا ببيان التطبيق ضمن الحقل `postInstallLogicFunction` أثناء عملية البناء — ولا تحتاج إلى الإشارة إليها في [`defineApplication()`](/l/ar/developers/extend/apps/config/application).
+* تم تعيين مهلة افتراضية إلى 300 ثانية (5 دقائق) للسماح بمهام الإعداد الأطول مثل تهيئة البيانات.
+* **لا يُنفَّذ في وضع التطوير**: عند تسجيل تطبيق محليًا (عبر `yarn twenty dev`)، يتجاوز الخادم تدفّق التثبيت بالكامل ويُزامن الملفات مباشرةً عبر مراقِب CLI — لذا لن يعمل ما بعد التثبيت في وضع التطوير مطلقًا، بغضّ النظر عن `shouldRunSynchronously`. استخدم `yarn twenty dev:function:exec --postInstall` لتشغيله يدويًا على مساحة عمل قيد التشغيل.
+
+</Accordion>
+<Accordion title="definePreInstallLogicFunction" description="تعمل قبل تطبيق ترحيل البيانات الوصفية لمساحة العمل">
+
+تعمل دالة ما قبل التثبيت تلقائيًا أثناء التثبيت، **قبل تطبيق ترحيل البيانات الوصفية لمساحة العمل**. تتشارك نفس بنية الحمولة مع ما بعد التثبيت (`InstallPayload`)، لكنها موضوعة أبكر في تدفّق التثبيت كي تجهّز حالة يعتمد عليها الترحيل القادم — ومن الاستخدامات الشائعة: نسخ البيانات احتياطيًا، التحقق من التوافق مع المخطط الجديد، أو أرشفة السجلات التي ستُعاد هيكلتها أو ستُحذف.
+
+```ts src/logic-functions/pre-install.ts
+import { definePreInstallLogicFunction, type InstallPayload } from 'twenty-sdk/define';
+
+const handler = async (payload: InstallPayload): Promise<void> => {
+  console.log('Pre install logic function executed successfully!', payload.previousVersion);
+};
+
+export default definePreInstallLogicFunction({
+  universalIdentifier: 'a1b2c3d4-5678-90ab-cdef-1234567890ab',
+  name: 'pre-install',
+  description: 'Runs before installation to prepare the application.',
+  timeoutSeconds: 300,
+  shouldRunOnVersionUpgrade: true,
+  handler,
+});
+```
+
+يمكنك أيضًا تنفيذ دالة ما قبل التثبيت يدويًا في أي وقت باستخدام CLI:
+
+```bash filename="Terminal"
+yarn twenty dev:function:exec --preInstall
+```
+
+النقاط الرئيسية:
+* تستخدم دوال ما قبل التثبيت `definePreInstallLogicFunction()` — نفس الإعدادات المتخصصة كما في ما بعد التثبيت، لكنها مرتبطة بموضع مختلف ضمن دورة الحياة.
+* يتلقّى كلٌّ من معالجي ما قبل التثبيت وما بعد التثبيت النوع نفسه `InstallPayload`: `{ previousVersion?: string; newVersion: string }`. استورده مرة واحدة وأعد استخدامه لكلا الخطافين.
+* **موعد تشغيل الخطاف**: موضوع مباشرةً قبل ترحيل البيانات الوصفية لمساحة العمل (`synchronizeFromManifest`). قبل التنفيذ، يُشغِّل الخادم مزامنة "pared-down sync" ذات طابع إضافي فقط تقوم بتسجيل دالة ما قبل التثبيت للإصدار **الجديد** في البيانات الوصفية لمساحة العمل — دون لمس أي شيء آخر — ثم يُنفّذها. لأن هذه المزامنة «إضافية فقط»، تبقى كائنات وحقول وبيانات الإصدار السابق سليمة عند تشغيل معالجك: يمكنك قراءة حالة ما قبل الترحيل ونسخها احتياطيًا بأمان.
+* **نموذج التنفيذ**: يُنفَّذ ما قبل التثبيت **بشكل متزامن** و**يحجب عملية التثبيت**. إذا رمى المعالج استثناءً، تُلغى عملية التثبيت قبل تطبيق أي تغييرات على المخطط — وتبقى مساحة العمل على الإصدار السابق بحالة متّسقة. هذا مقصود: ما قبل التثبيت هو فرصتك الأخيرة لرفض ترقية تنطوي على مخاطر.
+* كما هو الحال مع ما بعد التثبيت، يُسمح بدالة ما قبل التثبيت واحدة فقط لكل تطبيق. تُربَط تلقائيًا ببيان التطبيق تحت `preInstallLogicFunction` أثناء عملية البناء.
+* **لا يُنفَّذ في وضع التطوير**: كما في ما بعد التثبيت — يتم تجاوز تدفّق التثبيت بالكامل للتطبيقات المسجّلة محليًا، لذا لن يعمل ما قبل التثبيت مطلقًا عند `yarn twenty dev`. استخدم `yarn twenty dev:function:exec --preInstall` لتشغيله يدويًا.
+
+</Accordion>
+<Accordion title="ما قبل التثبيت مقابل ما بعد التثبيت: متى تستخدم أيّهما" description="اختيار خطاف التثبيت المناسب">
+
+كلا الخطافين جزء من تدفّق التثبيت نفسه ويتلقّيان نفس `InstallPayload`. الاختلاف يكمن في **موعد** تشغيلهما نسبةً إلى ترحيل البيانات الوصفية لمساحة العمل، وهذا يغيّر البيانات التي يمكنهما التعامل معها بأمان.
+
+ما قبل التثبيت دائمًا **متزامن** (يحجب التثبيت ويمكنه إحباطه). ما بعد التثبيت **غير متزامن افتراضيًا** — يُدرج على عامل مع محاولات إعادة تلقائية — لكن يمكن التبديل إلى تنفيذ متزامن عبر `shouldRunSynchronously: true`. راجع الأكورديون `definePostInstallLogicFunction` أعلاه لمعرفة متى تستخدم كل وضع.
+
+**استخدم `post-install` لأي شيء يتطلّب وجود المخطط الجديد.** وهذا هو السيناريو الشائع:
+
+* بَذر بيانات افتراضية (إنشاء سجلات أولية وعروض افتراضية ومحتوى تجريبي) للكائنات والحقول المضافة حديثًا.
+* تسجيل خطافات الويب مع خدمات أطراف ثالثة بعد أن حصل التطبيق على بيانات الاعتماد الخاصة به.
+* استدعاء واجهة برمجة التطبيقات الخاصة بك لإكمال إعداد يعتمد على البيانات الوصفية المتزامنة.
+* منطق قابل للتنفيذ المتكرر دون آثار جانبية لتحقيق "تأكّد من وجود هذا" والذي ينبغي مواءمة الحالة في كل ترقية — بالاقتران مع `shouldRunOnVersionUpgrade: true`.
+
+مثال — بَذر سجل `PostCard` افتراضي بعد التثبيت:
+
+```ts src/logic-functions/post-install.ts
+import { definePostInstallLogicFunction, type InstallPayload } from 'twenty-sdk/define';
+import { createClient } from './generated/client';
 
 const handler = async ({ previousVersion }: InstallPayload): Promise<void> => {
   if (previousVersion) return; // fresh installs only
 
-  const client = new CoreApiClient();
-  await client.mutation({
-    createPostCard: {
-      __args: { data: { name: 'Welcome to Postcard', content: 'Your first card!' } },
-      id: true,
-    },
+  const client = createClient();
+  await client.postCard.create({
+    data: { title: 'Welcome to Postcard', content: 'Your first card!' },
   });
 };
 
@@ -81,28 +133,22 @@ export default definePostInstallLogicFunction({
   description: 'Seeds a welcome post card after install.',
   timeoutSeconds: 300,
   shouldRunOnVersionUpgrade: false,
-  shouldRunSynchronously: false,
   handler,
 });
 ```
 
-تتحكم الشارة `shouldRunSynchronously` في نموذج التنفيذ:
+**استخدم `pre-install` عندما قد يُتلف الترحيل أو يدمّر البيانات الحالية.** لأن ما قبل التثبيت يعمل مقابل المخطط *السابق* وفشله يُرجِع الترقية إلى الوراء، فهو المكان المناسب لأي شيء محفوف بالمخاطر:
 
-* `false` *(الإعداد الافتراضي)* — يُوضَع في قائمة انتظار الرسائل (`retryLimit: 3`) ويُشغِّله عامل. تعود استجابة التثبيت بمجرد وضع المهمة في قائمة الانتظار. **يُستخدم للأعمال طويلة الأمد** — بذر مجموعات بيانات كبيرة، وواجهات برمجة تطبيقات بطيئة لأطراف ثالثة.
-* `true` — يُنفَّذ مضمَّنًا أثناء تدفق التثبيت. يحجب طلب التثبيت حتى ينتهي المعالج؛ يظهر الخطأ الذي يتم رميه كـ `POST_INSTALL_ERROR` للمستدعي (بدون محاولات إعادة). **يُستخدم للأعمال السريعة التي يجب إتمامها قبل الاستجابة.** تم تطبيق الترحيل بالفعل في هذه المرحلة، لذا لا يؤدي الفشل إلى التراجع عن تغييرات المخطط — بل يُظهِر الخطأ فقط.
+* **نسخ البيانات احتياطيًا قبل حذفها أو إعادة هيكلتها** — مثل إزالة حقل في v2 وتحتاج إلى نسخ قيمه إلى حقل آخر أو تصديرها إلى التخزين قبل تشغيل الترحيل.
+* **أرشفة السجلات التي سيبطلها قيد جديد** — مثل أن يصبح حقل ما `NOT NULL` وتحتاج أولًا إلى حذف الصفوف ذات القيم الفارغة أو إصلاحها.
+* **التحقق من التوافق ورفض الترقية إذا تعذّر ترحيل البيانات الحالية بسلاسة** — ارمِ من داخل المعالج وسيُلغى التثبيت دون تطبيق أي تغييرات. هذا أكثر أمانًا من اكتشاف عدم التوافق في منتصف الترحيل.
+* **إعادة تسمية البيانات أو إعادة تعيين مفاتيحها** قبل تغيير في المخطط قد يؤدي إلى فقدان الارتباط.
 
-</Accordion>
-<Accordion title="definePreInstallLogicFunction" description="تعمل قبل تطبيق ترحيل البيانات الوصفية لمساحة العمل">
-
-يعمل قبل ترحيل البيانات الوصفية، مقابل المخطط **السابق** — المكان المناسب لنسخ البيانات احتياطيًا التي قد يفقدها الترحيل، أو لرفض ترقية خطِرة. قبل التنفيذ، يُشغِّل الخادم مزامنة ذات طابع إضافي فقط "pared-down sync" تُسجِّل دالة ما قبل التثبيت للإصدار الجديد فقط؛ أما كل ما عدا ذلك — كائنات الإصدار السابق وحقوله وبياناته — فيبقى دون مساس عندما يعمل المعالج.
-
-ما قبل التثبيت دائمًا **متزامن** ويحجب عملية التثبيت. إذا رمى المعالج استثناءً، تُلغى عملية التثبيت قبل أي تغيير في المخطط — وتبقى مساحة العمل على الإصدار السابق بحالة متّسقة. هذا مقصود: ما قبل التثبيت هو فرصتك الأخيرة لرفض ترقية تنطوي على مخاطر.
-
-مثال — نسخ قيم حقل قديم قبل أن يُسقِطه الترحيل:
+مثال — أرشف السجلات قبل ترحيل هدّام:
 
 ```ts src/logic-functions/pre-install.ts
 import { definePreInstallLogicFunction, type InstallPayload } from 'twenty-sdk/define';
-import { CoreApiClient } from 'twenty-client-sdk/core';
+import { createClient } from './generated/client';
 
 const handler = async ({ previousVersion, newVersion }: InstallPayload): Promise<void> => {
   // Only the 1.x → 2.x upgrade drops the legacy `notes` field.
@@ -110,24 +156,24 @@ const handler = async ({ previousVersion, newVersion }: InstallPayload): Promise
     return;
   }
 
-  const client = new CoreApiClient();
-  const { postCards } = await client.query({
-    postCards: {
-      __args: { filter: { notes: { isNot: null } } },
-      edges: { node: { id: true, notes: true } },
-    },
+  const client = createClient();
+  const legacyRecords = await client.postCard.findMany({
+    where: { notes: { isNotNull: true } },
   });
 
-  // Copy legacy `notes` into `description` before the migration drops the
-  // column. If this fails, the upgrade aborts and the workspace stays on v1.
-  for (const { node } of postCards.edges) {
-    await client.mutation({
-      updatePostCard: {
-        __args: { id: node.id, data: { description: node.notes } },
-        id: true,
-      },
-    });
-  }
+  if (legacyRecords.length === 0) return;
+
+  // Copy legacy `notes` into the new `description` field before the migration
+  // drops the `notes` column. If this fails, the upgrade is aborted and the
+  // workspace stays on v1 with all data intact.
+  await Promise.all(
+    legacyRecords.map((record) =>
+      client.postCard.update({
+        where: { id: record.id },
+        data: { description: record.notes },
+      }),
+    ),
+  );
 };
 
 export default definePreInstallLogicFunction({
@@ -140,49 +186,21 @@ export default definePreInstallLogicFunction({
 });
 ```
 
+**قاعدة عامة:**
+
+| ترغب في...                                                                     | استخدام                                                                                          |
+| ------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------ |
+| بذر بيانات افتراضية، تهيئة مساحة العمل، تسجيل موارد خارجية                     | `post-install`                                                                                   |
+| تشغيل بذر طويل الأمد أو استدعاءات أطراف ثالثة لا ينبغي أن تحجب استجابة التثبيت | `post-install` (الإعداد الافتراضي — `shouldRunSynchronously: false`، مع محاولات إعادة من العامل) |
+| تشغيل إعداد سريع سيعتمد عليه المستدعي مباشرةً بعد عودة نداء التثبيت            | `post-install` مع `shouldRunSynchronously: true`                                                 |
+| قراءة البيانات أو نسخها احتياطيًا والتي قد يفقدها الترحيل القادم               | `pre-install`                                                                                    |
+| رفض ترقية قد تُفسد البيانات الحالية                                            | `pre-install` (ارمِ من المعالج)                                                                  |
+| تنفيذ مواءمة في كل ترقية                                                       | `post-install` مع `shouldRunOnVersionUpgrade: true`                                              |
+| تنفيذ إعداد لمرة واحدة في التثبيت الأول فقط                                    | `post-install` مع `shouldRunOnVersionUpgrade: false` (الإعداد الافتراضي)                         |
+
+<Note>
+إذا ساورك الشك، فاجعل الافتراضي هو **post-install**. الجأ إلى ما قبل التثبيت فقط عندما يكون الترحيل نفسه هدّامًا وتحتاج إلى التقاط الحالة السابقة قبل أن تزول.
+</Note>
+
 </Accordion>
 </AccordionGroup>
-
-## خطاف إلغاء التثبيت
-
-تُصرّح `defineUninstallLogicFunction` عن خطاف يتم تشغيله عندما يلغي المستخدم تثبيت تطبيقك. يتم تنفيذه **قبل** إزالة بيانات التعريف للتطبيق وبياناته وكوده — بمجرد تشغيل ترحيل الحذف، لن يتبقى أي شيء للتنفيذ — لذلك لا يزال بإمكان معالجك الاستعلام عن كائنات التطبيق وسجلاته. استخدمه لتنظيف الموارد الخارجية: إلغاء توفير موارد واجهة برمجة التطبيقات (API)، وحذف الروبوتات المتبقية، وإبطال خطافات الويب.
-
-الملاحظات:
-
-* الخطاف يعتمد على مبدأ "أقصى جهد ممكن": يتم تشغيله بشكل متزامن، ولكن في حالة الفشل يتم تسجيل الخطأ و**لا يعرقل عملية إلغاء التثبيت مطلقًا** — يجب ألا يجعل التنظيف إزالة التطبيق مستحيلة.
-* يتلقى `UninstallPayload` (`{ version?: string }` — الإصدار الذي تتم إزالته).
-* لا يتم تشغيله عند التراجع عن عملية تثبيت جديدة فاشلة — حيث لم يكتمل تثبيت التطبيق مطلقًا.
-* لا يمكن للخطاف أن يعمل بعد إزالة التطبيق، لذلك يجب أن يتم هنا أي تنظيف خارجي يعتمد على بيانات التطبيق (مثلًا: معرّفات الروبوتات المخزنة في السجلات)، وليس في مهمة مجدولة خارجية.
-* ومثل خطافات التثبيت، **لا يتم تنفيذه في وضع التطوير (dev mode)** — بدلًا من ذلك، قم بتشغيله يدويًا:
-
-```bash filename="Terminal"
-yarn twenty dev:function:exec --uninstall
-```
-
-```ts src/logic-functions/uninstall.ts
-import { defineUninstallLogicFunction, type UninstallPayload } from 'twenty-sdk/define';
-import { CoreApiClient } from 'twenty-client-sdk/core';
-
-const handler = async (_payload: UninstallPayload): Promise<void> => {
-  const client = new CoreApiClient();
-  const { meetingBots } = await client.query({
-    meetingBots: { edges: { node: { id: true, externalBotId: true } } },
-  });
-
-  // Delete the provider-side bots so nothing keeps recording after uninstall.
-  for (const { node } of meetingBots.edges) {
-    await fetch(`https://api.recorder.example/bots/${node.externalBotId}`, {
-      method: 'DELETE',
-      headers: { Authorization: `Bearer ${process.env.RECORDER_API_KEY}` },
-    });
-  }
-};
-
-export default defineUninstallLogicFunction({
-  universalIdentifier: 'b2c3d4e5-6789-01bc-def0-234567890abc',
-  name: 'uninstall',
-  description: 'Deletes remaining recorder bots when the app is uninstalled.',
-  timeoutSeconds: 300,
-  handler,
-});
-```

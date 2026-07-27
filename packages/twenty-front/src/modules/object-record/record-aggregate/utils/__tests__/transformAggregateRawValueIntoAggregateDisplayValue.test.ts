@@ -4,7 +4,6 @@ import { type FieldMetadataItem } from '@/object-metadata/types/FieldMetadataIte
 import { transformAggregateRawValueIntoAggregateDisplayValue } from '@/object-record/record-aggregate/utils/transformAggregateRawValueIntoAggregateDisplayValue';
 import { AggregateOperations } from '@/object-record/record-table/constants/AggregateOperations';
 import { DateAggregateOperations } from '@/object-record/record-table/constants/DateAggregateOperations';
-import { NumberFormat } from '@/localization/constants/NumberFormat';
 import { enUS } from 'date-fns/locale';
 import { findByProperty } from 'twenty-shared/utils';
 import {
@@ -47,50 +46,6 @@ describe('transformAggregateRawValueIntoAggregateDisplayValue', () => {
         timeZone: 'UTC',
       }),
     ).toBe('4');
-  });
-
-  it('should format large COUNT values with the default number format', () => {
-    expect(
-      transformAggregateRawValueIntoAggregateDisplayValue({
-        aggregateFieldMetadataItem: undefined,
-        aggregateOperation: AggregateOperations.COUNT,
-        aggregateRawValue: 153909,
-        dateFormat: DateFormat.DAY_FIRST,
-        timeFormat: TimeFormat.HOUR_24,
-        localeCatalog: enUS,
-        timeZone: 'UTC',
-      }),
-    ).toBe('153,909');
-  });
-
-  it('should format large COUNT values respecting the SPACES_AND_COMMA number format', () => {
-    expect(
-      transformAggregateRawValueIntoAggregateDisplayValue({
-        aggregateFieldMetadataItem: undefined,
-        aggregateOperation: AggregateOperations.COUNT,
-        aggregateRawValue: 153909,
-        dateFormat: DateFormat.DAY_FIRST,
-        timeFormat: TimeFormat.HOUR_24,
-        localeCatalog: enUS,
-        timeZone: 'UTC',
-        numberFormat: NumberFormat.SPACES_AND_COMMA,
-      }),
-    ).toBe('153\u202F909');
-  });
-
-  it('should format a COUNT value provided as a string', () => {
-    expect(
-      transformAggregateRawValueIntoAggregateDisplayValue({
-        aggregateFieldMetadataItem: undefined,
-        aggregateOperation: AggregateOperations.COUNT,
-        aggregateRawValue: '153909',
-        dateFormat: DateFormat.DAY_FIRST,
-        timeFormat: TimeFormat.HOUR_24,
-        localeCatalog: enUS,
-        timeZone: 'UTC',
-        numberFormat: NumberFormat.DOTS_AND_COMMA,
-      }),
-    ).toBe('153.909');
   });
 
   it('should return "-" for nullish aggregate raw value', () => {
@@ -168,21 +123,6 @@ describe('transformAggregateRawValueIntoAggregateDisplayValue', () => {
     ).toBe('100,000,000');
   });
 
-  it('should return number formatted value respecting the DOTS_AND_COMMA number format', () => {
-    expect(
-      transformAggregateRawValueIntoAggregateDisplayValue({
-        aggregateFieldMetadataItem: mockCompanyEmployeesFieldMetadataItem,
-        aggregateOperation: AggregateOperations.SUM,
-        aggregateRawValue: 100000000,
-        dateFormat: DateFormat.DAY_FIRST,
-        timeFormat: TimeFormat.HOUR_24,
-        localeCatalog: enUS,
-        timeZone: 'UTC',
-        numberFormat: NumberFormat.DOTS_AND_COMMA,
-      }),
-    ).toBe('100.000.000');
-  });
-
   it('should return full currency formatted value with FULL number format', () => {
     const mockCurrencyFieldMetadataItem = {
       ...mockCompanyEmployeesFieldMetadataItem,
@@ -198,7 +138,7 @@ describe('transformAggregateRawValueIntoAggregateDisplayValue', () => {
         timeFormat: TimeFormat.HOUR_24,
         localeCatalog: enUS,
         timeZone: 'UTC',
-        chartNumberFormat: ChartNumberFormat.FULL,
+        numberFormat: ChartNumberFormat.FULL,
       }),
     ).toBe('230,440');
   });
@@ -218,7 +158,7 @@ describe('transformAggregateRawValueIntoAggregateDisplayValue', () => {
         timeFormat: TimeFormat.HOUR_24,
         localeCatalog: enUS,
         timeZone: 'UTC',
-        chartNumberFormat: ChartNumberFormat.SHORT,
+        numberFormat: ChartNumberFormat.SHORT,
       }),
     ).toBe('230.4k');
   });
@@ -233,7 +173,7 @@ describe('transformAggregateRawValueIntoAggregateDisplayValue', () => {
         timeFormat: TimeFormat.HOUR_24,
         localeCatalog: enUS,
         timeZone: 'UTC',
-        chartNumberFormat: ChartNumberFormat.SHORT,
+        numberFormat: ChartNumberFormat.SHORT,
       }),
     ).toBe('100m');
   });
@@ -248,7 +188,7 @@ describe('transformAggregateRawValueIntoAggregateDisplayValue', () => {
         timeFormat: TimeFormat.HOUR_24,
         localeCatalog: enUS,
         timeZone: 'UTC',
-        chartNumberFormat: ChartNumberFormat.FULL,
+        numberFormat: ChartNumberFormat.FULL,
       }),
     ).toBe('100,000,000');
   });

@@ -7,9 +7,11 @@ import { type FlatEntityMaps } from 'src/engine/metadata-modules/flat-entity/typ
 import { findFlatEntityByIdInFlatEntityMaps } from 'src/engine/metadata-modules/flat-entity/utils/find-flat-entity-by-id-in-flat-entity-maps.util';
 import { type FlatFieldMetadata } from 'src/engine/metadata-modules/flat-field-metadata/types/flat-field-metadata.type';
 import { type FlatObjectMetadata } from 'src/engine/metadata-modules/flat-object-metadata/types/flat-object-metadata.type';
-import { getEffectiveImageIdentifierFieldMetadataId } from 'src/engine/metadata-modules/object-metadata/utils/get-effective-image-identifier-field-metadata-id.util';
 
 const ID_FIELD = 'id' as const;
+
+const COMPANY_AVATAR_COLUMN = 'domainNamePrimaryLinkUrl' as const;
+const PERSON_AVATAR_COLUMN = 'avatarFile' as const;
 
 export const getMinimalSelectForRecordIdentifier = ({
   flatObjectMetadata,
@@ -45,19 +47,15 @@ export const getMinimalSelectForRecordIdentifier = ({
     }
   }
 
-  if (flatObjectMetadata.nameSingular === 'workspaceMember') {
-    selectColumns.push('avatarUrl');
-
-    return selectColumns;
-  }
-
-  const imageIdentifierFieldMetadataId =
-    getEffectiveImageIdentifierFieldMetadataId(flatObjectMetadata);
-
-  if (isDefined(imageIdentifierFieldMetadataId)) {
+  if (flatObjectMetadata.nameSingular === 'company') {
+    selectColumns.push(COMPANY_AVATAR_COLUMN);
+    //TODO: Temporary solution before imageIdentifier refactor
+  } else if (flatObjectMetadata.nameSingular === 'person') {
+    selectColumns.push(PERSON_AVATAR_COLUMN);
+  } else if (isDefined(flatObjectMetadata.imageIdentifierFieldMetadataId)) {
     const imageField = findFlatEntityByIdInFlatEntityMaps({
       flatEntityMaps: flatFieldMetadataMaps,
-      flatEntityId: imageIdentifierFieldMetadataId,
+      flatEntityId: flatObjectMetadata.imageIdentifierFieldMetadataId,
     });
 
     if (isDefined(imageField)) {

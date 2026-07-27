@@ -1,5 +1,4 @@
 import { type DateFilter } from '@/types';
-import { isDefined } from '@/utils';
 import { isAfter, isBefore, isEqual, parseISO } from 'date-fns';
 
 export const isMatchingDateFilter = ({
@@ -7,12 +6,8 @@ export const isMatchingDateFilter = ({
   value,
 }: {
   dateFilter: DateFilter;
-  value: string | null | undefined;
+  value: string;
 }) => {
-  if (!isDefined(value)) {
-    return dateFilter.is === 'NULL';
-  }
-
   switch (true) {
     case dateFilter.eq !== undefined: {
       return isEqual(parseISO(value), parseISO(dateFilter.eq));

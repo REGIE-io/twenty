@@ -1,7 +1,6 @@
 import { useContextStoreObjectMetadataItemOrThrow } from '@/context-store/hooks/useContextStoreObjectMetadataItemOrThrow';
 import { contextStoreCurrentViewIdComponentState } from '@/context-store/states/contextStoreCurrentViewIdComponentState';
 import { type FieldMetadataItem } from '@/object-metadata/types/FieldMetadataItem';
-import { isManyToOneRelationField } from '@/object-metadata/utils/isManyToOneRelationField';
 import { useSetRecordGroups } from '@/object-record/record-group/hooks/useSetRecordGroups';
 import { useLoadRecordIndexStates } from '@/object-record/record-index/hooks/useLoadRecordIndexStates';
 import { useAtomComponentStateCallbackState } from '@/ui/utilities/state/jotai/hooks/useAtomComponentStateCallbackState';
@@ -45,12 +44,9 @@ export const useHandleRecordGroupField = () => {
         return;
       }
 
-      const isRelationGroupBy = isManyToOneRelationField(fieldMetadataItem);
-
       if (
-        !isRelationGroupBy &&
-        (isUndefinedOrNull(fieldMetadataItem.options) ||
-          fieldMetadataItem.options.length === 0)
+        isUndefinedOrNull(fieldMetadataItem.options) ||
+        fieldMetadataItem.options.length === 0
       ) {
         return;
       }
@@ -77,9 +73,7 @@ export const useHandleRecordGroupField = () => {
         ),
       );
 
-      const viewGroupsToCreate = (
-        isRelationGroupBy ? [] : (fieldMetadataItem.options ?? [])
-      )
+      const viewGroupsToCreate = fieldMetadataItem.options
         .filter(
           (option) =>
             !existingGroupKeys.has(`${fieldMetadataItem.id}:${option.value}`),
@@ -103,15 +97,16 @@ export const useHandleRecordGroupField = () => {
           id: v4(),
           fieldValue: '',
           isVisible: true,
-          position: viewGroupsToCreate.length,
+          position: fieldMetadataItem.options.length,
         } satisfies ViewGroup);
       }
 
-      const isSameField =
-        view.mainGroupByFieldMetadataId === fieldMetadataItem.id;
-      const keptGroups = isSameField ? view.viewGroups : [];
-
-      const newViewGroupsList = [...keptGroups, ...viewGroupsToCreate];
+      const newViewGroupsList = [
+        ...view.viewGroups.filter(
+          (_group) => view.mainGroupByFieldMetadataId === fieldMetadataItem.id,
+        ),
+        ...viewGroupsToCreate,
+      ];
 
       setRecordGroupsFromViewGroups({
         viewId: view.id,

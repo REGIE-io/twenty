@@ -32,7 +32,6 @@ import { MessagingMessageListFetchJob } from 'src/modules/messaging/message-impo
 import { SyncMessageFoldersService } from 'src/modules/messaging/message-folder-manager/services/sync-message-folders.service';
 
 jest.mock('uuid', () => ({
-  ...jest.requireActual('uuid'),
   v4: jest.fn(() => 'mocked-uuid'),
 }));
 
@@ -658,7 +657,6 @@ describe('ImapSmtpCalDavAPIService', () => {
           handle: 'test@example.com',
           userWorkspaceId: 'user-workspace-id',
           workspaceId: 'workspace-id',
-          provider: ConnectedAccountProvider.IMAP_SMTP_CALDAV,
         },
       });
 
@@ -673,38 +671,6 @@ describe('ImapSmtpCalDavAPIService', () => {
         workspaceId: 'workspace-id',
         authFailedAt: null,
       });
-    });
-
-    it('should create a new row instead of overriding an account with the same handle under a different provider', async () => {
-      mockConnectedAccountRepository.findOne.mockResolvedValue(null);
-      mockMessageChannelRepository.findOne.mockResolvedValue(null);
-      mockCalendarChannelRepository.findOne.mockResolvedValue(null);
-      mockWorkspaceMemberRepository.findOne.mockResolvedValue({
-        id: 'workspace-member-id',
-        userId: 'user-id',
-      });
-      mockUserWorkspaceRepository.findOne.mockResolvedValue({
-        id: 'user-workspace-id',
-        userId: 'user-id',
-      });
-
-      await service.upsertConnectedAccount(baseInput);
-
-      expect(mockConnectedAccountRepository.findOne).toHaveBeenCalledWith({
-        where: {
-          handle: 'test@example.com',
-          userWorkspaceId: 'user-workspace-id',
-          workspaceId: 'workspace-id',
-          provider: ConnectedAccountProvider.IMAP_SMTP_CALDAV,
-        },
-      });
-
-      expect(mockTransactionManagerSave).toHaveBeenCalledWith(
-        expect.objectContaining({
-          id: 'mocked-uuid',
-          provider: ConnectedAccountProvider.IMAP_SMTP_CALDAV,
-        }),
-      );
     });
 
     it('should not create channels when neither IMAP nor CALDAV is configured', async () => {

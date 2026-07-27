@@ -1,5 +1,3 @@
-import { type MessageFolderPendingSyncAction } from 'twenty-shared/types';
-
 export type MessageFolder = {
   id: string;
   name: string;
@@ -7,7 +5,6 @@ export type MessageFolder = {
   isSentFolder: boolean;
   parentFolderId: string | null;
   externalId: string | null;
-  pendingSyncAction: MessageFolderPendingSyncAction;
   messageChannelId: string;
   createdAt: string;
   updatedAt: string;

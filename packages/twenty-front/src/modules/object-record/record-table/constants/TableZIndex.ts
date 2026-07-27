@@ -16,7 +16,6 @@ export const TABLE_Z_INDEX = {
     normalCell: 8,
   },
   columnGrip: 30,
-  rowDropLine: 9,
   footer: {
     default: 8,
     stickyColumn: 9,

@@ -1,6 +1,6 @@
 ---
-title: Kanban Pano Görünümleri
-description: İş akışlarınızı görselleştirmek ve yönetmek için Kanban görünümlerini nasıl kullanacağınızı öğrenin.
+title: Kanban Board Views
+description: Learn how to use Kanban views to visualize and manage your workflows.
 ---
 
 import { VimeoEmbed } from '/snippets/vimeo-embed.mdx';
@@ -13,9 +13,9 @@ Kanban görünümleri, her sütunun farklı bir aşamayı ve her kartın bir kay
 
 Kartların her birini, iş akışınız boyunca sürükleyip bırakarak aşamalar arasında taşıyabilirsiniz. Devam etmek için, bir karta tıklayıp tutarak sonraki aşamaya taşıyın.
 
-<VimeoEmbed videoId="927888627" title="Video gösterimi" />
+<VimeoEmbed videoId="927888627" title="Video demonstration" />
 
-## Aşamaları Ekleme ve Silme
+## Add and Delete Stages
 
 Bir Seçim Alanındaki değeri temsil eden aşamaları kullanarak iş akışınızı ihtiyaçlarınıza uygun şekilde ayarlayabilirsiniz:
 
@@ -23,15 +23,15 @@ Bir Seçim Alanındaki değeri temsil eden aşamaları kullanarak iş akışın�
 
 Bir aşama eklemek için Ayarlar > Veri Modeline giderek, nesnenizi seçin ve ardından Kanban panonuzun bağlı olduğu alanı seçin.
 
-<VimeoEmbed videoId="927890428" title="Video gösterimi" />
+<VimeoEmbed videoId="927890428" title="Video demonstration" />
 
 ### Aşamaları Kaldırma
 
-Bir aşamayı kaldırmak için aşama adının veya `⋮` simgesinin üzerine gelin, Seç alanı ayarlarında Seç alanı ayarlarında `Edit from settings`'e tıklayın ve ardından ilgili aşamanın yanındaki **Delete** butonuna tıklayın.
+To remove a stage, hover the stage name or the `⋮` icon, click `Edit from settings` in the Select field settings, and then click **Delete** next to the relevant stage.
 
-## Alanları Görüntüleme
+## Display Fields
 
-Kanban tahtanızı bazı alanları gösterecek ve diğerlerini gizleyecek şekilde yapılandırabilirsiniz. Bir alanı gizlemek için sağ üst köşedeki **Options**'a ve ardından seçenekler listesini açmak için **Fields**'a tıklayın. Gizli Alanlar bölümünde ihtiyaç duyulan alanı bulun ve alanı görüntülemek için göz simgesine tıklayın.
+Kanban tahtanızı bazı alanları gösterecek ve diğerlerini gizleyecek şekilde yapılandırabilirsiniz. To hide a field, click on **Options** on the top right, then on **Fields** to bring up the list of options. Look for the field needed in the Hidden Fields section and click on the eye button to display the field.
 
 Alanların sırasını değiştirmek için alan adını basılı tutup istediğiniz yere sürükleyin.
 
@@ -39,60 +39,60 @@ Alanların sırasını değiştirmek için alan adını basılı tutup istediği
 
 ## Kompakt Görünüm
 
-Tüm alanları gizleyebilir ve tüm kayıtların genel görünümünü bir bakışta elde edebilirsiniz. Etkinleştirmek için:
+You can hide all the fields and get an overview of all records at a glance. To enable:
 
-1. Sağ üst köşedeki **Options**'a tıklayın
-2. **Compact view** için anahtarı açın
+1. Click **Options** on the top right
+2. Turn on the toggle for **Compact view**
 
-<img src="/images/user-guide/kanban-views/compact-view.png" style={{genişlik:'100%'}} />
+<img src="/images/user-guide/kanban-views/compact-view.png" style={{width:'100%'}} />
 
-## Sütun Toplamaları
+## Column Aggregations
 
-Bir Kanban görünümündeki her sütun, üst kısmında toplanmış değerleri görüntüleyebilir; bu da verilerinizi bir bakışta anlamanıza yardımcı olur.
+Each column in a Kanban view can display aggregated values at the top, helping you understand your data at a glance.
 
-### Kullanılabilir Toplamalar
+### Available Aggregations
 
-| Toplama      | Açıklama                                           |
-| ------------ | -------------------------------------------------- |
-| **Sayım**    | Sütundaki kayıt sayısı                             |
-| **Toplam**   | Sayısal bir alanın toplamı (ör. anlaşma tutarları) |
-| **Ortalama** | Sayısal bir alanın ortalama değeri                 |
-| **Min**      | En düşük değer                                     |
-| **Maks**     | En yüksek değer                                    |
+| Aggregation | Açıklama                                      |
+| ----------- | --------------------------------------------- |
+| **Count**   | Number of records in the column               |
+| **Sum**     | Total of a numeric field (e.g., deal amounts) |
+| **Average** | Average value of a numeric field              |
+| **Min**     | Lowest value                                  |
+| **Max**     | Highest value                                 |
 
-### Toplamaları Yapılandırma
+### Configuring Aggregations
 
-1. Bir sütunun üst kısmındaki Aşama değerinin yanında görüntülenen sayıya tıklayın
-2. Toplama türünü seçin
-3. Toplanacak alanı seçin
+1. Click on the number displayed next to the Stage value, at the top of a column
+2. Select the aggregation type
+3. Choose the field to aggregate
 
-**Örnek:** Amount alanını Sum ile toplayarak aşama başına toplam anlaşma değerini gösterin.
+**Example:** Show total deal value per stage by aggregating the Amount field with Sum.
 
-## Kanban Görünümleri Ne Zaman Kullanılır
+## When to Use Kanban Views
 
-Kanban görünümleri şunlar için idealdir:
+Kanban views are ideal for:
 
-* **Satış boru hatları**: Anlaşmaları, adaydan kapanışa kadar aşamalar boyunca takip edin
-* **Proje yönetimi**: Görevleri iş akışı durumları boyunca izleyin
-* **İşe alım**: Adayları işe alım aşamaları boyunca takip edin
-* **Aşamalı herhangi bir süreç**: Tanımlanmış aşamalara sahip herhangi bir iş akışını görselleştirin
+* **Sales pipelines**: Track deals through stages from lead to close
+* **Project management**: Monitor tasks through workflow states
+* **Recruitment**: Track candidates through hiring stages
+* **Any staged process**: Visualize any workflow with defined stages
 
 ## En İyi Uygulamalar
 
-### Aşamalarınızı Düzenleyin
+### Organize Your Stages
 
-* **Aşamaları sınırlayın**: Görünürlük için 5-7 aşama idealdir
-* **Açık adlandırma**: Açıklayıcı aşama adları kullanın
-* **Mantıksal sıralama**: Aşamaları süreç sırasına göre düzenleyin
+* **Limit stages**: 5-7 stages is ideal for visibility
+* **Clear naming**: Use descriptive stage names
+* **Logical order**: Arrange stages in process order
 
-### Kart Görünümünü Optimize Edin
+### Optimize Card Display
 
-* **Temel alanları gösterin**: Yalnızca en önemli bilgileri görüntüleyin
-* **Kompakt görünümü kullanın**: Üst düzey genel görünümler için
-* **Renk kodlaması**: Durumu hızlıca belirlemek için aşama renklerini kullanın
+* **Show key fields**: Display only the most important information
+* **Use compact view**: For high-level overviews
+* **Color coding**: Use stage colors to quickly identify status
 
-### Veri Kalitesini Koruyun
+### Maintain Data Quality
 
-* **Düzenli güncelleyin**: Kartların aşamalar boyunca hareket etmesini sağlayın
-* **Tamamlanmışları arşivleyin**: Kapanmış öğeleri aktif görünümün dışına taşıyın
-* **Eski kartları gözden geçirin**: Aşamalarda takılı kalan kartların takibini yapın
+* **Update regularly**: Keep cards moving through stages
+* **Archive completed**: Move closed items out of active view
+* **Review stale cards**: Follow up on cards stuck in stages

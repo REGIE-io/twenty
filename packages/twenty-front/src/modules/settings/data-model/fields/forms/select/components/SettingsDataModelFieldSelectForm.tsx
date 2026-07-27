@@ -1,5 +1,5 @@
 import { styled } from '@linaria/react';
-import { type DraggableListDropResult } from '@/ui/layout/draggable-list/types/DraggableListDropResult';
+import { type DropResult } from '@hello-pangea/dnd';
 import { Controller, useFormContext } from 'react-hook-form';
 import { z } from 'zod';
 
@@ -210,7 +210,7 @@ export const SettingsDataModelFieldSelectForm = ({
 
   const handleDragEnd = (
     values: FieldMetadataItemOption[],
-    result: DraggableListDropResult,
+    result: DropResult,
     onChange: (options: FieldMetadataItemOption[]) => void,
   ) => {
     if (!result.destination) return;
@@ -440,6 +440,7 @@ export const SettingsDataModelFieldSelectForm = ({
                         <>
                           {options.map((option, index) => (
                             <DraggableItem
+                              isInsideScrollableContainer
                               key={option.id}
                               draggableId={option.id}
                               index={index}

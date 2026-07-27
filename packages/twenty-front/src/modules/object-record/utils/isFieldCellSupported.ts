@@ -5,14 +5,9 @@ import { isHiddenSystemField } from '@/object-metadata/utils/isHiddenSystemField
 import { isObjectMetadataAvailableForRelation } from '@/object-metadata/utils/isObjectMetadataAvailableForRelation';
 import { FieldMetadataType } from '~/generated-metadata/graphql';
 
-type IsFieldCellSupportedOptions = {
-  includeSystemObjectRelations?: boolean;
-};
-
 export const isFieldCellSupported = (
   fieldMetadataItem: FieldMetadataItem,
   objectMetadataItems: EnrichedObjectMetadataItem[],
-  options: IsFieldCellSupportedOptions = {},
 ) => {
   if (fieldMetadataItem.type === FieldMetadataType.POSITION) {
     return false;
@@ -45,12 +40,9 @@ export const isFieldCellSupported = (
       return true;
     }
 
-    if (!fieldMetadataItem.relation || !relationObjectMetadataItem) {
-      return false;
-    }
-
     if (
-      !options.includeSystemObjectRelations &&
+      !fieldMetadataItem.relation ||
+      !relationObjectMetadataItem ||
       !isObjectMetadataAvailableForRelation(relationObjectMetadataItem)
     ) {
       return false;

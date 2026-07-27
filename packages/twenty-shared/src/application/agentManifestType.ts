@@ -9,5 +9,4 @@ export type AgentManifest = SyncableEntityOptions & {
   prompt: string;
   modelId?: string;
   responseFormat?: AgentResponseFormat;
-  roleUniversalIdentifier?: string;
 };

@@ -5,8 +5,7 @@
   // Height below is sized against the content box.
   box-sizing: content-box;
   align-items: center;
-  // Concentric with the md dropdown container: parent radius minus its inset.
-  border-radius: calc(var(--t-border-radius-md) - var(--t-spacing-1));
+  border-radius: var(--t-border-radius-sm);
   cursor: pointer;
   display: flex;
   flex-direction: row;

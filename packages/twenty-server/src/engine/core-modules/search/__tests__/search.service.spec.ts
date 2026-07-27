@@ -110,31 +110,31 @@ describe('SearchService', () => {
     });
   });
 
-  describe('getImageIdentifierColumns', () => {
-    it('should return the FILES image identifier column for a person object metadata item', () => {
-      const imageIdentifierColumns = service.getImageIdentifierColumns(
+  describe('getImageIdentifierColumn', () => {
+    it('should return `avatarFile` if the object metadata item is a person', () => {
+      const imageIdentifierColumn = service.getImageIdentifierColumn(
         mockFlatObjectMetadatas[0],
         mockFlatFieldMetadataMaps,
       );
 
-      expect(imageIdentifierColumns).toEqual(['avatarFile']);
+      expect(imageIdentifierColumn).toEqual('avatarFile');
     });
-    it('should select only the primaryLinkUrl column of the composite LINKS image identifier for a company object metadata item', () => {
-      const imageIdentifierColumns = service.getImageIdentifierColumns(
+    it('should return `domainNamePrimaryLinkUrl` column for a company object metadata item', () => {
+      const imageIdentifierColumn = service.getImageIdentifierColumn(
         mockFlatObjectMetadatas[1],
         mockFlatFieldMetadataMaps,
       );
 
-      expect(imageIdentifierColumns).toEqual(['domainNamePrimaryLinkUrl']);
+      expect(imageIdentifierColumn).toEqual('domainNamePrimaryLinkUrl');
     });
 
-    it('should return the non-composite image identifier column for a regular object metadata item', () => {
-      const imageIdentifierColumns = service.getImageIdentifierColumns(
+    it('should return the image identifier column', () => {
+      const imageIdentifierColumn = service.getImageIdentifierColumn(
         mockFlatObjectMetadatas[2],
         mockFlatFieldMetadataMaps,
       );
 
-      expect(imageIdentifierColumns).toEqual(['imageIdentifierFieldName']);
+      expect(imageIdentifierColumn).toEqual('imageIdentifierFieldName');
     });
   });
 

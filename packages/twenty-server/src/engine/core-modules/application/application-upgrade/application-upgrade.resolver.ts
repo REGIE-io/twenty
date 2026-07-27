@@ -21,7 +21,7 @@ export class ApplicationUpgradeResolver {
   ) {}
 
   @Mutation(() => Boolean)
-  @UseGuards(SettingsPermissionGuard(PermissionFlagType.APPLICATIONS))
+  @UseGuards(SettingsPermissionGuard(PermissionFlagType.MARKETPLACE_APPS))
   async upgradeApplication(
     @Args('appRegistrationId') appRegistrationId: string,
     @Args('targetVersion') targetVersion: string,

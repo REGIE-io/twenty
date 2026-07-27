@@ -21,7 +21,6 @@ import { BillingSubscriptionEntity } from 'src/engine/core-modules/billing/entit
 import { BillingRestApiExceptionFilter } from 'src/engine/core-modules/billing/filters/billing-api-exception.filter';
 import { BillingWorkspaceMemberListener } from 'src/engine/core-modules/billing/listeners/billing-workspace-member.listener';
 import { BillingCreditRolloverService } from 'src/engine/core-modules/billing/services/billing-credit-rollover.service';
-import { BillingCreditService } from 'src/engine/core-modules/billing/services/billing-credit.service';
 import { BillingPlanService } from 'src/engine/core-modules/billing/services/billing-plan.service';
 import { BillingPortalWorkspaceService } from 'src/engine/core-modules/billing/services/billing-portal.workspace-service';
 import { BillingPriceService } from 'src/engine/core-modules/billing/services/billing-price.service';
@@ -95,7 +94,6 @@ import { WorkspaceCacheModule } from 'src/engine/workspace-cache/workspace-cache
     BillingUsageCapService,
     BillingPriceService,
     BillingCreditRolloverService,
-    BillingCreditService,
     ResourceCreditService,
     BillingGaugeService,
     WorkspaceCurrentBillingSubscriptionCacheService,
@@ -114,7 +112,6 @@ import { WorkspaceCacheModule } from 'src/engine/workspace-cache/workspace-cache
     BillingUsageCacheService,
     BillingUsageCapService,
     BillingCreditRolloverService,
-    BillingCreditService,
     ResourceCreditService,
   ],
 })

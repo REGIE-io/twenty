@@ -1,5 +1,8 @@
 import { getWidgetCardVariant } from '@/page-layout/widgets/utils/getWidgetCardVariant';
-import { PageLayoutType } from '~/generated-metadata/graphql';
+import {
+  PageLayoutTabLayoutMode,
+  PageLayoutType,
+} from '~/generated-metadata/graphql';
 
 const baseParams = {
   isInPinnedTab: false,
@@ -8,29 +11,32 @@ const baseParams = {
 };
 
 describe('getWidgetCardVariant', () => {
-  describe('when presentation is solo', () => {
+  describe('when layoutMode is CANVAS', () => {
     it.each([
       PageLayoutType.RECORD_PAGE,
       PageLayoutType.STANDALONE_PAGE,
       PageLayoutType.DASHBOARD,
       PageLayoutType.RECORD_INDEX,
-    ])("returns 'solo' regardless of pageLayoutType (%s)", (pageLayoutType) => {
-      expect(
-        getWidgetCardVariant({
-          ...baseParams,
-          presentation: 'solo',
-          pageLayoutType,
-        }),
-      ).toBe('solo');
-    });
+    ])(
+      "returns 'canvas' regardless of pageLayoutType (%s)",
+      (pageLayoutType) => {
+        expect(
+          getWidgetCardVariant({
+            ...baseParams,
+            layoutMode: PageLayoutTabLayoutMode.CANVAS,
+            pageLayoutType,
+          }),
+        ).toBe('canvas');
+      },
+    );
   });
 
-  describe('when presentation is stack', () => {
+  describe('when layoutMode is GRID', () => {
     it("returns 'dashboard' for DASHBOARD page", () => {
       expect(
         getWidgetCardVariant({
           ...baseParams,
-          presentation: 'stack',
+          layoutMode: PageLayoutTabLayoutMode.GRID,
           pageLayoutType: PageLayoutType.DASHBOARD,
         }),
       ).toBe('dashboard');
@@ -40,7 +46,7 @@ describe('getWidgetCardVariant', () => {
       expect(
         getWidgetCardVariant({
           ...baseParams,
-          presentation: 'stack',
+          layoutMode: PageLayoutTabLayoutMode.GRID,
           pageLayoutType: PageLayoutType.STANDALONE_PAGE,
         }),
       ).toBe('standalone');
@@ -50,7 +56,7 @@ describe('getWidgetCardVariant', () => {
       expect(
         getWidgetCardVariant({
           ...baseParams,
-          presentation: 'stack',
+          layoutMode: PageLayoutTabLayoutMode.GRID,
           pageLayoutType: PageLayoutType.RECORD_PAGE,
         }),
       ).toBe('record-page');
@@ -67,7 +73,7 @@ describe('getWidgetCardVariant', () => {
         getWidgetCardVariant({
           ...baseParams,
           ...override,
-          presentation: 'stack',
+          layoutMode: PageLayoutTabLayoutMode.GRID,
           pageLayoutType: PageLayoutType.RECORD_PAGE,
         }),
       ).toBe('side-column');

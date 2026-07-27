@@ -5,24 +5,21 @@ import { isDefined } from 'twenty-shared/utils';
 import { useSnackBar } from '@/ui/feedback/snack-bar-manager/hooks/useSnackBar';
 import { customDomainRecordsState } from '@/settings/domains/states/customDomainRecordsState';
 import { currentWorkspaceState } from '@/auth/states/currentWorkspaceState';
+import { useAtomStateValue } from '@/ui/utilities/state/jotai/hooks/useAtomStateValue';
 
 export const useCheckCustomDomainValidRecords = () => {
   const [checkCustomDomainValidRecords] = useMutation(
     CheckCustomDomainValidRecordsDocument,
   );
   const { enqueueErrorSnackBar } = useSnackBar();
-  const [currentWorkspace, setCurrentWorkspace] = useAtomState(
-    currentWorkspaceState,
-  );
+  const currentWorkspace = useAtomStateValue(currentWorkspaceState);
 
   const [{ isLoading }, setCustomDomainRecords] = useAtomState(
     customDomainRecordsState,
   );
 
-  const checkCustomDomainRecords = (
-    customDomain: string | null | undefined = currentWorkspace?.customDomain,
-  ) => {
-    if (isLoading || !customDomain) {
+  const checkCustomDomainRecords = () => {
+    if (isLoading || !currentWorkspace?.customDomain) {
       return;
     }
     setCustomDomainRecords((currentState) => ({
@@ -31,28 +28,13 @@ export const useCheckCustomDomainValidRecords = () => {
     }));
     checkCustomDomainValidRecords({
       onCompleted: (data) => {
-        const validRecords = data.checkCustomDomainValidRecords;
-
         setCustomDomainRecords((currentState) => ({
           ...currentState,
           isLoading: false,
-          ...(isDefined(validRecords)
-            ? { customDomainRecords: validRecords }
+          ...(isDefined(data.checkCustomDomainValidRecords)
+            ? { customDomainRecords: data.checkCustomDomainValidRecords }
             : {}),
         }));
-
-        const nextIsCustomDomainEnabled = validRecords?.isCustomDomainEnabled;
-
-        if (isDefined(nextIsCustomDomainEnabled)) {
-          setCurrentWorkspace((previousWorkspace) =>
-            isDefined(previousWorkspace)
-              ? {
-                  ...previousWorkspace,
-                  isCustomDomainEnabled: nextIsCustomDomainEnabled,
-                }
-              : previousWorkspace,
-          );
-        }
       },
       onError: (error) => {
         enqueueErrorSnackBar({ apolloError: error });

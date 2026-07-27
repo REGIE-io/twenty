@@ -1,14 +1,17 @@
 import { isNonEmptyString, isNull, isUndefined } from '@sniptt/guards';
 import { clsx } from 'clsx';
-import { useState } from 'react';
+import { useAtom } from 'jotai';
+import { useContext } from 'react';
 
-import { handleClickableElementKeyDown } from '@ui/accessibility/utils/handleClickableElementKeyDown';
+import { invalidAvatarUrlsAtomV2 } from '@ui/data-display/Avatar/states/invalidAvatarUrlsAtomV2';
 import { type AvatarSize } from '@ui/data-display/Avatar/types/AvatarSize';
 import { type AvatarType } from '@ui/data-display/Avatar/types/AvatarType';
 import { type IconComponent } from '@ui/icon/types/IconComponent';
-import { useTheme } from '@ui/theme-constants';
+import { ThemeContext } from '@ui/theme-constants';
 import { stringToThemeColorP3String } from '@ui/utilities';
+import { REACT_APP_SERVER_BASE_URL } from '@ui/utilities/config';
 import { type Nullable } from '@ui/utilities/types/Nullable';
+import { getImageAbsoluteURI } from '@ui/utilities/utils/getImageAbsoluteURI';
 
 import styles from './Avatar.module.scss';
 
@@ -41,13 +44,18 @@ export const Avatar = ({
   backgroundColor,
   borderColor,
 }: AvatarProps) => {
-  const theme = useTheme();
+  const { theme } = useContext(ThemeContext);
 
-  const [erroredAvatarImageURI, setErroredAvatarImageURI] = useState<
-    string | null
-  >(null);
+  const [invalidAvatarUrls, setInvalidAvatarUrls] = useAtom(
+    invalidAvatarUrlsAtomV2,
+  );
 
-  const avatarImageURI = isNonEmptyString(avatarUrl) ? avatarUrl : null;
+  const avatarImageURI = isNonEmptyString(avatarUrl)
+    ? getImageAbsoluteURI({
+        imageUrl: avatarUrl,
+        baseUrl: REACT_APP_SERVER_BASE_URL,
+      })
+    : null;
 
   const placeholderFirstChar = placeholder?.trim()?.charAt(0);
   const isPlaceholderFirstCharEmpty =
@@ -55,11 +63,11 @@ export const Avatar = ({
   const placeholderChar = placeholderFirstChar?.toUpperCase() || '-';
 
   const showPlaceholder =
-    isNull(avatarImageURI) || erroredAvatarImageURI === avatarImageURI;
+    isNull(avatarImageURI) || invalidAvatarUrls.includes(avatarImageURI);
 
   const handleImageError = () => {
     if (isNonEmptyString(avatarImageURI)) {
-      setErroredAvatarImageURI(avatarImageURI);
+      setInvalidAvatarUrls((prev) => [...prev, avatarImageURI]);
     }
   };
 
@@ -115,17 +123,7 @@ export const Avatar = ({
       className={clsx(styles.root, styles[size], className)}
       data-type={type ?? undefined}
       data-clickable={!isUndefined(onClick) ? true : undefined}
-      role={!isUndefined(onClick) ? 'button' : undefined}
-      tabIndex={!isUndefined(onClick) ? 0 : undefined}
-      aria-label={
-        !isUndefined(onClick)
-          ? isNonEmptyString(placeholder)
-            ? placeholder
-            : 'Avatar'
-          : undefined
-      }
       onClick={onClick}
-      onKeyDown={handleClickableElementKeyDown}
       style={avatarStyle}
     >
       {Icon ? (

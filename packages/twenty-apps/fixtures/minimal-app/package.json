@@ -15,8 +15,7 @@
   },
   "dependencies": {
     "twenty-sdk": "latest",
-    "twenty-client-sdk": "latest",
-    "twenty-ui": "latest"
+    "twenty-client-sdk": "latest"
   },
   "devDependencies": {
     "typescript": "^5.9.3",

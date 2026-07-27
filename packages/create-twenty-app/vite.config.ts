@@ -2,6 +2,7 @@ import fs from 'fs-extra';
 import path from 'path';
 import { defineConfig } from 'vite';
 import dts from 'vite-plugin-dts';
+import tsconfigPaths from 'vite-tsconfig-paths';
 import packageJson from './package.json';
 import type { PackageJson } from 'type-fest';
 
@@ -54,10 +55,10 @@ export default defineConfig(() => {
   return {
     root: __dirname,
     cacheDir: '../../node_modules/.vite/packages/create-twenty-app',
-    resolve: {
-      tsconfigPaths: true,
-    },
     plugins: [
+      tsconfigPaths({
+        root: __dirname,
+      }),
       dts({ entryRoot: './src', tsconfigPath: tsConfigPath }),
       copyAssetPlugin([
         {
@@ -94,6 +95,7 @@ export default defineConfig(() => {
           },
           {
             format: 'cjs',
+            interop: 'auto',
             esModule: true,
             exports: 'named',
             entryFileNames: (chunk) => entryFileNames(chunk, 'cjs'),

@@ -8,10 +8,9 @@ import { currentRecordFiltersComponentState } from '@/object-record/record-filte
 import { AggregateOperations } from '@/object-record/record-table/constants/AggregateOperations';
 import { useAtomComponentStateValue } from '@/ui/utilities/state/jotai/hooks/useAtomComponentStateValue';
 import { useAtomStateValue } from '@/ui/utilities/state/jotai/hooks/useAtomStateValue';
-import { useGetRecordGroupVisibilityFilters } from '@/views/hooks/useGetRecordGroupVisibilityFilters';
+import { useGetViewGroupsFilters } from '@/views/hooks/useGetViewGroupsFilters';
 import {
   computeRecordGqlOperationFilter,
-  isDefined,
   turnAnyFieldFilterIntoRecordGqlFilter,
 } from 'twenty-shared/utils';
 
@@ -32,19 +31,14 @@ export const useGetRecordIndexTotalCount = () => {
     flattenedFieldMetadataItemsSelector,
   );
 
-  const { recordFilters: recordGroupsVisibilityFilter, recordGroupGqlFilter } =
-    useGetRecordGroupVisibilityFilters();
+  const recordGroupsVisibilityFilter = useGetViewGroupsFilters();
 
-  const computedFilter = computeRecordGqlOperationFilter({
+  const filter = computeRecordGqlOperationFilter({
     filterValueDependencies,
     recordFilters: [...currentRecordFilters, ...recordGroupsVisibilityFilter],
     recordFilterGroups: currentRecordFilterGroups,
     fieldMetadataItems: flattenedFieldMetadataItems,
   });
-
-  const filter = isDefined(recordGroupGqlFilter)
-    ? { and: [computedFilter, recordGroupGqlFilter] }
-    : computedFilter;
 
   const anyFieldFilterValue = useAtomComponentStateValue(
     anyFieldFilterValueComponentState,

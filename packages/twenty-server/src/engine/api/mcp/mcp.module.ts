@@ -17,8 +17,6 @@ import { SkillModule } from 'src/engine/metadata-modules/skill/skill.module';
 import { UserRoleModule } from 'src/engine/metadata-modules/user-role/user-role.module';
 import { WorkspaceCacheStorageModule } from 'src/engine/workspace-cache-storage/workspace-cache-storage.module';
 
-import { WorkspaceCacheModule } from 'src/engine/workspace-cache/workspace-cache.module';
-
 @Module({
   imports: [
     ApiKeyModule,
@@ -30,7 +28,6 @@ import { WorkspaceCacheModule } from 'src/engine/workspace-cache/workspace-cache
     ToolProviderModule,
     SkillModule,
     TwentyConfigModule,
-    WorkspaceCacheModule,
   ],
   controllers: [McpCoreController],
   exports: [McpProtocolService],

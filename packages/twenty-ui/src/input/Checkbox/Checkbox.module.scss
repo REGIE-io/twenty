@@ -4,11 +4,10 @@
   --checkbox-border-width: 1px;
   --checkbox-bg: transparent;
   --checkbox-border-color: var(--t-border-color-secondary-inverted);
-  --checkbox-box-radius: var(--t-border-radius-sm-round);
+  --checkbox-box-radius: var(--t-border-radius-sm);
 
   align-items: center;
-  border-radius: var(--t-border-radius-md-round);
-  corner-shape: round;
+  border-radius: var(--t-border-radius-md);
   cursor: pointer;
   display: flex;
   padding: 0;
@@ -40,17 +39,15 @@
 }
 
 .squared {
-  --checkbox-box-radius: var(--t-border-radius-sm-round);
+  --checkbox-box-radius: var(--t-border-radius-sm);
 
-  border-radius: var(--t-border-radius-md-round);
+  border-radius: var(--t-border-radius-md);
 }
 
 .rounded {
   --checkbox-box-radius: var(--t-border-radius-rounded);
 
   border-radius: var(--t-border-radius-rounded);
-
-  corner-shape: round;
 }
 
 .blue {
@@ -117,7 +114,6 @@
   background: var(--checkbox-bg);
   border-color: var(--checkbox-border-color);
   border-radius: var(--checkbox-box-radius);
-  corner-shape: round;
   border-style: solid;
   border-width: var(--checkbox-border-width);
   // The border sits outside the declared box size, so size against the content box.

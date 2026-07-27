@@ -22,7 +22,6 @@ export type TextAreaProps = {
   placeholder?: string;
   value?: string;
   className?: string;
-  onFocus?: () => void;
   onBlur?: () => void;
   readOnly?: boolean;
   variant?: TextAreaVariant;
@@ -53,7 +52,7 @@ const StyledTextAreaContainer = styled.div<{ variant: TextAreaVariant }>`
         ? 'none'
         : `1px solid ${themeCssVariables.border.color.medium}`};
     border-radius: ${({ variant }) =>
-      variant === 'transparent' ? '0' : themeCssVariables.border.radius.md};
+      variant === 'transparent' ? '0' : themeCssVariables.border.radius.sm};
     box-sizing: border-box;
     color: ${themeCssVariables.font.color.primary};
     display: block;
@@ -103,7 +102,6 @@ export const TextArea = ({
   value = '',
   className,
   onChange,
-  onFocus,
   onBlur,
   readOnly = false,
   variant = 'default',
@@ -129,8 +127,6 @@ export const TextArea = ({
         enableGlobalHotkeysConflictingWithKeyboard: false,
       },
     });
-
-    onFocus?.();
   };
 
   const handleBlur: FocusEventHandler<HTMLTextAreaElement> = () => {

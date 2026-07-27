@@ -1,4 +1,10 @@
 import { styled } from '@linaria/react';
+import {
+  type DraggableProvided,
+  type DraggableRubric,
+  type DraggableStateSnapshot,
+  Droppable,
+} from '@hello-pangea/dnd';
 import { TabButton } from 'twenty-ui/input';
 
 import { TAB_LIST_GAP } from '@/ui/layout/tab-list/constants/TabListGap';
@@ -6,10 +12,7 @@ import { type SingleTabProps } from '@/ui/layout/tab-list/types/SingleTabProps';
 
 import { PAGE_LAYOUT_TAB_LIST_DROPPABLE_IDS } from '@/page-layout/components/PageLayoutTabListDroppableIds';
 import { PageLayoutTabListReorderableTab } from '@/page-layout/components/PageLayoutTabListReorderableTab';
-import { PAGE_LAYOUT_TAB_DND_TYPE } from '@/page-layout/constants/PageLayoutTabDndType';
-import { PAGE_LAYOUT_TAB_LIST_END_DROP_ZONE_WIDTH } from '@/page-layout/constants/PageLayoutTabListEndDropZoneWidth';
-import { type PageLayoutTabListEndDropData } from '@/page-layout/types/PageLayoutTabListEndDropData';
-import { DragDropItemEndDropZone } from '@/ui/utilities/drag-and-drop/components/DragDropItemEndDropZone';
+import { PageLayoutTabRenderClone } from '@/page-layout/components/PageLayoutTabRenderClone';
 
 type PageLayoutTabListVisibleTabsProps = {
   visibleTabs: SingleTabProps[];
@@ -20,8 +23,6 @@ type PageLayoutTabListVisibleTabsProps = {
   onChangeTab?: (tabId: string) => void;
   onSelectTab: (tabId: string) => void;
   canReorder: boolean;
-  widgetDropTargetTabIds: Set<string>;
-  firstHiddenTabId: string | null;
 };
 
 const StyledTabContainer = styled.div`
@@ -35,14 +36,6 @@ const StyledTabContainer = styled.div`
   }
 `;
 
-// Catches drops after the last visible tab; inserting before the first hidden
-// tab keeps the dropped tab visible instead of sending it to the overflow.
-// Its width is reserved by PageLayoutTabList's container measurement.
-const StyledEndDropZone = styled(DragDropItemEndDropZone)`
-  align-self: stretch;
-  flex: 0 0 ${PAGE_LAYOUT_TAB_LIST_END_DROP_ZONE_WIDTH}px;
-`;
-
 export const PageLayoutTabListVisibleTabs = ({
   visibleTabs,
   visibleTabCount,
@@ -52,36 +45,48 @@ export const PageLayoutTabListVisibleTabs = ({
   onChangeTab,
   onSelectTab,
   canReorder,
-  widgetDropTargetTabIds,
-  firstHiddenTabId,
 }: PageLayoutTabListVisibleTabsProps) => {
   if (canReorder) {
-    const endDropData: PageLayoutTabListEndDropData = {
-      type: 'tab-list-end',
-      beforeTabId: firstHiddenTabId,
-    };
-
     return (
-      <StyledTabContainer>
-        {visibleTabs.slice(0, visibleTabCount).map((tab, index) => (
-          <PageLayoutTabListReorderableTab
-            key={tab.id}
-            tab={tab}
-            index={index}
-            group={PAGE_LAYOUT_TAB_LIST_DROPPABLE_IDS.VISIBLE_TABS}
-            isActive={tab.id === activeTabId}
-            disabled={tab.disabled ?? loading}
-            isWidgetDropTarget={widgetDropTargetTabIds.has(tab.id)}
-            onSelect={() => onSelectTab(tab.id)}
-          />
-        ))}
-        <StyledEndDropZone
-          id={`${PAGE_LAYOUT_TAB_LIST_DROPPABLE_IDS.VISIBLE_TABS}-end`}
-          accept={PAGE_LAYOUT_TAB_DND_TYPE}
-          data={endDropData}
-          dropLine="vertical"
-        />
-      </StyledTabContainer>
+      <Droppable
+        droppableId={PAGE_LAYOUT_TAB_LIST_DROPPABLE_IDS.VISIBLE_TABS}
+        direction="horizontal"
+        renderClone={(
+          provided: DraggableProvided,
+          _snapshot: DraggableStateSnapshot,
+          rubric: DraggableRubric,
+        ) => {
+          const tab = visibleTabs[rubric.source.index];
+
+          return (
+            <PageLayoutTabRenderClone
+              provided={provided}
+              tab={tab}
+              activeTabId={activeTabId}
+            />
+          );
+        }}
+      >
+        {(provided) => (
+          <StyledTabContainer
+            ref={provided.innerRef}
+            // oxlint-disable-next-line react/jsx-props-no-spreading
+            {...provided.droppableProps}
+          >
+            {visibleTabs.slice(0, visibleTabCount).map((tab, index) => (
+              <PageLayoutTabListReorderableTab
+                key={tab.id}
+                tab={tab}
+                index={index}
+                isActive={tab.id === activeTabId}
+                disabled={tab.disabled ?? loading}
+                onSelect={() => onSelectTab(tab.id)}
+              />
+            ))}
+            {provided.placeholder}
+          </StyledTabContainer>
+        )}
+      </Droppable>
     );
   }
 

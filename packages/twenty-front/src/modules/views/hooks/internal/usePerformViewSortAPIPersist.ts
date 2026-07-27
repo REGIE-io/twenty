@@ -1,11 +1,12 @@
 import { useCallback } from 'react';
 
-import { type FlatViewSort } from '@/metadata-store/types/FlatViewSort';
+import { useMetadataErrorHandler } from '@/metadata-error-handler/hooks/useMetadataErrorHandler';
 import { type MetadataRequestResult } from '@/object-metadata/types/MetadataRequestResult.type';
-import { usePerformViewEntityAPIPersistOperation } from '@/views/hooks/internal/usePerformViewEntityAPIPersistOperation';
-import { useMutation } from '@apollo/client/react';
+import { useSnackBar } from '@/ui/feedback/snack-bar-manager/hooks/useSnackBar';
+import { CombinedGraphQLErrors } from '@apollo/client/errors';
+import { t } from '@lingui/core/macro';
 import { CrudOperationType } from 'twenty-shared/types';
-import { isDefined } from 'twenty-shared/utils';
+import { useMutation } from '@apollo/client/react';
 import {
   type CreateViewSortMutationVariables,
   type DeleteViewSortMutationVariables,
@@ -23,8 +24,8 @@ export const usePerformViewSortAPIPersist = () => {
   const [deleteViewSortMutation] = useMutation(DeleteViewSortDocument);
   const [destroyViewSortMutation] = useMutation(DestroyViewSortDocument);
 
-  const { performViewEntityAPIPersistBatchOperation } =
-    usePerformViewEntityAPIPersistOperation('viewSort');
+  const { handleMetadataError } = useMetadataErrorHandler();
+  const { enqueueErrorSnackBar } = useSnackBar();
 
   const performViewSortAPICreate = useCallback(
     async (
@@ -33,21 +34,43 @@ export const usePerformViewSortAPIPersist = () => {
       MetadataRequestResult<
         Awaited<ReturnType<typeof createViewSortMutation>>[]
       >
-    > =>
-      performViewEntityAPIPersistBatchOperation({
-        inputs: createViewSortInputs,
-        mutate: (variables) => createViewSortMutation({ variables }),
-        applyResultToDraft: (fulfilledMutations, { addToDraft }) =>
-          addToDraft({
-            key: 'viewSorts',
-            items: fulfilledMutations
-              .map(({ result }) => result.data?.createViewSort)
-              .filter(isDefined)
-              .map(({ __typename, ...viewSort }) => viewSort as FlatViewSort),
-          }),
-        operationType: CrudOperationType.CREATE,
-      }),
-    [createViewSortMutation, performViewEntityAPIPersistBatchOperation],
+    > => {
+      if (createViewSortInputs.length === 0) {
+        return {
+          status: 'successful',
+          response: [],
+        };
+      }
+
+      try {
+        const results = await Promise.all(
+          createViewSortInputs.map((variables) =>
+            createViewSortMutation({
+              variables,
+            }),
+          ),
+        );
+        return {
+          status: 'successful',
+          response: results,
+        };
+      } catch (error) {
+        if (CombinedGraphQLErrors.is(error)) {
+          handleMetadataError(error, {
+            primaryMetadataName: 'viewSort',
+            operationType: CrudOperationType.CREATE,
+          });
+        } else {
+          enqueueErrorSnackBar({ message: t`An error occurred.` });
+        }
+
+        return {
+          status: 'failed',
+          error,
+        };
+      }
+    },
+    [createViewSortMutation, handleMetadataError, enqueueErrorSnackBar],
   );
 
   const performViewSortAPIUpdate = useCallback(
@@ -57,21 +80,44 @@ export const usePerformViewSortAPIPersist = () => {
       MetadataRequestResult<
         Awaited<ReturnType<typeof updateViewSortMutation>>[]
       >
-    > =>
-      performViewEntityAPIPersistBatchOperation({
-        inputs: updateViewSortInputs,
-        mutate: (variables) => updateViewSortMutation({ variables }),
-        applyResultToDraft: (fulfilledMutations, { updateInDraft }) =>
-          updateInDraft(
-            'viewSorts',
-            fulfilledMutations
-              .map(({ result }) => result.data?.updateViewSort)
-              .filter(isDefined)
-              .map(({ __typename, ...viewSort }) => viewSort as FlatViewSort),
+    > => {
+      if (updateViewSortInputs.length === 0) {
+        return {
+          status: 'successful',
+          response: [],
+        };
+      }
+
+      try {
+        const results = await Promise.all(
+          updateViewSortInputs.map((variables) =>
+            updateViewSortMutation({
+              variables,
+            }),
           ),
-        operationType: CrudOperationType.UPDATE,
-      }),
-    [updateViewSortMutation, performViewEntityAPIPersistBatchOperation],
+        );
+
+        return {
+          status: 'successful',
+          response: results,
+        };
+      } catch (error) {
+        if (CombinedGraphQLErrors.is(error)) {
+          handleMetadataError(error, {
+            primaryMetadataName: 'viewSort',
+            operationType: CrudOperationType.UPDATE,
+          });
+        } else {
+          enqueueErrorSnackBar({ message: t`An error occurred` });
+        }
+
+        return {
+          status: 'failed',
+          error,
+        };
+      }
+    },
+    [updateViewSortMutation, handleMetadataError, enqueueErrorSnackBar],
   );
 
   const performViewSortAPIDelete = useCallback(
@@ -81,18 +127,44 @@ export const usePerformViewSortAPIPersist = () => {
       MetadataRequestResult<
         Awaited<ReturnType<typeof deleteViewSortMutation>>[]
       >
-    > =>
-      performViewEntityAPIPersistBatchOperation({
-        inputs: deleteViewSortInputs,
-        mutate: (variables) => deleteViewSortMutation({ variables }),
-        applyResultToDraft: (fulfilledMutations, { removeFromDraft }) =>
-          removeFromDraft({
-            key: 'viewSorts',
-            itemIds: fulfilledMutations.map(({ input }) => input.input.id),
-          }),
-        operationType: CrudOperationType.DELETE,
-      }),
-    [deleteViewSortMutation, performViewEntityAPIPersistBatchOperation],
+    > => {
+      if (deleteViewSortInputs.length === 0) {
+        return {
+          status: 'successful',
+          response: [],
+        };
+      }
+
+      try {
+        const results = await Promise.all(
+          deleteViewSortInputs.map((variables) =>
+            deleteViewSortMutation({
+              variables,
+            }),
+          ),
+        );
+
+        return {
+          status: 'successful',
+          response: results,
+        };
+      } catch (error) {
+        if (CombinedGraphQLErrors.is(error)) {
+          handleMetadataError(error, {
+            primaryMetadataName: 'viewSort',
+            operationType: CrudOperationType.DELETE,
+          });
+        } else {
+          enqueueErrorSnackBar({ message: t`An error occurred` });
+        }
+
+        return {
+          status: 'failed',
+          error,
+        };
+      }
+    },
+    [deleteViewSortMutation, handleMetadataError, enqueueErrorSnackBar],
   );
 
   const performViewSortAPIDestroy = useCallback(
@@ -102,18 +174,44 @@ export const usePerformViewSortAPIPersist = () => {
       MetadataRequestResult<
         Awaited<ReturnType<typeof destroyViewSortMutation>>[]
       >
-    > =>
-      performViewEntityAPIPersistBatchOperation({
-        inputs: destroyViewSortInputs,
-        mutate: (variables) => destroyViewSortMutation({ variables }),
-        applyResultToDraft: (fulfilledMutations, { removeFromDraft }) =>
-          removeFromDraft({
-            key: 'viewSorts',
-            itemIds: fulfilledMutations.map(({ input }) => input.input.id),
-          }),
-        operationType: CrudOperationType.DESTROY,
-      }),
-    [destroyViewSortMutation, performViewEntityAPIPersistBatchOperation],
+    > => {
+      if (destroyViewSortInputs.length === 0) {
+        return {
+          status: 'successful',
+          response: [],
+        };
+      }
+
+      try {
+        const results = await Promise.all(
+          destroyViewSortInputs.map((variables) =>
+            destroyViewSortMutation({
+              variables,
+            }),
+          ),
+        );
+
+        return {
+          status: 'successful',
+          response: results,
+        };
+      } catch (error) {
+        if (CombinedGraphQLErrors.is(error)) {
+          handleMetadataError(error, {
+            primaryMetadataName: 'viewSort',
+            operationType: CrudOperationType.DESTROY,
+          });
+        } else {
+          enqueueErrorSnackBar({ message: t`An error occurred` });
+        }
+
+        return {
+          status: 'failed',
+          error,
+        };
+      }
+    },
+    [destroyViewSortMutation, handleMetadataError, enqueueErrorSnackBar],
   );
 
   return {

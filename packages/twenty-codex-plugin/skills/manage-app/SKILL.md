@@ -91,10 +91,10 @@ When the user says "prod", "production", or "workspace de prod", identify the ta
 Always use one-shot sync to synchronize app changes with the active remote:
 
 ```bash
-yarn twenty apply
+yarn twenty dev --once
 ```
 
-Do not use bare `yarn twenty dev` (watch mode). Run `yarn twenty apply` each time changes need to be synced.
+Do not use bare `yarn twenty dev` (watch mode). Run `yarn twenty dev --once` each time changes need to be synced.
 
 One-shot sync requires an authenticated remote. If authentication fails, re-add or switch the remote before retrying.
 
@@ -115,7 +115,7 @@ Collect the minimum useful context before changing configuration:
 sed -n '1,220p' package.json
 sed -n '1,220p' src/application-config.ts
 yarn twenty remote:list
-yarn twenty apply --verbose
+yarn twenty dev --once --verbose
 ```
 
 For remote or authentication issues:
@@ -127,7 +127,7 @@ For remote or authentication issues:
 
 For sync issues:
 
-- Prefer `yarn twenty apply --verbose` to get a bounded failure.
+- Prefer `yarn twenty dev --once --verbose` to get a bounded failure.
 - Check generated type or schema errors before editing app entities.
 - If the app depends on a changed data model, use `$develop-app` to fix the entity definitions.
 

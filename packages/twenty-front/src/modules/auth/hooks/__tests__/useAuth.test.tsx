@@ -11,19 +11,10 @@ import {
   results,
   token,
 } from '@/auth/hooks/__mocks__/useAuth';
-import {
-  type CurrentUser,
-  currentUserState,
-} from '@/auth/states/currentUserState';
-import {
-  type CurrentWorkspace,
-  currentWorkspaceState,
-} from '@/auth/states/currentWorkspaceState';
 import { returnToPathState } from '@/auth/states/returnToPathState';
 import { SnackBarComponentInstanceContext } from '@/ui/feedback/snack-bar-manager/contexts/SnackBarComponentInstanceContext';
 import { renderHook } from '@testing-library/react';
 import { getDefaultStore } from 'jotai';
-import { WorkspaceActivationStatus } from 'twenty-shared/workspace';
 
 const redirectSpy = jest.fn();
 
@@ -193,13 +184,6 @@ describe('useAuth', () => {
 
   it('should handle sign-out', async () => {
     sessionStorage.setItem('lingering-key', 'should-be-cleared');
-    getDefaultStore().set(currentWorkspaceState.atom, {
-      id: 'workspace-id',
-      activationStatus: WorkspaceActivationStatus.SUSPENDED,
-    } as CurrentWorkspace);
-    getDefaultStore().set(currentUserState.atom, {
-      id: 'user-id',
-    } as CurrentUser);
 
     const { result } = renderHooks();
 
@@ -208,8 +192,6 @@ describe('useAuth', () => {
     });
 
     expect(sessionStorage.length).toBe(0);
-    expect(getDefaultStore().get(currentWorkspaceState.atom)).toBeNull();
-    expect(getDefaultStore().get(currentUserState.atom)).toBeNull();
   });
 
   it('should handle credential sign-up', async () => {

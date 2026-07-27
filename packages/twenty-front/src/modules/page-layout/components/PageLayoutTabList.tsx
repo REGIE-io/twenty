@@ -1,4 +1,11 @@
-import { useDragDropMonitor } from '@dnd-kit/react';
+import {
+  DragDropContext,
+  type DropResult,
+  type OnDragEndResponder,
+  type OnDragStartResponder,
+  type OnDragUpdateResponder,
+  type ResponderProvided,
+} from '@hello-pangea/dnd';
 import { styled } from '@linaria/react';
 import { useLingui } from '@lingui/react/macro';
 import { useCallback, useMemo } from 'react';
@@ -22,16 +29,15 @@ import { useAtomComponentState } from '@/ui/utilities/state/jotai/hooks/useAtomC
 import { useSetAtomComponentState } from '@/ui/utilities/state/jotai/hooks/useSetAtomComponentState';
 
 import { PAGE_LAYOUT_TAB_LIST_DROPPABLE_IDS } from '@/page-layout/components/PageLayoutTabListDroppableIds';
-import { PAGE_LAYOUT_TAB_LIST_END_DROP_ZONE_WIDTH } from '@/page-layout/constants/PageLayoutTabListEndDropZoneWidth';
 import { PageLayoutTabListNewTabDropdownContent } from '@/page-layout/components/PageLayoutTabListNewTabDropdownContent';
 import { PageLayoutTabListReorderableOverflowDropdown } from '@/page-layout/components/PageLayoutTabListReorderableOverflowDropdown';
 import { PageLayoutTabListVisibleTabs } from '@/page-layout/components/PageLayoutTabListVisibleTabs';
 import { useIsPageLayoutInEditMode } from '@/page-layout/hooks/useIsPageLayoutInEditMode';
 import { PageLayoutComponentInstanceContext } from '@/page-layout/states/contexts/PageLayoutComponentInstanceContext';
+import { pageLayoutTabListCurrentDragDroppableIdComponentState } from '@/page-layout/states/pageLayoutTabListCurrentDragDroppableIdComponentState';
 import { pageLayoutTabSettingsOpenTabIdComponentState } from '@/page-layout/states/pageLayoutTabSettingsOpenTabIdComponentState';
 import { type PageLayoutAddTabStrategy } from '@/page-layout/types/PageLayoutAddTabStrategy';
 import { type PageLayoutTab } from '@/page-layout/types/PageLayoutTab';
-import { type PageLayoutWidgetDndData } from '@/page-layout/types/PageLayoutWidgetDndData';
 import { shouldEnableTabEditingFeatures } from '@/page-layout/utils/shouldEnableTabEditingFeatures';
 import { useNavigatePageLayoutSidePanel } from '@/side-panel/pages/page-layout/hooks/useNavigatePageLayoutSidePanel';
 import { Dropdown } from '@/ui/layout/dropdown/components/Dropdown';
@@ -43,10 +49,7 @@ import { useAtomComponentStateValue } from '@/ui/utilities/state/jotai/hooks/use
 import { SidePanelPages } from 'twenty-shared/types';
 import { isDefined } from 'twenty-shared/utils';
 import { themeCssVariables } from 'twenty-ui/theme-constants';
-import {
-  PageLayoutTabLayoutMode,
-  PageLayoutType,
-} from '~/generated-metadata/graphql';
+import { type PageLayoutType } from '~/generated-metadata/graphql';
 
 const StyledContainer = styled.div`
   box-sizing: border-box;
@@ -84,6 +87,7 @@ type PageLayoutTabListProps = Omit<TabListProps, 'tabs'> & {
   tabs: PageLayoutTab[];
   isReorderEnabled: boolean;
   addTabStrategy?: PageLayoutAddTabStrategy;
+  onReorder?: (result: DropResult, provided: ResponderProvided) => boolean;
   behaveAsLinks: boolean;
   pageLayoutType: PageLayoutType;
 };
@@ -98,6 +102,7 @@ export const PageLayoutTabList = ({
   onChangeTab,
   addTabStrategy,
   isReorderEnabled,
+  onReorder,
   pageLayoutType,
 }: PageLayoutTabListProps) => {
   const { getIcon } = useIcons();
@@ -178,43 +183,25 @@ export const PageLayoutTabList = ({
     closeDropdown(dropdownId);
   }, [closeDropdown, dropdownId]);
 
-  // The overflow dropdown must survive drops into itself: the dragging flag
-  // suppresses its close-on-click-outside while a tab drag is in flight, and a
-  // drop on the more button reopens it on the freshly appended tab.
-  useDragDropMonitor({
-    onDragStart: (event) => {
-      const sourceData = event.operation.source?.data as
-        | PageLayoutWidgetDndData
-        | undefined;
+  const setPageLayoutTabListCurrentDragDroppableId = useSetAtomComponentState(
+    pageLayoutTabListCurrentDragDroppableIdComponentState,
+    pageLayoutId,
+  );
 
-      if (sourceData?.type !== 'tab') {
-        return;
-      }
+  const handleDragUpdate: OnDragUpdateResponder = (update) => {
+    setPageLayoutTabListCurrentDragDroppableId(update.destination?.droppableId);
+  };
 
-      setIsPageLayoutTabDragging(true);
-      toggleClickOutside(false);
-    },
-    onDragEnd: (event) => {
-      const sourceData = event.operation.source?.data as
-        | PageLayoutWidgetDndData
-        | undefined;
+  const handleDragStart = useCallback<OnDragStartResponder>(() => {
+    setIsPageLayoutTabDragging(true);
+    toggleClickOutside(false);
+  }, [setIsPageLayoutTabDragging, toggleClickOutside]);
 
-      if (sourceData?.type !== 'tab') {
-        return;
-      }
-
-      const target = event.operation.target;
-      const targetData = target?.data as PageLayoutWidgetDndData | undefined;
-      const targetDroppableId = (
-        target?.data as { droppableId?: string } | undefined
-      )?.droppableId;
-
+  const handleDragEnd = useCallback<OnDragEndResponder>(
+    (result, provided) => {
       const droppedInOverflow =
-        !event.canceled &&
-        (targetDroppableId ===
-          PAGE_LAYOUT_TAB_LIST_DROPPABLE_IDS.OVERFLOW_TABS ||
-          String(target?.id) ===
-            `${PAGE_LAYOUT_TAB_LIST_DROPPABLE_IDS.OVERFLOW_TABS}-end`);
+        result.destination?.droppableId ===
+        PAGE_LAYOUT_TAB_LIST_DROPPABLE_IDS.OVERFLOW_TABS;
 
       if (!droppedInOverflow) {
         setIsPageLayoutTabDragging(false);
@@ -222,13 +209,26 @@ export const PageLayoutTabList = ({
 
       toggleClickOutside(true);
 
-      if (!event.canceled && targetData?.type === 'tab-more-button') {
+      if (!onReorder) {
+        return;
+      }
+
+      const shouldOpenDropdown = onReorder(result, provided);
+
+      if (shouldOpenDropdown === true) {
         openDropdown({
           dropdownComponentInstanceIdFromProps: dropdownId,
         });
       }
     },
-  });
+    [
+      onReorder,
+      setIsPageLayoutTabDragging,
+      toggleClickOutside,
+      openDropdown,
+      dropdownId,
+    ],
+  );
 
   const isPageLayoutInEditMode = useIsPageLayoutInEditMode();
   const pageLayoutTabSettingsOpenTabId = useAtomComponentStateValue(
@@ -253,25 +253,6 @@ export const PageLayoutTabList = ({
   );
 
   const isTabSettingsOpen = isDefined(pageLayoutTabSettingsOpenTabId);
-
-  // The reorderable strip appends an end drop zone the tab measurement does
-  // not know about; reserve its width so visible tabs never get clipped.
-  const handleContainerWidthChange = useCallback(
-    (dimensions: { width: number; height: number }) => {
-      onContainerWidthChange(
-        isReorderEnabled
-          ? {
-              ...dimensions,
-              width: Math.max(
-                dimensions.width - PAGE_LAYOUT_TAB_LIST_END_DROP_ZONE_WIDTH,
-                0,
-              ),
-            }
-          : dimensions,
-      );
-    },
-    [onContainerWidthChange, isReorderEnabled],
-  );
 
   const handleSelectTab = useCallback(
     (tabId: string) => {
@@ -333,30 +314,11 @@ export const PageLayoutTabList = ({
     return null;
   }
 
-  const canReorderTabs = isReorderEnabled;
+  const canReorderTabs = isReorderEnabled && isDefined(onReorder);
 
   const shouldRenderReorderableDropdown = hasHiddenTabs && canReorderTabs;
 
   const shouldRenderStaticDropdown = hasHiddenTabs && !canReorderTabs;
-
-  // Record pages accept widget drops on vertical-list tabs (dnd-kit drags);
-  // dashboards accept them on grid tabs (react-grid-layout drags bridged by
-  // pointer hit-testing).
-  const widgetDropTargetTabIds = new Set(
-    pageLayoutType === PageLayoutType.RECORD_PAGE
-      ? tabs
-          .filter(
-            (tab) => tab.layoutMode === PageLayoutTabLayoutMode.VERTICAL_LIST,
-          )
-          .map((tab) => tab.id)
-      : pageLayoutType === PageLayoutType.DASHBOARD
-        ? tabs
-            .filter(
-              (tab) => tab.layoutMode !== PageLayoutTabLayoutMode.VERTICAL_LIST,
-            )
-            .map((tab) => tab.id)
-        : [],
-  );
 
   return (
     <TabListComponentInstanceContext.Provider
@@ -392,91 +354,140 @@ export const PageLayoutTabList = ({
         />
       )}
 
-      <NodeDimension onDimensionChange={handleContainerWidthChange}>
-        <StyledContainer className={className}>
-          <PageLayoutTabListVisibleTabs
-            visibleTabs={tabsWithIcons}
-            visibleTabCount={visibleTabCount}
-            activeTabId={activeTabId}
-            behaveAsLinks={behaveAsLinks}
-            loading={loading}
-            onChangeTab={onChangeTab}
-            onSelectTab={handleSelectTab}
-            canReorder={canReorderTabs}
-            widgetDropTargetTabIds={widgetDropTargetTabIds}
-            firstHiddenTabId={
-              hasHiddenTabs ? (hiddenTabs[0]?.id ?? null) : null
-            }
-          />
-
-          {shouldRenderReorderableDropdown && (
-            <StyledDropdownContainer>
-              <PageLayoutTabListReorderableOverflowDropdown
-                dropdownId={dropdownId}
-                hiddenTabs={hiddenTabs}
-                hiddenTabsCount={hiddenTabsCount}
-                isActiveTabHidden={isActiveTabHidden}
-                activeTabId={activeTabId || ''}
-                loading={loading}
-                onSelect={handleSelectTabFromDropdown}
+      <NodeDimension onDimensionChange={onContainerWidthChange}>
+        {isReorderEnabled && onReorder ? (
+          <DragDropContext
+            onDragStart={handleDragStart}
+            onDragEnd={handleDragEnd}
+            onDragUpdate={handleDragUpdate}
+          >
+            <StyledContainer className={className}>
+              <PageLayoutTabListVisibleTabs
+                visibleTabs={tabsWithIcons}
                 visibleTabCount={visibleTabCount}
-                onClose={closeOverflowDropdown}
-                pageLayoutType={pageLayoutType}
-              />
-            </StyledDropdownContainer>
-          )}
-
-          {shouldRenderStaticDropdown && (
-            <StyledDropdownContainer>
-              <TabListDropdown
-                dropdownId={dropdownId}
-                hiddenTabs={hiddenTabs}
-                overflow={{
-                  hiddenTabsCount,
-                  isActiveTabHidden,
-                }}
-                activeTabId={activeTabId || ''}
+                activeTabId={activeTabId}
+                behaveAsLinks={behaveAsLinks}
                 loading={loading}
-                onTabSelect={handleSelectTabFromDropdown}
-                onClose={closeOverflowDropdown}
+                onChangeTab={onChangeTab}
+                onSelectTab={handleSelectTab}
+                canReorder={canReorderTabs}
               />
-            </StyledDropdownContainer>
-          )}
 
-          {addTabStrategy?.mode === 'direct' && (
-            <StyledAddButton>
-              <TabButton
-                id="add-tab"
-                LeftIcon={IconPlus}
-                title={t`New Tab`}
-                onClick={() => addTabStrategy.onCreate()}
-                disableTestId
-              />
-            </StyledAddButton>
-          )}
-          {addTabStrategy?.mode === 'dropdown' && (
-            <StyledAddButton>
-              <Dropdown
-                dropdownId={addTabDropdownId}
-                clickableComponent={
+              {shouldRenderReorderableDropdown && (
+                <StyledDropdownContainer>
+                  <PageLayoutTabListReorderableOverflowDropdown
+                    dropdownId={dropdownId}
+                    hiddenTabs={hiddenTabs}
+                    hiddenTabsCount={hiddenTabsCount}
+                    isActiveTabHidden={isActiveTabHidden}
+                    activeTabId={activeTabId || ''}
+                    loading={loading}
+                    onSelect={handleSelectTabFromDropdown}
+                    visibleTabCount={visibleTabCount}
+                    onClose={closeOverflowDropdown}
+                    pageLayoutType={pageLayoutType}
+                  />
+                </StyledDropdownContainer>
+              )}
+
+              {addTabStrategy?.mode === 'direct' && (
+                <StyledAddButton>
                   <TabButton
                     id="add-tab"
                     LeftIcon={IconPlus}
                     title={t`New Tab`}
+                    onClick={() => addTabStrategy.onCreate()}
                     disableTestId
                   />
-                }
-                dropdownComponents={
-                  <PageLayoutTabListNewTabDropdownContent
-                    onCreate={addTabStrategy.onCreate}
+                </StyledAddButton>
+              )}
+              {addTabStrategy?.mode === 'dropdown' && (
+                <StyledAddButton>
+                  <Dropdown
                     dropdownId={addTabDropdownId}
+                    clickableComponent={
+                      <TabButton
+                        id="add-tab"
+                        LeftIcon={IconPlus}
+                        title={t`New Tab`}
+                        disableTestId
+                      />
+                    }
+                    dropdownComponents={
+                      <PageLayoutTabListNewTabDropdownContent
+                        onCreate={addTabStrategy.onCreate}
+                        dropdownId={addTabDropdownId}
+                      />
+                    }
+                    dropdownPlacement="bottom-start"
                   />
-                }
-                dropdownPlacement="bottom-start"
-              />
-            </StyledAddButton>
-          )}
-        </StyledContainer>
+                </StyledAddButton>
+              )}
+            </StyledContainer>
+          </DragDropContext>
+        ) : (
+          <StyledContainer className={className}>
+            <PageLayoutTabListVisibleTabs
+              visibleTabs={tabsWithIcons}
+              visibleTabCount={visibleTabCount}
+              activeTabId={activeTabId}
+              behaveAsLinks={behaveAsLinks}
+              loading={loading}
+              onChangeTab={onChangeTab}
+              onSelectTab={handleSelectTab}
+              canReorder={canReorderTabs}
+            />
+            {shouldRenderStaticDropdown && (
+              <StyledDropdownContainer>
+                <TabListDropdown
+                  dropdownId={dropdownId}
+                  hiddenTabs={hiddenTabs}
+                  overflow={{
+                    hiddenTabsCount,
+                    isActiveTabHidden,
+                  }}
+                  activeTabId={activeTabId || ''}
+                  loading={loading}
+                  onTabSelect={handleSelectTabFromDropdown}
+                  onClose={closeOverflowDropdown}
+                />
+              </StyledDropdownContainer>
+            )}
+            {addTabStrategy?.mode === 'direct' && (
+              <StyledAddButton>
+                <TabButton
+                  id="add-tab"
+                  LeftIcon={IconPlus}
+                  title={t`New Tab`}
+                  onClick={() => addTabStrategy.onCreate()}
+                  disableTestId
+                />
+              </StyledAddButton>
+            )}
+            {addTabStrategy?.mode === 'dropdown' && (
+              <StyledAddButton>
+                <Dropdown
+                  dropdownId={addTabDropdownId}
+                  clickableComponent={
+                    <TabButton
+                      id="add-tab"
+                      LeftIcon={IconPlus}
+                      title={t`New Tab`}
+                      disableTestId
+                    />
+                  }
+                  dropdownComponents={
+                    <PageLayoutTabListNewTabDropdownContent
+                      onCreate={addTabStrategy.onCreate}
+                      dropdownId={addTabDropdownId}
+                    />
+                  }
+                  dropdownPlacement="bottom-start"
+                />
+              </StyledAddButton>
+            )}
+          </StyledContainer>
+        )}
       </NodeDimension>
     </TabListComponentInstanceContext.Provider>
   );

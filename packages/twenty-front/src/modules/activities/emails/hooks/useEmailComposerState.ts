@@ -3,105 +3,78 @@ import { MAX_EMAIL_RECIPIENTS } from 'twenty-shared/constants';
 import { type EmailAttachment } from 'twenty-shared/types';
 
 import { useSendEmail } from '@/activities/emails/hooks/useSendEmail';
-import { type EmailRecipient } from '@/activities/emails/recipients/types/EmailRecipient';
-import { isValidEmailRecipientAddress } from '@/activities/emails/recipients/utils/isValidEmailRecipientAddress';
-import { parseEmailRecipients } from '@/activities/emails/recipients/utils/parseEmailRecipients';
-import { serializeEmailRecipients } from '@/activities/emails/recipients/utils/serializeEmailRecipients';
-import { type EmailDraftPrefill } from '@/activities/emails/types/EmailDraftPrefill';
 
 type UseEmailComposerStateArgs = {
   connectedAccountId: string;
-  draftPrefill?: EmailDraftPrefill | null;
   defaultTo?: string;
   defaultSubject?: string;
   defaultInReplyTo?: string;
-  onSent?: (messageThreadId: string | null) => void;
+  onSent?: () => void;
 };
 
-const hasInvalidRecipient = (recipients: EmailRecipient[]): boolean =>
-  recipients.some(
-    (recipient) => !isValidEmailRecipientAddress(recipient.address),
-  );
+const countRecipients = (csv: string): number =>
+  csv
+    .split(',')
+    .map((entry) => entry.trim())
+    .filter((entry) => entry.length > 0).length;
 
 export const useEmailComposerState = ({
   connectedAccountId: initialConnectedAccountId,
-  draftPrefill,
   defaultTo = '',
   defaultSubject = '',
   defaultInReplyTo,
   onSent,
 }: UseEmailComposerStateArgs) => {
-  const initialTo = draftPrefill?.to ?? defaultTo;
-  const initialCc = draftPrefill?.cc ?? '';
-  const initialBcc = draftPrefill?.bcc ?? '';
-  const initialSubject = draftPrefill?.subject ?? defaultSubject;
-  const initialBody = draftPrefill?.body ?? '';
-
   const [connectedAccountId, setConnectedAccountId] = useState(
     initialConnectedAccountId,
   );
-  const [to, setTo] = useState<EmailRecipient[]>(() =>
-    parseEmailRecipients(initialTo),
-  );
-  const [cc, setCc] = useState<EmailRecipient[]>(() =>
-    parseEmailRecipients(initialCc),
-  );
-  const [bcc, setBcc] = useState<EmailRecipient[]>(() =>
-    parseEmailRecipients(initialBcc),
-  );
-  const [subject, setSubject] = useState(initialSubject);
-  const [body, setBody] = useState(initialBody);
-  const [showCcBcc, setShowCcBcc] = useState(
-    initialCc.length > 0 || initialBcc.length > 0,
-  );
+  const [to, setTo] = useState(defaultTo);
+  const [cc, setCc] = useState('');
+  const [bcc, setBcc] = useState('');
+  const [subject, setSubject] = useState(defaultSubject);
+  const [body, setBody] = useState('');
+  const [showCcBcc, setShowCcBcc] = useState(false);
   const [files, setFiles] = useState<EmailAttachment[]>([]);
 
   const { sendEmail, loading } = useSendEmail();
 
-  const recipientCount = to.length + cc.length + bcc.length;
-
-  const exceedsRecipientLimit = recipientCount > MAX_EMAIL_RECIPIENTS;
-
-  const hasInvalidRecipients = useMemo(
-    () =>
-      hasInvalidRecipient(to) ||
-      hasInvalidRecipient(cc) ||
-      hasInvalidRecipient(bcc),
+  const recipientCount = useMemo(
+    () => countRecipients(to) + countRecipients(cc) + countRecipients(bcc),
     [to, cc, bcc],
   );
 
+  const exceedsRecipientLimit = recipientCount > MAX_EMAIL_RECIPIENTS;
+
   const canSend =
-    to.length > 0 &&
+    to.trim().length > 0 &&
     connectedAccountId.length > 0 &&
     !loading &&
-    !exceedsRecipientLimit &&
-    !hasInvalidRecipients;
+    !exceedsRecipientLimit;
 
   const handleSend = useCallback(async () => {
-    if (!canSend) {
+    if (!to.trim() || !connectedAccountId || exceedsRecipientLimit) {
       return;
     }
 
-    const serializedCc = serializeEmailRecipients(cc);
-    const serializedBcc = serializeEmailRecipients(bcc);
+    const trimmedTo = to.trim();
+    const trimmedCc = cc.trim();
+    const trimmedBcc = bcc.trim();
 
-    const { success, messageThreadId } = await sendEmail({
+    const success = await sendEmail({
       connectedAccountId,
-      to: serializeEmailRecipients(to),
-      cc: serializedCc || undefined,
-      bcc: serializedBcc || undefined,
+      to: trimmedTo,
+      cc: trimmedCc || undefined,
+      bcc: trimmedBcc || undefined,
       subject,
       body,
       inReplyTo: defaultInReplyTo,
-      draftMessageId: draftPrefill?.messageId,
       files: files.length > 0 ? files : undefined,
     });
 
     if (success) {
-      onSent?.(messageThreadId);
+      onSent?.();
     }
   }, [
-    canSend,
     connectedAccountId,
     to,
     cc,
@@ -109,10 +82,10 @@ export const useEmailComposerState = ({
     subject,
     body,
     defaultInReplyTo,
-    draftPrefill?.messageId,
     files,
     sendEmail,
     onSent,
+    exceedsRecipientLimit,
   ]);
 
   return {
@@ -135,8 +108,8 @@ export const useEmailComposerState = ({
     handleSend,
     loading,
     canSend,
-    initialSubject,
-    initialBody,
+    defaultTo,
+    defaultSubject,
     recipientCount,
     exceedsRecipientLimit,
     maxRecipients: MAX_EMAIL_RECIPIENTS,

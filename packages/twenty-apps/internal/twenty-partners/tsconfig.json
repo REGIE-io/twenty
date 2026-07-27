@@ -6,7 +6,7 @@
     "outDir": "./dist",
     "rootDir": ".",
     "jsx": "react-jsx",
-    "moduleResolution": "bundler",
+    "moduleResolution": "node",
     "allowSyntheticDefaultImports": true,
     "emitDecoratorMetadata": true,
     "experimentalDecorators": true,
@@ -30,7 +30,6 @@
   "exclude": [
     "node_modules",
     "dist",
-    "**/*.config.ts",
     "**/*.test.ts",
     "**/*.spec.ts",
     "**/*.integration-test.ts"

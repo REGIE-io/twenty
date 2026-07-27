@@ -1,8 +1,7 @@
 import { type MouseEvent } from 'react';
 
-import { RoundedLink, SocialLink } from 'twenty-ui/navigation';
+import { LinkType, RoundedLink, SocialLink } from 'twenty-ui/navigation';
 import { checkUrlType } from '~/utils/checkUrlType';
-import { isSocialLinkType } from '~/utils/isSocialLinkType';
 import { getSafeUrl } from 'twenty-shared/utils';
 import { EllipsisDisplay } from './EllipsisDisplay';
 
@@ -21,14 +20,18 @@ export const URLDisplay = ({ value }: URLDisplayProps) => {
 
   const type = checkUrlType(absoluteUrl);
 
-  if (isSocialLinkType(type)) {
+  if (
+    type === LinkType.LinkedIn ||
+    type === LinkType.Twitter ||
+    type === LinkType.Facebook
+  ) {
     return (
       <EllipsisDisplay>
         <SocialLink
           href={absoluteUrl}
           onClick={handleClick}
           type={type}
-          label={null}
+          label={displayedValue}
         />
       </EllipsisDisplay>
     );

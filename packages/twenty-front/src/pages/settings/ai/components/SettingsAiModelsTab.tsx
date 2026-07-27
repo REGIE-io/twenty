@@ -155,7 +155,7 @@ export const SettingsAiModelsTab = () => {
       <Section>
         <H2Title
           title={t`Available models`}
-          description={t`Models available in the agent node and chat model pickers`}
+          description={t`Models available in the chat model picker`}
         />
         <Card rounded>
           <SettingsOptionCardContentToggle

@@ -100,9 +100,7 @@ export const SidePanelPageLayoutDashboardWidgetTypeSelect = () => {
     frontComponents: FrontComponent[];
   }>(FIND_MANY_FRONT_COMPONENTS);
 
-  const frontComponents = (frontComponentsData?.frontComponents ?? []).filter(
-    (frontComponent) => !frontComponent.isHeadless,
-  );
+  const frontComponents = frontComponentsData?.frontComponents ?? [];
 
   const frontComponentsWithSelectItemId = frontComponents.map(
     (frontComponent) => ({

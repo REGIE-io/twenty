@@ -1,8 +1,10 @@
-import { type FrontComponentThread } from '@/types/FrontComponentThread';
+import { type FrontComponentHostCommunicationApi } from '@/types/FrontComponentHostCommunicationApi';
+import { type WorkerExports } from '@/types/WorkerExports';
+import { type ThreadWebWorker } from '@quilted/threads';
 import { useEffect } from 'react';
 
 type FrontComponentInitializeHostCommunicationApiEffectProps = {
-  thread: FrontComponentThread;
+  thread: ThreadWebWorker<WorkerExports, FrontComponentHostCommunicationApi>;
 };
 
 export const FrontComponentInitializeHostCommunicationApiEffect = ({

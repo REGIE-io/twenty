@@ -250,17 +250,20 @@ const computePackageJsonFilesAndExportsConfig = (
   return {
     exports,
     typesVersions: { '*': typesVersionsEntries },
-    files: [
-      'dist',
-      '!dist/individual',
-      '!dist/individual/**',
-      '!dist/**/*.map',
-    ],
+    files: ['dist', ...entrypoints],
   };
 };
 
-const computeProjectNxBuildOutputsPath = () => {
-  return ['{projectRoot}/dist'];
+const computeProjectNxBuildOutputsPath = (moduleDirectories: string[]) => {
+  const dynamicOutputsPath = moduleDirectories
+    .map(getLastPathFolder)
+    .flatMap((barrelName) =>
+      ['package.json', 'dist'].map(
+        (subPath) => `{projectRoot}/${barrelName}/${subPath}`,
+      ),
+    );
+
+  return ['{projectRoot}/dist', ...dynamicOutputsPath];
 };
 
 const EXCLUDED_EXTENSIONS = [
@@ -528,7 +531,8 @@ const main = () => {
   const moduleIndexFiles = generateModuleIndexFiles(exportsByBarrel);
   const packageJsonConfig =
     computePackageJsonFilesAndExportsConfig(moduleDirectories);
-  const nxBuildOutputsPath = computeProjectNxBuildOutputsPath();
+  const nxBuildOutputsPath =
+    computeProjectNxBuildOutputsPath(moduleDirectories);
 
   updateNxProjectConfigurationBuildOutputs(nxBuildOutputsPath);
   writeInPackageJson(packageJsonConfig);

@@ -23,9 +23,6 @@ class PublicConnectionParamsDTO {
 
 @ObjectType('ImapSmtpCaldavPublicConnectionParameters')
 class ImapSmtpCaldavPublicConnectionParametersDTO {
-  @Field(() => String, { nullable: true })
-  name?: string | null;
-
   @Field(() => PublicConnectionParamsDTO, { nullable: true })
   IMAP?: PublicConnectionParamsDTO;
 

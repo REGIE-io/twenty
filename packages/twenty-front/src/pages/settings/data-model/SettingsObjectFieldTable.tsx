@@ -25,11 +25,10 @@ import { useAtomFamilyStateValue } from '@/ui/utilities/state/jotai/hooks/useAto
 import { useSetAtomFamilyState } from '@/ui/utilities/state/jotai/hooks/useSetAtomFamilyState';
 import { useEffect, useMemo, useState } from 'react';
 import { FieldMetadataType } from 'twenty-shared/types';
-import { IconArchive, IconCircleDashed, IconSettings } from 'twenty-ui/icon';
+import { IconArchive, IconSettings } from 'twenty-ui/icon';
 import { SearchInput } from 'twenty-ui/input';
 import { MenuItemToggle } from 'twenty-ui/navigation';
 import { themeCssVariables } from 'twenty-ui/theme-constants';
-import { useMostlyEmptyFieldMetadataIds } from '@/settings/data-model/object-details/hooks/useMostlyEmptyFieldMetadataIds';
 import { useMapFieldMetadataItemToSettingsObjectDetailTableItem } from '~/pages/settings/data-model/hooks/useMapFieldMetadataItemToSettingsObjectDetailTableItem';
 import { type SettingsObjectDetailTableItem } from '~/pages/settings/data-model/types/SettingsObjectDetailTableItem';
 import { normalizeSearchText } from '~/utils/normalizeSearchText';
@@ -83,12 +82,6 @@ export const SettingsObjectFieldTable = ({
   const [searchTerm, setSearchTerm] = useState('');
   const [showInactive, setShowInactive] = useState(true);
   const [showSystemFields, setShowSystemFields] = useState(false);
-  const [showOnlyMostlyEmpty, setShowOnlyMostlyEmpty] = useState(false);
-
-  const { mostlyEmptyFieldMetadataIds } = useMostlyEmptyFieldMetadataIds({
-    objectMetadataItemId: objectMetadataItem.id,
-    skip: mode !== 'view',
-  });
 
   const isAdvancedModeEnabled = useAtomStateValue(isAdvancedModeEnabledState);
 
@@ -149,23 +142,13 @@ export const SettingsObjectFieldTable = ({
       const matchesActiveFilter =
         showInactive || item.fieldMetadataItem.isActive;
 
-      const matchesMostlyEmptyFilter =
-        !showOnlyMostlyEmpty ||
-        mostlyEmptyFieldMetadataIds.has(item.fieldMetadataItem.id);
-
       const matchesSearch =
         normalizeSearchText(item.label).includes(searchNormalized) ||
         normalizeSearchText(item.dataType).includes(searchNormalized);
 
-      return matchesActiveFilter && matchesMostlyEmptyFilter && matchesSearch;
+      return matchesActiveFilter && matchesSearch;
     });
-  }, [
-    sortedAllObjectSettingsDetailItems,
-    searchTerm,
-    showInactive,
-    showOnlyMostlyEmpty,
-    mostlyEmptyFieldMetadataIds,
-  ]);
+  }, [sortedAllObjectSettingsDetailItems, searchTerm, showInactive]);
 
   return (
     <>
@@ -190,18 +173,6 @@ export const SettingsObjectFieldTable = ({
                       text={t`Inactive`}
                       toggleSize="small"
                     />
-                    {(mostlyEmptyFieldMetadataIds.size > 0 ||
-                      showOnlyMostlyEmpty) && (
-                      <MenuItemToggle
-                        LeftIcon={IconCircleDashed}
-                        onToggleChange={() =>
-                          setShowOnlyMostlyEmpty(!showOnlyMostlyEmpty)
-                        }
-                        toggled={showOnlyMostlyEmpty}
-                        text={t`Mostly empty`}
-                        toggleSize="small"
-                      />
-                    )}
                     {isAdvancedModeEnabled && (
                       <MenuItemToggle
                         LeftIcon={IconSettings}
@@ -248,9 +219,6 @@ export const SettingsObjectFieldTable = ({
                   settingsObjectDetailTableItem={objectSettingsDetailItem}
                   status={status}
                   mode={mode}
-                  isMostlyEmpty={mostlyEmptyFieldMetadataIds.has(
-                    objectSettingsDetailItem.fieldMetadataItem.id,
-                  )}
                 />
               );
             })}

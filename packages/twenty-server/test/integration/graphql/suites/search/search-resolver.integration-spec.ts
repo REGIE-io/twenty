@@ -26,7 +26,6 @@ import {
 import { createManyOperation } from 'test/integration/graphql/utils/create-many-operation.util';
 import { search } from 'test/integration/graphql/utils/search.util';
 import { deleteAllRecords } from 'test/integration/utils/delete-all-records';
-import { waitForAllJobsToFinish } from 'test/integration/utils/wait-for-all-jobs-to-finish.util';
 import {
   eachTestingContextFilter,
   type EachTestingContext,
@@ -192,9 +191,6 @@ describe('SearchResolver', () => {
       gqlFields: PERSON_GQL_FIELDS,
       data: persons,
     });
-
-    await waitForAllJobsToFinish();
-    await deleteAllRecords('company');
 
     await createManyOperation({
       objectMetadataSingularName: 'company',

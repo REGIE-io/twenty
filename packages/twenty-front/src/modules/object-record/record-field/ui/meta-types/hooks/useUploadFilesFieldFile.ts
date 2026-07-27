@@ -1,22 +1,31 @@
-import { useDirectFileUpload } from '@/file/hooks/useDirectFileUpload';
 import { useSnackBar } from '@/ui/feedback/snack-bar-manager/hooks/useSnackBar';
+import { useApolloClient, useMutation } from '@apollo/client/react';
 import { useLingui } from '@lingui/react/macro';
-import { FileFolder } from '~/generated-metadata/graphql';
+import { isDefined } from 'twenty-shared/utils';
+import { UploadFilesFieldFileDocument } from '~/generated-metadata/graphql';
 
 const DEFAULT_VALUE_BEFORE_SERVER_RESPONSE =
   'default-value-before-server-response';
 
 export const useUploadFilesFieldFile = () => {
-  const { uploadFile: directUploadFile } = useDirectFileUpload();
+  const apolloClient = useApolloClient();
+  const [uploadFilesFieldFile] = useMutation(UploadFilesFieldFileDocument, {
+    client: apolloClient,
+  });
   const { enqueueSuccessSnackBar, enqueueErrorSnackBar } = useSnackBar();
   const { t } = useLingui();
 
   const uploadFile = async (file: File, fieldMetadataId: string) => {
     try {
-      const uploadedFile = await directUploadFile(file, {
-        fileFolder: FileFolder.FilesField,
-        fieldMetadataId,
+      const result = await uploadFilesFieldFile({
+        variables: { file, fieldMetadataId },
       });
+
+      const uploadedFile = result?.data?.uploadFilesFieldFile;
+
+      if (!isDefined(uploadedFile)) {
+        throw new Error(t`File upload failed`);
+      }
 
       const fileName = file.name;
       enqueueSuccessSnackBar({

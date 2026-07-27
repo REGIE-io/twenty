@@ -12,7 +12,6 @@
   background-color: transparent;
   border: 1px solid var(--t-font-color-secondary);
   border-radius: var(--t-border-radius-rounded);
-  corner-shape: round;
   // The border sits outside the declared size, matching the legacy input rendering.
   box-sizing: content-box;
   display: block;
@@ -51,7 +50,6 @@
 .radio[data-checked]::after {
   background-color: var(--t-gray-scale-gray1);
   border-radius: 50%;
-  corner-shape: round;
   content: '';
   height: 6px;
   left: 50%;

@@ -2,14 +2,8 @@ import { useQuery } from '@apollo/client/react';
 import { ListPlansDocument } from '~/generated-metadata/graphql';
 import { isDefined } from 'twenty-shared/utils';
 
-type UsePlansOptions = {
-  skip?: boolean;
-};
-
-export const usePlans = (options?: UsePlansOptions) => {
-  const { data, loading, error, refetch } = useQuery(ListPlansDocument, {
-    skip: options?.skip,
-  });
+export const usePlans = () => {
+  const { data, loading, error } = useQuery(ListPlansDocument);
 
   const isPlansLoaded = isDefined(data?.listPlans);
 
@@ -18,5 +12,5 @@ export const usePlans = (options?: UsePlansOptions) => {
     return data.listPlans;
   };
 
-  return { loading, error, isPlansLoaded, listPlans, refetch };
+  return { loading, error, isPlansLoaded, listPlans };
 };

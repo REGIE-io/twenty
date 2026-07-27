@@ -38,10 +38,7 @@ export class AgentChatEventPublisherService {
       await redis.expire(key, STREAM_CHUNKS_TTL_SECONDS);
 
       publishedEvent = { ...event, seq };
-    } else if (
-      event.type === 'message-persisted' ||
-      event.type === 'credits-exhausted'
-    ) {
+    } else if (event.type === 'message-persisted') {
       const redis = this.redisClientService.getClient();
       await redis.del(this.getStreamChunksKey(threadId));
     }
@@ -56,12 +53,6 @@ export class AgentChatEventPublisherService {
         },
       },
     });
-  }
-
-  async resetStreamState(threadId: string): Promise<void> {
-    const redis = this.redisClientService.getClient();
-
-    await redis.del(this.getStreamChunksKey(threadId));
   }
 
   async getAccumulatedChunks(threadId: string): Promise<{

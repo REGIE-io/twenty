@@ -94,13 +94,7 @@ describe('minimal-app dev-once', () => {
       );
 
       expect(
-        files
-          .filter(
-            (file) =>
-              file.endsWith('.function.mjs') ||
-              file.endsWith('.function.mjs.map'),
-          )
-          .sort(),
+        files.filter((file) => file.includes('.function.')).sort(),
       ).toEqual(['my.function.mjs', 'my.function.mjs.map']);
     });
 
@@ -110,26 +104,8 @@ describe('minimal-app dev-once', () => {
       );
 
       expect(
-        files
-          .filter(
-            (file) =>
-              file.endsWith('.front-component.mjs') ||
-              file.endsWith('.front-component.mjs.map'),
-          )
-          .sort(),
+        files.filter((file) => file.includes('.front-component.')).sort(),
       ).toEqual(['my.front-component.mjs', 'my.front-component.mjs.map']);
-    });
-  });
-
-  describe('source files', () => {
-    it('should include the logic function source', async () => {
-      expect(await pathExists(join(OUTPUT_PATH, 'my.function.ts'))).toBe(true);
-    });
-
-    it('should include the front component source', async () => {
-      expect(
-        await pathExists(join(OUTPUT_PATH, 'my.front-component.tsx')),
-      ).toBe(true);
     });
   });
 });

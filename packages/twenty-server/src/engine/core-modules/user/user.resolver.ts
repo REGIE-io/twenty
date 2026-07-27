@@ -577,13 +577,7 @@ export class UserResolver {
     @AuthWorkspace({ allowUndefined: true })
     workspace: WorkspaceEntity | undefined,
   ) {
-    if (!isDefined(workspace)) {
-      return null;
-    }
-
-    return this.userService.refreshWorkspaceIfPendingOrOngoingCreation(
-      workspace,
-    );
+    return workspace;
   }
 
   @ResolveField(() => [UserWorkspaceEntity], {

@@ -9,7 +9,6 @@ export const GET_MY_MESSAGE_FOLDERS = gql`
       isSentFolder
       parentFolderId
       externalId
-      pendingSyncAction
       messageChannelId
       createdAt
       updatedAt

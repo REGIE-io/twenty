@@ -1,7 +1,6 @@
 import { RecordChip } from '@/object-record/components/RecordChip';
 import { FieldContext } from '@/object-record/record-field/ui/contexts/FieldContext';
 import { useFieldFocus } from '@/object-record/record-field/ui/hooks/useFieldFocus';
-import { MAX_RELATION_CHIPS_DISPLAYED_INLINE } from '@/object-record/record-field/ui/meta-types/display/constants/MaxRelationChipsDisplayedInline';
 import { useMorphRelationFromManyFieldDisplay } from '@/object-record/record-field/ui/meta-types/hooks/useMorphRelationFromManyFieldDisplay';
 
 import { ExpandableList } from '@/ui/layout/expandable-list/components/ExpandableList';
@@ -40,10 +39,7 @@ export const MorphRelationOneToManyFieldDisplay = () => {
     );
 
   return (
-    <ExpandableList
-      isChipCountDisplayed={isFocused}
-      maxInlineCount={MAX_RELATION_CHIPS_DISPLAYED_INLINE}
-    >
+    <ExpandableList isChipCountDisplayed={isFocused}>
       {flattenMorphValuesWithObjectNameSingular
         .filter(isDefined)
         .map(({ objectNameSingular, record }) => {

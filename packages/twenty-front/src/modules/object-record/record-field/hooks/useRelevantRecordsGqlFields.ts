@@ -17,12 +17,12 @@ import { filterDuplicatesById, isDefined } from 'twenty-shared/utils';
 
 type UseRecordsUsefulGqlFields = {
   objectMetadataItem: EnrichedObjectMetadataItem;
-  additionalFieldMetadataIds?: Array<string | null | undefined>;
+  additionalFieldMetadataId?: string | null;
 };
 
 export const useRelevantRecordsGqlFields = ({
   objectMetadataItem,
-  additionalFieldMetadataIds = [],
+  additionalFieldMetadataId,
 }: UseRecordsUsefulGqlFields) => {
   const visibleRecordFields = useAtomComponentSelectorValue(
     visibleRecordFieldsComponentSelector,
@@ -52,18 +52,9 @@ export const useRelevantRecordsGqlFields = ({
     )
     .filter(isDefined);
 
-  const additionalFieldMetadataItems = additionalFieldMetadataIds
-    .filter(isDefined)
-    .map(
-      (fieldMetadataId) =>
-        fieldMetadataItemByFieldMetadataItemId[fieldMetadataId],
-    )
-    .filter(isDefined);
-
   const fieldMetadataItemsToUse = [
     ...visibleRecordFieldMetadataItems,
     ...(recordFilterFields ?? []),
-    ...additionalFieldMetadataItems,
   ].filter(filterDuplicatesById);
 
   const allDepthOneGqlFields = generateDepthRecordGqlFieldsFromFields({
@@ -79,12 +70,19 @@ export const useRelevantRecordsGqlFields = ({
 
   const hasPosition = hasObjectMetadataItemPositionField(objectMetadataItem);
 
+  const additionalFieldMetadataItem = isDefined(additionalFieldMetadataId)
+    ? fieldMetadataItemByFieldMetadataItemId[additionalFieldMetadataId]
+    : undefined;
+
   const isObjectAnActivity =
     objectMetadataItem.nameSingular === CoreObjectNameSingular.Note ||
     objectMetadataItem.nameSingular === CoreObjectNameSingular.Task;
 
   return {
     id: true,
+    ...(isDefined(additionalFieldMetadataItem)
+      ? { [additionalFieldMetadataItem.name]: true }
+      : {}),
     ...(isDefined(labelIdentifierFieldMetadataItem)
       ? { [labelIdentifierFieldMetadataItem.name]: true }
       : {}),

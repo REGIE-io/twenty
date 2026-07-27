@@ -37,10 +37,6 @@ export class DnsManagerService {
     }
   }
 
-  isConfigured(): boolean {
-    return isDefined(this.cloudflareClient);
-  }
-
   async registerHostname(customDomain: string, options?: DnsManagerOptions) {
     dnsManagerValidator.isCloudflareInstanceDefined(this.cloudflareClient);
 

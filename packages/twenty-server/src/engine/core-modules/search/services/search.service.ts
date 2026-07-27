@@ -4,20 +4,16 @@ import { isNonEmptyString } from '@sniptt/guards';
 import chunk from 'lodash.chunk';
 import { OBJECTS_WITH_CHANNEL_VISIBILITY_CONSTRAINTS } from 'twenty-shared/constants';
 import {
-  compositeTypeDefinitions,
   FieldMetadataType,
   FileFolder,
   ObjectRecord,
 } from 'twenty-shared/types';
-import {
-  escapeForIlike,
-  getLinkFaviconUrl,
-  isDefined,
-} from 'twenty-shared/utils';
+import { getLogoUrlFromDomainName, isDefined } from 'twenty-shared/utils';
 import { Brackets, type ObjectLiteral } from 'typeorm';
 
 import { type ObjectRecordFilter } from 'src/engine/api/graphql/workspace-query-builder/interfaces/object-record.interface';
 
+import { FileOutput } from 'src/engine/api/common/common-args-processors/data-arg-processor/types/file-item.type';
 import { GraphqlQueryParser } from 'src/engine/api/graphql/graphql-query-runner/graphql-query-parsers/graphql-query.parser';
 import {
   decodeCursor,
@@ -37,15 +33,13 @@ import {
   SearchExceptionCode,
 } from 'src/engine/core-modules/search/exceptions/search.exception';
 import { type RecordsWithObjectMetadataItem } from 'src/engine/core-modules/search/types/records-with-object-metadata-item';
+import { escapeForIlike } from 'src/engine/core-modules/search/utils/escape-for-ilike';
 import { formatSearchTerms } from 'src/engine/core-modules/search/utils/format-search-terms';
 import { TwentyConfigService } from 'src/engine/core-modules/twenty-config/twenty-config.service';
-import { computeCompositeColumnName } from 'src/engine/metadata-modules/field-metadata/utils/compute-column-name.util';
-import { isCompositeFieldMetadataType } from 'src/engine/metadata-modules/field-metadata/utils/is-composite-field-metadata-type.util';
 import { type FlatEntityMaps } from 'src/engine/metadata-modules/flat-entity/types/flat-entity-maps.type';
 import { findFlatEntityByIdInFlatEntityMaps } from 'src/engine/metadata-modules/flat-entity/utils/find-flat-entity-by-id-in-flat-entity-maps.util';
 import { type FlatFieldMetadata } from 'src/engine/metadata-modules/flat-field-metadata/types/flat-field-metadata.type';
 import { type FlatObjectMetadata } from 'src/engine/metadata-modules/flat-object-metadata/types/flat-object-metadata.type';
-import { getEffectiveImageIdentifierFieldMetadataId } from 'src/engine/metadata-modules/object-metadata/utils/get-effective-image-identifier-field-metadata-id.util';
 import { SEARCH_VECTOR_FIELD } from 'src/engine/metadata-modules/search-field-metadata/constants/search-vector-field.constants';
 import { GlobalWorkspaceOrmManager } from 'src/engine/twenty-orm/global-workspace-datasource/global-workspace-orm.manager';
 import { type WorkspaceRepository } from 'src/engine/twenty-orm/repository/workspace.repository';
@@ -286,7 +280,7 @@ export class SearchService {
 
     queryParser.applyDeletedAtToBuilder(queryBuilder, filter);
 
-    const imageIdentifierColumns = this.getImageIdentifierColumns(
+    const imageIdentifierField = this.getImageIdentifierColumn(
       flatObjectMetadata,
       flatFieldMetadataMaps,
     );
@@ -297,7 +291,7 @@ export class SearchService {
         flatObjectMetadata,
         flatFieldMetadataMaps,
       ),
-      ...imageIdentifierColumns,
+      ...(imageIdentifierField ? [imageIdentifierField] : []),
     ].map((field) => `"${field}"`);
 
     const tsRankCDExpr = `ts_rank_cd("${SEARCH_VECTOR_FIELD.name}", to_tsquery('simple', public.unaccent_immutable(:searchTerms)))`;
@@ -408,7 +402,7 @@ export class SearchService {
 
           queryParser.applyDeletedAtToBuilder(queryBuilder, filter);
 
-          const imageIdentifierColumns = this.getImageIdentifierColumns(
+          const imageIdentifierField = this.getImageIdentifierColumn(
             flatObjectMetadata,
             flatFieldMetadataMaps,
           );
@@ -419,7 +413,7 @@ export class SearchService {
               flatObjectMetadata,
               flatFieldMetadataMaps,
             ),
-            ...imageIdentifierColumns,
+            ...(imageIdentifierField ? [imageIdentifierField] : []),
           ].map((field) => `"${field}"`);
 
           queryBuilder.select(fieldsToSelect);
@@ -562,60 +556,37 @@ export class SearchService {
     return labelIdentifierFields.map((field) => record[field]).join(' ');
   }
 
-  private getEffectiveImageIdentifierFieldMetadata(
+  getImageIdentifierColumn(
     flatObjectMetadata: FlatObjectMetadata,
     flatFieldMetadataMaps: FlatEntityMaps<FlatFieldMetadata>,
-  ): FlatFieldMetadata | undefined {
-    const imageIdentifierFieldMetadataId =
-      getEffectiveImageIdentifierFieldMetadataId(flatObjectMetadata);
-
-    if (!isDefined(imageIdentifierFieldMetadataId)) {
-      return undefined;
+  ) {
+    if (flatObjectMetadata.nameSingular === 'company') {
+      return 'domainNamePrimaryLinkUrl';
     }
 
-    return findFlatEntityByIdInFlatEntityMaps({
-      flatEntityId: imageIdentifierFieldMetadataId,
+    //TODO: Temporary solution before imageIdentifier refactor
+    if (flatObjectMetadata.nameSingular === 'person') {
+      return 'avatarFile';
+    }
+
+    if (flatObjectMetadata.nameSingular === 'workspaceMember') {
+      return 'avatarUrl';
+    }
+
+    if (!flatObjectMetadata.imageIdentifierFieldMetadataId) {
+      return null;
+    }
+
+    const imageIdentifierField = findFlatEntityByIdInFlatEntityMaps({
+      flatEntityId: flatObjectMetadata.imageIdentifierFieldMetadataId,
       flatEntityMaps: flatFieldMetadataMaps,
     });
-  }
-
-  getImageIdentifierColumns(
-    flatObjectMetadata: FlatObjectMetadata,
-    flatFieldMetadataMaps: FlatEntityMaps<FlatFieldMetadata>,
-  ): string[] {
-    if (flatObjectMetadata.nameSingular === 'workspaceMember') {
-      return ['avatarUrl'];
-    }
-
-    const imageIdentifierField = this.getEffectiveImageIdentifierFieldMetadata(
-      flatObjectMetadata,
-      flatFieldMetadataMaps,
-    );
 
     if (!isDefined(imageIdentifierField)) {
-      return [];
+      return null;
     }
 
-    const imageIdentifierCompositeType = isCompositeFieldMetadataType(
-      imageIdentifierField.type,
-    )
-      ? compositeTypeDefinitions.get(imageIdentifierField.type)
-      : undefined;
-
-    if (isDefined(imageIdentifierCompositeType)) {
-      return imageIdentifierCompositeType.properties
-        .filter(
-          (compositeProperty) => compositeProperty.name === 'primaryLinkUrl',
-        )
-        .map((compositeProperty) =>
-          computeCompositeColumnName(
-            imageIdentifierField.name,
-            compositeProperty,
-          ),
-        );
-    }
-
-    return [imageIdentifierField.name];
+    return imageIdentifierField.name;
   }
 
   private async getImageUrlWithToken(
@@ -636,16 +607,39 @@ export class SearchService {
     flatFieldMetadataMaps: FlatEntityMaps<FlatFieldMetadata>,
     workspaceId: string,
   ): Promise<string> {
+    const imageIdentifierField = this.getImageIdentifierColumn(
+      flatObjectMetadata,
+      flatFieldMetadataMaps,
+    );
+
+    if (
+      flatObjectMetadata.nameSingular === 'company' &&
+      this.twentyConfigService.get('ALLOW_REQUESTS_TO_TWENTY_ICONS')
+    ) {
+      return getLogoUrlFromDomainName(record.domainNamePrimaryLinkUrl) || '';
+    }
+
+    //TODO: Temporary solution before imageIdentifier refactor
+    if (flatObjectMetadata.nameSingular === 'person') {
+      const avatarFileId = (record.avatarFile as FileOutput[])?.[0]?.fileId;
+      if (!isDefined(avatarFileId)) {
+        return '';
+      }
+      return this.getImageUrlWithToken(
+        avatarFileId,
+        FileFolder.FilesField,
+        workspaceId,
+      );
+    }
+
     if (flatObjectMetadata.nameSingular === 'workspaceMember') {
       const avatarFileId = extractFileIdFromUrl(
         record.avatarUrl,
         FileFolder.CorePicture,
       );
-
       if (!isDefined(avatarFileId)) {
         return '';
       }
-
       return this.getImageUrlWithToken(
         avatarFileId,
         FileFolder.CorePicture,
@@ -653,58 +647,14 @@ export class SearchService {
       );
     }
 
-    const imageIdentifierField = this.getEffectiveImageIdentifierFieldMetadata(
-      flatObjectMetadata,
-      flatFieldMetadataMaps,
-    );
-
-    if (!isDefined(imageIdentifierField)) {
-      return '';
-    }
-
-    switch (imageIdentifierField.type) {
-      case FieldMetadataType.FILES: {
-        const avatarFileId = record[imageIdentifierField.name]?.[0]?.fileId;
-
-        if (!isNonEmptyString(avatarFileId)) {
-          return '';
-        }
-
-        return this.getImageUrlWithToken(
-          avatarFileId,
+    return imageIdentifierField &&
+      isNonEmptyString(record[imageIdentifierField])
+      ? this.getImageUrlWithToken(
+          record[imageIdentifierField],
           FileFolder.FilesField,
           workspaceId,
-        );
-      }
-      case FieldMetadataType.LINKS: {
-        if (!this.twentyConfigService.get('ALLOW_REQUESTS_TO_TWENTY_ICONS')) {
-          return '';
-        }
-
-        const primaryLinkUrlProperty = compositeTypeDefinitions
-          .get(FieldMetadataType.LINKS)
-          ?.properties.find((property) => property.name === 'primaryLinkUrl');
-
-        if (!isDefined(primaryLinkUrlProperty)) {
-          return '';
-        }
-
-        const primaryLinkUrl =
-          record[
-            computeCompositeColumnName(
-              imageIdentifierField.name,
-              primaryLinkUrlProperty,
-            )
-          ];
-
-        return isNonEmptyString(primaryLinkUrl)
-          ? getLinkFaviconUrl(primaryLinkUrl) || ''
-          : '';
-      }
-      default: {
-        return '';
-      }
-    }
+        )
+      : '';
   }
 
   computeEdges({
@@ -764,7 +714,7 @@ export class SearchService {
             recordId: record.id,
             objectNameSingular: objectMetadataItem.nameSingular,
             objectLabelSingular:
-              objectMetadataItem.overrides?.labelSingular ??
+              objectMetadataItem.standardOverrides?.labelSingular ??
               objectMetadataItem.labelSingular,
             label: this.getLabelIdentifierValue(
               record,

@@ -2,7 +2,6 @@ import { WorkflowActionType } from 'twenty-shared/workflow';
 
 import { type WorkflowAiAgentActionSettings } from 'src/modules/workflow/workflow-executor/workflow-actions/ai-agent/types/workflow-ai-agent-action-settings.type';
 import { type WorkflowCodeActionSettings } from 'src/modules/workflow/workflow-executor/workflow-actions/code/types/workflow-code-action-settings.type';
-import { type WorkflowCreateCalendarEventActionSettings } from 'src/modules/workflow/workflow-executor/workflow-actions/create-calendar-event/types/workflow-create-calendar-event-action-settings.type';
 import { type WorkflowDelayActionSettings } from 'src/modules/workflow/workflow-executor/workflow-actions/delay/types/workflow-delay-action-settings.type';
 import { type WorkflowFilterActionSettings } from 'src/modules/workflow/workflow-executor/workflow-actions/filter/types/workflow-filter-action-settings.type';
 import { type WorkflowFormActionSettings } from 'src/modules/workflow/workflow-executor/workflow-actions/form/types/workflow-form-action-settings.type';
@@ -15,7 +14,6 @@ import {
   type WorkflowCreateRecordActionSettings,
   type WorkflowDeleteRecordActionSettings,
   type WorkflowFindRecordsActionSettings,
-  type WorkflowPickRecordActionSettings,
   type WorkflowUpdateRecordActionSettings,
   type WorkflowUpsertRecordActionSettings,
 } from 'src/modules/workflow/workflow-executor/workflow-actions/record-crud/types/workflow-record-crud-action-settings.type';
@@ -54,11 +52,6 @@ export type WorkflowDraftEmailAction = BaseWorkflowAction & {
   settings: WorkflowSendEmailActionSettings;
 };
 
-export type WorkflowCreateCalendarEventAction = BaseWorkflowAction & {
-  type: WorkflowActionType.CREATE_CALENDAR_EVENT;
-  settings: WorkflowCreateCalendarEventActionSettings;
-};
-
 export type WorkflowCreateRecordAction = BaseWorkflowAction & {
   type: WorkflowActionType.CREATE_RECORD;
   settings: WorkflowCreateRecordActionSettings;
@@ -82,11 +75,6 @@ export type WorkflowUpsertRecordAction = BaseWorkflowAction & {
 export type WorkflowFindRecordsAction = BaseWorkflowAction & {
   type: WorkflowActionType.FIND_RECORDS;
   settings: WorkflowFindRecordsActionSettings;
-};
-
-export type WorkflowPickRecordAction = BaseWorkflowAction & {
-  type: WorkflowActionType.PICK_RECORD;
-  settings: WorkflowPickRecordActionSettings;
 };
 
 export type WorkflowFormAction = BaseWorkflowAction & {
@@ -133,13 +121,11 @@ export type WorkflowAction =
   | WorkflowLogicFunctionAction
   | WorkflowSendEmailAction
   | WorkflowDraftEmailAction
-  | WorkflowCreateCalendarEventAction
   | WorkflowCreateRecordAction
   | WorkflowUpdateRecordAction
   | WorkflowDeleteRecordAction
   | WorkflowUpsertRecordAction
   | WorkflowFindRecordsAction
-  | WorkflowPickRecordAction
   | WorkflowFormAction
   | WorkflowFilterAction
   | WorkflowIfElseAction

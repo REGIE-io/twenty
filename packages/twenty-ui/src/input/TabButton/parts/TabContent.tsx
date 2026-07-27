@@ -1,8 +1,8 @@
 import { Pill } from '@ui/data-display/Pill/Pill';
 import { Avatar } from '@ui/data-display';
 import { type IconComponent } from '@ui/icon';
-import { useTheme } from '@ui/theme-constants';
-import { type ReactElement } from 'react';
+import { ThemeContext } from '@ui/theme-constants';
+import { type ReactElement, useContext } from 'react';
 import { StyledTabHover } from '@ui/input/TabButton/parts/StyledTabBase';
 
 export type TabContentProps = {
@@ -29,7 +29,7 @@ export const TabContent = ({
   contentSize = 'sm',
   className,
 }: TabContentProps) => {
-  const theme = useTheme();
+  const { theme } = useContext(ThemeContext);
 
   const iconColor = active
     ? theme.font.color.primary
@@ -39,14 +39,10 @@ export const TabContent = ({
 
   return (
     <StyledTabHover contentSize={contentSize} className={className}>
-      {LeftIcon && (
-        <LeftIcon color={iconColor} size={theme.icon.size.md} aria-hidden />
-      )}
+      {LeftIcon && <LeftIcon color={iconColor} size={theme.icon.size.md} />}
       {logo && <Avatar avatarUrl={logo} size="md" placeholder={title} />}
       {title}
-      {RightIcon && (
-        <RightIcon color={iconColor} size={theme.icon.size.md} aria-hidden />
-      )}
+      {RightIcon && <RightIcon color={iconColor} size={theme.icon.size.md} />}
       {pill && (typeof pill === 'string' ? <Pill label={pill} /> : pill)}
     </StyledTabHover>
   );

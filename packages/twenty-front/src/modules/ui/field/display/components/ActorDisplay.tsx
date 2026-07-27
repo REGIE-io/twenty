@@ -18,7 +18,6 @@ import {
   IconWebhook,
   type IconComponent,
 } from 'twenty-ui/icon';
-import { getAbsoluteImageUrl } from '~/utils/image/getAbsoluteImageUrl';
 
 type ActorDisplayProps = Partial<FieldActorValue> & {
   avatarUrl?: string | null;
@@ -97,7 +96,7 @@ export const ActorDisplay = ({
           avatarType={workspaceMemberId ? 'rounded' : 'squared'}
           placeholder={name}
           Icon={LeftIcon}
-          avatarUrl={getAbsoluteImageUrl(avatarUrl ?? undefined)}
+          avatarUrl={avatarUrl ?? undefined}
         />
       }
     />

@@ -44,9 +44,7 @@ describe('Sync application should fail when retargeting existing permissions to 
             universalIdentifier: TEST_ROLE_ID,
             label: 'App Default Role',
             description: 'Default role for the test app',
-            permissionFlagUniversalIdentifiers: [
-              SystemPermissionFlag.WORKSPACE,
-            ],
+            permissionFlagUniversalIdentifiers: [SystemPermissionFlag.WORKSPACE],
           },
         ],
       },
@@ -71,9 +69,7 @@ describe('Sync application should fail when retargeting existing permissions to 
             universalIdentifier: STANDARD_ROLE.admin.universalIdentifier,
             label: 'Admin',
             description: 'Attempts to retarget permission flag to admin role',
-            permissionFlagUniversalIdentifiers: [
-              SystemPermissionFlag.WORKSPACE,
-            ],
+            permissionFlagUniversalIdentifiers: [SystemPermissionFlag.WORKSPACE],
           },
         ],
       },

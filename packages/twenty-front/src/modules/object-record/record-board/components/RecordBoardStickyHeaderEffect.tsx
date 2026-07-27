@@ -1,12 +1,8 @@
-import { RecordBoardContext } from '@/object-record/record-board/contexts/RecordBoardContext';
-import { getRecordBoardHeaderHtmlId } from '@/object-record/record-board/utils/getRecordBoardHeaderHtmlId';
 import { scrollWrapperScrollTopComponentState } from '@/ui/utilities/scroll/states/scrollWrapperScrollTopComponentState';
 import { useAtomComponentStateValue } from '@/ui/utilities/state/jotai/hooks/useAtomComponentStateValue';
-import { useContext, useEffect } from 'react';
+import { useEffect } from 'react';
 
 export const RecordBoardStickyHeaderEffect = () => {
-  const { recordBoardId } = useContext(RecordBoardContext);
-
   const scrollWrapperScrollTop = useAtomComponentStateValue(
     scrollWrapperScrollTopComponentState,
   );
@@ -15,14 +11,14 @@ export const RecordBoardStickyHeaderEffect = () => {
   useEffect(() => {
     if (scrollWrapperScrollTop > 0) {
       document
-        .getElementById(getRecordBoardHeaderHtmlId(recordBoardId))
+        .getElementById('record-board-header')
         ?.classList.add('header-sticky');
     } else {
       document
-        .getElementById(getRecordBoardHeaderHtmlId(recordBoardId))
+        .getElementById('record-board-header')
         ?.classList.remove('header-sticky');
     }
-  }, [scrollWrapperScrollTop, recordBoardId]);
+  }, [scrollWrapperScrollTop]);
 
   return <></>;
 };

@@ -12,6 +12,7 @@ import { primaryDraggedRecordIdComponentState } from '@/object-record/record-dra
 import { getDragOperationType } from '@/object-record/record-drag/utils/getDragOperationType';
 import { useAtomComponentFamilyStateCallbackState } from '@/ui/utilities/state/jotai/hooks/useAtomComponentFamilyStateCallbackState';
 import { useAtomComponentStateCallbackState } from '@/ui/utilities/state/jotai/hooks/useAtomComponentStateCallbackState';
+import { type DragStart } from '@hello-pangea/dnd';
 
 export const useStartRecordDrag = (contextStoreInstanceId?: string) => {
   const store = useStore();
@@ -54,8 +55,10 @@ export const useStartRecordDrag = (contextStoreInstanceId?: string) => {
   );
 
   const startRecordDrag = useCallback(
-    (draggedRecordId: string, selectedRecordIds: string[]) => {
+    (start: DragStart, selectedRecordIds: string[]) => {
       store.set(isDraggingRecord, true);
+
+      const draggedRecordId = start.draggableId;
 
       const dragOperationType = getDragOperationType({
         draggedRecordId,

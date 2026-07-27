@@ -1,12 +1,14 @@
+import { useContext } from 'react';
+
 import IllustrationIconUidRaw from '@assets/icons/illustration-uid.svg?react';
 import { IllustrationIconWrapper } from '@ui/icon/components/IllustrationIconWrapper';
 import { type IconComponentProps } from '@ui/icon/types/IconComponent';
-import { useTheme } from '@ui/theme-constants';
+import { ThemeContext } from '@ui/theme-constants';
 
 type IllustrationIconUidProps = Pick<IconComponentProps, 'size'>;
 
 export const IllustrationIconUid = (props: IllustrationIconUidProps) => {
-  const theme = useTheme();
+  const { theme } = useContext(ThemeContext);
   const size = props.size ?? theme.icon.size.lg;
   return (
     <IllustrationIconWrapper>

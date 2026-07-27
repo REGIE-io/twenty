@@ -270,5 +270,12 @@ export const getMockObjectMetadataInfo = (
   };
 };
 
+export const mockPersonObjectMetadataInfo = getMockObjectMetadataInfo('person');
 export const mockCompanyObjectMetadataInfo =
   getMockObjectMetadataInfo('company');
+export const mockCustomObjectMetadataInfo = getMockObjectMetadataInfo(
+  'regular-custom-object',
+);
+export const mockNonSearchableObjectMetadataInfo = getMockObjectMetadataInfo(
+  'non-searchable-object',
+);

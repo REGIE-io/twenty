@@ -103,10 +103,16 @@ describe('Standard field metadata update should succeed', () => {
           description
           icon
           isActive
+          isCustom
           type
           options
           settings
           defaultValue
+          standardOverrides {
+            label
+            description
+            icon
+          }
         }
       `,
     });
@@ -120,7 +126,7 @@ describe('Standard field metadata update should succeed', () => {
     opportunityObjectFields.push(...opportunityObject.fieldsList);
 
     originalStageFieldMetadata = opportunityObjectFields.find(
-      (field) => field.name === 'stage',
+      (field) => field.name === 'stage' && !field.isCustom,
     );
   });
 
@@ -165,8 +171,14 @@ describe('Standard field metadata update should succeed', () => {
           description
           icon
           isActive
+          isCustom
           options
           defaultValue
+          standardOverrides {
+            label
+            description
+            icon
+          }
         `,
         });
 
@@ -201,8 +213,14 @@ describe('Standard field metadata update should succeed', () => {
           description
           icon
           isActive
+          isCustom
           options
           defaultValue
+          standardOverrides {
+            label
+            description
+            icon
+          }
         `,
     });
 
@@ -223,8 +241,14 @@ describe('Standard field metadata update should succeed', () => {
           description
           icon
           isActive
+          isCustom
           options
           defaultValue
+          standardOverrides {
+            label
+            description
+            icon
+          }
         `,
     });
 
@@ -273,6 +297,7 @@ describe('Standard field isUnique update should succeed', () => {
           label
           isUnique
           isActive
+          isCustom
           type
         }
       `,
@@ -322,6 +347,7 @@ describe('Standard field isUnique update should succeed', () => {
         label
         isUnique
         isActive
+        isCustom
       `,
     });
 

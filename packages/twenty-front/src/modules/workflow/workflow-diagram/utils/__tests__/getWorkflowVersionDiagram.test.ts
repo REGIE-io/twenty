@@ -1,10 +1,7 @@
 import { getWorkflowVersionDiagram } from '@/workflow/workflow-diagram/utils/getWorkflowVersionDiagram';
 import { v4 as uuidv4 } from 'uuid';
 
-jest.mock('uuid', () => ({
-  ...jest.requireActual('uuid'),
-  v4: jest.fn(),
-}));
+jest.mock('uuid');
 
 beforeEach(() => {
   let counter = 0;

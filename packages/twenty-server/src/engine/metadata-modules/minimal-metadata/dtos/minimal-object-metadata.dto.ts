@@ -1,10 +1,12 @@
 import { Field, ObjectType } from '@nestjs/graphql';
 
+import { IDField } from '@ptc-org/nestjs-query-graphql';
+
 import { UUIDScalarType } from 'src/engine/api/graphql/workspace-schema-builder/graphql-types/scalars';
 
 @ObjectType('MinimalObjectMetadata')
 export class MinimalObjectMetadataDTO {
-  @Field(() => UUIDScalarType)
+  @IDField(() => UUIDScalarType)
   id: string;
 
   @Field()
@@ -24,6 +26,9 @@ export class MinimalObjectMetadataDTO {
 
   @Field({ nullable: true })
   color?: string;
+
+  @Field()
+  isCustom: boolean;
 
   @Field()
   isActive: boolean;

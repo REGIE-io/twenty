@@ -85,11 +85,10 @@ export class EncryptApplicationVariableSlowInstanceCommand
 
         if (looksLikeLegacyCtrCiphertext(row.value)) {
           try {
-            plaintext =
-              this.secretEncryptionService.legacyDecryptVersionedWithFallback(
-                row.value as EncryptedString,
-                { workspaceId: row.workspaceId },
-              );
+            plaintext = this.secretEncryptionService.decryptVersioned(
+              row.value as EncryptedString,
+              { workspaceId: row.workspaceId },
+            );
           } catch (error) {
             this.logger.warn(
               `applicationVariable row ${row.id} value not valid ciphertext; treating as plaintext. ${

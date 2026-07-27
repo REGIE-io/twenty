@@ -74,7 +74,6 @@ export const useCreateViewFromCurrentView = (viewBarComponentId?: string) => {
         icon,
         mainGroupByFieldMetadataId,
         calendarFieldMetadataId,
-        calendarEndFieldMetadataId,
         type,
         visibility,
       }: Partial<
@@ -85,7 +84,6 @@ export const useCreateViewFromCurrentView = (viewBarComponentId?: string) => {
           | 'icon'
           | 'mainGroupByFieldMetadataId'
           | 'calendarFieldMetadataId'
-          | 'calendarEndFieldMetadataId'
           | 'type'
           | 'visibility'
         >
@@ -124,9 +122,6 @@ export const useCreateViewFromCurrentView = (viewBarComponentId?: string) => {
               shouldCopyFiltersAndSortsAndAggregate
                 ? sourceView.kanbanAggregateOperationFieldMetadataId
                 : undefined,
-            kanbanColumnWidth: shouldCopyFiltersAndSortsAndAggregate
-              ? sourceView.kanbanColumnWidth
-              : undefined,
             mainGroupByFieldMetadataId: shouldCopyFiltersAndSortsAndAggregate
               ? sourceView.mainGroupByFieldMetadataId
               : mainGroupByFieldMetadataId,
@@ -141,10 +136,6 @@ export const useCreateViewFromCurrentView = (viewBarComponentId?: string) => {
             calendarFieldMetadataId:
               viewType === ViewType.CALENDAR
                 ? calendarFieldMetadataId
-                : undefined,
-            calendarEndFieldMetadataId:
-              viewType === ViewType.CALENDAR
-                ? calendarEndFieldMetadataId
                 : undefined,
             visibility,
           },
@@ -207,16 +198,9 @@ export const useCreateViewFromCurrentView = (viewBarComponentId?: string) => {
             id: v4(),
           }));
 
-        const filterGroupResult = await performViewFilterGroupAPICreate(
-          viewFilterGroupsToCreate,
-          {
-            id: newViewId,
-          },
-        );
-
-        if (filterGroupResult.status === 'failed') {
-          return undefined;
-        }
+        await performViewFilterGroupAPICreate(viewFilterGroupsToCreate, {
+          id: newViewId,
+        });
 
         const createViewFilterInputs = viewFiltersToCreate.map(
           (viewFilter) => ({

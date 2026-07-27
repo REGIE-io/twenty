@@ -14,15 +14,15 @@ export const useFilterValueDependencies = (): {
 
   const { userTimezone } = useUserTimezone();
 
-  const { currentRecord } = useContext(RecordFilterValueDependenciesContext);
+  const { currentRecordId } = useContext(RecordFilterValueDependenciesContext);
 
   const filterValueDependencies = useMemo(
     () => ({
       currentWorkspaceMemberId,
-      currentRecord,
+      currentRecordId,
       timeZone: userTimezone,
     }),
-    [currentWorkspaceMemberId, currentRecord, userTimezone],
+    [currentWorkspaceMemberId, currentRecordId, userTimezone],
   );
 
   return { filterValueDependencies };

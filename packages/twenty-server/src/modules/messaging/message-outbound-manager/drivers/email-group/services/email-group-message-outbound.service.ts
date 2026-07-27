@@ -71,13 +71,6 @@ export class EmailGroupMessageOutboundService implements MessageOutboundDriver {
     );
   }
 
-  async sendDraft(): Promise<SendMessageResult> {
-    throw new MessageChannelException(
-      'Email handle channels do not support drafts.',
-      MessageChannelExceptionCode.INVALID_MESSAGE_CHANNEL_INPUT,
-    );
-  }
-
   private async resolveEmailingDomain(
     connectedAccount: ConnectedAccountEntity,
   ): Promise<EmailingDomainEntity> {

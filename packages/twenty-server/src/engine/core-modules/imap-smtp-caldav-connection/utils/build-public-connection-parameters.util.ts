@@ -14,7 +14,6 @@ type PublicConnectionParams = {
 };
 
 type PublicConnectionParameters = {
-  name?: string | null;
   IMAP?: PublicConnectionParams;
   SMTP?: PublicConnectionParams;
   CALDAV?: PublicConnectionParams;
@@ -41,8 +40,6 @@ export const buildPublicConnectionParameters = (
 
       return result;
     },
-    {
-      name: connectionParameters.name ?? null,
-    },
+    {},
   );
 };

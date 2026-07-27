@@ -11,7 +11,6 @@ export const isFirstOverflowingChildElement = ({
   // First element is always displayed.
   isDefined(childElement.previousElementSibling) &&
   containerElement.scrollWidth > containerElement.clientWidth &&
-  childElement.offsetLeft + childElement.offsetWidth >
-    containerElement.clientWidth &&
+  childElement.offsetLeft > containerElement.clientWidth &&
   (childElement.previousElementSibling as HTMLElement).offsetLeft <
     containerElement.clientWidth;

@@ -2,36 +2,14 @@ import { type RawBodyRequest } from '@nestjs/common';
 import { type Request } from 'express';
 import { type LogicFunctionEvent } from 'twenty-shared/types';
 import { isDefined } from 'twenty-shared/utils';
-import { isObject, isString } from '@sniptt/guards';
-
-const normalizeHeaderValue = (
-  headerValue: string | string[] | undefined,
-): string | undefined =>
-  Array.isArray(headerValue) ? headerValue.join(', ') : headerValue;
 
 export const filterRequestHeaders = ({
   requestHeaders,
   forwardedRequestHeaders,
-  forwardAllHeaders = false,
 }: {
   requestHeaders: Request['headers'];
   forwardedRequestHeaders: string[];
-  forwardAllHeaders?: boolean;
 }): Record<string, string | undefined> => {
-  if (forwardAllHeaders) {
-    const allHeaders: Record<string, string | undefined> = {};
-
-    for (const [headerName, headerValue] of Object.entries(requestHeaders)) {
-      if (headerValue === undefined) {
-        continue;
-      }
-
-      allHeaders[headerName] = normalizeHeaderValue(headerValue);
-    }
-
-    return allHeaders;
-  }
-
   const lowercaseForwardedHeaders = forwardedRequestHeaders.map((h) =>
     h.toLowerCase(),
   );
@@ -42,7 +20,9 @@ export const filterRequestHeaders = ({
     const headerValue = requestHeaders[headerName];
 
     if (headerValue !== undefined) {
-      filteredHeaders[headerName] = normalizeHeaderValue(headerValue);
+      filteredHeaders[headerName] = Array.isArray(headerValue)
+        ? headerValue.join(', ')
+        : headerValue;
     }
   }
 
@@ -60,15 +40,15 @@ export const extractRawBody = (request: Request): string | undefined => {
 };
 
 export const extractBody = (request: Request): object | null => {
-  if (!isDefined(request.body)) {
+  if (request.body === undefined || request.body === null) {
     return null;
   }
 
-  if (isObject(request.body) && !Buffer.isBuffer(request.body)) {
+  if (typeof request.body === 'object' && !Buffer.isBuffer(request.body)) {
     return request.body;
   }
 
-  if (isString(request.body)) {
+  if (typeof request.body === 'string') {
     try {
       return JSON.parse(request.body);
     } catch {
@@ -137,13 +117,11 @@ export const buildLogicFunctionEvent = ({
   request,
   pathParameters,
   forwardedRequestHeaders,
-  forwardAllHeaders = false,
   userWorkspaceId,
 }: {
   request: Request;
   pathParameters: Record<string, string | string[] | undefined>;
   forwardedRequestHeaders: string[];
-  forwardAllHeaders?: boolean;
   userWorkspaceId: string | null;
 }): LogicFunctionEvent => {
   const rawBody = extractRawBody(request);
@@ -152,7 +130,6 @@ export const buildLogicFunctionEvent = ({
     headers: filterRequestHeaders({
       requestHeaders: request.headers,
       forwardedRequestHeaders,
-      forwardAllHeaders,
     }),
     queryStringParameters: normalizeQueryStringParameters(request.query),
     pathParameters: normalizePathParameters(pathParameters),

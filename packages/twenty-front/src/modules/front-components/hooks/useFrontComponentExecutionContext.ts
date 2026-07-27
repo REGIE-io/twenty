@@ -6,37 +6,21 @@ import {
   type FrontComponentExecutionContext,
   type FrontComponentHostCommunicationApi,
 } from 'twenty-front-component-renderer';
-import {
-  AppPath,
-  SidePanelPages,
-  type EnqueueSnackbarParams,
-} from 'twenty-shared/types';
-import { type AppLocale } from 'twenty-shared/translations';
+import { type AppPath, type EnqueueSnackbarParams } from 'twenty-shared/types';
 
-import { useOpenAskAiPageWithPreprompt } from '@/ai/hooks/useOpenAskAiPageWithPreprompt';
 import { currentUserState } from '@/auth/states/currentUserState';
 import { useCommandMenuConfirmationModal } from '@/command-menu-item/confirmation-modal/hooks/useCommandMenuConfirmationModal';
 import { useUnmountCommand } from '@/command-menu-item/engine-command/hooks/useUnmountEngineCommand';
 import { commandMenuItemProgressFamilyState } from '@/command-menu-item/states/commandMenuItemProgressFamilyState';
-import { MAIN_CONTEXT_STORE_INSTANCE_ID } from '@/context-store/constants/MainContextStoreInstanceId';
-import { contextStoreRecordShowParentViewComponentState } from '@/context-store/states/contextStoreRecordShowParentViewComponentState';
 import { useRequestApplicationTokenRefresh } from '@/front-components/hooks/useRequestApplicationTokenRefresh';
-import { canOpenObjectInSidePanel } from '@/object-record/utils/canOpenObjectInSidePanel';
 import { useNavigateSidePanel } from '@/side-panel/hooks/useNavigateSidePanel';
-import { useOpenComposeEmailInSidePanel } from '@/side-panel/hooks/useOpenComposeEmailInSidePanel';
-import { useOpenFrontComponentInSidePanel } from '@/side-panel/hooks/useOpenFrontComponentInSidePanel';
-import { useOpenRecordInSidePanel } from '@/side-panel/hooks/useOpenRecordInSidePanel';
-import { useOpenRichTextInSidePanel } from '@/side-panel/hooks/useOpenRichTextInSidePanel';
 import { useSidePanelMenu } from '@/side-panel/hooks/useSidePanelMenu';
-import { setRecordPageActiveTabId } from '@/page-layout/utils/setRecordPageActiveTabId';
 import { sidePanelSearchState } from '@/side-panel/states/sidePanelSearchState';
 import { useSnackBar } from '@/ui/feedback/snack-bar-manager/hooks/useSnackBar';
 import { useAtomStateValue } from '@/ui/utilities/state/jotai/hooks/useAtomStateValue';
 import { useSetAtomFamilyState } from '@/ui/utilities/state/jotai/hooks/useSetAtomFamilyState';
-import { useStore } from 'jotai';
 import { assertUnreachable, isDefined } from 'twenty-shared/utils';
 import { useIcons } from 'twenty-ui/icon';
-import { useIsMobile } from 'twenty-ui/utilities';
 import { useCopyToClipboard } from '~/hooks/useCopyToClipboard';
 import { useNavigateApp } from '~/hooks/useNavigateApp';
 
@@ -60,19 +44,11 @@ export const useFrontComponentExecutionContext = ({
 } => {
   const currentUser = useAtomStateValue(currentUserState);
   const navigateApp = useNavigateApp();
-  const store = useStore();
   const { requestAccessTokenRefresh } = useRequestApplicationTokenRefresh({
     frontComponentId,
   });
   const { openConfirmationModal } = useCommandMenuConfirmationModal();
-  const { openAskAiPageWithPreprompt } = useOpenAskAiPageWithPreprompt();
   const { navigateSidePanel } = useNavigateSidePanel();
-  const { openRecordInSidePanel: openRecordInSidePanelInternal } =
-    useOpenRecordInSidePanel();
-  const { openRichTextInSidePanel } = useOpenRichTextInSidePanel();
-  const { openComposeEmailInSidePanel } = useOpenComposeEmailInSidePanel();
-  const { openFrontComponentInSidePanel } = useOpenFrontComponentInSidePanel();
-  const isMobile = useIsMobile();
   const setSidePanelSearch = useSetAtomState(sidePanelSearchState);
   const { getIcon } = useIcons();
   const unmountEngineCommand = useUnmountCommand();
@@ -84,7 +60,7 @@ export const useFrontComponentExecutionContext = ({
   } = useSnackBar();
   const { closeSidePanelMenu } = useSidePanelMenu();
   const { copyToClipboard: copyToClipboardWithSnackbar } = useCopyToClipboard();
-  const { t, i18n } = useLingui();
+  const { t } = useLingui();
   // oxlint-disable-next-line twenty/no-state-useref
   const lastCopyToClipboardCallAtRef = useRef<number>(Number.NEGATIVE_INFINITY);
   const setCommandMenuItemProgress = useSetAtomFamilyState(
@@ -98,27 +74,6 @@ export const useFrontComponentExecutionContext = ({
     queryParams,
     options,
   ) => {
-    if (to === AppPath.RecordShowPage) {
-      const targetObjectNameSingular = (
-        params as { objectNameSingular?: string | null } | undefined
-      )?.objectNameSingular;
-
-      const parentViewAtom =
-        contextStoreRecordShowParentViewComponentState.atomFamily({
-          instanceId: MAIN_CONTEXT_STORE_INSTANCE_ID,
-        });
-
-      const parentView = store.get(parentViewAtom);
-
-      if (
-        isDefined(parentView) &&
-        isDefined(targetObjectNameSingular) &&
-        parentView.parentViewObjectNameSingular !== targetObjectNameSingular
-      ) {
-        store.set(parentViewAtom, undefined);
-      }
-    }
-
     navigateApp(
       to as AppPath,
       params as Parameters<typeof navigateApp>[1],
@@ -128,121 +83,20 @@ export const useFrontComponentExecutionContext = ({
   };
 
   const openSidePanelPage: FrontComponentHostCommunicationApi['openSidePanelPage'] =
-    async (params) => {
-      if (params.page === SidePanelPages.ViewRecord) {
-        const { recordId, objectNameSingular, tab, resetNavigationStack } =
-          params;
-
-        if (isMobile || !canOpenObjectInSidePanel(objectNameSingular)) {
-          if (isDefined(tab)) {
-            setRecordPageActiveTabId({
-              recordId,
-              objectNameSingular,
-              tabId: tab,
-              store,
-            });
-          }
-
-          await navigate(AppPath.RecordShowPage, {
-            objectNameSingular,
-            objectRecordId: recordId,
-          });
-
-          return;
-        }
-
-        openRecordInSidePanelInternal({
-          recordId,
-          objectNameSingular,
-          tab,
-          resetNavigationStack,
-        });
-
-        return;
-      }
-
-      if (params.page === SidePanelPages.EditRichText) {
-        openRichTextInSidePanel(
-          params.recordId,
-          params.objectNameSingular,
-          params.fieldName,
-        );
-
-        return;
-      }
-
-      if (params.page === SidePanelPages.ComposeEmail) {
-        openComposeEmailInSidePanel({
-          connectedAccountId: params.connectedAccountId,
-          threadId: params.threadId,
-          defaultTo: params.defaultTo,
-          defaultSubject: params.defaultSubject,
-          defaultInReplyTo: params.defaultInReplyTo,
-          pageTitle: params.pageTitle,
-          pageIcon: isDefined(params.pageIcon)
-            ? getIcon(params.pageIcon)
-            : undefined,
-        });
-
-        return;
-      }
-
-      if (params.page === SidePanelPages.ViewFrontComponent) {
-        const recordContext =
-          isDefined(params.recordId) && isDefined(params.objectNameSingular)
-            ? {
-                recordId: params.recordId,
-                objectNameSingular: params.objectNameSingular,
-              }
-            : undefined;
-
-        openFrontComponentInSidePanel({
-          frontComponentId: params.frontComponentId,
-          pageTitle: params.pageTitle,
-          pageIcon: getIcon(params.pageIcon),
-          resetNavigationStack: params.resetNavigationStack,
-          recordContext,
-        });
-
-        return;
-      }
-
-      if (
-        params.page === SidePanelPages.AskAI &&
-        isDefined(params.preprompt) &&
-        isNonEmptyString(params.preprompt.text)
-      ) {
-        openAskAiPageWithPreprompt({
-          text: params.preprompt.text,
-          mode: params.preprompt.mode,
-          model: params.preprompt.model,
-        });
-
-        if (params.shouldResetSearchState === true) {
-          setSidePanelSearch('');
-        }
-
-        return;
-      }
-
+    async ({ page, pageTitle, pageIcon, shouldResetSearchState }) => {
       navigateSidePanel({
-        page: params.page,
-        pageTitle: params.pageTitle,
-        pageIcon: getIcon(params.pageIcon),
+        page,
+        pageTitle,
+        pageIcon: getIcon(pageIcon),
       });
 
-      if (params.shouldResetSearchState === true) {
+      if (shouldResetSearchState === true) {
         setSidePanelSearch('');
       }
     };
 
   const openCommandConfirmationModal: FrontComponentHostCommunicationApi['openCommandConfirmationModal'] =
-    async ({
-      title,
-      subtitle,
-      confirmButtonText,
-      confirmButtonAccent = 'danger',
-    }) => {
+    async ({ title, subtitle, confirmButtonText, confirmButtonAccent }) => {
       openConfirmationModal({
         caller: { type: 'frontComponent', frontComponentId },
         title,
@@ -290,9 +144,6 @@ export const useFrontComponentExecutionContext = ({
     recordId: selectedRecordIds?.length === 1 ? selectedRecordIds[0] : null,
     selectedRecordIds: selectedRecordIds ?? [],
     colorScheme,
-    // i18n.locale is a Lingui string; the host is always configured with the
-    // APP_LOCALES set, so it is a valid AppLocale.
-    locale: i18n.locale as AppLocale,
   };
 
   const unmountFrontComponent: FrontComponentHostCommunicationApi['unmountFrontComponent'] =

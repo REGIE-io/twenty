@@ -13,10 +13,7 @@ import {
 } from '@/ui/utilities/state/jotai/jotaiStore';
 
 const mockedUuid = 'mocked-uuid';
-jest.mock('uuid', () => ({
-  ...jest.requireActual('uuid'),
-  v4: jest.fn(),
-}));
+jest.mock('uuid');
 
 (uuidv4 as jest.Mock).mockReturnValue(mockedUuid);
 

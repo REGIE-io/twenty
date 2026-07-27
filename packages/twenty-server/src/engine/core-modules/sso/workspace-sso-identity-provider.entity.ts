@@ -1,6 +1,8 @@
 /* @license Enterprise */
 
-import { Field, ObjectType, registerEnumType } from '@nestjs/graphql';
+import { ObjectType, registerEnumType } from '@nestjs/graphql';
+
+import { IDField } from '@ptc-org/nestjs-query-graphql';
 import {
   Column,
   CreateDateColumn,
@@ -43,7 +45,7 @@ registerEnumType(SSOIdentityProviderStatus, {
 @ObjectType('WorkspaceSSOIdentityProvider')
 export class WorkspaceSSOIdentityProviderEntity extends WorkspaceRelatedEntity {
   // COMMON
-  @Field(() => UUIDScalarType)
+  @IDField(() => UUIDScalarType)
   @PrimaryGeneratedColumn('uuid')
   id: string;
 

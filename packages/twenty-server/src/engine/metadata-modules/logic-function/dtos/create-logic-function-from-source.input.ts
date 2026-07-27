@@ -15,7 +15,6 @@ import {
   CronTriggerSettings,
   DatabaseEventTriggerSettings,
   HttpRouteTriggerSettings,
-  ServerRouteTriggerSettings,
   ToolTriggerSettings,
   WorkflowActionTriggerSettings,
 } from 'twenty-shared/application';
@@ -72,11 +71,6 @@ export class CreateLogicFunctionFromSourceInput {
   @Field(() => graphqlTypeJson, { nullable: true })
   @IsOptional()
   httpRouteTriggerSettings?: JsonbProperty<HttpRouteTriggerSettings>;
-
-  @IsObject()
-  @Field(() => graphqlTypeJson, { nullable: true })
-  @IsOptional()
-  serverRouteTriggerSettings?: JsonbProperty<ServerRouteTriggerSettings>;
 
   @IsObject()
   @Field(() => graphqlTypeJson, { nullable: true })

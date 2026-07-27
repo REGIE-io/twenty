@@ -2,8 +2,8 @@ import { type MessageFolder } from '@/accounts/types/MessageFolder';
 import { SettingsMessageFoldersEmptyStateCard } from '@/settings/accounts/components/message-folders/SettingsMessageFoldersEmptyStateCard';
 import { SettingsMessageFoldersSkeletonLoader } from '@/settings/accounts/components/message-folders/SettingsMessageFoldersSkeletonLoader';
 import { SettingsMessageFoldersTreeItem } from '@/settings/accounts/components/message-folders/SettingsMessageFoldersTreeItem';
+import { computeFolderIdsForSyncToggle } from '@/settings/accounts/components/message-folders/utils/computeFolderIdsForSyncToggle';
 import { computeMessageFolderTree } from '@/settings/accounts/components/message-folders/utils/computeMessageFolderTree';
-import { computeToggleAllFoldersState } from '@/settings/accounts/components/message-folders/utils/computeToggleAllFoldersState';
 import { useMyMessageFolders } from '@/settings/accounts/hooks/useMyMessageFolders';
 import { useUpdateMessageFoldersSyncStatus } from '@/settings/accounts/hooks/useUpdateMessageFoldersSyncStatus';
 import { settingsAccountsSelectedMessageChannelState } from '@/settings/accounts/states/settingsAccountsSelectedMessageChannelState';
@@ -86,17 +86,21 @@ export const SettingsAccountsMessageFoldersCard = () => {
     return computeMessageFolderTree(filteredMessageFolders);
   }, [filteredMessageFolders]);
 
-  const { allSynced, messageFolderIds, targetSyncState } = useMemo(
-    () => computeToggleAllFoldersState(messageFolders),
-    [messageFolders],
-  );
+  const allFoldersToggled = useMemo(() => {
+    return filteredMessageFolders.every((folder) => folder.isSynced);
+  }, [filteredMessageFolders]);
 
-  const handleToggleAllFolders = async () => {
-    if (messageFolderIds.length === 0) return;
+  const handleToggleAllFolders = async (
+    messageFoldersToToggle: MessageFolder[],
+  ) => {
+    if (messageFoldersToToggle.length === 0) return;
+
+    const allSynced = messageFoldersToToggle.every((folder) => folder.isSynced);
+    const targetSyncState = !allSynced;
 
     try {
       await updateMessageFoldersSyncStatus({
-        messageFolderIds,
+        messageFolderIds: messageFoldersToToggle.map((folder) => folder.id),
         isSynced: targetSyncState,
       });
     } catch (error) {
@@ -108,10 +112,15 @@ export const SettingsAccountsMessageFoldersCard = () => {
 
   const handleToggleFolder = async (folderToToggle: MessageFolder) => {
     const isSynced = !folderToToggle.isSynced;
+    const folderIdsToToggle = computeFolderIdsForSyncToggle({
+      folderId: folderToToggle.id,
+      allFolders: messageFolders,
+      isSynced,
+    });
 
     try {
       await updateMessageFoldersSyncStatus({
-        messageFolderIds: [folderToToggle.id],
+        messageFolderIds: folderIdsToToggle,
         isSynced,
       });
     } catch (error) {
@@ -157,8 +166,8 @@ export const SettingsAccountsMessageFoldersCard = () => {
             padding={`0 ${themeCssVariables.spacing[1]} 0 ${themeCssVariables.spacing[2]}`}
           >
             <Checkbox
-              checked={allSynced}
-              onChange={handleToggleAllFolders}
+              checked={allFoldersToggled}
+              onChange={() => handleToggleAllFolders(messageFolders)}
               size={CheckboxSize.Small}
             />
           </TableCell>

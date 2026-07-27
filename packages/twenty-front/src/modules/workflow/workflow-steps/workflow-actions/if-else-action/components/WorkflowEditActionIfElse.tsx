@@ -38,6 +38,7 @@ export const WorkflowEditActionIfElse = ({
             actionOptions={actionOptions}
           />
           <WorkflowEditActionFilterBodyEffect
+            stepId={action.id}
             defaultValue={{
               stepFilterGroups: action.settings.input.stepFilterGroups,
               stepFilters: action.settings.input.stepFilters,

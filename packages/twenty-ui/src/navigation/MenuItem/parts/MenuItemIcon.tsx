@@ -1,7 +1,8 @@
 import { TintedIconTile } from '@ui/data-display';
 import { type IconComponent } from '@ui/icon';
 import { type ThemeColor } from '@ui/theme';
-import { useTheme } from '@ui/theme-constants';
+import { ThemeContext } from '@ui/theme-constants';
+import { useContext } from 'react';
 import { isDefined } from '@ui/utilities/utils/isDefined';
 import { MenuItemIconBoxContainer } from '@ui/navigation/MenuItem/parts/MenuItemIconBoxContainer';
 
@@ -18,7 +19,7 @@ export const MenuItemIcon = ({
   withContainer = false,
   withContainerBackground = true,
 }: MenuItemIconProps) => {
-  const theme = useTheme();
+  const { theme } = useContext(ThemeContext);
 
   if (!Icon) {
     return null;

@@ -1,7 +1,6 @@
 import { HeadlessEngineCommandWrapperEffect } from '@/command-menu-item/engine-command/components/HeadlessEngineCommandWrapperEffect';
 import { useHeadlessCommandContextApi } from '@/command-menu-item/engine-command/hooks/useHeadlessCommandContextApi';
 import { useOpenObjectRecordsSpreadsheetImportDialog } from '@/object-record/spreadsheet-import/hooks/useOpenObjectRecordsSpreadsheetImportDialog';
-import { useSidePanelMenu } from '@/side-panel/hooks/useSidePanelMenu';
 import { isDefined } from 'twenty-shared/utils';
 
 export const ImportRecordsNoSelectionRecordCommand = () => {
@@ -15,12 +14,10 @@ export const ImportRecordsNoSelectionRecordCommand = () => {
     useOpenObjectRecordsSpreadsheetImportDialog(
       objectMetadataItem.nameSingular,
     );
-  const { closeSidePanelMenu } = useSidePanelMenu();
 
-  const handleExecute = () => {
-    closeSidePanelMenu();
-    openObjectRecordsSpreadsheetImportDialog();
-  };
-
-  return <HeadlessEngineCommandWrapperEffect execute={handleExecute} />;
+  return (
+    <HeadlessEngineCommandWrapperEffect
+      execute={openObjectRecordsSpreadsheetImportDialog}
+    />
+  );
 };

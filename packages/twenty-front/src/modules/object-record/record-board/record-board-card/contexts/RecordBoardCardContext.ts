@@ -5,7 +5,6 @@ type RecordBoardCardContextProps = {
   isRecordReadOnly: boolean;
   rowIndex: number;
   columnIndex: number;
-  isDragOverlay?: boolean;
 };
 
 export const RecordBoardCardContext =

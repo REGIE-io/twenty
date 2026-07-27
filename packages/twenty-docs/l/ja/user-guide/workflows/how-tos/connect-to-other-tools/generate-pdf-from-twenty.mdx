@@ -7,7 +7,7 @@ Twenty で PDF を自動生成または取得し、レコードに添付しま�
 
 ## 概要
 
-このワークフローでは **手動トリガー** を使用し、選択した任意のレコードに対してオンデマンドで PDF を生成できるようにします。 次を **ロジック関数** が処理します:
+このワークフローでは **手動トリガー** を使用し、選択した任意のレコードに対してオンデマンドで PDF を生成できるようにします。 A **Logic Function** handles:
 
 1. URL（PDF 生成サービスから）から PDF をダウンロードする
 2. ファイルを Twenty にアップロードする
@@ -17,7 +17,7 @@ Twenty で PDF を自動生成または取得し、レコードに添付しま�
 
 ワークフローを設定する前に:
 
-1. **API キーを作成**: **Settings → APIs** に移動して新しい API キーを作成します。 ロジック関数でこのトークンが必要になります。
+1. **API キーを作成**: **Settings → APIs** に移動して新しい API キーを作成します。 You'll need this token for the logic function.
 2. **PDF 生成サービスを設定**（任意）：PDF を動的に生成したい場合（例: 見積書）は、Carbone、PDFMonkey、DocuSeal のようなサービスを使用して PDF を作成し、ダウンロード URL を取得します。
 
 ## ステップバイステップの設定
@@ -29,12 +29,12 @@ Twenty で PDF を自動生成または取得し、レコードに添付しま�
 3. PDF を添付したい対象オブジェクト（例: **Company** や **Opportunity**）を選択します
 
 <Tip>
-手動トリガーを使用すると、レコードを選択すると右上に表示されるボタンからこのワークフローを実行し、PDF を生成して添付できます。
+  手動トリガーを使用すると、レコードを選択すると右上に表示されるボタンからこのワークフローを実行し、PDF を生成して添付できます。
 </Tip>
 
-### ステップ 2: ロジック関数を追加する
+### Step 2: Add a Logic Function
 
-1. **Code** アクション（ロジック関数）を追加する
+1. Add a **Code** action (logic function)
 2. 以下のコードで新しい関数を作成します
 3. 入力パラメーターを設定します
 
@@ -45,22 +45,21 @@ Twenty で PDF を自動生成または取得し、レコードに添付しま�
 | `companyId` | `{{trigger.object.id}}` |
 
 <Note>
-別のオブジェクト（Person、Opportunity など）に添付する場合は、適切にパラメーター名を変更（例: `personId`、`opportunityId`）し、ロジック関数を更新します。
+  If attaching to a different object (Person, Opportunity, etc.), rename the parameter accordingly (e.g., `personId`, `opportunityId`) and update the logic function.
 </Note>
 
-#### ロジック関数のコード
+#### Logic Function Code
 
 ```typescript
 export const main = async (
   params: { companyId: string },
 ) => {
   const { companyId } = params;
-  // Replace with your Twenty GraphQL endpoints (/metadata for metadata and files or /graphql for your records)
+
+  // Replace with your Twenty GraphQL endpoint
   // Cloud: https://api.twenty.com/graphql
   // Self-hosted: https://your-domain.com/graphql
-
-  const metadataGraphqlEndpoint = 'https://api.twenty.com/metadata';
-  const dataGraphqlEndpoint = 'https://api.twenty.com/graphql';
+  const graphqlEndpoint = 'https://api.twenty.com/graphql';
 
   // Replace with your API key from Settings → APIs
   const authToken = 'YOUR_API_KEY';
@@ -80,40 +79,11 @@ export const main = async (
   const pdfBlob = await pdfResponse.blob();
   const pdfFile = new File([pdfBlob], filename, { type: 'application/pdf' });
 
-  const fieldMetadataIdQuery = `
-    query FindUploadFileFieldMetadataId {
-      objects {
-        edges {
-          node {
-            nameSingular
-            fieldsList {
-              id
-              name
-            }
-          }
-        }
-      }
-    }
-  `;
-
-  // Step 2: Find a fieldMetadataId of "Attachment file" field in Attachments object with GraphQL API
-  const response = await fetch(metadataGraphqlEndpoint, {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${authToken}`
-      },
-      body: {
-        query: fieldMetadataIdQuery,
-      }
-    });
-  const result = await response.json();
-  const uploadFileFieldMetadataId = result.data.objects.edges.find(object => object.node.nameSingular === 'attachment').node.fieldsList.find(field => field.name === 'file').id;
-
-  // Step 3: Upload the file via GraphQL multipart upload
+  // Step 2: Upload the file via GraphQL multipart upload
   const uploadMutation = `
-    mutation UploadFilesFieldFile($file: Upload!, $fieldMetadataId: String!) {
-      uploadFilesFieldFile(file: $file, fieldMetadataId: $fieldMetadataId) {
-        id
+    mutation UploadFile($file: Upload!, $fileFolder: FileFolder) {
+      uploadFile(file: $file, fileFolder: $fileFolder) {
+        path
       }
     }
   `;
@@ -121,12 +91,12 @@ export const main = async (
   const uploadForm = new FormData();
   uploadForm.append('operations', JSON.stringify({
     query: uploadMutation,
-    variables: { file: null, fieldMetadataId: uploadFileFieldMetadataId },
+    variables: { file: null, fileFolder: 'Attachment' },
   }));
   uploadForm.append('map', JSON.stringify({ '0': ['variables.file'] }));
   uploadForm.append('0', pdfFile);
 
-  const uploadResponse = await fetch(metadataGraphqlEndpoint, {
+  const uploadResponse = await fetch(graphqlEndpoint, {
     method: 'POST',
     headers: { Authorization: `Bearer ${authToken}` },
     body: uploadForm,
@@ -138,15 +108,15 @@ export const main = async (
     throw new Error(`Upload failed: ${uploadResult.errors[0].message}`);
   }
 
-  const fileId = uploadResult.data?.uploadFilesFieldFile?.id;
+  const filePath = uploadResult.data?.uploadFile?.path;
 
-  if (!fileId) {
-    throw new Error('No file id returned from upload');
+  if (!filePath) {
+    throw new Error('No file path returned from upload');
   }
 
-  // Step 4: Create the attachment linked to the company
+  // Step 3: Create the attachment linked to the company
   const attachmentMutation = `
-    mutation CreateOneAttachment($data: AttachmentCreateInput!) {
+    mutation CreateAttachment($data: AttachmentCreateInput!) {
       createAttachment(data: $data) {
         id
         name
@@ -154,7 +124,7 @@ export const main = async (
     }
   `;
 
-  const attachmentResponse = await fetch(dataGraphqlEndpoint, {
+  const attachmentResponse = await fetch(graphqlEndpoint, {
     method: 'POST',
     headers: {
       Authorization: `Bearer ${authToken}`,
@@ -165,13 +135,8 @@ export const main = async (
       variables: {
         data: {
           name: filename,
-          targetCompanyId: companyId,
-          file: [
-            {
-              fileId: fileId,
-              label: filename
-            }
-          ]
+          fullPath: filePath,
+          companyId,
         },
       },
     }),
@@ -191,14 +156,14 @@ export const main = async (
 
 #### 別のオブジェクトに添付する場合
 
-`targetCompanyId` を適切なフィールドに置き換えます:
+`companyId` を適切なフィールドに置き換えます:
 
-| オブジェクト     | フィールド名                     |
-| ---------- | -------------------------- |
-| 会社         | `targetCompanyId`          |
-| 人物         | `targetPersonId`           |
-| 商談         | `targetOpportunityId`      |
-| カスタムオブジェクト | `targetYourCustomObjectId` |
+| オブジェクト     | フィールド名               |
+| ---------- | -------------------- |
+| 会社         | `companyId`          |
+| 人物         | `personId`           |
+| 商談         | `opportunityId`      |
+| カスタムオブジェクト | `yourCustomObjectId` |
 
 関数のパラメーターと、添付のミューテーション内の `variables.data` オブジェクトの両方を更新します。
 
@@ -207,7 +172,7 @@ export const main = async (
 PDF 生成サービスを使用する場合、次のことができます:
 
 1. まず HTTP Request アクションで PDF を生成します
-2. 返された PDF URL をパラメーターとしてロジック関数に渡します
+2. Pass the returned PDF URL to the logic function as a parameter
 
 ```typescript
 export const main = async (
@@ -246,7 +211,7 @@ export const main = async (
 * **DocuSeal** - ドキュメント自動化プラットフォーム
 * **Documint** - API ファーストのドキュメント生成
 
-各サービスは PDF URL を返す API を提供しており、その URL をロジック関数に渡すことができます。
+Each service provides an API that returns a PDF URL, which you can then pass to the logic function.
 
 ## トラブルシューティング
 
@@ -259,5 +224,5 @@ export const main = async (
 ## 関連
 
 * [ワークフローのトリガー](/l/ja/user-guide/workflows/capabilities/workflow-triggers)
-* [ロジック関数](/l/ja/user-guide/workflows/capabilities/workflow-actions#code)
+* [Logic Functions](/l/ja/user-guide/workflows/capabilities/workflow-actions#code)
 * [Twenty から見積書または請求書を生成する](/l/ja/user-guide/workflows/how-tos/connect-to-other-tools/generate-quote-or-invoice-from-twenty)

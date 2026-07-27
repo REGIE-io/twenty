@@ -51,7 +51,8 @@ export default defineLogicFunction({
 ```
 
 Types de déclencheurs disponibles :
-* **httpRoute** : Expose votre fonction sur un chemin et une méthode HTTP. Dans le code de l'application, préfixez le chemin de la route avec `/s/` lorsque vous utilisez `RestApiClient` ; l'URL déployée utilise la base injectée `TWENTY_FUNCTIONS_URL` (ou `\<server-url>/s` lorsqu'elle n'est pas définie).
+* **httpRoute** : Expose votre fonction sur un chemin et une méthode HTTP **sous l'endpoint `/s/`** :
+> p. ex. `path: '/post-card/create'` est appelable à `https://your-twenty-server.com/s/post-card/create`
 
 <Note>
 Pour appeler une fonction logique déclenchée par une route depuis un composant frontal (sans interface), consultez [Appeler une fonction logique](/l/fr/developers/extend/apps/layout/front-components#calling-a-logic-function).
@@ -59,7 +60,6 @@ Pour appeler une fonction logique déclenchée par une route depuis un composant
 * **cron** : Exécute votre fonction selon une planification à l’aide d’une expression CRON.
 * **databaseEvent**: S'exécute lors des événements du cycle de vie des objets de l'espace de travail. Lorsque l'opération de l'événement est `updated`, des champs spécifiques à surveiller peuvent être spécifiés dans le tableau `updatedFields`. S'il est laissé indéfini ou vide, toute mise à jour déclenchera la fonction.
 > p. ex. `person.updated`, `*.created`, `company.*`
-* **serverRoute** : expose une seule route HTTP à portée d’enregistrement. Une fonction de **résolution** (déclarée avec `serverRouteTriggerSettings`) s’exécute dans l’espace de travail propriétaire et renvoie soit une `Response` synchrone, soit l’espace de travail cible ET la fonction logique cible à mettre en file d’attente ; dans le cas de la mise en file d’attente, la plateforme accuse réception avec `202` et exécute cette **cible** dans la file d’attente du worker. Voir [déclencheur de route serveur](#server-route-trigger).
 
 <Note>
 Vous pouvez également exécuter manuellement une fonction à l'aide de la CLI :
@@ -170,147 +170,6 @@ Pour des raisons de sécurité, les en-têtes de réponse sont restreints à une
 
 <Note>
 Le code d’état doit être un code d’état HTTP valide (compris entre 100 et 599). Les noms des en-têtes de réponse sont comparés sans tenir compte de la casse.
-</Note>
-
-#### Déclencheur de route serveur
-
-`httpRouteTriggerSettings` expose une fonction sous `/s/` et résout l’espace de travail à partir de l’hôte de la requête — ce qui fonctionne lorsque chaque espace de travail a son propre domaine. Les fournisseurs tiers, en revanche, envoient les événements de chaque locataire vers **une** URL. Dans ce cas, utilisez `serverRouteTriggerSettings`.
-
-Le déclencheur comporte deux parties :
-
-1. Une fonction de logique de **résolution** — déclarée avec `serverRouteTriggerSettings` — s’exécute dans votre **espace de travail propriétaire** (l’espace de travail qui possède l’enregistrement de l’application). Elle inspecte la requête entrante et renvoie soit :
-
-   * `{ workspaceId, targetLogicFunctionUniversalIdentifier, payload? }` — la plateforme met cette cible en file d’attente dans l’espace de travail résolu et accuse réception avec `202 { queued: true }`, ou
-   * une `Response` de `twenty-sdk/logic-function` — la plateforme renvoie cette réponse HTTP **de manière synchrone** et ne met **pas** de cible en file d’attente (utilisez ceci pour les échanges de vérification, comme la `url_verification` de Slack).
-
-   Le résolveur est le point d’autorisation unique — l’URL transporte uniquement l’identifiant du résolveur. **C’est l’endroit privilégié pour vérifier les signatures des requêtes** : le résolveur s’exécute avant tout effet de bord, a accès au `rawBody` original et aux en-têtes transmis, et peut rejeter la requête sans jamais toucher la cible.
-2. Une fonction de logique **cible** — une fonction de logique classique par espace de travail — s’exécute ensuite dans l’espace de travail résolu avec la charge utile renvoyée par le résolveur (ou la charge utile originale de la requête si le résolveur ne l’a pas transformée). Sa valeur de retour **n’est pas** observée par l’appelant HTTP lorsque le résolveur a choisi le chemin de mise en file d’attente.
-
-```ts src/logic-functions/resolve-server-route.logic-function.ts
-import { createHmac, timingSafeEqual } from 'crypto';
-import { defineLogicFunction } from 'twenty-sdk/define';
-import { Response, type RoutePayload } from 'twenty-sdk/logic-function';
-
-// Runs in the owner workspace. Verifies the request signature, picks
-// which target function should handle the event, and returns the
-// workspace + target the platform should dispatch to.
-const handler = async (event: RoutePayload) => {
-  // Fail closed if the secret isn't configured — never fall back to an
-  // empty key, which would let any caller forge a matching signature.
-  const secret = process.env.GITHUB_WEBHOOK_SECRET;
-
-  if (!secret) {
-    throw new Error('GITHUB_WEBHOOK_SECRET is not configured');
-  }
-
-  const signature = event.headers['x-hub-signature-256'] ?? '';
-  const expected =
-    'sha256=' +
-    createHmac('sha256', secret).update(event.rawBody ?? '').digest('hex');
-
-  const a = Buffer.from(signature);
-  const b = Buffer.from(expected);
-
-  if (a.length !== b.length || !timingSafeEqual(a, b)) {
-    throw new Error('invalid signature');
-  }
-
-  const body = (event.body ?? {}) as {
-    challenge?: string;
-    metadata?: { twentyWorkspaceId?: string };
-    type?: string;
-  };
-
-  // Handshakes must be answered on this same response, so reply from the
-  // resolver instead of returning a dispatch target.
-  if (body.type === 'url_verification') {
-    return new Response({ challenge: body.challenge });
-  }
-
-  const workspaceId = body.metadata?.twentyWorkspaceId;
-
-  if (!workspaceId) {
-    throw new Error('event is not linked to a workspace');
-  }
-
-  return {
-    workspaceId,
-    // Route different event types to different target functions.
-    targetLogicFunctionUniversalIdentifier:
-      body.type === 'invoice.paid'
-        ? 'c4e2a9b1-7d4e-4c9a-9f2b-2e1d6a4c8e10' // handle-invoice-paid
-        : 'd5f3b0c2-8e5f-5d0b-a0c3-3f2e7b5d9f21', // handle-other-event
-  };
-};
-
-export default defineLogicFunction({
-  universalIdentifier: 'b3c2f0a1-7d4e-4c9a-9f2b-2e1d6a4c8e10',
-  name: 'resolve-server-route',
-  handler,
-  serverRouteTriggerSettings: {
-    forwardedRequestHeaders: ['x-hub-signature-256'],
-  },
-});
-```
-
-```ts src/logic-functions/handle-invoice-paid.logic-function.ts
-import { defineLogicFunction } from 'twenty-sdk/define';
-import type { RoutePayload } from 'twenty-sdk/logic-function';
-
-// Runs in the resolved workspace. The resolver has already authenticated
-// the request, so this handler can focus on the actual work.
-const handler = async (event: RoutePayload) => {
-  // ...handle the verified event
-  return { received: true };
-};
-
-export default defineLogicFunction({
-  universalIdentifier: 'c4e2a9b1-7d4e-4c9a-9f2b-2e1d6a4c8e10',
-  name: 'handle-invoice-paid',
-  handler,
-});
-```
-
-Le point de terminaison est accessible à l’adresse :
-
-```
-POST https://your-twenty-server.com/webhooks/server/:resolverLogicFunctionUniversalIdentifier
-```
-
-L’identifiant est le `universalIdentifier` du résolveur issu de votre manifeste. Enregistrez cette URL auprès du fournisseur.
-
-<Note>
-**L’application doit être revendiquée et installée sur son espace de travail propriétaire.** Comme le résolveur s’exécute dans l’**espace de travail propriétaire** (l’espace de travail qui détient l’enregistrement de l’application), un déclencheur de route serveur ne fonctionne que lorsque l’application a été *revendiquée* — c’est‑à‑dire qu’elle possède un espace de travail propriétaire — **et** que cette application est **installée sur l’espace de travail propriétaire**. Tant que ces deux conditions ne sont pas remplies, le résolveur n’a nulle part où s’exécuter, donc la route ne peut pas être envoyée. Une application qui expose une fonction logique `serverRouteTriggerSettings` ne peut donc pas être répertoriée sur la place de marché tant qu’elle n’a pas été revendiquée et installée sur son espace de travail propriétaire.
-</Note>
-
-**Contrat du résolveur.** Le type `LogicFunctionConfig` du SDK impose cela à la compilation : dès que vous définissez `serverRouteTriggerSettings`, votre gestionnaire est contraint de retourner soit un `Response`, soit `{ workspaceId: string; targetLogicFunctionUniversalIdentifier: string; payload?: object }` (ou une `Promise` de l’un ou l’autre). Sur le chemin d’acheminement, le `workspaceId` doit être celui d’un espace de travail où la fonction cible est installée, sinon la requête est rejetée avec un `404`. Un résultat qui ne correspond à aucune de ces formes — y compris un résultat dont les identifiants ne sont pas des UUID — est rejeté avec un `502`.
-
-| Champ                                    | Type                  | Notes                                                                                  |
-| ---------------------------------------- | --------------------- | -------------------------------------------------------------------------------------- |
-| `workspaceId`                            | `string`              | UUID de l’espace de travail dans lequel la cible sera exécutée.                        |
-| `targetLogicFunctionUniversalIdentifier` | `string`              | `universalIdentifier` de la fonction de logique à invoquer dans cet espace de travail. |
-| `payload`                                | `object` (facultatif) | S’il est défini, il remplace le corps de la requête envoyé à la cible.                 |
-
-<Warning>
-**La vérification de la signature est de votre responsabilité — effectuez-la dans le résolveur.** La plateforme ne vérifie pas les signatures des requêtes. Le résolveur est l’endroit recommandé pour le faire : il s’exécute en premier, avec accès à `event.rawBody` et aux en-têtes que vous avez listés dans `forwardedRequestHeaders`, et une erreur levée (ou tout `workspaceId` ne correspondant pas) interrompt la distribution avant que la cible ne soit invoquée. Si, à la place, vous repoussez la vérification vers la cible, celle-ci doit faire attention à ne pas perdre `rawBody` et les en-têtes — c’est-à-dire que le résolveur ne doit pas retourner de `payload`. Vérifiez toujours **avant** tout effet de bord et utilisez une comparaison en temps constant.
-</Warning>
-
-Pour les signatures de requêtes, la plupart des fournisseurs signent avec HMAC-SHA256 ; les éléments qui diffèrent sont le nom de l’en-tête, l’encodage de l’empreinte et la chaîne de la charge utile signée. Quelques exemples :
-
-| Fournisseur                  | En-têtes à transférer                                  | Chaîne signée                | Empreinte                                                      |
-| ---------------------------- | ------------------------------------------------------ | ---------------------------- | -------------------------------------------------------------- |
-| Svix (Recall, Resend, Clerk) | `webhook-id`, `webhook-timestamp`, `webhook-signature` | `{id}.{timestamp}.{rawBody}` | base64 (le secret est en base64 après suppression de `whsec_`) |
-| Stripe                       | `stripe-signature`                                     | `{timestamp}.{rawBody}`      | hexadécimal                                                    |
-| GitHub                       | `x-hub-signature-256`                                  | `{rawBody}`                  | hexadécimal (préfixé par `sha256=`)                            |
-| Shopify                      | `x-shopify-hmac-sha256`                                | `{rawBody}`                  | base64                                                         |
-| Slack                        | `x-slack-signature`, `x-slack-request-timestamp`       | `v0:{timestamp}:{rawBody}`   | hexadécimal (préfixé par `v0=`)                                |
-
-L’exemple de résolveur ci-dessus montre déjà le flux GitHub HMAC-SHA256 — adaptez le nom de l’en-tête, l’encodage de l’empreinte et la chaîne de la charge utile signée en fonction du fournisseur avec lequel vous vous intégrez.
-
-<Note>
-Lorsque le résolveur retourne un objet d’acheminement, la route répond `202 { queued: true }` et la cible s’exécute dans la file d’attente du worker — l’appelant n’observe jamais la latence, le résultat ou les échecs de la cible (ceux-ci sont enregistrés dans les journaux d’exécution). Cela évite que les nouvelles tentatives d’envoi de l’émetteur n’amplifient les ralentissements de traitement, ce qui est souhaitable pour l’ingestion de webhook.
-
-Lorsque l’appelant doit lire le corps de la réponse sur la même requête (handshakes de challenge, accusés de réception interactifs), retournez plutôt un `Response` depuis le **résolveur**. La plateforme le renvoie de manière synchrone et ignore la file d’attente ; ses en-têtes passent par la même liste d’autorisation que les réponses des routes HTTP. Gardez le résolveur rapide — certains fournisseurs (par ex. Slack) ont un délai d’attente de seulement quelques secondes. Comme le résolveur est accessible en tant que point de terminaison public, protégez-le avec une limitation de débit à votre périphérie.
 </Note>
 
 #### Charge utile du déclencheur d'événement de base de données
@@ -431,10 +290,6 @@ Les fonctions logiques peuvent être exposées sur deux surfaces, chacune avec s
 
 Une fonction peut opter pour l'un, l'autre ou les deux. Elles côtoient `cronTriggerSettings`, `databaseEventTriggerSettings` et `httpRouteTriggerSettings` — même modèle, même structure.
 
-<Note>
-**Lien avec l’action Code du workflow.** L’action **Code** intégrée dans le générateur de workflows est elle-même une fonction logique — Twenty en crée une pour chaque étape Code et affiche son éditeur en ligne. `workflowActionTriggerSettings` est la manière de transformer ce code ponctuel en ligne en une action **réutilisable** : définissez la fonction une fois dans votre application et elle devient sélectionnable dans n’importe quel workflow, au lieu d’être copiée-collée dans chaque étape Code. Voir l’[action Code](/l/fr/user-guide/workflows/capabilities/workflow-actions#code) dans le guide utilisateur pour la vue côté utilisateur final.
-</Note>
-
 ```ts src/logic-functions/enrich-company.logic-function.ts
 import { defineLogicFunction } from 'twenty-sdk/define';
 import { CoreApiClient } from 'twenty-client-sdk/core';
@@ -494,103 +349,6 @@ export default defineLogicFunction({
 });
 ```
 
-Pour déclarer vos paramètres **une seule fois** et les utiliser sur les deux surfaces, définissez un seul schéma JSON (`InputJsonSchema`) et convertissez-le pour l’action de flux de travail avec `jsonSchemaToInputSchema` depuis `twenty-sdk/logic-function`. `toolTriggerSettings.inputSchema` prend directement le schéma JSON, tandis que `workflowActionTriggerSettings.inputSchema` attend le `InputSchema` de Twenty :
-
-```ts
-import { defineLogicFunction } from 'twenty-sdk/define';
-import { jsonSchemaToInputSchema, type InputJsonSchema } from 'twenty-sdk/logic-function';
-
-const inputSchema: InputJsonSchema = {
-  type: 'object',
-  properties: {
-    companyName: { type: 'string', label: 'Company name' },
-    domain: { type: 'string', label: 'Domain' },
-  },
-  required: ['companyName'],
-};
-
-export default defineLogicFunction({
-  ...,
-  toolTriggerSettings: { inputSchema },
-  workflowActionTriggerSettings: {
-    label: 'Enrich Company',
-    icon: 'IconBuilding',
-    inputSchema: jsonSchemaToInputSchema(inputSchema),
-  },
-});
-```
-
-##### Un exemple complet d’action de workflow
-
-`workflowActionTriggerSettings` accepte quatre champs :
-
-| Champ          | Objectif                                                                                                                                                                                                                         |
-| -------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `label`        | Nom affiché pour l’action dans le sélecteur d’étapes du générateur de workflows. Utilise par défaut le `name` de la fonction.                                                                                                    |
-| `icon`         | Icône affichée à côté de l’action (un nom `tabler-icons`, par exemple `IconBuilding`).                                                                                                                                           |
-| `inputSchema`  | Le riche `InputSchema` de Twenty — ce que le générateur affiche sous forme de champs configurables (avec des sélecteurs de variables). Optionnel ; déduit du gestionnaire lorsqu’il est omis.                                    |
-| `outputSchema` | Déclare la structure renvoyée par le gestionnaire, afin que **les étapes suivantes puissent établir une correspondance avec ses champs de sortie**. Optionnel ; sans cela, la sortie est exposée comme une valeur opaque unique. |
-
-Assembler le tout — une fonction exposée comme action de workflow, avec une sortie déclarée pour que les étapes ultérieures puissent référencer `taskId` :
-
-```ts src/logic-functions/enrich-company.logic-function.ts
-import { defineLogicFunction } from 'twenty-sdk/define';
-import { jsonSchemaToInputSchema, type InputJsonSchema } from 'twenty-sdk/logic-function';
-import { CoreApiClient } from 'twenty-client-sdk/core';
-
-const inputSchema: InputJsonSchema = {
-  type: 'object',
-  properties: {
-    companyName: { type: 'string', label: 'Company name' },
-    domain: { type: 'string', label: 'Domain' },
-  },
-  required: ['companyName'],
-};
-
-const handler = async (params: { companyName: string; domain?: string }) => {
-  const client = new CoreApiClient();
-
-  const result = await client.mutation({
-    createTask: {
-      __args: {
-        data: {
-          title: `Enrich data for ${params.companyName}`,
-          body: `Domain: ${params.domain ?? 'unknown'}`,
-        },
-      },
-      id: true,
-    },
-  });
-
-  // The keys returned here should match the `outputSchema` properties below.
-  return { taskId: result.createTask.id, enriched: true };
-};
-
-export default defineLogicFunction({
-  universalIdentifier: 'f47ac10b-58cc-4372-a567-0e02b2c3d479',
-  name: 'enrich-company',
-  description: 'Enrich a company record with external data',
-  timeoutSeconds: 10,
-  handler,
-  workflowActionTriggerSettings: {
-    label: 'Enrich Company',
-    icon: 'IconBuilding',
-    inputSchema: jsonSchemaToInputSchema(inputSchema),
-    outputSchema: [
-      {
-        type: 'object',
-        properties: {
-          taskId: { type: 'string' },
-          enriched: { type: 'boolean' },
-        },
-      },
-    ],
-  },
-});
-```
-
-Une fois l’application installée, **Enrich Company** apparaît dans le sélecteur d’actions du générateur de workflows. Le générateur affiche `companyName` et `domain` sous forme de champs de saisie (chacun pouvant récupérer des valeurs à partir des étapes précédentes), et les étapes en aval peuvent référencer les sorties `taskId` et `enriched` de l’étape.
-
 <Note>
 **Rédigez une bonne `description`.** Les agents IA s'appuient sur le champ `description` de la fonction pour décider quand utiliser l'outil. Soyez précis sur ce que fait l'outil et quand il doit être appelé.
 </Note>
@@ -599,21 +357,7 @@ Une fois l’application installée, **Enrich Company** apparaît dans le sélec
 </AccordionGroup>
 
 <Note>
-**Aides à l’exécution.** `twenty-sdk/utils` réexporte de petites aides à l’exécution afin que les gestionnaires n’importent jamais directement depuis `twenty-shared`. Par exemple, `isDefined(value)` renvoie `false` à la fois pour `null` et `undefined` — utilisez-le pour restreindre en toute sécurité les entrées de gestionnaire optionnelles, qui peuvent arriver sous forme de `null` à l’exécution même lorsqu’elles sont typées `T | undefined` :
-
-```ts
-import { isDefined } from 'twenty-sdk/utils';
-
-const handler = async (params: { parentMessageId?: string }) => {
-  if (isDefined(params.parentMessageId)) {
-    // params.parentMessageId is narrowed to string here
-  }
-};
-```
-</Note>
-
-<Note>
-**Hooks d'installation** — les gestionnaires de pré-installation, de post-installation et de désinstallation — partagent ce runtime mais sont déclarés avec leurs propres fonctions define et ne prennent pas de paramètres de déclenchement. Voir [hooks d'installation](/l/fr/developers/extend/apps/config/install-hooks) pour `definePreInstallLogicFunction`, `definePostInstallLogicFunction` et `defineUninstallLogicFunction`.
+**Hooks d'installation** — les gestionnaires de pré-installation et de post-installation — partagent ce runtime mais sont déclarés avec leurs propres fonctions define et ne prennent pas de paramètres de déclenchement. Voir [hooks d'installation](/l/fr/developers/extend/apps/config/install-hooks) pour `definePreInstallLogicFunction` et `definePostInstallLogicFunction`.
 </Note>
 
 ## Clients d'API typés (twenty-client-sdk)

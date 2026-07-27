@@ -64,7 +64,10 @@ const buildManifest = ({
   });
 };
 
-const timeSync = async (label: string, manifest: Manifest): Promise<number> => {
+const timeSync = async (
+  label: string,
+  manifest: Manifest,
+): Promise<number> => {
   const start = performance.now();
 
   await syncApplication({ manifest, expectToFail: false });

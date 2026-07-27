@@ -34,7 +34,6 @@ export const TwoFactorAuthenticationVerificationForSettings = () => {
           onBlur={onBlur}
           onChange={onChange}
           value={value}
-          autoFocus
           render={({ slots }) => (
             <StyledOTPContainer>
               {slots.slice(0, 3).map((slot, idx) => (

@@ -36,7 +36,7 @@ export class ApplicationVariableEntityService {
       });
     }
 
-    return this.secretEncryptionService.decryptVersionedOrThrow(
+    return this.secretEncryptionService.decryptVersioned(
       applicationVariable.value,
       { workspaceId: applicationVariable.workspaceId },
     );

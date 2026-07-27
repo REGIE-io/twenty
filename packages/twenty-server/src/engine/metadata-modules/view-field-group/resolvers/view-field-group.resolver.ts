@@ -11,6 +11,7 @@ import {
 import { isArray } from '@sniptt/guards';
 
 import { MetadataResolver } from 'src/engine/api/graphql/graphql-config/decorators/metadata-resolver.decorator';
+import { ApplicationService } from 'src/engine/core-modules/application/application.service';
 import { ResolverValidationPipe } from 'src/engine/core-modules/graphql/pipes/resolver-validation.pipe';
 import { I18nService } from 'src/engine/core-modules/i18n/i18n.service';
 import { type I18nContext } from 'src/engine/core-modules/i18n/types/i18n-context.type';
@@ -41,35 +42,28 @@ export class ViewFieldGroupResolver {
     private readonly viewFieldGroupService: ViewFieldGroupService,
     private readonly fieldsWidgetUpsertService: FieldsWidgetUpsertService,
     private readonly i18nService: I18nService,
+    private readonly applicationService: ApplicationService,
   ) {}
 
   @ResolveField(() => String)
   async name(
     @Parent() viewFieldGroup: ViewFieldGroupDTO,
-    @Context() context: { loaders: IDataloaders } & I18nContext,
+    @Context() context: I18nContext,
     @AuthWorkspace() workspace: WorkspaceEntity,
   ): Promise<string> {
     const i18n = this.i18nService.getI18nInstance(context.req.locale);
 
-    const standardApplicationId =
-      await context.loaders.standardApplicationIdLoader.load({
-        workspaceId: workspace.id,
-      });
-
-    const applicationCatalog =
-      await context.loaders.applicationTranslationCatalogLoader.load({
-        applicationId: viewFieldGroup.applicationId,
-        workspaceId: workspace.id,
-        locale: context.req.locale,
-      });
+    const { twentyStandardFlatApplication } =
+      await this.applicationService.findWorkspaceTwentyStandardAndCustomApplicationOrThrow(
+        { workspace },
+      );
 
     return resolveViewFieldGroupName({
       name: viewFieldGroup.name,
       applicationId: viewFieldGroup.applicationId,
-      twentyStandardApplicationId: standardApplicationId,
+      twentyStandardApplicationId: twentyStandardFlatApplication.id,
       overrides: viewFieldGroup.overrides,
       i18nInstance: i18n,
-      applicationCatalog,
     });
   }
 

@@ -1,139 +1,277 @@
-import { onboardingConfigState } from '@/client-config/states/onboardingConfigState';
-import { OnboardingSkipButton } from '@/onboarding/components/OnboardingSkipButton';
-import { OnboardingStepAnimatedItem } from '@/onboarding/components/OnboardingStepAnimatedItem';
-import { StyledOnboardingStepHeading } from '@/onboarding/components/StyledOnboardingStepHeading';
-import { StyledOnboardingStepPage } from '@/onboarding/components/StyledOnboardingStepPage';
-import { StyledOnboardingStepSubtitle } from '@/onboarding/components/StyledOnboardingStepSubtitle';
-import { StyledOnboardingStepTagsRow } from '@/onboarding/components/StyledOnboardingStepTagsRow';
-import { StyledOnboardingStepTitle } from '@/onboarding/components/StyledOnboardingStepTitle';
-import { OnboardingCreditsRewardTag } from '@/onboarding/components/import-contacts/OnboardingCreditsRewardTag';
-import { ONBOARDING_CONTENT_BLOCK_WIDTH } from '@/onboarding/constants/OnboardingContentBlockWidth';
-import { ONBOARDING_MOTION_SLIDE_OFFSET } from '@/onboarding/constants/OnboardingMotionSlideOffset';
-import { useInviteTeam } from '@/onboarding/hooks/useInviteTeam';
-import { useOnboardingMotionTransition } from '@/onboarding/hooks/useOnboardingMotionTransition';
+import { SubTitle } from '@/auth/components/SubTitle';
+import { Title } from '@/auth/components/Title';
+import { currentWorkspaceState } from '@/auth/states/currentWorkspaceState';
+import { calendarBookingPageIdState } from '@/client-config/states/calendarBookingPageIdState';
+import { useSetNextOnboardingStatus } from '@/onboarding/hooks/useSetNextOnboardingStatus';
+import { PageFocusId } from '@/types/PageFocusId';
+import { useSnackBar } from '@/ui/feedback/snack-bar-manager/hooks/useSnackBar';
 import { TextInput } from '@/ui/input/components/TextInput';
-import { useAtomStateValue } from '@/ui/utilities/state/jotai/hooks/useAtomStateValue';
+import { ModalContent } from 'twenty-ui/surfaces';
+import { useHotkeysOnFocusedElement } from '@/ui/utilities/hotkey/hooks/useHotkeysOnFocusedElement';
 import { styled } from '@linaria/react';
-import { useLingui } from '@lingui/react/macro';
-import { AnimatePresence, motion } from 'framer-motion';
-import { Controller } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { Trans, useLingui } from '@lingui/react/macro';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import {
+  Controller,
+  type SubmitHandler,
+  useFieldArray,
+  useForm,
+} from 'react-hook-form';
+import { useAtomStateValue } from '@/ui/utilities/state/jotai/hooks/useAtomStateValue';
+import { useQuery } from '@apollo/client/react';
+import { Key } from 'ts-key-enum';
 import { isDefined } from 'twenty-shared/utils';
-import { IconX } from 'twenty-ui/icon';
-import { MainButton } from 'twenty-ui/input';
+import { IconCopy } from 'twenty-ui/icon';
+import { SeparatorLineText } from 'twenty-ui/typography';
+import { LightButton, MainButton } from 'twenty-ui/input';
+import { ClickToActionLink } from 'twenty-ui/navigation';
 import { themeCssVariables } from 'twenty-ui/theme-constants';
+import { z } from 'zod';
+import { GetInviteSuggestionsDocument } from '~/generated-metadata/graphql';
+import { useCopyToClipboard } from '~/hooks/useCopyToClipboard';
+import { useCreateWorkspaceInvitation } from '@/workspace-invitation/hooks/useCreateWorkspaceInvitation';
 
-const StyledForm = styled.div`
+const StyledAnimatedContainer = styled.div`
   display: flex;
   flex-direction: column;
   gap: ${themeCssVariables.spacing[4]};
-  max-width: 100%;
-  width: ${ONBOARDING_CONTENT_BLOCK_WIDTH}px;
+  overflow-x: hidden;
+  overflow-y: scroll;
+  padding: ${themeCssVariables.spacing[8]} 0;
+  width: 100%;
 `;
 
-const StyledFooter = styled.div`
-  align-items: flex-end;
+const StyledActionLinkContainer = styled.div`
   display: flex;
-  flex-direction: column;
-  gap: ${themeCssVariables.spacing[3]};
-  max-width: 100%;
-  width: ${ONBOARDING_CONTENT_BLOCK_WIDTH}px;
+  justify-content: center;
 `;
+
+const StyledButtonContainer = styled.div`
+  display: flex;
+  justify-content: center;
+  width: 200px;
+`;
+
+const StyledActionSkipLinkContainer = styled.div`
+  margin: ${themeCssVariables.spacing[3]} 0 0;
+`;
+
+const validationSchema = z.object({
+  emails: z.array(z.object({ email: z.union([z.literal(''), z.email()]) })),
+});
+
+type FormInput = z.infer<typeof validationSchema>;
 
 export const InviteTeam = () => {
   const { t } = useLingui();
+  const { copyToClipboard } = useCopyToClipboard();
+  const { enqueueSuccessSnackBar } = useSnackBar();
+  const { sendInvitation } = useCreateWorkspaceInvitation();
+  const setNextOnboardingStatus = useSetNextOnboardingStatus();
+  const currentWorkspace = useAtomStateValue(currentWorkspaceState);
+  const calendarBookingPageId = useAtomStateValue(calendarBookingPageIdState);
+  const hasCalendarBooking = isDefined(calendarBookingPageId);
+
   const {
     control,
-    fields,
-    remove,
     handleSubmit,
-    onSubmit,
-    handleSkip,
-    getPlaceholder,
-    isValid,
-    isSubmitting,
-    isNavigating,
-  } = useInviteTeam();
-  const onboardingConfig = useAtomStateValue(onboardingConfigState);
-  const creditsRewardPerUser = onboardingConfig?.inviteTeamCreditsRewardPerUser;
-  const transition = useOnboardingMotionTransition();
+    watch,
+    reset,
+    formState: { isValid, isSubmitting, isDirty },
+  } = useForm<FormInput>({
+    mode: 'onChange',
+    defaultValues: {
+      emails: [{ email: '' }, { email: '' }, { email: '' }],
+    },
+    resolver: zodResolver(validationSchema),
+  });
+
+  const { fields, append, remove } = useFieldArray({
+    control,
+    name: 'emails',
+  });
+
+  const [hasPrefilledSuggestions, setHasPrefilledSuggestions] = useState(false);
+
+  const { data: inviteSuggestionsData } = useQuery(
+    GetInviteSuggestionsDocument,
+    {
+      fetchPolicy: 'cache-first',
+    },
+  );
+
+  const inviteSuggestions = useMemo(
+    () => inviteSuggestionsData?.getInviteSuggestions ?? [],
+    [inviteSuggestionsData],
+  );
+  const hasInviteSuggestions = inviteSuggestions.length > 0;
+
+  useEffect(() => {
+    if (hasPrefilledSuggestions || !hasInviteSuggestions || isDirty) {
+      return;
+    }
+
+    setHasPrefilledSuggestions(true);
+    reset({
+      emails: [
+        ...inviteSuggestions.map((suggestion) => ({ email: suggestion.email })),
+        { email: '' },
+      ],
+    });
+  }, [
+    hasPrefilledSuggestions,
+    hasInviteSuggestions,
+    inviteSuggestions,
+    isDirty,
+    reset,
+  ]);
+
+  watch(({ emails }) => {
+    if (!emails) {
+      return;
+    }
+    const emailValues = emails.map((email) => email?.email);
+    if (emailValues[emailValues.length - 1] !== '') {
+      append({ email: '' });
+    }
+    if (emailValues.length > 3 && emailValues[emailValues.length - 2] === '') {
+      remove(emailValues.length - 1);
+    }
+  });
+
+  const getPlaceholder = (emailIndex: number) => {
+    if (emailIndex === 0) {
+      return 'tim@apple.com';
+    }
+    if (emailIndex === 1) {
+      return 'phil@apple.com';
+    }
+    if (emailIndex === 2) {
+      return 'jony@apple.com';
+    }
+    return 'craig@apple.com';
+  };
+
+  const copyInviteLink = () => {
+    if (isDefined(currentWorkspace?.inviteHash)) {
+      const inviteLink = `${window.location.origin}/invite/${currentWorkspace?.inviteHash}`;
+      copyToClipboard(inviteLink, t`Link copied to clipboard`);
+    }
+  };
+
+  const onSubmit: SubmitHandler<FormInput> = useCallback(
+    async (data) => {
+      const emails = Array.from(
+        new Set(
+          data.emails
+            .map((emailData) => emailData.email.trim())
+            .filter((email) => email.length > 0),
+        ),
+      );
+
+      const result = await sendInvitation({ emails });
+
+      if (isDefined(result.error)) {
+        throw result.error;
+      }
+
+      if (emails.length > 0) {
+        enqueueSuccessSnackBar({
+          message: t`Invite link sent to email addresses`,
+          options: {
+            duration: 2000,
+          },
+        });
+      }
+
+      setNextOnboardingStatus();
+    },
+    [enqueueSuccessSnackBar, sendInvitation, setNextOnboardingStatus, t],
+  );
+
+  const handleSkip = async () => {
+    await onSubmit({ emails: [] });
+  };
+
+  useHotkeysOnFocusedElement({
+    keys: Key.Enter,
+    callback: () => {
+      handleSubmit(onSubmit)();
+    },
+    focusId: PageFocusId.InviteTeam,
+    dependencies: [handleSubmit, onSubmit],
+  });
 
   return (
-    <StyledOnboardingStepPage>
-      <StyledOnboardingStepHeading>
-        <OnboardingStepAnimatedItem index={0}>
-          <StyledOnboardingStepTitle>{t`Invite your team`}</StyledOnboardingStepTitle>
-        </OnboardingStepAnimatedItem>
-        <OnboardingStepAnimatedItem index={1}>
-          <StyledOnboardingStepSubtitle>
-            {t`Get the most out of your workspace by inviting your team.`}
-          </StyledOnboardingStepSubtitle>
-        </OnboardingStepAnimatedItem>
-        {isDefined(creditsRewardPerUser) && (
-          <OnboardingStepAnimatedItem index={2}>
-            <StyledOnboardingStepTagsRow>
-              <OnboardingCreditsRewardTag
-                amount={creditsRewardPerUser}
-                suffix={t`free credits per user`}
-              />
-            </StyledOnboardingStepTagsRow>
-          </OnboardingStepAnimatedItem>
+    <ModalContent isVerticallyCentered isHorizontallyCentered>
+      <Title>
+        <Trans>Invite your team</Trans>
+      </Title>
+      <SubTitle>
+        {hasPrefilledSuggestions ? (
+          <Trans>
+            We found teammates from your calendar. Review and invite them.
+          </Trans>
+        ) : (
+          <Trans>
+            Get the most out of your workspace by inviting your team.
+          </Trans>
         )}
-      </StyledOnboardingStepHeading>
-
-      <OnboardingStepAnimatedItem index={3}>
-        <StyledForm>
-          <AnimatePresence initial={false}>
-            {fields.map((field, index) => (
-              <motion.div
-                key={field.id}
-                layout
-                initial={{ opacity: 0, y: -ONBOARDING_MOTION_SLIDE_OFFSET }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -ONBOARDING_MOTION_SLIDE_OFFSET }}
-                transition={transition}
-              >
-                <Controller
-                  name={`emails.${index}.email`}
-                  control={control}
-                  render={({
-                    field: { onChange, onBlur, value },
-                    fieldState: { error },
-                  }) => (
-                    <TextInput
-                      autoFocus={index === 0}
-                      type="email"
-                      value={value}
-                      placeholder={getPlaceholder(index)}
-                      onBlur={onBlur}
-                      error={error?.message}
-                      onChange={onChange}
-                      RightIcon={IconX}
-                      onRightIconClick={() => remove(index)}
-                      noErrorHelper
-                      fullWidth
-                    />
-                  )}
-                />
-              </motion.div>
-            ))}
-          </AnimatePresence>
-        </StyledForm>
-      </OnboardingStepAnimatedItem>
-
-      <OnboardingStepAnimatedItem index={4}>
-        <StyledFooter>
-          <MainButton
-            title={t`Invite`}
-            disabled={!isValid || isSubmitting || isNavigating}
-            onClick={handleSubmit(onSubmit)}
-            fullWidth
+      </SubTitle>
+      <StyledAnimatedContainer>
+        {fields.map((field, index) => (
+          <Controller
+            key={index}
+            name={`emails.${index}.email`}
+            control={control}
+            render={({
+              field: { onChange, onBlur, value },
+              fieldState: { error },
+            }) => (
+              <TextInput
+                autoFocus={index === 0}
+                type="email"
+                value={value}
+                placeholder={getPlaceholder(index)}
+                onBlur={onBlur}
+                error={error?.message}
+                onChange={onChange}
+                noErrorHelper
+                fullWidth
+              />
+            )}
           />
-          <OnboardingSkipButton
-            onClick={handleSkip}
-            disabled={isSubmitting || isNavigating}
-          />
-        </StyledFooter>
-      </OnboardingStepAnimatedItem>
-    </StyledOnboardingStepPage>
+        ))}
+        {isDefined(currentWorkspace?.inviteHash) && (
+          <>
+            <SeparatorLineText>
+              <Trans>or</Trans>
+            </SeparatorLineText>
+            <StyledActionLinkContainer>
+              <LightButton
+                title={t`Copy invitation link`}
+                accent="tertiary"
+                onClick={copyInviteLink}
+                Icon={IconCopy}
+              />
+            </StyledActionLinkContainer>
+          </>
+        )}
+      </StyledAnimatedContainer>
+      <StyledButtonContainer>
+        <MainButton
+          title={hasCalendarBooking ? t`Continue` : t`Finish`}
+          disabled={!isValid || isSubmitting}
+          onClick={handleSubmit(onSubmit)}
+          fullWidth
+        />
+      </StyledButtonContainer>
+      <StyledActionSkipLinkContainer>
+        <ClickToActionLink onClick={handleSkip}>
+          <Trans>Skip</Trans>
+        </ClickToActionLink>
+      </StyledActionSkipLinkContainer>
+    </ModalContent>
   );
 };

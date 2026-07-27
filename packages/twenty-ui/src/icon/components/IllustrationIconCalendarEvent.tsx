@@ -1,14 +1,16 @@
+import { useContext } from 'react';
+
 import IllustrationIconCalendarEventRaw from '@assets/icons/illustration-calendar-event.svg?react';
 import { IllustrationIconWrapper } from '@ui/icon/components/IllustrationIconWrapper';
 import { type IconComponentProps } from '@ui/icon/types/IconComponent';
-import { useTheme } from '@ui/theme-constants';
+import { ThemeContext } from '@ui/theme-constants';
 
 type IllustrationIconCalendarEventProps = Pick<IconComponentProps, 'size'>;
 
 export const IllustrationIconCalendarEvent = (
   props: IllustrationIconCalendarEventProps,
 ) => {
-  const theme = useTheme();
+  const { theme } = useContext(ThemeContext);
   const size = props.size ?? theme.icon.size.lg;
   return (
     <IllustrationIconWrapper>

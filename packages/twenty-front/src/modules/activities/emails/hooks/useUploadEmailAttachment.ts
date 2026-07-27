@@ -1,15 +1,23 @@
+import { useMutation } from '@apollo/client/react';
 import { useLingui } from '@lingui/react/macro';
 import { type EmailAttachment } from 'twenty-shared/types';
+import { isDefined } from 'twenty-shared/utils';
 
 import { MAX_ATTACHMENT_SIZE } from '@/advanced-text-editor/utils/maxAttachmentSize';
-import { useDirectFileUpload } from '@/file/hooks/useDirectFileUpload';
+import { UPLOAD_EMAIL_ATTACHMENT_FILE } from '@/file/graphql/mutations/uploadEmailAttachmentFile';
 import { formatFileSize } from '@/file/utils/formatFileSize';
 import { useSnackBar } from '@/ui/feedback/snack-bar-manager/hooks/useSnackBar';
-import { FileFolder } from '~/generated-metadata/graphql';
+import {
+  type UploadEmailAttachmentFileMutation,
+  type UploadEmailAttachmentFileMutationVariables,
+} from '~/generated-metadata/graphql';
 import { logError } from '~/utils/logError';
 
 export const useUploadEmailAttachment = () => {
-  const { uploadFile: directUploadFile } = useDirectFileUpload();
+  const [uploadEmailAttachmentFileMutation] = useMutation<
+    UploadEmailAttachmentFileMutation,
+    UploadEmailAttachmentFileMutationVariables
+  >(UPLOAD_EMAIL_ATTACHMENT_FILE);
   const { enqueueSuccessSnackBar, enqueueErrorSnackBar } = useSnackBar();
   const { t } = useLingui();
 
@@ -28,9 +36,15 @@ export const useUploadEmailAttachment = () => {
         return null;
       }
 
-      const uploadedFile = await directUploadFile(file, {
-        fileFolder: FileFolder.EmailAttachment,
+      const result = await uploadEmailAttachmentFileMutation({
+        variables: { file },
       });
+
+      const uploadedFile = result?.data?.uploadEmailAttachmentFile;
+
+      if (!isDefined(uploadedFile)) {
+        throw new Error('File upload failed');
+      }
 
       const attachment: EmailAttachment = {
         id: uploadedFile.id,

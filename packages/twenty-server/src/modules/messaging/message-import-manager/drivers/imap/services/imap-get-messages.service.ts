@@ -145,7 +145,6 @@ export class ImapGetMessagesService {
           folderPath,
           folderExternalId,
           connectedAccount,
-          result.flags,
         ),
       );
     }
@@ -163,7 +162,6 @@ export class ImapGetMessagesService {
     folderPath: string,
     folderExternalId: string,
     connectedAccount: Pick<ConnectedAccountEntity, 'handle' | 'handleAliases'>,
-    flags?: Set<string>,
   ): MessageWithParticipants {
     const fromAddresses = extractAddressesFromParsedEmail(parsed.from);
     const senderAddress = fromAddresses[0]?.address ?? '';
@@ -186,11 +184,6 @@ export class ImapGetMessagesService {
       })),
       participants: extractParticipantsFromParsedEmail(parsed),
       messageFolderExternalIds: [folderExternalId],
-      isDraft: flags?.has('\\Draft') ?? false,
-      messageHeaders: parsed.headers.map(({ key, value }) => ({
-        name: key,
-        value,
-      })),
     };
   }
 }

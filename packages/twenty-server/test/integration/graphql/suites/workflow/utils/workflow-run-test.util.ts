@@ -117,13 +117,6 @@ export const destroyWorkflowRun = async (
     });
 };
 
-const PENDING_WORKFLOW_RUN_STATUSES: WorkflowRunStatusType[] = [
-  'NOT_STARTED',
-  'ENQUEUED',
-  'RUNNING',
-  'STOPPING',
-];
-
 export const waitForWorkflowCompletion = async (
   workflowRunId: string,
   maxAttempts = 30,
@@ -133,32 +126,9 @@ export const waitForWorkflowCompletion = async (
   let attempts = 0;
 
   while (
-    workflowRun !== null &&
-    PENDING_WORKFLOW_RUN_STATUSES.includes(workflowRun.status) &&
-    attempts < maxAttempts
-  ) {
-    await new Promise((resolve) => setTimeout(resolve, intervalMs));
-    workflowRun = await getWorkflowRun(workflowRunId);
-    attempts++;
-  }
-
-  return workflowRun;
-};
-
-export const waitForWorkflowRunStatus = async (
-  workflowRunId: string,
-  expectedStatus: WorkflowRunStatusType,
-  maxAttempts = 30,
-  intervalMs = 500,
-): Promise<WorkflowRunResponse | null> => {
-  let workflowRun = await getWorkflowRun(workflowRunId);
-  let attempts = 0;
-
-  while (
+    workflowRun?.status === 'RUNNING' &&
     attempts < maxAttempts &&
-    workflowRun?.status !== expectedStatus &&
-    (workflowRun === null ||
-      PENDING_WORKFLOW_RUN_STATUSES.includes(workflowRun.status))
+    workflowRun !== null
   ) {
     await new Promise((resolve) => setTimeout(resolve, intervalMs));
     workflowRun = await getWorkflowRun(workflowRunId);

@@ -128,36 +128,6 @@ const DEFAULT_DRAFT_EMAIL_ACTION: WorkflowDraftEmailAction = {
   },
 };
 
-const VARIABLE_SENDER_SEND_EMAIL_ACTION: WorkflowSendEmailAction = {
-  id: getWorkflowNodeIdMock(),
-  name: 'Send Email',
-  type: 'SEND_EMAIL',
-  valid: true,
-  settings: {
-    input: {
-      connectedAccountId: '{{trigger._metadata.workspaceMemberId}}',
-      recipients: {
-        to: 'test@twenty.com',
-        cc: '',
-        bcc: '',
-      },
-      subject: 'Welcome to Twenty!',
-      body: 'Hello',
-      files: [],
-      inReplyTo: '',
-    },
-    outputSchema: {},
-    errorHandlingOptions: {
-      retryOnFailure: {
-        value: false,
-      },
-      continueOnFailure: {
-        value: false,
-      },
-    },
-  },
-};
-
 const VARIABLE_SENDER_DRAFT_EMAIL_ACTION: WorkflowDraftEmailAction = {
   id: getWorkflowNodeIdMock(),
   name: 'Draft Email',
@@ -313,9 +283,11 @@ export const VariableSender: Story = {
   },
 };
 
-export const VariableSenderSendEmail: Story = {
+// SEND_EMAIL does not expose the sender variable picker yet (DRAFT_EMAIL only),
+// so the account field stays a plain select with no variable hint.
+export const SendEmailHasNoVariablePicker: Story = {
   args: {
-    action: VARIABLE_SENDER_SEND_EMAIL_ACTION,
+    action: DEFAULT_SEND_EMAIL_ACTION,
     actionOptions: {
       onActionUpdate: fn(),
     },
@@ -324,11 +296,10 @@ export const VariableSenderSendEmail: Story = {
     const canvas = within(canvasElement);
 
     expect(await canvas.findByText('Account')).toBeVisible();
-    expect(await canvas.findByLabelText('Remove variable')).toBeInTheDocument();
     expect(
-      await canvas.findByText(
+      canvas.queryByText(
         'Pick a connected account or set a workspace member as variable',
       ),
-    ).toBeVisible();
+    ).not.toBeInTheDocument();
   },
 };
