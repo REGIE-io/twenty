@@ -16,7 +16,12 @@ const exampleSourcesBuiltPreactDir = path.resolve(
   '../../src/__stories__/example-sources-built-preact',
 );
 
-const SOURCE_SCAN_ROOTS = ['html-tag', 'host-api', 'showcase'];
+const SOURCE_SCAN_ROOTS = [
+  'html-tag',
+  'host-api',
+  'showcase',
+  'twenty-ui-gallery',
+];
 
 const rootNodeModules = path.resolve(dirname, '../../../../node_modules');
 
@@ -61,12 +66,37 @@ const twentySharedAliases = Object.fromEntries(
   ]),
 );
 
+const TWENTY_UI_SUBMODULES = [
+  'accessibility',
+  'data-display',
+  'feedback',
+  'icon',
+  'input',
+  'json-visualizer',
+  'layout',
+  'navigation',
+  'surfaces',
+  'theme-constants',
+  'typography',
+  'utilities',
+];
+
+const twentyUiAliases = {
+  'twenty-ui': twentyUiIndividualIndex,
+  ...Object.fromEntries(
+    TWENTY_UI_SUBMODULES.map((submodule) => [
+      `twenty-ui/${submodule}`,
+      twentyUiIndividualIndex,
+    ]),
+  ),
+};
+
 const storyAlias = {
   react: path.join(rootNodeModules, 'react'),
   'react-dom': path.join(rootNodeModules, 'react-dom'),
   'twenty-sdk/define': sdkDefineIndex,
   'twenty-sdk/front-component': sdkFrontComponentIndex,
-  'twenty-sdk/ui': twentyUiIndividualIndex,
+  ...twentyUiAliases,
   ...twentySharedAliases,
 };
 

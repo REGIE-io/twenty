@@ -1,7 +1,8 @@
 import { Test, type TestingModule } from '@nestjs/testing';
 import { getDataSourceToken, getRepositoryToken } from '@nestjs/typeorm';
 
-import { type Repository } from 'typeorm';
+import { WorkspaceActivationStatus } from 'twenty-shared/workspace';
+import { IsNull, Not, type Repository } from 'typeorm';
 
 import { BillingSubscriptionService } from 'src/engine/core-modules/billing/services/billing-subscription.service';
 import { BillingService } from 'src/engine/core-modules/billing/services/billing.service';
@@ -57,6 +58,7 @@ describe('WorkspaceService', () => {
             findOne: jest.fn(),
             softDelete: jest.fn(),
             delete: jest.fn(),
+            update: jest.fn(),
             manager: {
               connection: { driver: { options: { type: 'postgres' } } },
             },
@@ -304,7 +306,6 @@ describe('WorkspaceService', () => {
       ).toHaveBeenCalledWith(mockWorkspace.id);
       expect(workspaceCacheStorageService.flush).toHaveBeenCalledWith(
         mockWorkspace.id,
-        mockWorkspace.metadataVersion,
       );
       expect(messageQueueService.add).toHaveBeenCalled();
       expect(workspaceRepository.delete).toHaveBeenCalledWith(mockWorkspace.id);
@@ -372,6 +373,38 @@ describe('WorkspaceService', () => {
       expect(workspaceRepository.softDelete).toHaveBeenCalledWith({
         id: mockWorkspace.id,
       });
+    });
+  });
+
+  describe('suspendWorkspace', () => {
+    it('should only suspend workspaces that are not already suspended and not soft-deleted', async () => {
+      jest
+        .spyOn(workspaceRepository, 'update')
+        .mockResolvedValue({ affected: 1 } as never);
+
+      const hasBeenSuspended = await service.suspendWorkspace('workspace-id');
+
+      expect(workspaceRepository.update).toHaveBeenCalledWith(
+        {
+          id: 'workspace-id',
+          activationStatus: Not(WorkspaceActivationStatus.SUSPENDED),
+          deletedAt: IsNull(),
+        },
+        expect.objectContaining({
+          activationStatus: WorkspaceActivationStatus.SUSPENDED,
+        }),
+      );
+      expect(hasBeenSuspended).toBe(true);
+    });
+
+    it('should report no suspension when the guarded update affects no rows', async () => {
+      jest
+        .spyOn(workspaceRepository, 'update')
+        .mockResolvedValue({ affected: 0 } as never);
+
+      const hasBeenSuspended = await service.suspendWorkspace('workspace-id');
+
+      expect(hasBeenSuspended).toBe(false);
     });
   });
 });

@@ -1,12 +1,14 @@
 import { type ComponentType, type ReactNode } from 'react';
 
+import { isDefined } from 'twenty-shared/utils';
+
 import { styled } from '@linaria/react';
 
 import { Table } from '@/ui/layout/table/components/Table';
 import { TableCell } from '@/ui/layout/table/components/TableCell';
 import { TableHeader } from '@/ui/layout/table/components/TableHeader';
 import { TableRow } from '@/ui/layout/table/components/TableRow';
-import { IconPlus } from 'twenty-ui/icon';
+import { IconChevronRight, IconPlus } from 'twenty-ui/icon';
 import { H2Title } from 'twenty-ui/typography';
 import { Button } from 'twenty-ui/input';
 import { Section } from 'twenty-ui/layout';
@@ -50,12 +52,14 @@ type SettingsTableListSectionProps<Item extends { id: string }> = {
   title: string;
   description: string;
   headerAdornment?: ReactNode;
+  toolbar?: ReactNode;
   items: Item[];
   columns: SettingsTableListSectionColumn<Item>[];
   gridAutoColumns: string;
+  showRowChevron?: boolean;
   onRowClick?: (item: Item) => void;
-  footerButtonLabel: string;
-  onFooterButtonClick: () => void;
+  footerButtonLabel?: string;
+  onFooterButtonClick?: () => void;
 };
 
 export const SettingsTableListSection = <
@@ -64,58 +68,78 @@ export const SettingsTableListSection = <
   title,
   description,
   headerAdornment,
+  toolbar,
   items,
   columns,
   gridAutoColumns,
+  showRowChevron = false,
   onRowClick,
   footerButtonLabel,
   onFooterButtonClick,
-}: SettingsTableListSectionProps<Item>) => (
-  <Section>
-    <H2Title
-      title={title}
-      description={description}
-      adornment={headerAdornment}
-    />
-    {items.length > 0 && (
-      <Table>
-        <TableRow gridAutoColumns={gridAutoColumns}>
-          {columns.map((column) => (
-            <TableHeader
-              key={column.label}
-              align={column.align}
-              padding={HEADER_PADDING}
-            >
-              {column.label}
-            </TableHeader>
-          ))}
-        </TableRow>
-        <StyledTableRows>
-          {items.map((item) => (
-            <StyledRowWrapper key={item.id} clickable={Boolean(onRowClick)}>
-              <TableRow
-                gridAutoColumns={gridAutoColumns}
-                onClick={onRowClick ? () => onRowClick(item) : undefined}
-              >
-                {columns.map((column) => (
-                  <TableCell key={column.label} align={column.align}>
-                    <column.Cell item={item} />
-                  </TableCell>
-                ))}
-              </TableRow>
-            </StyledRowWrapper>
-          ))}
-        </StyledTableRows>
-      </Table>
-    )}
-    <StyledFooter>
-      <Button
-        Icon={IconPlus}
-        title={footerButtonLabel}
-        variant="secondary"
-        size="small"
-        onClick={onFooterButtonClick}
+}: SettingsTableListSectionProps<Item>) => {
+  const resolvedGridAutoColumns = showRowChevron
+    ? `${gridAutoColumns} auto`
+    : gridAutoColumns;
+
+  return (
+    <Section>
+      <H2Title
+        title={title}
+        description={description}
+        adornment={headerAdornment}
       />
-    </StyledFooter>
-  </Section>
-);
+      {isDefined(toolbar) && toolbar}
+      {items.length > 0 && (
+        <Table>
+          <TableRow gridAutoColumns={resolvedGridAutoColumns}>
+            {columns.map((column) => (
+              <TableHeader
+                key={column.label}
+                align={column.align}
+                padding={HEADER_PADDING}
+              >
+                {column.label}
+              </TableHeader>
+            ))}
+            {showRowChevron && <TableHeader padding={HEADER_PADDING} />}
+          </TableRow>
+          <StyledTableRows>
+            {items.map((item) => (
+              <StyledRowWrapper key={item.id} clickable={Boolean(onRowClick)}>
+                <TableRow
+                  gridAutoColumns={resolvedGridAutoColumns}
+                  onClick={onRowClick ? () => onRowClick(item) : undefined}
+                >
+                  {columns.map((column) => (
+                    <TableCell key={column.label} align={column.align}>
+                      <column.Cell item={item} />
+                    </TableCell>
+                  ))}
+                  {showRowChevron && (
+                    <TableCell
+                      align="right"
+                      color={themeCssVariables.font.color.light}
+                    >
+                      <IconChevronRight size={16} />
+                    </TableCell>
+                  )}
+                </TableRow>
+              </StyledRowWrapper>
+            ))}
+          </StyledTableRows>
+        </Table>
+      )}
+      {isDefined(footerButtonLabel) && isDefined(onFooterButtonClick) && (
+        <StyledFooter>
+          <Button
+            Icon={IconPlus}
+            title={footerButtonLabel}
+            variant="secondary"
+            size="small"
+            onClick={onFooterButtonClick}
+          />
+        </StyledFooter>
+      )}
+    </Section>
+  );
+};

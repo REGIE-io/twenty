@@ -19,6 +19,7 @@ export type GraphQLView = {
   key?: ViewKey | null;
   mainGroupByFieldMetadataId?: string | null;
   shouldHideEmptyGroups: boolean;
+  kanbanColumnWidth?: number | null;
   kanbanAggregateOperation?: AggregateOperations | null;
   kanbanAggregateOperationFieldMetadataId?: string | null;
   objectMetadataId: string;
@@ -34,6 +35,7 @@ export type GraphQLView = {
   anyFieldFilterValue?: string | null;
   calendarLayout?: ViewCalendarLayout | null;
   calendarFieldMetadataId?: string | null;
+  calendarEndFieldMetadataId?: string | null;
   visibility: ViewVisibility;
   createdByUserWorkspaceId?: string | null;
 };

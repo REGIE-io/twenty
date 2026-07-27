@@ -3,9 +3,7 @@ import { useCallback } from 'react';
 import { type EmailAttachment } from 'twenty-shared/types';
 
 import { SEND_EMAIL } from '@/activities/emails/graphql/mutations/sendEmail';
-import { getTimelineThreadsFromCompanyId } from '@/activities/emails/graphql/queries/getTimelineThreadsFromCompanyId';
-import { getTimelineThreadsFromOpportunityId } from '@/activities/emails/graphql/queries/getTimelineThreadsFromOpportunityId';
-import { getTimelineThreadsFromPersonId } from '@/activities/emails/graphql/queries/getTimelineThreadsFromPersonId';
+import { getTimelineThreadsFromObjectRecord } from '@/activities/emails/graphql/queries/getTimelineThreadsFromObjectRecord';
 import { useApolloCoreClient } from '@/object-metadata/hooks/useApolloCoreClient';
 import { useSnackBar } from '@/ui/feedback/snack-bar-manager/hooks/useSnackBar';
 import { t } from '@lingui/core/macro';
@@ -13,6 +11,11 @@ import {
   type SendEmailMutation,
   type SendEmailMutationVariables,
 } from '~/generated-metadata/graphql';
+
+type SendEmailResult = {
+  success: boolean;
+  messageThreadId: string | null;
+};
 
 type SendEmailParams = {
   connectedAccountId: string;
@@ -22,6 +25,7 @@ type SendEmailParams = {
   subject: string;
   body: string;
   inReplyTo?: string;
+  draftMessageId?: string;
   files?: EmailAttachment[];
 };
 
@@ -36,7 +40,7 @@ export const useSendEmail = () => {
   const { enqueueSuccessSnackBar, enqueueErrorSnackBar } = useSnackBar();
 
   const sendEmail = useCallback(
-    async (params: SendEmailParams): Promise<boolean> => {
+    async (params: SendEmailParams): Promise<SendEmailResult> => {
       try {
         const result = await sendEmailMutation({
           variables: {
@@ -48,6 +52,7 @@ export const useSendEmail = () => {
               subject: params.subject,
               body: params.body,
               inReplyTo: params.inReplyTo,
+              draftMessageId: params.draftMessageId,
               files: params.files,
             },
           },
@@ -60,29 +65,30 @@ export const useSendEmail = () => {
 
           await apolloCoreClient.refetchQueries({
             include: [
-              getTimelineThreadsFromCompanyId,
-              getTimelineThreadsFromPersonId,
-              getTimelineThreadsFromOpportunityId,
+              getTimelineThreadsFromObjectRecord,
               'FindManyMessages',
               'FindManyMessageParticipants',
               'FindManyMessageChannelMessageAssociations',
             ],
           });
 
-          return true;
+          return {
+            success: true,
+            messageThreadId: result.data.sendEmail.messageThreadId ?? null,
+          };
         }
 
         enqueueErrorSnackBar({
           message: result.data?.sendEmail.error ?? t`Failed to send email`,
         });
 
-        return false;
+        return { success: false, messageThreadId: null };
       } catch {
         enqueueErrorSnackBar({
           message: t`Failed to send email`,
         });
 
-        return false;
+        return { success: false, messageThreadId: null };
       }
     },
     [

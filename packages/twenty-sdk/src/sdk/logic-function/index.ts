@@ -13,12 +13,19 @@
 export type {
   LogicFunctionConfig,
   LogicFunctionHandler,
+  ServerRouteResolverResult,
 } from '@/sdk/define/logic-functions/logic-function-config';
+export type { ServerRouteDispatchResult } from 'twenty-shared/application';
 
 export type {
   InstallHandler,
   InstallPayload,
 } from '@/sdk/define/logic-functions/install-payload-type';
+
+export type {
+  UninstallHandler,
+  UninstallPayload,
+} from '@/sdk/define/logic-functions/uninstall-payload-type';
 
 export type { CronPayload } from '@/sdk/define/logic-functions/triggers/cron-payload-type';
 
@@ -36,7 +43,10 @@ export type {
 
 export type { RoutePayload } from '@/sdk/define/logic-functions/triggers/route-payload-type';
 
-export type { InputJsonSchema } from 'twenty-shared/logic-function';
+export {
+  jsonSchemaToInputSchema,
+  type InputJsonSchema,
+} from 'twenty-shared/logic-function';
 
 export { getConnection } from '@/sdk/logic-function/connections/get-connection';
 export { listConnections } from '@/sdk/logic-function/connections/list-connections';
@@ -47,6 +57,9 @@ export type { AppConnection } from '@/sdk/logic-function/connections/types/app-c
 
 export { runAgent } from '@/sdk/logic-function/agents/run-agent';
 export type { RunAgentInput, RunAgentResult } from 'twenty-shared/application';
+
+export { kv } from '@/sdk/logic-function/key-value/kv';
+export type { AppKeyValue, AppKeyValueScope } from 'twenty-shared/application';
 
 export { Response } from '@/sdk/logic-function/response';
 export type { ResponseInit } from '@/sdk/logic-function/response';

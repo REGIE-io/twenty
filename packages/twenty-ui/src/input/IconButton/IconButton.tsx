@@ -1,8 +1,8 @@
 import { clsx } from 'clsx';
-import React, { useContext } from 'react';
+import React from 'react';
 
 import { type IconComponent } from '@ui/icon';
-import { ThemeContext } from '@ui/theme-constants';
+import { useTheme } from '@ui/theme-constants';
 
 import styles from './IconButton.module.scss';
 
@@ -24,6 +24,7 @@ export type IconButtonProps = {
   ariaLabel?: string;
   onClick?: (event: React.MouseEvent<HTMLButtonElement>) => void;
   to?: string;
+  children?: React.ReactNode;
 };
 
 export const IconButton = ({
@@ -39,8 +40,9 @@ export const IconButton = ({
   ariaLabel,
   onClick,
   to,
+  children,
 }: IconButtonProps) => {
-  const { theme } = useContext(ThemeContext);
+  const theme = useTheme();
 
   return (
     <button
@@ -58,7 +60,8 @@ export const IconButton = ({
       // to the DOM as an inert attribute. Keep forwarding it for DOM parity.
       {...{ to }}
     >
-      {Icon && <Icon size={theme.icon.size.md} />}
+      {Icon && <Icon size={theme.icon.size.md} aria-hidden={!!ariaLabel} />}
+      {children}
     </button>
   );
 };

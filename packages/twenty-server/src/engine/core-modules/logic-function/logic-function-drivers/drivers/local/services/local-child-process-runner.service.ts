@@ -73,6 +73,7 @@ export class LocalChildProcessRunnerService {
     }
 
     const runnerPath = join(dir, '__runner.cjs');
+    const handlerAccessor = `mod?.${handlerName.split('.').join('?.')}`;
     const code = `
       // Auto-generated. Do not edit.
       const { pathToFileURL } = require('node:url');
@@ -81,8 +82,9 @@ export class LocalChildProcessRunnerService {
         try {
           const builtUrl = pathToFileURL(${JSON.stringify(builtFileAbsPath)});
           const mod = await import(builtUrl.href);
-          if (typeof mod.${handlerName} !== 'function') {
-            throw new Error('Export "${handlerName}" not found in function bundle');
+          const handlerFn = ${handlerAccessor};
+          if (typeof handlerFn !== 'function') {
+            throw new Error('Export "' + ${JSON.stringify(handlerName)} + '" not found in function bundle');
           }
 
           let payload = undefined;
@@ -90,30 +92,36 @@ export class LocalChildProcessRunnerService {
             process.on('message', async (msg) => {
               if (!msg || msg.type !== 'run') return;
               try {
-                const out = await mod.${handlerName}(msg.payload);
-                process.send && process.send({ ok: true, result: out });
-                process.exit(0);
+                const out = await handlerFn(msg.payload);
+                // Wait for the async IPC flush before exiting, otherwise results
+                // larger than the OS pipe buffer are dropped before delivery.
+                if (process.send) {
+                  process.send({ ok: true, result: out }, () => process.exit(0));
+                } else {
+                  process.exit(0);
+                }
               } catch (err) {
-                process.send && process.send({ ok: false, error: String(err), stack: err?.stack });
-                process.exit(1);
+                if (process.send) {
+                  process.send({ ok: false, error: String(err), stack: err?.stack }, () => process.exit(1));
+                } else {
+                  process.exit(1);
+                }
               }
             });
           } else {
             // Fallback: read payload from argv[2] (JSON) and print to stdout
             const json = process.argv[2];
             payload = json ? JSON.parse(json) : undefined;
-            const out = await mod.${handlerName}(payload);
-            process.stdout.write(JSON.stringify({ ok: true, result: out }));
-            process.exit(0);
+            const out = await handlerFn(payload);
+            process.stdout.write(JSON.stringify({ ok: true, result: out }), () => process.exit(0));
           }
         } catch (err) {
           const msg = String(err);
           if (process.send) {
-            process.send({ ok: false, error: msg, stack: err?.stack });
+            process.send({ ok: false, error: msg, stack: err?.stack }, () => process.exit(1));
           } else {
-            process.stdout.write(msg);
+            process.stdout.write(msg, () => process.exit(1));
           }
-          process.exit(1);
         }
       })();
     `;

@@ -1,5 +1,5 @@
 import { styled } from '@linaria/react';
-import { type DropResult } from '@hello-pangea/dnd';
+import { type DraggableListDropResult } from '@/ui/layout/draggable-list/types/DraggableListDropResult';
 import { type MouseEvent, useCallback } from 'react';
 
 import { useContextStoreObjectMetadataItemOrThrow } from '@/context-store/hooks/useContextStoreObjectMetadataItemOrThrow';
@@ -89,7 +89,7 @@ export const ViewPickerListContent = () => {
   };
 
   const handleWorkspaceDragEnd = useCallback(
-    async (result: DropResult) => {
+    async (result: DraggableListDropResult) => {
       if (!result.destination) return;
 
       const viewsReordered = moveArrayItem(workspaceViews, {
@@ -112,7 +112,7 @@ export const ViewPickerListContent = () => {
   );
 
   const handleUnlistedDragEnd = useCallback(
-    async (result: DropResult) => {
+    async (result: DraggableListDropResult) => {
       if (!result.destination) return;
 
       const viewsReordered = moveArrayItem(unlistedViews, {
@@ -146,6 +146,7 @@ export const ViewPickerListContent = () => {
               onDragEnd={handleWorkspaceDragEnd}
               draggableItems={workspaceViews.map((view, index) => {
                 const isIndexView = view.key === 'INDEX';
+                const isCurrentView = currentView?.id === view.id;
                 return (
                   <DraggableItem
                     key={view.id}
@@ -159,6 +160,7 @@ export const ViewPickerListContent = () => {
                         isIndexView={isIndexView}
                         isLastView={isLastView}
                         onEdit={handleEditViewButtonClick}
+                        isCurrentView={isCurrentView}
                       />
                     }
                   />
@@ -179,6 +181,7 @@ export const ViewPickerListContent = () => {
               onDragEnd={handleUnlistedDragEnd}
               draggableItems={unlistedViews.map((view, index) => {
                 const isIndexView = view.key === 'INDEX';
+                const isCurrentView = currentView?.id === view.id;
                 return (
                   <DraggableItem
                     key={view.id}
@@ -192,6 +195,7 @@ export const ViewPickerListContent = () => {
                         isIndexView={isIndexView}
                         isLastView={isLastView}
                         onEdit={handleEditViewButtonClick}
+                        isCurrentView={isCurrentView}
                       />
                     }
                   />
