@@ -22,6 +22,8 @@ describe('isRecordFilterOperandExpectingValue', () => {
     ViewFilterOperand.IS_BEFORE,
     ViewFilterOperand.IS_AFTER,
     ViewFilterOperand.IS_RELATIVE,
+    ViewFilterOperand.IS_IN_LIST,
+    ViewFilterOperand.IS_NOT_IN_LIST,
     ViewFilterOperand.VECTOR_SEARCH,
   ];
 
