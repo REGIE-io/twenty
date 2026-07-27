@@ -19,7 +19,6 @@ const METADATA_QUERY = `
           labelPlural
           description
           icon
-          isCustom
           isRemote
           isActive
           isSystem
@@ -34,6 +33,15 @@ const METADATA_QUERY = `
           isLabelSyncedWithName
           isSearchable
           duplicateCriteria
+          searchFieldMetadataList {
+            __typename
+            id
+            fieldMetadataId
+            tsVectorFieldMetadataId
+            position
+            createdAt
+            updatedAt
+          }
           indexMetadataList {
             __typename
             id
@@ -62,7 +70,6 @@ const METADATA_QUERY = `
             label
             description
             icon
-            isCustom
             isActive
             isSystem
             isUIEditable

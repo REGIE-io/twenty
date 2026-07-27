@@ -82,17 +82,23 @@ jest.mock('@/ui/utilities/state/jotai/hooks/useAtomStateValue');
 const setupMockState = (
   objectNamePlural?: string,
   verifyEmailRedirectPath?: string,
-  calendarBookingPageId?: string | null,
   returnToPath?: string,
   currentWorkspace: object | null = { id: 'mock-workspace-id' },
+  isBillingEnabled: boolean = true,
+  isMinimalMetadataReady: boolean = true,
+  shouldOpenAiChatAfterOnboarding: boolean = false,
+  isOnboardingCheckoutPending: boolean = false,
 ) => {
   jest
     .mocked(useAtomStateValue)
     .mockReturnValueOnce(currentWorkspace)
-    .mockReturnValueOnce(calendarBookingPageId ?? 'mock-calendar-id')
+    .mockReturnValueOnce({ isBillingEnabled })
     .mockReturnValueOnce([{ namePlural: objectNamePlural ?? '' }])
+    .mockReturnValueOnce(isMinimalMetadataReady)
     .mockReturnValueOnce(verifyEmailRedirectPath)
-    .mockReturnValueOnce(returnToPath ?? '');
+    .mockReturnValueOnce(returnToPath ?? '')
+    .mockReturnValueOnce(shouldOpenAiChatAfterOnboarding)
+    .mockReturnValueOnce(isOnboardingCheckoutPending);
 };
 
 // prettier-ignore
@@ -109,15 +115,29 @@ const testCases: {
   returnToPath?: string;
   pageLayoutId?: string;
   useQueryResult?: { data?: unknown; loading?: boolean };
+  isBillingEnabled?: boolean;
+  isMinimalMetadataReady?: boolean;
+  shouldOpenAiChatAfterOnboarding?: boolean;
+  isOnboardingCheckoutPending?: boolean;
 }[] = [
+  { loc: AppPath.WorkspaceSetup, hasAccessTokenPair: true, isWorkspaceSuspended: false, onboardingStatus: OnboardingStatus.PLAN_REQUIRED, res: AppPath.PlanRequired },
+  { loc: AppPath.WorkspaceSetup, hasAccessTokenPair: true, isWorkspaceSuspended: true, onboardingStatus: OnboardingStatus.COMPLETED, res: getSettingsPath(SettingsPath.Billing) },
+  { loc: AppPath.WorkspaceSetup, hasAccessTokenPair: false, isWorkspaceSuspended: false, onboardingStatus: undefined, res: AppPath.SignInUp },
+  { loc: AppPath.WorkspaceSetup, hasAccessTokenPair: true, isWorkspaceSuspended: false, onboardingStatus: OnboardingStatus.WORKSPACE_ACTIVATION, res: AppPath.WorkspaceActivation },
+  { loc: AppPath.WorkspaceSetup, hasAccessTokenPair: true, isWorkspaceSuspended: false, onboardingStatus: OnboardingStatus.PROFILE_CREATION, res: AppPath.CreateProfile },
+  { loc: AppPath.WorkspaceSetup, hasAccessTokenPair: true, isWorkspaceSuspended: false, onboardingStatus: OnboardingStatus.SYNC_EMAIL, res: AppPath.SyncEmails },
+  { loc: AppPath.WorkspaceSetup, hasAccessTokenPair: true, isWorkspaceSuspended: false, onboardingStatus: OnboardingStatus.APPS_INSTALLATION, res: AppPath.InstallApps },
+  { loc: AppPath.WorkspaceSetup, hasAccessTokenPair: true, isWorkspaceSuspended: false, onboardingStatus: OnboardingStatus.INVITE_TEAM, res: AppPath.InviteTeam },
+  { loc: AppPath.WorkspaceSetup, hasAccessTokenPair: true, isWorkspaceSuspended: false, onboardingStatus: OnboardingStatus.COMPLETED, res: undefined },
+
   { loc: AppPath.Verify, hasAccessTokenPair: true, isWorkspaceSuspended: false, onboardingStatus: OnboardingStatus.PLAN_REQUIRED, res: AppPath.PlanRequired },
   { loc: AppPath.Verify, hasAccessTokenPair: true, isWorkspaceSuspended: true, onboardingStatus: OnboardingStatus.COMPLETED, res: getSettingsPath(SettingsPath.Billing) },
   { loc: AppPath.Verify, hasAccessTokenPair: false, isWorkspaceSuspended: false, onboardingStatus: undefined, res: undefined },
   { loc: AppPath.Verify, hasAccessTokenPair: true, isWorkspaceSuspended: false, onboardingStatus: OnboardingStatus.WORKSPACE_ACTIVATION, res: AppPath.WorkspaceActivation },
   { loc: AppPath.Verify, hasAccessTokenPair: true, isWorkspaceSuspended: false, onboardingStatus: OnboardingStatus.PROFILE_CREATION, res: AppPath.CreateProfile },
   { loc: AppPath.Verify, hasAccessTokenPair: true, isWorkspaceSuspended: false, onboardingStatus: OnboardingStatus.SYNC_EMAIL, res: AppPath.SyncEmails },
+  { loc: AppPath.Verify, hasAccessTokenPair: true, isWorkspaceSuspended: false, onboardingStatus: OnboardingStatus.APPS_INSTALLATION, res: AppPath.InstallApps },
   { loc: AppPath.Verify, hasAccessTokenPair: true, isWorkspaceSuspended: false, onboardingStatus: OnboardingStatus.INVITE_TEAM, res: AppPath.InviteTeam },
-  { loc: AppPath.Verify, hasAccessTokenPair: true, isWorkspaceSuspended: false, onboardingStatus: OnboardingStatus.BOOK_ONBOARDING, res: AppPath.BookCallDecision },
   { loc: AppPath.Verify, hasAccessTokenPair: true, isWorkspaceSuspended: false, onboardingStatus: OnboardingStatus.COMPLETED, res: defaultHomePagePath },
 
   { loc: AppPath.SignInUp, hasAccessTokenPair: true, isWorkspaceSuspended: false, onboardingStatus: OnboardingStatus.PLAN_REQUIRED, res: AppPath.PlanRequired },
@@ -126,8 +146,8 @@ const testCases: {
   { loc: AppPath.SignInUp, hasAccessTokenPair: true, isWorkspaceSuspended: false, onboardingStatus: OnboardingStatus.WORKSPACE_ACTIVATION, res: AppPath.WorkspaceActivation },
   { loc: AppPath.SignInUp, hasAccessTokenPair: true, isWorkspaceSuspended: false, onboardingStatus: OnboardingStatus.PROFILE_CREATION, res: AppPath.CreateProfile },
   { loc: AppPath.SignInUp, hasAccessTokenPair: true, isWorkspaceSuspended: false, onboardingStatus: OnboardingStatus.SYNC_EMAIL, res: AppPath.SyncEmails },
+  { loc: AppPath.SignInUp, hasAccessTokenPair: true, isWorkspaceSuspended: false, onboardingStatus: OnboardingStatus.APPS_INSTALLATION, res: AppPath.InstallApps },
   { loc: AppPath.SignInUp, hasAccessTokenPair: true, isWorkspaceSuspended: false, onboardingStatus: OnboardingStatus.INVITE_TEAM, res: AppPath.InviteTeam },
-  { loc: AppPath.SignInUp, hasAccessTokenPair: true, isWorkspaceSuspended: false, onboardingStatus: OnboardingStatus.BOOK_ONBOARDING, res: AppPath.BookCallDecision },
   { loc: AppPath.SignInUp, hasAccessTokenPair: true, isWorkspaceSuspended: false, onboardingStatus: OnboardingStatus.COMPLETED, res: defaultHomePagePath },
 
   { loc: AppPath.Invite, hasAccessTokenPair: true, isWorkspaceSuspended: false, onboardingStatus: OnboardingStatus.PLAN_REQUIRED, res: '/plan-required' },
@@ -136,8 +156,8 @@ const testCases: {
   { loc: AppPath.Invite, hasAccessTokenPair: true, isWorkspaceSuspended: false, onboardingStatus: OnboardingStatus.WORKSPACE_ACTIVATION, res: '/workspace-activation' },
   { loc: AppPath.Invite, hasAccessTokenPair: true, isWorkspaceSuspended: false, onboardingStatus: OnboardingStatus.PROFILE_CREATION, res: '/create/profile' },
   { loc: AppPath.Invite, hasAccessTokenPair: true, isWorkspaceSuspended: false, onboardingStatus: OnboardingStatus.SYNC_EMAIL, res: '/sync/emails' },
+  { loc: AppPath.Invite, hasAccessTokenPair: true, isWorkspaceSuspended: false, onboardingStatus: OnboardingStatus.APPS_INSTALLATION, res: AppPath.InstallApps },
   { loc: AppPath.Invite, hasAccessTokenPair: true, isWorkspaceSuspended: false, onboardingStatus: OnboardingStatus.INVITE_TEAM, res: '/invite-team' },
-  { loc: AppPath.Invite, hasAccessTokenPair: true, isWorkspaceSuspended: false, onboardingStatus: OnboardingStatus.BOOK_ONBOARDING, res: AppPath.BookCallDecision },
   { loc: AppPath.Invite, hasAccessTokenPair: true, isWorkspaceSuspended: false, onboardingStatus: OnboardingStatus.COMPLETED, res: defaultHomePagePath },
 
   { loc: AppPath.ResetPassword, hasAccessTokenPair: true, isWorkspaceSuspended: false, onboardingStatus: OnboardingStatus.PLAN_REQUIRED, res: '/plan-required' },
@@ -146,8 +166,8 @@ const testCases: {
   { loc: AppPath.ResetPassword, hasAccessTokenPair: true, isWorkspaceSuspended: false, onboardingStatus: OnboardingStatus.WORKSPACE_ACTIVATION, res: '/workspace-activation' },
   { loc: AppPath.ResetPassword, hasAccessTokenPair: true, isWorkspaceSuspended: false, onboardingStatus: OnboardingStatus.PROFILE_CREATION, res: '/create/profile' },
   { loc: AppPath.ResetPassword, hasAccessTokenPair: true, isWorkspaceSuspended: false, onboardingStatus: OnboardingStatus.SYNC_EMAIL, res: '/sync/emails' },
+  { loc: AppPath.ResetPassword, hasAccessTokenPair: true, isWorkspaceSuspended: false, onboardingStatus: OnboardingStatus.APPS_INSTALLATION, res: AppPath.InstallApps },
   { loc: AppPath.ResetPassword, hasAccessTokenPair: true, isWorkspaceSuspended: false, onboardingStatus: OnboardingStatus.INVITE_TEAM, res: '/invite-team' },
-  { loc: AppPath.ResetPassword, hasAccessTokenPair: true, isWorkspaceSuspended: false, onboardingStatus: OnboardingStatus.BOOK_ONBOARDING, res: AppPath.BookCallDecision },
   { loc: AppPath.ResetPassword, hasAccessTokenPair: true, isWorkspaceSuspended: false, onboardingStatus: OnboardingStatus.COMPLETED, res: undefined },
 
   { loc: AppPath.VerifyEmail, hasAccessTokenPair: true, isWorkspaceSuspended: false, onboardingStatus: OnboardingStatus.PLAN_REQUIRED, res: AppPath.PlanRequired },
@@ -158,8 +178,8 @@ const testCases: {
   { loc: AppPath.VerifyEmail, hasAccessTokenPair: true, isWorkspaceSuspended: false, onboardingStatus: OnboardingStatus.WORKSPACE_ACTIVATION, res: AppPath.WorkspaceActivation },
   { loc: AppPath.VerifyEmail, hasAccessTokenPair: true, isWorkspaceSuspended: false, onboardingStatus: OnboardingStatus.PROFILE_CREATION, res: AppPath.CreateProfile },
   { loc: AppPath.VerifyEmail, hasAccessTokenPair: true, isWorkspaceSuspended: false, onboardingStatus: OnboardingStatus.SYNC_EMAIL, res: AppPath.SyncEmails },
+  { loc: AppPath.VerifyEmail, hasAccessTokenPair: true, isWorkspaceSuspended: false, onboardingStatus: OnboardingStatus.APPS_INSTALLATION, res: AppPath.InstallApps },
   { loc: AppPath.VerifyEmail, hasAccessTokenPair: true, isWorkspaceSuspended: false, onboardingStatus: OnboardingStatus.INVITE_TEAM, res: AppPath.InviteTeam },
-  { loc: AppPath.VerifyEmail, hasAccessTokenPair: true, isWorkspaceSuspended: false, onboardingStatus: OnboardingStatus.BOOK_ONBOARDING, res: AppPath.BookCallDecision },
   { loc: AppPath.VerifyEmail, hasAccessTokenPair: true, isWorkspaceSuspended: false, onboardingStatus: OnboardingStatus.COMPLETED, res: defaultHomePagePath },
 
   { loc: AppPath.WorkspaceActivation, hasAccessTokenPair: true, isWorkspaceSuspended: false, onboardingStatus: OnboardingStatus.PLAN_REQUIRED, res: AppPath.PlanRequired },
@@ -168,8 +188,8 @@ const testCases: {
   { loc: AppPath.WorkspaceActivation, hasAccessTokenPair: true, isWorkspaceSuspended: false, onboardingStatus: OnboardingStatus.WORKSPACE_ACTIVATION, res: undefined },
   { loc: AppPath.WorkspaceActivation, hasAccessTokenPair: true, isWorkspaceSuspended: false, onboardingStatus: OnboardingStatus.PROFILE_CREATION, res: AppPath.CreateProfile },
   { loc: AppPath.WorkspaceActivation, hasAccessTokenPair: true, isWorkspaceSuspended: false, onboardingStatus: OnboardingStatus.SYNC_EMAIL, res: AppPath.SyncEmails },
+  { loc: AppPath.WorkspaceActivation, hasAccessTokenPair: true, isWorkspaceSuspended: false, onboardingStatus: OnboardingStatus.APPS_INSTALLATION, res: AppPath.InstallApps },
   { loc: AppPath.WorkspaceActivation, hasAccessTokenPair: true, isWorkspaceSuspended: false, onboardingStatus: OnboardingStatus.INVITE_TEAM, res: AppPath.InviteTeam },
-  { loc: AppPath.WorkspaceActivation, hasAccessTokenPair: true, isWorkspaceSuspended: false, onboardingStatus: OnboardingStatus.BOOK_ONBOARDING, res: AppPath.BookCallDecision },
   { loc: AppPath.WorkspaceActivation, hasAccessTokenPair: true, isWorkspaceSuspended: false, onboardingStatus: OnboardingStatus.COMPLETED, res: defaultHomePagePath },
 
   { loc: AppPath.CreateProfile, hasAccessTokenPair: true, isWorkspaceSuspended: false, onboardingStatus: OnboardingStatus.PLAN_REQUIRED, res: AppPath.PlanRequired },
@@ -178,8 +198,8 @@ const testCases: {
   { loc: AppPath.CreateProfile, hasAccessTokenPair: true, isWorkspaceSuspended: false, onboardingStatus: OnboardingStatus.WORKSPACE_ACTIVATION, res: AppPath.WorkspaceActivation },
   { loc: AppPath.CreateProfile, hasAccessTokenPair: true, isWorkspaceSuspended: false, onboardingStatus: OnboardingStatus.PROFILE_CREATION, res: undefined },
   { loc: AppPath.CreateProfile, hasAccessTokenPair: true, isWorkspaceSuspended: false, onboardingStatus: OnboardingStatus.SYNC_EMAIL, res: AppPath.SyncEmails },
+  { loc: AppPath.CreateProfile, hasAccessTokenPair: true, isWorkspaceSuspended: false, onboardingStatus: OnboardingStatus.APPS_INSTALLATION, res: AppPath.InstallApps },
   { loc: AppPath.CreateProfile, hasAccessTokenPair: true, isWorkspaceSuspended: false, onboardingStatus: OnboardingStatus.INVITE_TEAM, res: AppPath.InviteTeam },
-  { loc: AppPath.CreateProfile, hasAccessTokenPair: true, isWorkspaceSuspended: false, onboardingStatus: OnboardingStatus.BOOK_ONBOARDING, res: AppPath.BookCallDecision },
   { loc: AppPath.CreateProfile, hasAccessTokenPair: true, isWorkspaceSuspended: false, onboardingStatus: OnboardingStatus.COMPLETED, res: defaultHomePagePath },
 
   { loc: AppPath.SyncEmails, hasAccessTokenPair: true, isWorkspaceSuspended: false, onboardingStatus: OnboardingStatus.PLAN_REQUIRED, res: AppPath.PlanRequired },
@@ -188,9 +208,19 @@ const testCases: {
   { loc: AppPath.SyncEmails, hasAccessTokenPair: true, isWorkspaceSuspended: false, onboardingStatus: OnboardingStatus.WORKSPACE_ACTIVATION, res: AppPath.WorkspaceActivation },
   { loc: AppPath.SyncEmails, hasAccessTokenPair: true, isWorkspaceSuspended: false, onboardingStatus: OnboardingStatus.PROFILE_CREATION, res: AppPath.CreateProfile },
   { loc: AppPath.SyncEmails, hasAccessTokenPair: true, isWorkspaceSuspended: false, onboardingStatus: OnboardingStatus.SYNC_EMAIL, res: undefined },
+  { loc: AppPath.SyncEmails, hasAccessTokenPair: true, isWorkspaceSuspended: false, onboardingStatus: OnboardingStatus.APPS_INSTALLATION, res: AppPath.InstallApps },
   { loc: AppPath.SyncEmails, hasAccessTokenPair: true, isWorkspaceSuspended: false, onboardingStatus: OnboardingStatus.INVITE_TEAM, res: AppPath.InviteTeam },
-  { loc: AppPath.SyncEmails, hasAccessTokenPair: true, isWorkspaceSuspended: false, onboardingStatus: OnboardingStatus.BOOK_ONBOARDING, res: AppPath.BookCallDecision },
   { loc: AppPath.SyncEmails, hasAccessTokenPair: true, isWorkspaceSuspended: false, onboardingStatus: OnboardingStatus.COMPLETED, res: defaultHomePagePath },
+
+  { loc: AppPath.InstallApps, hasAccessTokenPair: true, isWorkspaceSuspended: false, onboardingStatus: OnboardingStatus.PLAN_REQUIRED, res: AppPath.PlanRequired },
+  { loc: AppPath.InstallApps, hasAccessTokenPair: true, isWorkspaceSuspended: true, onboardingStatus: OnboardingStatus.COMPLETED, res: getSettingsPath(SettingsPath.Billing) },
+  { loc: AppPath.InstallApps, hasAccessTokenPair: false, isWorkspaceSuspended: false, onboardingStatus: undefined, res: AppPath.SignInUp },
+  { loc: AppPath.InstallApps, hasAccessTokenPair: true, isWorkspaceSuspended: false, onboardingStatus: OnboardingStatus.WORKSPACE_ACTIVATION, res: AppPath.WorkspaceActivation },
+  { loc: AppPath.InstallApps, hasAccessTokenPair: true, isWorkspaceSuspended: false, onboardingStatus: OnboardingStatus.PROFILE_CREATION, res: AppPath.CreateProfile },
+  { loc: AppPath.InstallApps, hasAccessTokenPair: true, isWorkspaceSuspended: false, onboardingStatus: OnboardingStatus.SYNC_EMAIL, res: AppPath.SyncEmails },
+  { loc: AppPath.InstallApps, hasAccessTokenPair: true, isWorkspaceSuspended: false, onboardingStatus: OnboardingStatus.APPS_INSTALLATION, res: undefined },
+  { loc: AppPath.InstallApps, hasAccessTokenPair: true, isWorkspaceSuspended: false, onboardingStatus: OnboardingStatus.INVITE_TEAM, res: AppPath.InviteTeam },
+  { loc: AppPath.InstallApps, hasAccessTokenPair: true, isWorkspaceSuspended: false, onboardingStatus: OnboardingStatus.COMPLETED, res: defaultHomePagePath },
 
   { loc: AppPath.InviteTeam, hasAccessTokenPair: true, isWorkspaceSuspended: false, onboardingStatus: OnboardingStatus.PLAN_REQUIRED, res: AppPath.PlanRequired },
   { loc: AppPath.InviteTeam, hasAccessTokenPair: true, isWorkspaceSuspended: true, onboardingStatus: OnboardingStatus.COMPLETED, res: getSettingsPath(SettingsPath.Billing) },
@@ -198,28 +228,18 @@ const testCases: {
   { loc: AppPath.InviteTeam, hasAccessTokenPair: true, isWorkspaceSuspended: false, onboardingStatus: OnboardingStatus.WORKSPACE_ACTIVATION, res: AppPath.WorkspaceActivation },
   { loc: AppPath.InviteTeam, hasAccessTokenPair: true, isWorkspaceSuspended: false, onboardingStatus: OnboardingStatus.PROFILE_CREATION, res: AppPath.CreateProfile },
   { loc: AppPath.InviteTeam, hasAccessTokenPair: true, isWorkspaceSuspended: false, onboardingStatus: OnboardingStatus.SYNC_EMAIL, res: AppPath.SyncEmails },
+  { loc: AppPath.InviteTeam, hasAccessTokenPair: true, isWorkspaceSuspended: false, onboardingStatus: OnboardingStatus.APPS_INSTALLATION, res: AppPath.InstallApps },
   { loc: AppPath.InviteTeam, hasAccessTokenPair: true, isWorkspaceSuspended: false, onboardingStatus: OnboardingStatus.INVITE_TEAM, res: undefined },
-  { loc: AppPath.InviteTeam, hasAccessTokenPair: true, isWorkspaceSuspended: false, onboardingStatus: OnboardingStatus.BOOK_ONBOARDING, res: AppPath.BookCallDecision },
-  { loc: AppPath.InviteTeam, hasAccessTokenPair: true, isWorkspaceSuspended: false, onboardingStatus: OnboardingStatus.COMPLETED, res: defaultHomePagePath },
-
-  { loc: AppPath.BookCallDecision, hasAccessTokenPair: true, isWorkspaceSuspended: false, onboardingStatus: OnboardingStatus.PLAN_REQUIRED, res: undefined },
-  { loc: AppPath.BookCallDecision, hasAccessTokenPair: true, isWorkspaceSuspended: true, onboardingStatus: OnboardingStatus.COMPLETED, res: getSettingsPath(SettingsPath.Billing) },
-  { loc: AppPath.BookCallDecision, hasAccessTokenPair: false, isWorkspaceSuspended: false, onboardingStatus: undefined, res: AppPath.SignInUp },
-  { loc: AppPath.BookCallDecision, hasAccessTokenPair: true, isWorkspaceSuspended: false, onboardingStatus: OnboardingStatus.WORKSPACE_ACTIVATION, res: undefined },
-  { loc: AppPath.BookCallDecision, hasAccessTokenPair: true, isWorkspaceSuspended: false, onboardingStatus: OnboardingStatus.PROFILE_CREATION, res: AppPath.CreateProfile },
-  { loc: AppPath.BookCallDecision, hasAccessTokenPair: true, isWorkspaceSuspended: false, onboardingStatus: OnboardingStatus.SYNC_EMAIL, res: AppPath.SyncEmails },
-  { loc: AppPath.BookCallDecision, hasAccessTokenPair: true, isWorkspaceSuspended: false, onboardingStatus: OnboardingStatus.INVITE_TEAM, res: AppPath.InviteTeam },
-  { loc: AppPath.BookCallDecision, hasAccessTokenPair: true, isWorkspaceSuspended: false, onboardingStatus: OnboardingStatus.BOOK_ONBOARDING, res: undefined },
-  { loc: AppPath.BookCallDecision, hasAccessTokenPair: true, isWorkspaceSuspended: false, onboardingStatus: OnboardingStatus.COMPLETED, res: defaultHomePagePath },
+  { loc: AppPath.InviteTeam, hasAccessTokenPair: true, isWorkspaceSuspended: false, onboardingStatus: OnboardingStatus.COMPLETED, res: AppPath.PlanRequired },
 
   { loc: AppPath.BookCall, hasAccessTokenPair: true, isWorkspaceSuspended: false, onboardingStatus: OnboardingStatus.PLAN_REQUIRED, res: undefined },
   { loc: AppPath.BookCall, hasAccessTokenPair: true, isWorkspaceSuspended: true, onboardingStatus: OnboardingStatus.COMPLETED, res: getSettingsPath(SettingsPath.Billing) },
   { loc: AppPath.BookCall, hasAccessTokenPair: false, isWorkspaceSuspended: false, onboardingStatus: undefined, res: AppPath.SignInUp },
-  { loc: AppPath.BookCall, hasAccessTokenPair: true, isWorkspaceSuspended: false, onboardingStatus: OnboardingStatus.WORKSPACE_ACTIVATION, res: undefined },
+  { loc: AppPath.BookCall, hasAccessTokenPair: true, isWorkspaceSuspended: false, onboardingStatus: OnboardingStatus.WORKSPACE_ACTIVATION, res: AppPath.WorkspaceActivation },
   { loc: AppPath.BookCall, hasAccessTokenPair: true, isWorkspaceSuspended: false, onboardingStatus: OnboardingStatus.PROFILE_CREATION, res: AppPath.CreateProfile },
   { loc: AppPath.BookCall, hasAccessTokenPair: true, isWorkspaceSuspended: false, onboardingStatus: OnboardingStatus.SYNC_EMAIL, res: AppPath.SyncEmails },
+  { loc: AppPath.BookCall, hasAccessTokenPair: true, isWorkspaceSuspended: false, onboardingStatus: OnboardingStatus.APPS_INSTALLATION, res: AppPath.InstallApps },
   { loc: AppPath.BookCall, hasAccessTokenPair: true, isWorkspaceSuspended: false, onboardingStatus: OnboardingStatus.INVITE_TEAM, res: AppPath.InviteTeam },
-  { loc: AppPath.BookCall, hasAccessTokenPair: true, isWorkspaceSuspended: false, onboardingStatus: OnboardingStatus.BOOK_ONBOARDING, res: undefined },
   { loc: AppPath.BookCall, hasAccessTokenPair: true, isWorkspaceSuspended: false, onboardingStatus: OnboardingStatus.COMPLETED, res: defaultHomePagePath },
 
   { loc: AppPath.PlanRequired, hasAccessTokenPair: true, isWorkspaceSuspended: false, onboardingStatus: OnboardingStatus.PLAN_REQUIRED, res: undefined },
@@ -228,9 +248,9 @@ const testCases: {
   { loc: AppPath.PlanRequired, hasAccessTokenPair: true, isWorkspaceSuspended: false, onboardingStatus: OnboardingStatus.WORKSPACE_ACTIVATION, res: AppPath.WorkspaceActivation },
   { loc: AppPath.PlanRequired, hasAccessTokenPair: true, isWorkspaceSuspended: false, onboardingStatus: OnboardingStatus.PROFILE_CREATION, res: AppPath.CreateProfile },
   { loc: AppPath.PlanRequired, hasAccessTokenPair: true, isWorkspaceSuspended: false, onboardingStatus: OnboardingStatus.SYNC_EMAIL, res: AppPath.SyncEmails },
+  { loc: AppPath.PlanRequired, hasAccessTokenPair: true, isWorkspaceSuspended: false, onboardingStatus: OnboardingStatus.APPS_INSTALLATION, res: AppPath.InstallApps },
   { loc: AppPath.PlanRequired, hasAccessTokenPair: true, isWorkspaceSuspended: false, onboardingStatus: OnboardingStatus.INVITE_TEAM, res: AppPath.InviteTeam },
-  { loc: AppPath.PlanRequired, hasAccessTokenPair: true, isWorkspaceSuspended: false, onboardingStatus: OnboardingStatus.BOOK_ONBOARDING, res: AppPath.BookCallDecision },
-  { loc: AppPath.PlanRequired, hasAccessTokenPair: true, isWorkspaceSuspended: false, onboardingStatus: OnboardingStatus.COMPLETED, res: defaultHomePagePath },
+  { loc: AppPath.PlanRequired, hasAccessTokenPair: true, isWorkspaceSuspended: false, onboardingStatus: OnboardingStatus.COMPLETED, res: undefined },
 
   { loc: AppPath.PlanRequiredSuccess, hasAccessTokenPair: true, isWorkspaceSuspended: false, onboardingStatus: OnboardingStatus.PLAN_REQUIRED, res: undefined },
   { loc: AppPath.PlanRequiredSuccess, hasAccessTokenPair: true, isWorkspaceSuspended: true, onboardingStatus: OnboardingStatus.COMPLETED, res: getSettingsPath(SettingsPath.Billing) },
@@ -238,8 +258,8 @@ const testCases: {
   { loc: AppPath.PlanRequiredSuccess, hasAccessTokenPair: true, isWorkspaceSuspended: false, onboardingStatus: OnboardingStatus.WORKSPACE_ACTIVATION, res: AppPath.WorkspaceActivation },
   { loc: AppPath.PlanRequiredSuccess, hasAccessTokenPair: true, isWorkspaceSuspended: false, onboardingStatus: OnboardingStatus.PROFILE_CREATION, res: AppPath.CreateProfile },
   { loc: AppPath.PlanRequiredSuccess, hasAccessTokenPair: true, isWorkspaceSuspended: false, onboardingStatus: OnboardingStatus.SYNC_EMAIL, res: AppPath.SyncEmails },
+  { loc: AppPath.PlanRequiredSuccess, hasAccessTokenPair: true, isWorkspaceSuspended: false, onboardingStatus: OnboardingStatus.APPS_INSTALLATION, res: AppPath.InstallApps },
   { loc: AppPath.PlanRequiredSuccess, hasAccessTokenPair: true, isWorkspaceSuspended: false, onboardingStatus: OnboardingStatus.INVITE_TEAM, res: AppPath.InviteTeam },
-  { loc: AppPath.PlanRequiredSuccess, hasAccessTokenPair: true, isWorkspaceSuspended: false, onboardingStatus: OnboardingStatus.BOOK_ONBOARDING, res: AppPath.BookCallDecision },
   { loc: AppPath.PlanRequiredSuccess, hasAccessTokenPair: true, isWorkspaceSuspended: false, onboardingStatus: OnboardingStatus.COMPLETED, res: defaultHomePagePath },
 
   { loc: AppPath.Index, hasAccessTokenPair: true, isWorkspaceSuspended: false, onboardingStatus: OnboardingStatus.PLAN_REQUIRED, res: AppPath.PlanRequired },
@@ -248,8 +268,8 @@ const testCases: {
   { loc: AppPath.Index, hasAccessTokenPair: true, isWorkspaceSuspended: false, onboardingStatus: OnboardingStatus.WORKSPACE_ACTIVATION, res: AppPath.WorkspaceActivation },
   { loc: AppPath.Index, hasAccessTokenPair: true, isWorkspaceSuspended: false, onboardingStatus: OnboardingStatus.PROFILE_CREATION, res: AppPath.CreateProfile },
   { loc: AppPath.Index, hasAccessTokenPair: true, isWorkspaceSuspended: false, onboardingStatus: OnboardingStatus.SYNC_EMAIL, res: AppPath.SyncEmails },
+  { loc: AppPath.Index, hasAccessTokenPair: true, isWorkspaceSuspended: false, onboardingStatus: OnboardingStatus.APPS_INSTALLATION, res: AppPath.InstallApps },
   { loc: AppPath.Index, hasAccessTokenPair: true, isWorkspaceSuspended: false, onboardingStatus: OnboardingStatus.INVITE_TEAM, res: AppPath.InviteTeam },
-  { loc: AppPath.Index, hasAccessTokenPair: true, isWorkspaceSuspended: false, onboardingStatus: OnboardingStatus.BOOK_ONBOARDING, res: AppPath.BookCallDecision },
   { loc: AppPath.Index, hasAccessTokenPair: true, isWorkspaceSuspended: false, onboardingStatus: OnboardingStatus.COMPLETED, res: defaultHomePagePath },
 
   { loc: AppPath.TasksPage, hasAccessTokenPair: true, isWorkspaceSuspended: false, onboardingStatus: OnboardingStatus.PLAN_REQUIRED, res: AppPath.PlanRequired },
@@ -258,8 +278,8 @@ const testCases: {
   { loc: AppPath.TasksPage, hasAccessTokenPair: true, isWorkspaceSuspended: false, onboardingStatus: OnboardingStatus.WORKSPACE_ACTIVATION, res: AppPath.WorkspaceActivation },
   { loc: AppPath.TasksPage, hasAccessTokenPair: true, isWorkspaceSuspended: false, onboardingStatus: OnboardingStatus.PROFILE_CREATION, res: AppPath.CreateProfile },
   { loc: AppPath.TasksPage, hasAccessTokenPair: true, isWorkspaceSuspended: false, onboardingStatus: OnboardingStatus.SYNC_EMAIL, res: AppPath.SyncEmails },
+  { loc: AppPath.TasksPage, hasAccessTokenPair: true, isWorkspaceSuspended: false, onboardingStatus: OnboardingStatus.APPS_INSTALLATION, res: AppPath.InstallApps },
   { loc: AppPath.TasksPage, hasAccessTokenPair: true, isWorkspaceSuspended: false, onboardingStatus: OnboardingStatus.INVITE_TEAM, res: AppPath.InviteTeam },
-  { loc: AppPath.TasksPage, hasAccessTokenPair: true, isWorkspaceSuspended: false, onboardingStatus: OnboardingStatus.BOOK_ONBOARDING, res: AppPath.BookCallDecision },
   { loc: AppPath.TasksPage, hasAccessTokenPair: true, isWorkspaceSuspended: false, onboardingStatus: OnboardingStatus.COMPLETED, res: undefined },
 
   { loc: AppPath.OpportunitiesPage, hasAccessTokenPair: true, isWorkspaceSuspended: false, onboardingStatus: OnboardingStatus.PLAN_REQUIRED, res: AppPath.PlanRequired },
@@ -268,8 +288,8 @@ const testCases: {
   { loc: AppPath.OpportunitiesPage, hasAccessTokenPair: true, isWorkspaceSuspended: false, onboardingStatus: OnboardingStatus.WORKSPACE_ACTIVATION, res: AppPath.WorkspaceActivation },
   { loc: AppPath.OpportunitiesPage, hasAccessTokenPair: true, isWorkspaceSuspended: false, onboardingStatus: OnboardingStatus.PROFILE_CREATION, res: AppPath.CreateProfile },
   { loc: AppPath.OpportunitiesPage, hasAccessTokenPair: true, isWorkspaceSuspended: false, onboardingStatus: OnboardingStatus.SYNC_EMAIL, res: AppPath.SyncEmails },
+  { loc: AppPath.OpportunitiesPage, hasAccessTokenPair: true, isWorkspaceSuspended: false, onboardingStatus: OnboardingStatus.APPS_INSTALLATION, res: AppPath.InstallApps },
   { loc: AppPath.OpportunitiesPage, hasAccessTokenPair: true, isWorkspaceSuspended: false, onboardingStatus: OnboardingStatus.INVITE_TEAM, res: AppPath.InviteTeam },
-  { loc: AppPath.OpportunitiesPage, hasAccessTokenPair: true, isWorkspaceSuspended: false, onboardingStatus: OnboardingStatus.BOOK_ONBOARDING, res: AppPath.BookCallDecision },
   { loc: AppPath.OpportunitiesPage, hasAccessTokenPair: true, isWorkspaceSuspended: false, onboardingStatus: OnboardingStatus.COMPLETED, res: undefined },
 
   { loc: AppPath.RecordIndexPage, hasAccessTokenPair: true, isWorkspaceSuspended: false, onboardingStatus: OnboardingStatus.PLAN_REQUIRED, res: AppPath.PlanRequired },
@@ -278,11 +298,12 @@ const testCases: {
   { loc: AppPath.RecordIndexPage, hasAccessTokenPair: true, isWorkspaceSuspended: false, onboardingStatus: OnboardingStatus.WORKSPACE_ACTIVATION, res: AppPath.WorkspaceActivation },
   { loc: AppPath.RecordIndexPage, hasAccessTokenPair: true, isWorkspaceSuspended: false, onboardingStatus: OnboardingStatus.PROFILE_CREATION, res: AppPath.CreateProfile },
   { loc: AppPath.RecordIndexPage, hasAccessTokenPair: true, isWorkspaceSuspended: false, onboardingStatus: OnboardingStatus.SYNC_EMAIL, res: AppPath.SyncEmails },
+  { loc: AppPath.RecordIndexPage, hasAccessTokenPair: true, isWorkspaceSuspended: false, onboardingStatus: OnboardingStatus.APPS_INSTALLATION, res: AppPath.InstallApps },
   { loc: AppPath.RecordIndexPage, hasAccessTokenPair: true, isWorkspaceSuspended: false, onboardingStatus: OnboardingStatus.INVITE_TEAM, res: AppPath.InviteTeam },
-  { loc: AppPath.RecordIndexPage, hasAccessTokenPair: true, isWorkspaceSuspended: false, onboardingStatus: OnboardingStatus.BOOK_ONBOARDING, res: AppPath.BookCallDecision },
   { loc: AppPath.RecordIndexPage, hasAccessTokenPair: true, isWorkspaceSuspended: false, onboardingStatus: OnboardingStatus.COMPLETED, res: undefined },
   { loc: AppPath.RecordIndexPage, hasAccessTokenPair: true, isWorkspaceSuspended: false, onboardingStatus: OnboardingStatus.COMPLETED, res: undefined, objectNamePluralFromParams: 'existing-object', objectNamePluralFromMetadata: 'existing-object' },
   { loc: AppPath.RecordIndexPage, hasAccessTokenPair: true, isWorkspaceSuspended: false, onboardingStatus: OnboardingStatus.COMPLETED, res: AppPath.NotFound, objectNamePluralFromParams: 'non-existing-object', objectNamePluralFromMetadata: 'existing-object' },
+  { loc: AppPath.RecordIndexPage, hasAccessTokenPair: true, isWorkspaceSuspended: false, onboardingStatus: OnboardingStatus.COMPLETED, res: undefined, objectNamePluralFromParams: 'non-existing-object', objectNamePluralFromMetadata: 'existing-object', isMinimalMetadataReady: false },
 
   { loc: AppPath.RecordShowPage, hasAccessTokenPair: true, isWorkspaceSuspended: false, onboardingStatus: OnboardingStatus.PLAN_REQUIRED, res: AppPath.PlanRequired },
   { loc: AppPath.RecordShowPage, hasAccessTokenPair: true, isWorkspaceSuspended: true, onboardingStatus: OnboardingStatus.COMPLETED, res: getSettingsPath(SettingsPath.Billing) },
@@ -290,8 +311,8 @@ const testCases: {
   { loc: AppPath.RecordShowPage, hasAccessTokenPair: true, isWorkspaceSuspended: false, onboardingStatus: OnboardingStatus.WORKSPACE_ACTIVATION, res: AppPath.WorkspaceActivation },
   { loc: AppPath.RecordShowPage, hasAccessTokenPair: true, isWorkspaceSuspended: false, onboardingStatus: OnboardingStatus.PROFILE_CREATION, res: AppPath.CreateProfile },
   { loc: AppPath.RecordShowPage, hasAccessTokenPair: true, isWorkspaceSuspended: false, onboardingStatus: OnboardingStatus.SYNC_EMAIL, res: AppPath.SyncEmails },
+  { loc: AppPath.RecordShowPage, hasAccessTokenPair: true, isWorkspaceSuspended: false, onboardingStatus: OnboardingStatus.APPS_INSTALLATION, res: AppPath.InstallApps },
   { loc: AppPath.RecordShowPage, hasAccessTokenPair: true, isWorkspaceSuspended: false, onboardingStatus: OnboardingStatus.INVITE_TEAM, res: AppPath.InviteTeam },
-  { loc: AppPath.RecordShowPage, hasAccessTokenPair: true, isWorkspaceSuspended: false, onboardingStatus: OnboardingStatus.BOOK_ONBOARDING, res: AppPath.BookCallDecision },
   { loc: AppPath.RecordShowPage, hasAccessTokenPair: true, isWorkspaceSuspended: false, onboardingStatus: OnboardingStatus.COMPLETED, res: undefined },
 
   { loc: AppPath.PageLayoutPage, hasAccessTokenPair: true, isWorkspaceSuspended: false, onboardingStatus: OnboardingStatus.PLAN_REQUIRED, res: AppPath.PlanRequired },
@@ -300,8 +321,8 @@ const testCases: {
   { loc: AppPath.PageLayoutPage, hasAccessTokenPair: true, isWorkspaceSuspended: false, onboardingStatus: OnboardingStatus.WORKSPACE_ACTIVATION, res: AppPath.WorkspaceActivation },
   { loc: AppPath.PageLayoutPage, hasAccessTokenPair: true, isWorkspaceSuspended: false, onboardingStatus: OnboardingStatus.PROFILE_CREATION, res: AppPath.CreateProfile },
   { loc: AppPath.PageLayoutPage, hasAccessTokenPair: true, isWorkspaceSuspended: false, onboardingStatus: OnboardingStatus.SYNC_EMAIL, res: AppPath.SyncEmails },
+  { loc: AppPath.PageLayoutPage, hasAccessTokenPair: true, isWorkspaceSuspended: false, onboardingStatus: OnboardingStatus.APPS_INSTALLATION, res: AppPath.InstallApps },
   { loc: AppPath.PageLayoutPage, hasAccessTokenPair: true, isWorkspaceSuspended: false, onboardingStatus: OnboardingStatus.INVITE_TEAM, res: AppPath.InviteTeam },
-  { loc: AppPath.PageLayoutPage, hasAccessTokenPair: true, isWorkspaceSuspended: false, onboardingStatus: OnboardingStatus.BOOK_ONBOARDING, res: AppPath.BookCallDecision },
   { loc: AppPath.PageLayoutPage, hasAccessTokenPair: true, isWorkspaceSuspended: false, onboardingStatus: OnboardingStatus.COMPLETED, res: undefined },
   { loc: AppPath.PageLayoutPage, hasAccessTokenPair: true, isWorkspaceSuspended: false, onboardingStatus: OnboardingStatus.COMPLETED, res: undefined, pageLayoutId: 'valid-id', useQueryResult: { loading: true } },
   { loc: AppPath.PageLayoutPage, hasAccessTokenPair: true, isWorkspaceSuspended: false, onboardingStatus: OnboardingStatus.COMPLETED, res: AppPath.NotFound, pageLayoutId: 'non-existent-id', useQueryResult: { data: { getPageLayout: null }, loading: false } },
@@ -314,8 +335,8 @@ const testCases: {
   { loc: AppPath.SettingsCatchAll, hasAccessTokenPair: true, isWorkspaceSuspended: false, onboardingStatus: OnboardingStatus.WORKSPACE_ACTIVATION, res: AppPath.WorkspaceActivation },
   { loc: AppPath.SettingsCatchAll, hasAccessTokenPair: true, isWorkspaceSuspended: false, onboardingStatus: OnboardingStatus.PROFILE_CREATION, res: AppPath.CreateProfile },
   { loc: AppPath.SettingsCatchAll, hasAccessTokenPair: true, isWorkspaceSuspended: false, onboardingStatus: OnboardingStatus.SYNC_EMAIL, res: AppPath.SyncEmails },
+  { loc: AppPath.SettingsCatchAll, hasAccessTokenPair: true, isWorkspaceSuspended: false, onboardingStatus: OnboardingStatus.APPS_INSTALLATION, res: AppPath.InstallApps },
   { loc: AppPath.SettingsCatchAll, hasAccessTokenPair: true, isWorkspaceSuspended: false, onboardingStatus: OnboardingStatus.INVITE_TEAM, res: AppPath.InviteTeam },
-  { loc: AppPath.SettingsCatchAll, hasAccessTokenPair: true, isWorkspaceSuspended: false, onboardingStatus: OnboardingStatus.BOOK_ONBOARDING, res: AppPath.BookCallDecision },
   { loc: AppPath.SettingsCatchAll, hasAccessTokenPair: true, isWorkspaceSuspended: false, onboardingStatus: OnboardingStatus.COMPLETED, res: undefined },
 
   { loc: AppPath.DevelopersCatchAll, hasAccessTokenPair: true, isWorkspaceSuspended: false, onboardingStatus: OnboardingStatus.PLAN_REQUIRED, res: AppPath.PlanRequired },
@@ -324,8 +345,8 @@ const testCases: {
   { loc: AppPath.DevelopersCatchAll, hasAccessTokenPair: true, isWorkspaceSuspended: false, onboardingStatus: OnboardingStatus.WORKSPACE_ACTIVATION, res: AppPath.WorkspaceActivation },
   { loc: AppPath.DevelopersCatchAll, hasAccessTokenPair: true, isWorkspaceSuspended: false, onboardingStatus: OnboardingStatus.PROFILE_CREATION, res: AppPath.CreateProfile },
   { loc: AppPath.DevelopersCatchAll, hasAccessTokenPair: true, isWorkspaceSuspended: false, onboardingStatus: OnboardingStatus.SYNC_EMAIL, res: AppPath.SyncEmails },
+  { loc: AppPath.DevelopersCatchAll, hasAccessTokenPair: true, isWorkspaceSuspended: false, onboardingStatus: OnboardingStatus.APPS_INSTALLATION, res: AppPath.InstallApps },
   { loc: AppPath.DevelopersCatchAll, hasAccessTokenPair: true, isWorkspaceSuspended: false, onboardingStatus: OnboardingStatus.INVITE_TEAM, res: AppPath.InviteTeam },
-  { loc: AppPath.DevelopersCatchAll, hasAccessTokenPair: true, isWorkspaceSuspended: false, onboardingStatus: OnboardingStatus.BOOK_ONBOARDING, res: AppPath.BookCallDecision },
   { loc: AppPath.DevelopersCatchAll, hasAccessTokenPair: true, isWorkspaceSuspended: false, onboardingStatus: OnboardingStatus.COMPLETED, res: undefined },
 
   { loc: AppPath.Authorize, hasAccessTokenPair: true, isWorkspaceSuspended: false, onboardingStatus: OnboardingStatus.PLAN_REQUIRED, res: AppPath.PlanRequired },
@@ -334,8 +355,8 @@ const testCases: {
   { loc: AppPath.Authorize, hasAccessTokenPair: true, isWorkspaceSuspended: false, onboardingStatus: OnboardingStatus.WORKSPACE_ACTIVATION, res: AppPath.WorkspaceActivation },
   { loc: AppPath.Authorize, hasAccessTokenPair: true, isWorkspaceSuspended: false, onboardingStatus: OnboardingStatus.PROFILE_CREATION, res: AppPath.CreateProfile },
   { loc: AppPath.Authorize, hasAccessTokenPair: true, isWorkspaceSuspended: false, onboardingStatus: OnboardingStatus.SYNC_EMAIL, res: AppPath.SyncEmails },
+  { loc: AppPath.Authorize, hasAccessTokenPair: true, isWorkspaceSuspended: false, onboardingStatus: OnboardingStatus.APPS_INSTALLATION, res: AppPath.InstallApps },
   { loc: AppPath.Authorize, hasAccessTokenPair: true, isWorkspaceSuspended: false, onboardingStatus: OnboardingStatus.INVITE_TEAM, res: AppPath.InviteTeam },
-  { loc: AppPath.Authorize, hasAccessTokenPair: true, isWorkspaceSuspended: false, onboardingStatus: OnboardingStatus.BOOK_ONBOARDING, res: AppPath.BookCallDecision },
   { loc: AppPath.Authorize, hasAccessTokenPair: true, isWorkspaceSuspended: false, onboardingStatus: OnboardingStatus.COMPLETED, res: undefined },
 
   { loc: AppPath.NotFoundWildcard, hasAccessTokenPair: true, isWorkspaceSuspended: false, onboardingStatus: OnboardingStatus.PLAN_REQUIRED, res: AppPath.PlanRequired },
@@ -344,8 +365,8 @@ const testCases: {
   { loc: AppPath.NotFoundWildcard, hasAccessTokenPair: true, isWorkspaceSuspended: false, onboardingStatus: OnboardingStatus.WORKSPACE_ACTIVATION, res: AppPath.WorkspaceActivation },
   { loc: AppPath.NotFoundWildcard, hasAccessTokenPair: true, isWorkspaceSuspended: false, onboardingStatus: OnboardingStatus.PROFILE_CREATION, res: AppPath.CreateProfile },
   { loc: AppPath.NotFoundWildcard, hasAccessTokenPair: true, isWorkspaceSuspended: false, onboardingStatus: OnboardingStatus.SYNC_EMAIL, res: AppPath.SyncEmails },
+  { loc: AppPath.NotFoundWildcard, hasAccessTokenPair: true, isWorkspaceSuspended: false, onboardingStatus: OnboardingStatus.APPS_INSTALLATION, res: AppPath.InstallApps },
   { loc: AppPath.NotFoundWildcard, hasAccessTokenPair: true, isWorkspaceSuspended: false, onboardingStatus: OnboardingStatus.INVITE_TEAM, res: AppPath.InviteTeam },
-  { loc: AppPath.NotFoundWildcard, hasAccessTokenPair: true, isWorkspaceSuspended: false, onboardingStatus: OnboardingStatus.BOOK_ONBOARDING, res: AppPath.BookCallDecision },
   { loc: AppPath.NotFoundWildcard, hasAccessTokenPair: true, isWorkspaceSuspended: false, onboardingStatus: OnboardingStatus.COMPLETED, res: undefined },
 
   { loc: AppPath.NotFound, hasAccessTokenPair: true, isWorkspaceSuspended: false, onboardingStatus: OnboardingStatus.PLAN_REQUIRED, res: AppPath.PlanRequired },
@@ -354,14 +375,26 @@ const testCases: {
   { loc: AppPath.NotFound, hasAccessTokenPair: true, isWorkspaceSuspended: false, onboardingStatus: OnboardingStatus.WORKSPACE_ACTIVATION, res: AppPath.WorkspaceActivation },
   { loc: AppPath.NotFound, hasAccessTokenPair: true, isWorkspaceSuspended: false, onboardingStatus: OnboardingStatus.PROFILE_CREATION, res: AppPath.CreateProfile },
   { loc: AppPath.NotFound, hasAccessTokenPair: true, isWorkspaceSuspended: false, onboardingStatus: OnboardingStatus.SYNC_EMAIL, res: AppPath.SyncEmails },
+  { loc: AppPath.NotFound, hasAccessTokenPair: true, isWorkspaceSuspended: false, onboardingStatus: OnboardingStatus.APPS_INSTALLATION, res: AppPath.InstallApps },
   { loc: AppPath.NotFound, hasAccessTokenPair: true, isWorkspaceSuspended: false, onboardingStatus: OnboardingStatus.INVITE_TEAM, res: AppPath.InviteTeam },
-  { loc: AppPath.NotFound, hasAccessTokenPair: true, isWorkspaceSuspended: false, onboardingStatus: OnboardingStatus.BOOK_ONBOARDING, res: AppPath.BookCallDecision },
   { loc: AppPath.NotFound, hasAccessTokenPair: true, isWorkspaceSuspended: false, onboardingStatus: OnboardingStatus.COMPLETED, res: undefined },
+
+  // isBillingEnabled:false — no post-invite-team upgrade interception on billing-disabled instances
+  { loc: AppPath.InviteTeam, hasAccessTokenPair: true, isWorkspaceSuspended: false, onboardingStatus: OnboardingStatus.COMPLETED, isBillingEnabled: false, res: defaultHomePagePath },
+  { loc: AppPath.PlanRequired, hasAccessTokenPair: true, isWorkspaceSuspended: false, onboardingStatus: OnboardingStatus.COMPLETED, isBillingEnabled: false, res: defaultHomePagePath },
 
   // returnToPath: should redirect to saved path instead of defaultHomePagePath
   { loc: AppPath.Verify, hasAccessTokenPair: true, isWorkspaceSuspended: false, onboardingStatus: OnboardingStatus.COMPLETED, returnToPath: '/authorize?clientId=abc', res: '/authorize?clientId=abc' },
   { loc: AppPath.SignInUp, hasAccessTokenPair: true, isWorkspaceSuspended: false, onboardingStatus: OnboardingStatus.COMPLETED, returnToPath: '/objects/tasks', res: '/objects/tasks' },
   { loc: AppPath.Index, hasAccessTokenPair: true, isWorkspaceSuspended: false, onboardingStatus: OnboardingStatus.COMPLETED, returnToPath: '/settings/api-keys', res: '/settings/api-keys' },
+
+  { loc: AppPath.InviteTeam, hasAccessTokenPair: true, isWorkspaceSuspended: false, onboardingStatus: OnboardingStatus.COMPLETED, isBillingEnabled: false, shouldOpenAiChatAfterOnboarding: true, res: AppPath.WorkspaceSetup },
+  { loc: AppPath.InviteTeam, hasAccessTokenPair: true, isWorkspaceSuspended: false, onboardingStatus: OnboardingStatus.COMPLETED, isBillingEnabled: false, shouldOpenAiChatAfterOnboarding: false, res: defaultHomePagePath },
+  { loc: AppPath.PlanRequiredSuccess, hasAccessTokenPair: true, isWorkspaceSuspended: false, onboardingStatus: OnboardingStatus.COMPLETED, shouldOpenAiChatAfterOnboarding: true, res: AppPath.WorkspaceSetup },
+  { loc: AppPath.SignInUp, hasAccessTokenPair: true, isWorkspaceSuspended: false, onboardingStatus: OnboardingStatus.COMPLETED, shouldOpenAiChatAfterOnboarding: true, returnToPath: '/objects/tasks', res: '/objects/tasks' },
+
+  { loc: AppPath.PlanRequiredSuccess, hasAccessTokenPair: true, isWorkspaceSuspended: false, onboardingStatus: OnboardingStatus.COMPLETED, isOnboardingCheckoutPending: true, res: undefined },
+  { loc: AppPath.Verify, hasAccessTokenPair: true, isWorkspaceSuspended: false, onboardingStatus: OnboardingStatus.COMPLETED, isOnboardingCheckoutPending: true, res: defaultHomePagePath },
 
   // isOnAWorkspace:false — on default domain, don't redirect to returnToPath or defaultHomePagePath from auth pages
   { loc: AppPath.Verify, hasAccessTokenPair: true, isWorkspaceSuspended: false, onboardingStatus: OnboardingStatus.COMPLETED, isOnAWorkspace: false, res: undefined },
@@ -383,6 +416,10 @@ describe('usePageChangeEffectNavigateLocation', () => {
       returnToPath,
       pageLayoutId,
       useQueryResult,
+      isBillingEnabled,
+      isMinimalMetadataReady,
+      shouldOpenAiChatAfterOnboarding,
+      isOnboardingCheckoutPending,
       res,
     }) => {
       setupMockIsMatchingLocation(loc);
@@ -395,8 +432,12 @@ describe('usePageChangeEffectNavigateLocation', () => {
       setupMockState(
         objectNamePluralFromMetadata,
         verifyEmailRedirectPath,
-        undefined,
         returnToPath,
+        undefined,
+        isBillingEnabled ?? true,
+        isMinimalMetadataReady ?? true,
+        shouldOpenAiChatAfterOnboarding ?? false,
+        isOnboardingCheckoutPending ?? false,
       );
 
       expect(usePageChangeEffectNavigateLocation()).toEqual(res);
@@ -411,6 +452,7 @@ describe('usePageChangeEffectNavigateLocation', () => {
             ['isWorkspaceSuspended:true', 'isWorkspaceSuspended:false']
               .length) +
           ['nonExistingObjectInParam', 'existingObjectInParam:false'].length +
+          ['nonExistingObjectInParam:metadataNotReady'].length +
           ['caseWithRedirectionToVerifyEmailRedirectPath', 'caseWithout']
             .length +
           [
@@ -421,7 +463,19 @@ describe('usePageChangeEffectNavigateLocation', () => {
           ].length +
           ['returnToPath:verify', 'returnToPath:signInUp', 'returnToPath:index']
             .length +
-          ['notOnWorkspace:verify', 'notOnWorkspace:signInUp'].length,
+          ['notOnWorkspace:verify', 'notOnWorkspace:signInUp'].length +
+          [
+            'billingDisabled:inviteTeamCompleted',
+            'billingDisabled:planRequiredCompleted',
+          ].length +
+          [
+            'workspaceSetupPending:inviteTeamCompleted',
+            'workspaceSetupNotPending:inviteTeamCompleted',
+            'workspaceSetupPending:paymentSuccessCompleted',
+            'workspaceSetupPending:returnToPathWins',
+            'checkoutPending:paymentSuccessDefersRedirect',
+            'checkoutPending:verifyStillRedirects',
+          ].length,
       );
     });
   });
@@ -438,7 +492,7 @@ describe('usePageChangeEffectNavigateLocation — authenticated with no current 
       setupMockIsOnAWorkspace(true);
       setupMockUseQuery();
       setupMockUseParams();
-      setupMockState(undefined, undefined, undefined, undefined, null);
+      setupMockState(undefined, undefined, undefined, null);
 
       expect(usePageChangeEffectNavigateLocation()).toEqual(AppPath.SignInUp);
     },

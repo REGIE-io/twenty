@@ -25,9 +25,9 @@ const STANDARD_PERMISSION_FLAG_METADATA: Record<
   StandardPermissionFlagMetadata
 > = {
   [PermissionFlagType.API_KEYS_AND_WEBHOOKS]: {
-    label: 'API Keys & Webhooks',
-    description: 'Manage API keys and webhooks',
-    icon: 'IconCode',
+    label: 'MCP & APIs',
+    description: 'Manage MCP, API keys, and webhooks',
+    icon: 'IconPlug',
   },
   [PermissionFlagType.WORKSPACE]: {
     label: 'Workspace',
@@ -118,6 +118,11 @@ const STANDARD_PERMISSION_FLAG_METADATA: Record<
     label: 'Send Email',
     description: 'Send emails via connected accounts',
     icon: 'IconMail',
+  },
+  [PermissionFlagType.CREATE_CALENDAR_EVENT_TOOL]: {
+    label: 'Create Calendar Event',
+    description: 'Create calendar events via connected accounts',
+    icon: 'IconCalendarEvent',
   },
   [PermissionFlagType.HTTP_REQUEST_TOOL]: {
     label: 'HTTP Request',

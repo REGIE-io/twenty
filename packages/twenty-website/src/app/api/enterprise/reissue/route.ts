@@ -1,33 +1,49 @@
-import * as crypto from 'crypto';
+import { createHmac, randomBytes, timingSafeEqual } from 'node:crypto';
 
-import { signEnterpriseKey } from '@/lib/enterprise/enterprise-jwt';
-import { getStripeClient } from '@/lib/enterprise/stripe-client';
-import { getLicenseeFromStripeCustomer } from '@/lib/enterprise/stripe-customer-helpers';
 import { NextResponse } from 'next/server';
+
+import {
+  getEnterpriseConfigError,
+  getLicenseeFromStripeCustomer,
+  getStripeClient,
+  signEnterpriseKey,
+} from '@/platform/enterprise';
 
 export const dynamic = 'force-dynamic';
 
-const isSecretValid = (providedSecret: string): boolean => {
+function isSecretValid(providedSecret: string): boolean {
   const expectedSecret = process.env.ENTERPRISE_ADMIN_API_SECRET;
 
   if (!expectedSecret || !providedSecret) {
     return false;
   }
 
-  const comparisonKey = crypto.randomBytes(32);
-  const expectedDigest = crypto
-    .createHmac('sha256', comparisonKey)
+  const comparisonKey = randomBytes(32);
+  const expectedDigest = createHmac('sha256', comparisonKey)
     .update(expectedSecret)
     .digest();
-  const providedDigest = crypto
-    .createHmac('sha256', comparisonKey)
+  const providedDigest = createHmac('sha256', comparisonKey)
     .update(providedSecret)
     .digest();
 
-  return crypto.timingSafeEqual(expectedDigest, providedDigest);
-};
+  return timingSafeEqual(expectedDigest, providedDigest);
+}
 
 export async function POST(request: Request) {
+  const configError = getEnterpriseConfigError({
+    route: 'enterprise-reissue',
+    feature: 'Enterprise key reissue',
+    requiredEnvVars: [
+      'STRIPE_SECRET_KEY',
+      'ENTERPRISE_JWT_PRIVATE_KEY',
+      'ENTERPRISE_ADMIN_API_SECRET',
+    ],
+  });
+
+  if (configError) {
+    return configError;
+  }
+
   try {
     let body: { subscriptionId?: unknown; secret?: unknown } = {};
 

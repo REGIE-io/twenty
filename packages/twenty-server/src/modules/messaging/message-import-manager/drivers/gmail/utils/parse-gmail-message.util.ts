@@ -1,6 +1,7 @@
 import assert from 'assert';
 
 import { type gmail_v1 } from 'googleapis';
+import { isDefined } from 'twenty-shared/utils';
 
 import { getAttachmentData } from 'src/modules/messaging/message-import-manager/drivers/gmail/utils/get-attachment-data.util';
 import { getBodyData } from 'src/modules/messaging/message-import-manager/drivers/gmail/utils/get-body-data.util';
@@ -11,6 +12,7 @@ import { safeParseEmailAddresses } from 'src/modules/messaging/message-import-ma
 export const parseGmailMessage = (message: gmail_v1.Schema$Message) => {
   const subject = getPropertyFromHeaders(message, 'Subject');
   const rawFrom = getPropertyFromHeaders(message, 'From');
+  const rawReplyTo = getPropertyFromHeaders(message, 'Reply-To');
   const rawTo = getPropertyFromHeaders(message, 'To');
   const rawDeliveredTo = getPropertyFromHeaders(message, 'Delivered-To');
   const rawCc = getPropertyFromHeaders(message, 'Cc');
@@ -21,6 +23,10 @@ export const parseGmailMessage = (message: gmail_v1.Schema$Message) => {
   const historyId = message.historyId;
   const internalDate = message.internalDate;
   const labelIds = message.labelIds ?? [];
+  const messageHeaders = (message.payload?.headers ?? []).flatMap(
+    ({ name, value }) =>
+      isDefined(name) && isDefined(value) ? [{ name, value }] : [],
+  );
 
   assert(id, 'ID is missing');
   assert(historyId, 'History-ID is missing');
@@ -42,6 +48,7 @@ export const parseGmailMessage = (message: gmail_v1.Schema$Message) => {
     internalDate,
     subject,
     from: rawFrom ? safeParseEmailAddresses(rawFrom)[0] : undefined,
+    replyTo: rawReplyTo ? safeParseEmailAddresses(rawReplyTo) : [],
     deliveredTo: rawDeliveredTo
       ? safeParseEmailAddressAddress(rawDeliveredTo)
       : undefined,
@@ -52,5 +59,6 @@ export const parseGmailMessage = (message: gmail_v1.Schema$Message) => {
     isHtml,
     attachments,
     labelIds,
+    messageHeaders,
   };
 };

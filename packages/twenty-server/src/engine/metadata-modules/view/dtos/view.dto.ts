@@ -1,11 +1,10 @@
 import {
   Field,
   HideField,
+  Int,
   ObjectType,
   registerEnumType,
 } from '@nestjs/graphql';
-
-import { IDField } from '@ptc-org/nestjs-query-graphql';
 import {
   AggregateOperations,
   ViewCalendarLayout,
@@ -32,7 +31,7 @@ registerEnumType(ViewVisibility, { name: 'ViewVisibility' });
 
 @ObjectType('View')
 export class ViewDTO {
-  @IDField(() => UUIDScalarType)
+  @Field(() => UUIDScalarType)
   id: string;
 
   @Field({ nullable: false })
@@ -77,8 +76,14 @@ export class ViewDTO {
   @Field({ nullable: false, defaultValue: false })
   shouldHideEmptyGroups: boolean;
 
+  @Field(() => Int, { nullable: true })
+  kanbanColumnWidth?: number | null;
+
   @Field(() => UUIDScalarType, { nullable: true })
   calendarFieldMetadataId?: string | null;
+
+  @Field(() => UUIDScalarType, { nullable: true })
+  calendarEndFieldMetadataId?: string | null;
 
   @Field(() => UUIDScalarType, { nullable: false })
   workspaceId: string;

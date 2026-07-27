@@ -15,9 +15,6 @@ import {
   createStandardFieldFlatMetadata,
 } from 'src/engine/workspace-manager/twenty-standard-application/utils/field-metadata/create-standard-field-flat-metadata.util';
 import { createStandardRelationFieldFlatMetadata } from 'src/engine/workspace-manager/twenty-standard-application/utils/field-metadata/create-standard-relation-field-flat-metadata.util';
-import { getTsVectorColumnExpressionFromFields } from 'src/engine/workspace-manager/utils/get-ts-vector-column-expression.util';
-import { SEARCH_FIELDS_FOR_WORKFLOW_VERSIONS } from 'src/modules/workflow/common/standard-objects/workflow-version.workspace-entity';
-
 export const buildWorkflowVersionStandardFlatFieldMetadatas = ({
   now,
   objectName,
@@ -209,6 +206,24 @@ export const buildWorkflowVersionStandardFlatFieldMetadatas = ({
     twentyStandardApplicationId,
     now,
   }),
+  coreWorkflowVersionId: createStandardFieldFlatMetadata({
+    objectName,
+    workspaceId,
+    context: {
+      fieldName: 'coreWorkflowVersionId',
+      type: FieldMetadataType.UUID,
+      label: i18nLabel(msg`Core workflow version id`),
+      description: i18nLabel(msg`Reference to the core workflowVersion row`),
+      icon: 'IconSettingsAutomation',
+      isSystem: true,
+      isNullable: true,
+      isUIEditable: false,
+    },
+    standardObjectMetadataRelatedEntityIds,
+    dependencyFlatEntityMaps,
+    twentyStandardApplicationId,
+    now,
+  }),
   status: createStandardFieldFlatMetadata({
     objectName,
     workspaceId,
@@ -288,12 +303,6 @@ export const buildWorkflowVersionStandardFlatFieldMetadatas = ({
       isSystem: true,
       isNullable: true,
       isUIEditable: false,
-      settings: {
-        generatedType: 'STORED',
-        asExpression: getTsVectorColumnExpressionFromFields(
-          SEARCH_FIELDS_FOR_WORKFLOW_VERSIONS,
-        ),
-      },
     },
     standardObjectMetadataRelatedEntityIds,
     dependencyFlatEntityMaps,
@@ -355,6 +364,7 @@ export const buildWorkflowVersionStandardFlatFieldMetadatas = ({
       type: FieldMetadataType.RELATION,
       morphId: null,
       fieldName: 'timelineActivities',
+      isSystemSideEffect: true,
       label: i18nLabel(
         STANDARD_RELATION_FIELD_PROPERTIES_BY_RELATION_OBJECT.timelineActivity
           .label,

@@ -21,6 +21,7 @@ import { AllUniversalFlatEntityMaps } from 'src/engine/workspace-manager/workspa
 import { type MetadataUniversalFlatEntityMaps } from 'src/engine/workspace-manager/workspace-migration/universal-flat-entity/types/metadata-universal-flat-entity-maps.type';
 import { aggregateOrchestratorActionsReport } from 'src/engine/workspace-manager/workspace-migration/utils/aggregate-orchestrator-actions-report.util';
 import { computeOrderedMigrationActions } from 'src/engine/workspace-manager/workspace-migration/utils/compute-ordered-migration-actions.util';
+import { computeSearchVectorRebuildTargetUniversalIdentifiers } from 'src/engine/workspace-manager/workspace-migration/utils/compute-search-vector-rebuild-target-universal-identifiers.util';
 import { crossEntityTransversalValidation } from 'src/engine/workspace-manager/workspace-migration/utils/cross-entity-transversal-validation.util';
 import { mergeOrchestratorFailureReports } from 'src/engine/workspace-manager/workspace-migration/utils/merge-orchestrator-failure-reports.util';
 import { WorkspaceMigrationAgentActionsBuilderService } from 'src/engine/workspace-manager/workspace-migration/workspace-migration-builder/builders/agent/workspace-migration-agent-actions-builder.service';
@@ -44,6 +45,7 @@ import { WorkspaceMigrationRoleTargetActionsBuilderService } from 'src/engine/wo
 import { WorkspaceMigrationRoleActionsBuilderService } from 'src/engine/workspace-manager/workspace-migration/workspace-migration-builder/builders/role/workspace-migration-role-actions-builder.service';
 import { WorkspaceMigrationRowLevelPermissionPredicateGroupActionsBuilderService } from 'src/engine/workspace-manager/workspace-migration/workspace-migration-builder/builders/row-level-permission-predicate-group/workspace-migration-row-level-permission-predicate-group-actions-builder.service';
 import { WorkspaceMigrationRowLevelPermissionPredicateActionsBuilderService } from 'src/engine/workspace-manager/workspace-migration/workspace-migration-builder/builders/row-level-permission-predicate/workspace-migration-row-level-permission-predicate-actions-builder.service';
+import { WorkspaceMigrationSearchFieldMetadataActionsBuilderService } from 'src/engine/workspace-manager/workspace-migration/workspace-migration-builder/builders/search-field-metadata/workspace-migration-search-field-metadata-actions.builder.service';
 import { WorkspaceMigrationSkillActionsBuilderService } from 'src/engine/workspace-manager/workspace-migration/workspace-migration-builder/builders/skill/workspace-migration-skill-actions-builder.service';
 import { WorkspaceMigrationViewFieldGroupActionsBuilderService } from 'src/engine/workspace-manager/workspace-migration/workspace-migration-builder/builders/view-field-group/workspace-migration-view-field-group-actions-builder.service';
 import { WorkspaceMigrationViewFieldActionsBuilderService } from 'src/engine/workspace-manager/workspace-migration/workspace-migration-builder/builders/view-field/workspace-migration-view-field-actions-builder.service';
@@ -156,6 +158,7 @@ export class WorkspaceMigrationBuildOrchestratorService {
     workspaceMigrationWebhookActionsBuilderService: WorkspaceMigrationWebhookActionsBuilderService,
     workspaceMigrationApplicationVariableActionsBuilderService: WorkspaceMigrationApplicationVariableActionsBuilderService,
     workspaceMigrationConnectionProviderActionsBuilderService: WorkspaceMigrationConnectionProviderActionsBuilderService,
+    workspaceMigrationSearchFieldMetadataActionsBuilderService: WorkspaceMigrationSearchFieldMetadataActionsBuilderService,
   ) {
     // The order of this array defines the execution order of the per-entity
     // builders. Each builder may mutate `optimisticAllFlatEntityMaps`, so
@@ -205,12 +208,8 @@ export class WorkspaceMigrationBuildOrchestratorService {
         workspaceMigrationViewSortActionsBuilderService,
       ),
       createEntityActionsBuilderTask(
-        ALL_METADATA_NAME.rowLevelPermissionPredicateGroup,
-        workspaceMigrationRowLevelPermissionPredicateGroupActionsBuilderService,
-      ),
-      createEntityActionsBuilderTask(
-        ALL_METADATA_NAME.rowLevelPermissionPredicate,
-        workspaceMigrationRowLevelPermissionPredicateActionsBuilderService,
+        ALL_METADATA_NAME.searchFieldMetadata,
+        workspaceMigrationSearchFieldMetadataActionsBuilderService,
       ),
       createEntityActionsBuilderTask(
         ALL_METADATA_NAME.logicFunction,
@@ -219,6 +218,14 @@ export class WorkspaceMigrationBuildOrchestratorService {
       createEntityActionsBuilderTask(
         ALL_METADATA_NAME.role,
         workspaceMigrationRoleActionsBuilderService,
+      ),
+      createEntityActionsBuilderTask(
+        ALL_METADATA_NAME.rowLevelPermissionPredicateGroup,
+        workspaceMigrationRowLevelPermissionPredicateGroupActionsBuilderService,
+      ),
+      createEntityActionsBuilderTask(
+        ALL_METADATA_NAME.rowLevelPermissionPredicate,
+        workspaceMigrationRowLevelPermissionPredicateActionsBuilderService,
       ),
       createEntityActionsBuilderTask(
         ALL_METADATA_NAME.objectPermission,
@@ -237,12 +244,12 @@ export class WorkspaceMigrationBuildOrchestratorService {
         workspaceMigrationRolePermissionFlagActionsBuilderService,
       ),
       createEntityActionsBuilderTask(
-        ALL_METADATA_NAME.roleTarget,
-        workspaceMigrationRoleTargetActionsBuilderService,
-      ),
-      createEntityActionsBuilderTask(
         ALL_METADATA_NAME.agent,
         workspaceMigrationAgentActionsBuilderService,
+      ),
+      createEntityActionsBuilderTask(
+        ALL_METADATA_NAME.roleTarget,
+        workspaceMigrationRoleTargetActionsBuilderService,
       ),
       createEntityActionsBuilderTask(
         ALL_METADATA_NAME.skill,
@@ -384,11 +391,23 @@ export class WorkspaceMigrationBuildOrchestratorService {
       };
     }
 
+    const searchVectorUniversalIdentifiersToRebuild =
+      computeSearchVectorRebuildTargetUniversalIdentifiers({
+        orchestratorActionsReport,
+        fromFlatSearchFieldMetadataMaps:
+          fromToAllFlatEntityMaps.flatSearchFieldMetadataMaps?.from,
+        toFlatSearchFieldMetadataMaps:
+          optimisticAllFlatEntityMaps.flatSearchFieldMetadataMaps,
+        toFlatFieldMetadataMaps:
+          optimisticAllFlatEntityMaps.flatFieldMetadataMaps,
+      });
+
     const { aggregatedOrchestratorActionsReport } =
       aggregateOrchestratorActionsReport({
         orchestratorActionsReport,
         flatFieldMetadataMaps:
           optimisticAllFlatEntityMaps.flatFieldMetadataMaps,
+        searchVectorUniversalIdentifiersToRebuild,
       });
 
     return {

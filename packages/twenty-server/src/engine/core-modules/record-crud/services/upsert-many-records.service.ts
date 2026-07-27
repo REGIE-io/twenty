@@ -10,6 +10,7 @@ import {
 import { CommonApiContextBuilderService } from 'src/engine/core-modules/record-crud/services/common-api-context-builder.service';
 import { type UpsertManyRecordsParams } from 'src/engine/core-modules/record-crud/types/upsert-many-records-params.type';
 import { getRecordDisplayName } from 'src/engine/core-modules/record-crud/utils/get-record-display-name.util';
+import { isFreshlyCreatedRecord } from 'src/engine/core-modules/record-crud/utils/is-freshly-created-record.util';
 import { removeUndefinedFromRecord } from 'src/engine/core-modules/record-crud/utils/remove-undefined-from-record.util';
 import { type ToolOutput } from 'src/engine/core-modules/tool/types/tool-output.type';
 import { canObjectBeManagedByAutomation } from 'twenty-shared/workflow';
@@ -24,7 +25,8 @@ export class UpsertManyRecordsService {
   ) {}
 
   async execute(params: UpsertManyRecordsParams): Promise<ToolOutput> {
-    const { objectName, objectRecords, authContext } = params;
+    const { objectName, objectRecords, authContext, rolePermissionConfig } =
+      params;
 
     try {
       const {
@@ -35,6 +37,7 @@ export class UpsertManyRecordsService {
       } = await this.commonApiContextBuilder.build({
         authContext,
         objectName,
+        rolePermissionConfig,
       });
 
       if (
@@ -63,16 +66,26 @@ export class UpsertManyRecordsService {
           queryRunnerContext,
         );
 
+      const createdCount = upsertedRecords.filter(
+        isFreshlyCreatedRecord,
+      ).length;
+      const updatedCount = upsertedRecords.length - createdCount;
+
       this.logger.log(
-        `Upserted ${upsertedRecords.length} records in ${objectName}`,
+        `Upserted ${upsertedRecords.length} records in ${objectName} (created: ${createdCount}, updated: ${updatedCount})`,
       );
 
       return {
         success: true,
-        message: `Upserted ${upsertedRecords.length} records in ${objectName}`,
-        result: params.slimResponse
-          ? upsertedRecords.map((record) => ({ id: record.id }))
-          : upsertedRecords,
+        message: `Upserted ${upsertedRecords.length} records in ${objectName} (created: ${createdCount}, updated: ${updatedCount})`,
+        result: {
+          records: params.slimResponse
+            ? upsertedRecords.map((record) => ({ id: record.id }))
+            : upsertedRecords,
+          created: createdCount,
+          updated: updatedCount,
+          total: upsertedRecords.length,
+        },
         recordReferences: upsertedRecords.map((record) => ({
           objectNameSingular: objectName,
           recordId: record.id,

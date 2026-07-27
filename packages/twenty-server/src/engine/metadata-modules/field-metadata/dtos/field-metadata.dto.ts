@@ -32,7 +32,7 @@ import {
 
 import { UUIDScalarType } from 'src/engine/api/graphql/workspace-schema-builder/graphql-types/scalars';
 import { IsValidMetadataName } from 'src/engine/decorators/metadata/is-valid-metadata-name.decorator';
-import { FieldStandardOverridesDTO } from 'src/engine/metadata-modules/field-metadata/dtos/field-standard-overrides.dto';
+import { type FieldMetadataOverrides } from 'src/engine/metadata-modules/field-metadata/types/field-metadata-overrides.type';
 import { type FieldMetadataDefaultOption } from 'src/engine/metadata-modules/field-metadata/dtos/options.input';
 import { ObjectMetadataDTO } from 'src/engine/metadata-modules/object-metadata/dtos/object-metadata.dto';
 import { transformEnumValue } from 'src/engine/utils/transform-enum-value';
@@ -94,18 +94,8 @@ export class FieldMetadataDTO<T extends FieldMetadataType = FieldMetadataType> {
   @Field({ nullable: true })
   icon?: string;
 
-  @IsOptional()
-  @Field(() => FieldStandardOverridesDTO, { nullable: true })
-  standardOverrides?: FieldStandardOverridesDTO;
-
-  @IsBoolean()
-  @IsOptional()
-  @Field({
-    nullable: true,
-    deprecationReason:
-      'isCustom is derived from the owning application and will be removed; a field is custom when it does not belong to the twenty-standard application.',
-  })
-  isCustom?: boolean;
+  @HideField()
+  overrides?: FieldMetadataOverrides | null;
 
   @IsBoolean()
   @IsOptional()

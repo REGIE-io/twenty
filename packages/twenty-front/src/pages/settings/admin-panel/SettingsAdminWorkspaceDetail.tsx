@@ -2,6 +2,7 @@ import { useParams } from 'react-router-dom';
 
 import { useMutation, useQuery } from '@apollo/client/react';
 import { t } from '@lingui/core/macro';
+import { isNonEmptyString } from '@sniptt/guards';
 import { SettingsPath } from 'twenty-shared/types';
 import { getSettingsPath, isDefined } from 'twenty-shared/utils';
 
@@ -29,6 +30,7 @@ import { TableBody } from '@/ui/layout/table/components/TableBody';
 import { TableCell } from '@/ui/layout/table/components/TableCell';
 import { TableHeader } from '@/ui/layout/table/components/TableHeader';
 import { TableRow } from '@/ui/layout/table/components/TableRow';
+import { DEFAULT_WORKSPACE_LOGO } from '@/ui/navigation/navigation-drawer/constants/DefaultWorkspaceLogo';
 import { useAtomComponentStateValue } from '@/ui/utilities/state/jotai/hooks/useAtomComponentStateValue';
 import { useAtomStateValue } from '@/ui/utilities/state/jotai/hooks/useAtomStateValue';
 import { Avatar } from 'twenty-ui/data-display';
@@ -45,6 +47,7 @@ import { H2Title } from 'twenty-ui/typography';
 import { Button, Toggle } from 'twenty-ui/input';
 import { Section } from 'twenty-ui/layout';
 import { themeCssVariables } from 'twenty-ui/theme-constants';
+import { getAbsoluteImageUrl } from '~/utils/image/getAbsoluteImageUrl';
 import {
   type FeatureFlagKey,
   type GetAdminWorkspaceChatThreadsQuery,
@@ -195,6 +198,9 @@ export const SettingsAdminWorkspaceDetail = () => {
   ];
 
   const workspaceName = workspace?.name || workspaceId || '';
+  const workspaceLogo = isNonEmptyString(workspace?.logo)
+    ? workspace.logo
+    : DEFAULT_WORKSPACE_LOGO;
 
   if (isLoadingWorkspace) {
     return <SettingsSkeletonLoader />;
@@ -202,6 +208,15 @@ export const SettingsAdminWorkspaceDetail = () => {
 
   return (
     <SettingsPageLayout
+      title={workspaceName}
+      icon={
+        <Avatar
+          avatarUrl={getAbsoluteImageUrl(workspaceLogo)}
+          placeholder={workspaceName}
+          placeholderColorSeed={workspace?.id}
+          size="md"
+        />
+      }
       links={[
         {
           children: t`Other`,
@@ -267,7 +282,7 @@ export const SettingsAdminWorkspaceDetail = () => {
                         overflow="hidden"
                       >
                         <Avatar
-                          avatarUrl={user.avatarUrl}
+                          avatarUrl={getAbsoluteImageUrl(user.avatarUrl)}
                           placeholder={
                             `${user.firstName || ''} ${user.lastName || ''}`.trim() ||
                             user.email

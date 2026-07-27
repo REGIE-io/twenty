@@ -32,6 +32,23 @@ describe('computeSubscriptionUpdateOptions', () => {
     });
   });
 
+  it('returns no proration and plan metadata for PLAN update type during trial', () => {
+    const result = computeSubscriptionUpdateOptions(
+      {
+        type: SubscriptionUpdateType.PLAN,
+        newPlan: BillingPlanKey.ENTERPRISE,
+      },
+      { isTrialing: true },
+    );
+
+    expect(result).toEqual({
+      proration: 'none',
+      metadata: {
+        plan: BillingPlanKey.ENTERPRISE,
+      },
+    });
+  });
+
   it('returns proration and anchor for INTERVAL update type', () => {
     const result = computeSubscriptionUpdateOptions({
       type: SubscriptionUpdateType.INTERVAL,
@@ -44,11 +61,56 @@ describe('computeSubscriptionUpdateOptions', () => {
     });
   });
 
-  it('returns only proration for SEATS update type', () => {
-    const result = computeSubscriptionUpdateOptions({
-      type: SubscriptionUpdateType.SEATS,
-      newSeats: 10,
+  it('returns no proration or anchor for INTERVAL update type during trial', () => {
+    const result = computeSubscriptionUpdateOptions(
+      {
+        type: SubscriptionUpdateType.INTERVAL,
+        newInterval: SubscriptionInterval.Month,
+      },
+      { isTrialing: true },
+    );
+
+    expect(result).toEqual({
+      proration: 'none',
     });
+  });
+
+  it('returns always_invoice when increasing seats', () => {
+    const result = computeSubscriptionUpdateOptions(
+      {
+        type: SubscriptionUpdateType.SEATS,
+        newSeats: 10,
+      },
+      { currentSeats: 5 },
+    );
+
+    expect(result).toEqual({
+      proration: 'always_invoice',
+    });
+  });
+
+  it('returns create_prorations when decreasing seats', () => {
+    const result = computeSubscriptionUpdateOptions(
+      {
+        type: SubscriptionUpdateType.SEATS,
+        newSeats: 5,
+      },
+      { currentSeats: 10 },
+    );
+
+    expect(result).toEqual({
+      proration: 'create_prorations',
+    });
+  });
+
+  it('returns create_prorations when seat count is unchanged', () => {
+    const result = computeSubscriptionUpdateOptions(
+      {
+        type: SubscriptionUpdateType.SEATS,
+        newSeats: 10,
+      },
+      { currentSeats: 10 },
+    );
 
     expect(result).toEqual({
       proration: 'create_prorations',

@@ -22,15 +22,16 @@ import { RelationDTO } from 'src/engine/metadata-modules/field-metadata/dtos/rel
 import { UpdateOneFieldMetadataInput } from 'src/engine/metadata-modules/field-metadata/dtos/update-field.input';
 import { FieldMetadataService } from 'src/engine/metadata-modules/field-metadata/services/field-metadata.service';
 import { fieldMetadataGraphqlApiExceptionHandler } from 'src/engine/metadata-modules/field-metadata/utils/field-metadata-graphql-api-exception-handler.util';
-import { resolveFieldMetadataStandardOverride } from 'src/engine/metadata-modules/field-metadata/utils/resolve-field-metadata-standard-override.util';
 import { fromFlatFieldMetadataToFieldMetadataDto } from 'src/engine/metadata-modules/flat-field-metadata/utils/from-flat-field-metadata-to-field-metadata-dto.util';
+import { resolveEffectiveEntityProperty } from 'src/engine/metadata-modules/utils/resolve-effective-entity-property.util';
 import { PermissionsGraphqlApiExceptionFilter } from 'src/engine/metadata-modules/permissions/utils/permissions-graphql-api-exception.filter';
 
 // Keep @Parent() structurally typed so ResolverValidationPipe does not validate
 // FieldMetadataDTO date decorators on already-loaded parent records.
-type FieldMetadataStandardOverrideParent = Parameters<
-  typeof resolveFieldMetadataStandardOverride
->[0];
+type FieldMetadataStandardOverrideParent = Pick<
+  FieldMetadataDTO,
+  'label' | 'description' | 'icon' | 'overrides' | 'applicationId'
+>;
 
 @UseGuards(WorkspaceAuthGuard)
 @UsePipes(ResolverValidationPipe)
@@ -47,22 +48,6 @@ export class FieldMetadataResolver {
 
   @ResolveField(() => Boolean, {
     nullable: true,
-    deprecationReason:
-      'isCustom is derived from the owning application and will be removed; a field is custom when it does not belong to the twenty-standard application.',
-  })
-  async isCustom(
-    @Parent() fieldMetadata: Pick<FieldMetadataDTO, 'applicationId'>,
-    @AuthWorkspace() { id: workspaceId }: WorkspaceEntity,
-    @Context() context: { loaders: IDataloaders },
-  ): Promise<boolean> {
-    return context.loaders.isCustomLoader.load({
-      workspaceId,
-      applicationId: fieldMetadata.applicationId,
-    });
-  }
-
-  @ResolveField(() => Boolean, {
-    nullable: true,
     deprecationReason: 'Use isUIEditable',
   })
   async isUIReadOnly(
@@ -71,48 +56,79 @@ export class FieldMetadataResolver {
     return !(fieldMetadata.isUIEditable ?? true);
   }
 
-  @ResolveField(() => String, { nullable: true })
-  async label(
-    @Parent() fieldMetadata: FieldMetadataStandardOverrideParent,
-    @Context() context: I18nContext,
+  private async resolveStandardOverride(
+    fieldMetadata: FieldMetadataStandardOverrideParent,
+    labelKey: 'label' | 'description' | 'icon',
+    context: { loaders: IDataloaders } & I18nContext,
+    workspaceId: string,
   ): Promise<string> {
     const i18n = this.i18nService.getI18nInstance(context.req.locale);
 
-    return resolveFieldMetadataStandardOverride(
+    const standardApplicationId =
+      await context.loaders.standardApplicationIdLoader.load({ workspaceId });
+
+    const isStandardApp = fieldMetadata.applicationId === standardApplicationId;
+
+    const applicationCatalog =
+      await context.loaders.applicationTranslationCatalogLoader.load({
+        applicationId: fieldMetadata.applicationId,
+        workspaceId,
+        locale: context.req.locale,
+      });
+
+    return resolveEffectiveEntityProperty({
+      metadataName: 'fieldMetadata',
+      baseValue: fieldMetadata[labelKey],
+      overrides: fieldMetadata.overrides,
+      property: labelKey,
+      i18nContext: {
+        locale: context.req.locale,
+        i18nInstance: i18n,
+        isStandardApp,
+        applicationCatalog,
+      },
+    });
+  }
+
+  @ResolveField(() => String, { nullable: true })
+  async label(
+    @Parent() fieldMetadata: FieldMetadataStandardOverrideParent,
+    @Context() context: { loaders: IDataloaders } & I18nContext,
+    @AuthWorkspace() { id: workspaceId }: WorkspaceEntity,
+  ): Promise<string> {
+    return this.resolveStandardOverride(
       fieldMetadata,
       'label',
-      context.req.locale,
-      i18n,
+      context,
+      workspaceId,
     );
   }
 
   @ResolveField(() => String, { nullable: true })
   async description(
     @Parent() fieldMetadata: FieldMetadataStandardOverrideParent,
-    @Context() context: I18nContext,
+    @Context() context: { loaders: IDataloaders } & I18nContext,
+    @AuthWorkspace() { id: workspaceId }: WorkspaceEntity,
   ): Promise<string> {
-    const i18n = this.i18nService.getI18nInstance(context.req.locale);
-
-    return resolveFieldMetadataStandardOverride(
+    return this.resolveStandardOverride(
       fieldMetadata,
       'description',
-      context.req.locale,
-      i18n,
+      context,
+      workspaceId,
     );
   }
 
   @ResolveField(() => String, { nullable: true })
   async icon(
     @Parent() fieldMetadata: FieldMetadataStandardOverrideParent,
-    @Context() context: I18nContext,
+    @Context() context: { loaders: IDataloaders } & I18nContext,
+    @AuthWorkspace() { id: workspaceId }: WorkspaceEntity,
   ): Promise<string> {
-    const i18n = this.i18nService.getI18nInstance(context.req.locale);
-
-    return resolveFieldMetadataStandardOverride(
+    return this.resolveStandardOverride(
       fieldMetadata,
       'icon',
-      context.req.locale,
-      i18n,
+      context,
+      workspaceId,
     );
   }
 

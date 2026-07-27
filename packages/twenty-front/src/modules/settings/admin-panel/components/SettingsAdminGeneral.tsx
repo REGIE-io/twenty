@@ -1,4 +1,5 @@
 import { canManageFeatureFlagsState } from '@/client-config/states/canManageFeatureFlagsState';
+import { useNumberFormat } from '@/localization/hooks/useNumberFormat';
 import { useApolloAdminClient } from '@/settings/admin-panel/apollo/hooks/useApolloAdminClient';
 import { SettingsSectionSkeletonLoader } from '@/settings/components/SettingsSectionSkeletonLoader';
 import { SettingsAdminServerAdmins } from '@/settings/admin-panel/components/SettingsAdminServerAdmins';
@@ -29,10 +30,15 @@ import {
   AdminPanelRecentUsersDocument,
   AdminPanelTopWorkspacesDocument,
 } from '~/generated-admin/graphql';
+import { getAbsoluteImageUrl } from '~/utils/image/getAbsoluteImageUrl';
 
 const StyledEmptyState = styled.div`
   color: ${themeCssVariables.font.color.tertiary};
   padding: ${themeCssVariables.spacing[4]} 0;
+`;
+
+const StyledSearchInputContainer = styled.div`
+  padding-bottom: ${themeCssVariables.spacing[2]};
 `;
 
 const RECENT_USERS_GRID_TEMPLATE_COLUMNS = '1fr 2fr 1fr 36px';
@@ -40,6 +46,7 @@ const TOP_WORKSPACES_GRID_TEMPLATE_COLUMNS = '2fr 1fr 36px';
 
 export const SettingsAdminGeneral = () => {
   const { theme } = useContext(ThemeContext);
+  const { formatNumber } = useNumberFormat();
   const apolloAdminClient = useApolloAdminClient();
   const [userSearchTerm, setUserSearchTerm] = useState('');
   const [debouncedUserSearchTerm] = useDebounce(userSearchTerm, 300);
@@ -98,13 +105,15 @@ export const SettingsAdminGeneral = () => {
                 : t`Last 10 users created. Click to impersonate.`
             }
           />
-          <SettingsTextInput
-            instanceId="admin-panel-user-search"
-            value={userSearchTerm}
-            onChange={setUserSearchTerm}
-            placeholder={t`Search by name, email, or user ID...`}
-            fullWidth
-          />
+          <StyledSearchInputContainer>
+            <SettingsTextInput
+              instanceId="admin-panel-user-search"
+              value={userSearchTerm}
+              onChange={setUserSearchTerm}
+              placeholder={t`Search by name, email, or user ID...`}
+              fullWidth
+            />
+          </StyledSearchInputContainer>
           {isLoadingUsers ? (
             <SettingsSectionSkeletonLoader />
           ) : recentUsers.length === 0 ? (
@@ -113,15 +122,15 @@ export const SettingsAdminGeneral = () => {
             </StyledEmptyState>
           ) : (
             <Table>
+              <TableRow
+                gridTemplateColumns={RECENT_USERS_GRID_TEMPLATE_COLUMNS}
+              >
+                <TableHeader>{t`Name`}</TableHeader>
+                <TableHeader>{t`Email`}</TableHeader>
+                <TableHeader>{t`Workspace`}</TableHeader>
+                <TableHeader />
+              </TableRow>
               <TableBody>
-                <TableRow
-                  gridTemplateColumns={RECENT_USERS_GRID_TEMPLATE_COLUMNS}
-                >
-                  <TableHeader>{t`Name`}</TableHeader>
-                  <TableHeader>{t`Email`}</TableHeader>
-                  <TableHeader>{t`Workspace`}</TableHeader>
-                  <TableHeader />
-                </TableRow>
                 {recentUsers.map((user) => (
                   <TableRow
                     key={user.id}
@@ -136,7 +145,7 @@ export const SettingsAdminGeneral = () => {
                       overflow="hidden"
                     >
                       <Avatar
-                        avatarUrl={user.avatarUrl}
+                        avatarUrl={getAbsoluteImageUrl(user.avatarUrl)}
                         placeholder={
                           `${user.firstName || ''} ${user.lastName || ''}`.trim() ||
                           user.email
@@ -160,7 +169,7 @@ export const SettingsAdminGeneral = () => {
                       {user.workspaceId ? (
                         <>
                           <Avatar
-                            avatarUrl={user.workspaceLogo}
+                            avatarUrl={getAbsoluteImageUrl(user.workspaceLogo)}
                             placeholder={user.workspaceName || ''}
                             placeholderColorSeed={user.workspaceId}
                             size="sm"
@@ -194,13 +203,15 @@ export const SettingsAdminGeneral = () => {
             title={t`Top Workspaces`}
             description={t`Top 10 workspaces by number of users`}
           />
-          <SettingsTextInput
-            instanceId="admin-panel-workspace-search"
-            value={workspaceSearchTerm}
-            onChange={setWorkspaceSearchTerm}
-            placeholder={t`Search by workspace name, subdomain, or ID...`}
-            fullWidth
-          />
+          <StyledSearchInputContainer>
+            <SettingsTextInput
+              instanceId="admin-panel-workspace-search"
+              value={workspaceSearchTerm}
+              onChange={setWorkspaceSearchTerm}
+              placeholder={t`Search by workspace name, subdomain, or ID...`}
+              fullWidth
+            />
+          </StyledSearchInputContainer>
           {isLoadingWorkspaces ? (
             <SettingsSectionSkeletonLoader />
           ) : topWorkspaces.length === 0 ? (
@@ -209,14 +220,14 @@ export const SettingsAdminGeneral = () => {
             </StyledEmptyState>
           ) : (
             <Table>
+              <TableRow
+                gridTemplateColumns={TOP_WORKSPACES_GRID_TEMPLATE_COLUMNS}
+              >
+                <TableHeader>{t`Workspace`}</TableHeader>
+                <TableHeader align="right">{t`Users`}</TableHeader>
+                <TableHeader />
+              </TableRow>
               <TableBody>
-                <TableRow
-                  gridTemplateColumns={TOP_WORKSPACES_GRID_TEMPLATE_COLUMNS}
-                >
-                  <TableHeader>{t`Workspace`}</TableHeader>
-                  <TableHeader align="right">{t`Users`}</TableHeader>
-                  <TableHeader />
-                </TableRow>
                 {topWorkspaces.map((workspace) => (
                   <TableRow
                     key={workspace.id}
@@ -232,7 +243,7 @@ export const SettingsAdminGeneral = () => {
                       overflow="hidden"
                     >
                       <Avatar
-                        avatarUrl={workspace.logoUrl}
+                        avatarUrl={getAbsoluteImageUrl(workspace.logoUrl)}
                         placeholder={workspace.name || ''}
                         placeholderColorSeed={workspace.id}
                         size="md"
@@ -241,7 +252,9 @@ export const SettingsAdminGeneral = () => {
                         text={workspace.name || '\u2014'}
                       />
                     </TableCell>
-                    <TableCell align="right">{workspace.totalUsers}</TableCell>
+                    <TableCell align="right">
+                      {formatNumber(workspace.totalUsers)}
+                    </TableCell>
                     <TableCell align="center">
                       <IconChevronRight
                         size={theme.icon.size.md}

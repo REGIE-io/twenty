@@ -311,6 +311,31 @@ export class WorkflowVersionStepOperationsWorkspaceService {
           },
         };
       }
+      case WorkflowActionType.CREATE_CALENDAR_EVENT: {
+        return {
+          builtStep: {
+            ...baseStep,
+            name: 'Create Calendar Event',
+            type: WorkflowActionType.CREATE_CALENDAR_EVENT,
+            settings: {
+              ...BASE_STEP_DEFINITION,
+              input: {
+                connectedAccountId: '',
+                title: '',
+                description: '',
+                location: '',
+                startsAt: '',
+                endsAt: '',
+                isFullDay: false,
+                timeZone: '',
+                attendees: '',
+                sendInvitations: false,
+                addConferencing: false,
+              },
+            },
+          },
+        };
+      }
       case WorkflowActionType.DRAFT_EMAIL: {
         return {
           builtStep: {
@@ -437,6 +462,28 @@ export class WorkflowVersionStepOperationsWorkspaceService {
                 objectName: activeObjectMetadataItem?.nameSingular || '',
                 limit: 1,
                 offset: 0,
+              },
+            },
+          },
+        };
+      }
+      case WorkflowActionType.PICK_RECORD: {
+        const activeObjectMetadataItem =
+          await this.objectMetadataRepository.findOne({
+            where: { workspaceId, isActive: true, isSystem: false },
+          });
+
+        return {
+          builtStep: {
+            ...baseStep,
+            name: 'Pick Record',
+            type: WorkflowActionType.PICK_RECORD,
+            settings: {
+              ...BASE_STEP_DEFINITION,
+              input: {
+                objectName: activeObjectMetadataItem?.nameSingular || '',
+                strategy: 'RANDOM',
+                recordIds: [],
               },
             },
           },

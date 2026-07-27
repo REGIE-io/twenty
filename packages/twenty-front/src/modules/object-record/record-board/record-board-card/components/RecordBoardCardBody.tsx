@@ -1,3 +1,4 @@
+import { useGetIsMetadataItemFromStandardApplication } from '@/object-metadata/hooks/useGetIsMetadataItemFromStandardApplication';
 import { isRecordFieldReadOnly } from '@/object-record/read-only/utils/isRecordFieldReadOnly';
 import { RecordBoardContext } from '@/object-record/record-board/contexts/RecordBoardContext';
 import { StopPropagationContainer } from '@/object-record/record-board/record-board-card/components/StopPropagationContainer';
@@ -20,7 +21,9 @@ import { useSetAtomComponentState } from '@/ui/utilities/state/jotai/hooks/useSe
 import { useContext } from 'react';
 
 export const RecordBoardCardBody = () => {
-  const { recordId, isRecordReadOnly } = useContext(RecordBoardCardContext);
+  const { recordId, isRecordReadOnly, isDragOverlay } = useContext(
+    RecordBoardCardContext,
+  );
 
   const { updateOneRecord, objectPermissions, objectMetadataItem } =
     useContext(RecordBoardContext);
@@ -54,6 +57,8 @@ export const RecordBoardCardBody = () => {
   const setRecordBoardCardHoverPosition = useSetAtomComponentState(
     recordBoardCardHoverPositionComponentState,
   );
+  const getIsMetadataItemFromStandardApplication =
+    useGetIsMetadataItemFromStandardApplication();
 
   const handleMouseEnter = (index: number) => {
     setRecordBoardCardHoverPosition(index);
@@ -75,14 +80,17 @@ export const RecordBoardCardBody = () => {
                 isRecordFieldReadOnly: isRecordFieldReadOnly({
                   isRecordReadOnly,
                   isSystemObject: objectMetadataItem.isSystem,
+                  isFieldFromStandardApplication:
+                    getIsMetadataItemFromStandardApplication({
+                      applicationId:
+                        correspondingFieldDefinition.metadata.applicationId,
+                    }),
                   objectPermissions,
                   fieldMetadataItem: {
                     id: recordField.fieldMetadataItemId,
                     isUIEditable:
                       correspondingFieldDefinition.metadata.isUIEditable ??
                       true,
-                    isCustom:
-                      correspondingFieldDefinition.metadata.isCustom ?? false,
                   },
                   fieldDefinition: correspondingFieldDefinition,
                   objectPermissionsByObjectMetadataId,
@@ -91,7 +99,9 @@ export const RecordBoardCardBody = () => {
                 useUpdateRecord: useUpdateOneRecordHook,
                 isDisplayModeFixHeight: true,
                 triggerEvent: 'CLICK',
-                anchorId: `${RECORD_BOARD_CARD_INPUT_ID_PREFIX}-${recordId}-${correspondingFieldDefinition.metadata.fieldName}`,
+                anchorId: isDragOverlay
+                  ? undefined
+                  : `${RECORD_BOARD_CARD_INPUT_ID_PREFIX}-${recordId}-${correspondingFieldDefinition.metadata.fieldName}`,
                 onMouseEnter: () => handleMouseEnter(index),
               }}
             >

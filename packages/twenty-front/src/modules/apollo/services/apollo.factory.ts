@@ -7,7 +7,7 @@ import {
 import { setContext } from '@apollo/client/link/context';
 import { ErrorLink } from '@apollo/client/link/error';
 import { RetryLink } from '@apollo/client/link/retry';
-import { EMPTY, from, switchMap } from 'rxjs';
+import { from, switchMap, throwError } from 'rxjs';
 import { RestLink } from 'apollo-link-rest';
 import UploadHttpLink from 'apollo-upload-client/UploadHttpLink.mjs';
 
@@ -45,6 +45,22 @@ let renewalPromise: Promise<boolean> | null = null;
 
 const TOKEN_RENEWAL_MAX_RETRIES = 3;
 const TOKEN_RENEWAL_RETRY_DELAY_MS = 1000;
+
+// Error codes returned by the renewToken mutation when the server
+// definitively rejects the refresh token (expired, revoked or unknown).
+const TOKEN_RENEWAL_REJECTION_CODES = [
+  'UNAUTHENTICATED',
+  'FORBIDDEN',
+  'BAD_USER_INPUT',
+];
+
+const isTokenRenewalRejection = (error: unknown): boolean =>
+  CombinedGraphQLErrors.is(error) &&
+  error.errors.some((graphQLError) =>
+    TOKEN_RENEWAL_REJECTION_CODES.includes(
+      graphQLError.extensions?.code as string,
+    ),
+  );
 
 export interface Options {
   uri: string;
@@ -131,9 +147,6 @@ export class ApolloFactory implements ApolloManager {
             ...optionHeaders,
             authorization: token ? `Bearer ${token}` : '',
             'x-locale': locale,
-            ...(isDefined(this.currentWorkspace?.metadataVersion) && {
-              'X-Schema-Version': `${this.currentWorkspace.metadataVersion}`,
-            }),
             ...(this.appVersion && { 'X-App-Version': this.appVersion }),
           },
         };
@@ -180,22 +193,32 @@ export class ApolloFactory implements ApolloManager {
       const handleTokenRenewal = (
         operation: ApolloLink.Operation,
         forward: ApolloLink.ForwardFunction,
+        error: ErrorLike,
       ) => {
-        if (!getTokenPair()) {
+        if (!getTokenPair()?.refreshToken?.token) {
           onUnauthenticatedError?.();
 
-          return EMPTY;
+          return throwError(() => error);
         }
 
         if (!renewalPromise) {
           renewalPromise = attemptTokenRenewal()
             .then(() => true)
-            .catch(() => {
-              // oxlint-disable-next-line no-console
-              console.log(
-                'Failed to renew token after retries, triggering unauthenticated error',
-              );
-              onUnauthenticatedError?.();
+            .catch((renewalError) => {
+              if (isTokenRenewalRejection(renewalError)) {
+                // oxlint-disable-next-line no-console
+                console.log(
+                  'Refresh token rejected by the server, triggering unauthenticated error',
+                  renewalError,
+                );
+                onUnauthenticatedError?.();
+              } else {
+                // oxlint-disable-next-line no-console
+                console.log(
+                  'Token renewal failed transiently, keeping session for retry',
+                  renewalError,
+                );
+              }
 
               return false;
             })
@@ -205,7 +228,9 @@ export class ApolloFactory implements ApolloManager {
         }
 
         return from(renewalPromise).pipe(
-          switchMap((succeeded) => (succeeded ? forward(operation) : EMPTY)),
+          switchMap((succeeded) =>
+            succeeded ? forward(operation) : throwError(() => error),
+          ),
         );
       };
 
@@ -274,7 +299,7 @@ export class ApolloFactory implements ApolloManager {
             if (graphQLError.message === 'Unauthorized') {
               // oxlint-disable-next-line no-console
               console.log('Unauthorized, triggering token renewal');
-              return handleTokenRenewal(operation, forward);
+              return handleTokenRenewal(operation, forward, error);
             }
 
             switch (graphQLError?.extensions?.code) {
@@ -288,7 +313,7 @@ export class ApolloFactory implements ApolloManager {
               case 'UNAUTHENTICATED': {
                 // oxlint-disable-next-line no-console
                 console.log('UNAUTHENTICATED, triggering token renewal');
-                return handleTokenRenewal(operation, forward);
+                return handleTokenRenewal(operation, forward, error);
               }
               case 'NOT_FOUND':
               case 'BAD_USER_INPUT':
@@ -320,7 +345,7 @@ export class ApolloFactory implements ApolloManager {
             console.log(
               'Authentication error, triggering token renewal from errorLink',
             );
-            return handleTokenRenewal(operation, forward);
+            return handleTokenRenewal(operation, forward, error);
           }
 
           if (this.isPayloadTooLargeError(error)) {

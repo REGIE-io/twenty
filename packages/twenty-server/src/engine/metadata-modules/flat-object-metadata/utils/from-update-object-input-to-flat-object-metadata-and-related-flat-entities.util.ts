@@ -1,5 +1,6 @@
 import {
   isDefined,
+  isImageIdentifierFieldMetadataType,
   trimAndRemoveDuplicatedWhitespacesFromObjectStringProperties,
 } from 'twenty-shared/utils';
 
@@ -30,6 +31,7 @@ type FromUpdateObjectInputToFlatObjectMetadataArgs = {
   | 'flatFieldMetadataMaps'
   | 'flatViewFieldMaps'
   | 'flatViewMaps'
+  | 'flatSearchFieldMetadataMaps'
 >;
 
 export const fromUpdateObjectInputToFlatObjectMetadataAndRelatedFlatEntities =
@@ -40,6 +42,7 @@ export const fromUpdateObjectInputToFlatObjectMetadataAndRelatedFlatEntities =
     flatFieldMetadataMaps,
     flatViewFieldMaps,
     flatViewMaps,
+    flatSearchFieldMetadataMaps,
   }: FromUpdateObjectInputToFlatObjectMetadataArgs): FlatObjectMetadataUpdateSideEffects & {
     flatObjectMetadataToUpdate: UniversalFlatObjectMetadata;
   } => {
@@ -61,10 +64,56 @@ export const fromUpdateObjectInputToFlatObjectMetadataAndRelatedFlatEntities =
       );
     }
 
+    const requestedImageIdentifierFieldMetadataId =
+      rawUpdateObjectInput.update.imageIdentifierFieldMetadataId;
+
+    if (isDefined(requestedImageIdentifierFieldMetadataId)) {
+      const imageIdentifierFlatFieldMetadata =
+        findFlatEntityByIdInFlatEntityMaps({
+          flatEntityMaps: flatFieldMetadataMaps,
+          flatEntityId: requestedImageIdentifierFieldMetadataId,
+        });
+
+      if (!isDefined(imageIdentifierFlatFieldMetadata)) {
+        throw new ObjectMetadataException(
+          'Field declared as image identifier not found',
+          ObjectMetadataExceptionCode.INVALID_OBJECT_INPUT,
+        );
+      }
+
+      if (
+        imageIdentifierFlatFieldMetadata.objectMetadataId !==
+        existingFlatObjectMetadata.id
+      ) {
+        throw new ObjectMetadataException(
+          'Field declared as image identifier does not belong to this object',
+          ObjectMetadataExceptionCode.INVALID_OBJECT_INPUT,
+        );
+      }
+
+      if (
+        !isImageIdentifierFieldMetadataType(
+          imageIdentifierFlatFieldMetadata.type,
+        )
+      ) {
+        throw new ObjectMetadataException(
+          'Field cannot be used as image identifier due to its type: should be of type Files or Links',
+          ObjectMetadataExceptionCode.INVALID_OBJECT_INPUT,
+        );
+      }
+
+      if (!imageIdentifierFlatFieldMetadata.isActive) {
+        throw new ObjectMetadataException(
+          'Field cannot be used as image identifier because it is deactivated',
+          ObjectMetadataExceptionCode.INVALID_OBJECT_INPUT,
+        );
+      }
+    }
+
     const isStandardObject = belongsToTwentyStandardApp(
       existingFlatObjectMetadata,
     );
-    const { standardOverrides, updatedEditableObjectProperties } =
+    const { overrides, updatedEditableObjectProperties } =
       sanitizeRawUpdateObjectInput({
         existingFlatObjectMetadata,
         rawUpdateObjectInput,
@@ -79,7 +128,7 @@ export const fromUpdateObjectInputToFlatObjectMetadataAndRelatedFlatEntities =
           ],
         update: updatedEditableObjectProperties,
       }),
-      standardOverrides,
+      overrides,
     };
 
     if (
@@ -95,12 +144,25 @@ export const fromUpdateObjectInputToFlatObjectMetadataAndRelatedFlatEntities =
         flatFieldMetadata?.universalIdentifier;
     }
 
+    if ('imageIdentifierFieldMetadataId' in updatedEditableObjectProperties) {
+      const { imageIdentifierFieldMetadataId } =
+        updatedEditableObjectProperties;
+
+      toFlatObjectMetadata.imageIdentifierFieldMetadataUniversalIdentifier =
+        isDefined(imageIdentifierFieldMetadataId)
+          ? findFlatEntityByIdInFlatEntityMapsOrThrow({
+              flatEntityMaps: flatFieldMetadataMaps,
+              flatEntityId: imageIdentifierFieldMetadataId,
+            }).universalIdentifier
+          : null;
+    }
+
     const {
       flatIndexMetadatasToUpdate,
       flatViewFieldsToCreate,
       flatViewFieldsToUpdate,
       otherObjectFlatFieldMetadatasToUpdate,
-      sameObjectFlatFieldMetadatasToUpdate,
+      searchFieldMetadatasToCreate,
     } = handleFlatObjectMetadataUpdateSideEffect({
       fromFlatObjectMetadata: existingFlatObjectMetadata,
       toFlatObjectMetadata,
@@ -109,6 +171,7 @@ export const fromUpdateObjectInputToFlatObjectMetadataAndRelatedFlatEntities =
       flatIndexMaps,
       flatViewFieldMaps,
       flatViewMaps,
+      flatSearchFieldMetadataMaps,
     });
 
     return {
@@ -117,6 +180,6 @@ export const fromUpdateObjectInputToFlatObjectMetadataAndRelatedFlatEntities =
       flatViewFieldsToCreate,
       flatViewFieldsToUpdate,
       otherObjectFlatFieldMetadatasToUpdate,
-      sameObjectFlatFieldMetadatasToUpdate,
+      searchFieldMetadatasToCreate,
     };
   };

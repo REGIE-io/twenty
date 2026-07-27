@@ -24,7 +24,7 @@ import { CustomPermissionGuard } from 'src/engine/guards/custom-permission.guard
 import { NoPermissionGuard } from 'src/engine/guards/no-permission.guard';
 import { SettingsPermissionGuard } from 'src/engine/guards/settings-permission.guard';
 import { WorkspaceAuthGuard } from 'src/engine/guards/workspace-auth.guard';
-import { resolveObjectMetadataStandardOverride } from 'src/engine/metadata-modules/object-metadata/utils/resolve-object-metadata-standard-override.util';
+import { resolveEffectiveEntityProperty } from 'src/engine/metadata-modules/utils/resolve-effective-entity-property.util';
 import { ViewFieldGroupDTO } from 'src/engine/metadata-modules/view-field-group/dtos/view-field-group.dto';
 import { ViewFieldDTO } from 'src/engine/metadata-modules/view-field/dtos/view-field.dto';
 import { ViewFilterGroupDTO } from 'src/engine/metadata-modules/view-filter-group/dtos/view-filter-group.dto';
@@ -68,19 +68,30 @@ export class ViewResolver {
 
       if (isDefined(objectMetadata)) {
         const i18n = this.i18nService.getI18nInstance(context.req.locale);
-        const translatedObjectLabel = resolveObjectMetadataStandardOverride(
-          {
-            labelPlural: objectMetadata.labelPlural,
-            labelSingular: objectMetadata.labelSingular,
-            description: objectMetadata.description ?? undefined,
-            icon: objectMetadata.icon ?? undefined,
-            isCustom: objectMetadata.isCustom,
-            standardOverrides: objectMetadata.standardOverrides ?? undefined,
+        const standardApplicationId =
+          await context.loaders.standardApplicationIdLoader.load({
+            workspaceId: workspace.id,
+          });
+        const isStandardApp =
+          objectMetadata.applicationId === standardApplicationId;
+        const applicationCatalog =
+          await context.loaders.applicationTranslationCatalogLoader.load({
+            applicationId: objectMetadata.applicationId,
+            workspaceId: workspace.id,
+            locale: context.req.locale,
+          });
+        const translatedObjectLabel = resolveEffectiveEntityProperty({
+          metadataName: 'objectMetadata',
+          baseValue: objectMetadata.labelPlural,
+          overrides: objectMetadata.overrides ?? undefined,
+          property: 'labelPlural',
+          i18nContext: {
+            locale: context.req.locale,
+            i18nInstance: i18n,
+            isStandardApp,
+            applicationCatalog,
           },
-          'labelPlural',
-          context.req.locale,
-          i18n,
-        );
+        });
 
         return this.viewService.processViewNameWithTemplate(
           view.name,

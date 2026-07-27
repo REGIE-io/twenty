@@ -43,8 +43,10 @@ describe('ConfigStorageService', () => {
     type: KeyValuePairType.CONFIG_VARIABLE,
     userId: null,
     workspaceId: null,
+    applicationId: null,
     user: null as unknown as UserEntity,
     workspace: null as unknown as WorkspaceEntity,
+    application: null,
     createdAt: new Date(),
     updatedAt: new Date(),
     textValueDeprecated: null,
@@ -82,7 +84,7 @@ describe('ConfigStorageService', () => {
         {
           provide: SecretEncryptionService,
           useValue: {
-            decryptVersioned: jest.fn((value) => value),
+            decryptVersionedOrThrow: jest.fn((value) => value),
             encryptVersioned: jest.fn((value) => value),
           },
         },
@@ -197,9 +199,9 @@ describe('ConfigStorageService', () => {
       const result = await service.get(key);
 
       expect(result).toBe(encryptedValue);
-      expect(secretEncryptionService.decryptVersioned).toHaveBeenCalledWith(
-        encryptedValue,
-      );
+      expect(
+        secretEncryptionService.decryptVersionedOrThrow,
+      ).toHaveBeenCalledWith(encryptedValue);
     });
 
     it('should handle decryption errors gracefully', async () => {
@@ -572,9 +574,9 @@ describe('ConfigStorageService', () => {
       expect(result.get('NORMAL_CONFIG' as keyof ConfigVariables)).toBe(
         'normal-value',
       );
-      expect(secretEncryptionService.decryptVersioned).toHaveBeenCalledWith(
-        'enc:v2:deadbeef:sensitive-value',
-      );
+      expect(
+        secretEncryptionService.decryptVersionedOrThrow,
+      ).toHaveBeenCalledWith('enc:v2:deadbeef:sensitive-value');
     });
   });
 

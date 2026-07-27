@@ -10,6 +10,7 @@ import { CREATE_EMAIL_GROUP_CHANNEL } from '@/settings/accounts/graphql/mutation
 import { GET_MY_CONNECTED_ACCOUNTS } from '@/settings/accounts/graphql/queries/getMyConnectedAccounts';
 import { GET_MY_MESSAGE_CHANNELS } from '@/settings/accounts/graphql/queries/getMyMessageChannels';
 import { GET_ALL_EMAILING_DOMAINS } from '@/settings/emailing-domains/graphql/queries/getAllEmailingDomains';
+import { useSnackBar } from '@/ui/feedback/snack-bar-manager/hooks/useSnackBar';
 
 type CreateEmailGroupChannelResult = {
   createEmailGroupChannel: {
@@ -29,10 +30,13 @@ type CreateEmailGroupChannelResult = {
 type CreateEmailGroupChannelVariables = {
   input: {
     handle: string;
+    displayName?: string;
   };
 };
 
 export const useCreateEmailGroupChannel = () => {
+  const { enqueueErrorSnackBar } = useSnackBar();
+
   const [mutate, { loading, error }] = useMutation<
     CreateEmailGroupChannelResult,
     CreateEmailGroupChannelVariables
@@ -44,8 +48,13 @@ export const useCreateEmailGroupChannel = () => {
     ],
   });
 
-  const createEmailGroupChannel = (handle: string) =>
-    mutate({ variables: { input: { handle } } });
+  const createEmailGroupChannel = (handle: string, displayName?: string) =>
+    mutate({
+      variables: { input: { handle, displayName } },
+      onError: (mutationError) => {
+        enqueueErrorSnackBar({ apolloError: mutationError });
+      },
+    });
 
   return { createEmailGroupChannel, loading, error };
 };

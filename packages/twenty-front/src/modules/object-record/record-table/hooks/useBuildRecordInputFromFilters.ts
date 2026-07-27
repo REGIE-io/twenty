@@ -5,6 +5,7 @@ import { currentRecordFiltersComponentState } from '@/object-record/record-filte
 import { buildRecordInputFromFilter } from '@/object-record/record-table/utils/buildRecordInputFromFilter';
 
 import { type ObjectRecord } from '@/object-record/types/ObjectRecord';
+import { useUserTimezone } from '@/ui/input/components/internal/date/hooks/useUserTimezone';
 import { useAtomComponentStateValue } from '@/ui/utilities/state/jotai/hooks/useAtomComponentStateValue';
 import { useAtomStateValue } from '@/ui/utilities/state/jotai/hooks/useAtomStateValue';
 import { useContext } from 'react';
@@ -23,14 +24,17 @@ export const useBuildRecordInputFromFilters = ({
 
   const currentWorkspaceMember = useAtomStateValue(currentWorkspaceMemberState);
 
-  const { currentRecordId } = useContext(RecordFilterValueDependenciesContext);
+  const { currentRecord } = useContext(RecordFilterValueDependenciesContext);
+
+  const { userTimezone } = useUserTimezone();
 
   const buildRecordInputFromFilters = (): Partial<ObjectRecord> => {
     return buildRecordInputFromFilter({
       currentRecordFilters,
       objectMetadataItem,
       currentWorkspaceMember: currentWorkspaceMember ?? undefined,
-      currentRecordId,
+      currentRecordId: currentRecord?.id,
+      timeZone: userTimezone,
     });
   };
 

@@ -17,7 +17,8 @@ export { WORKFLOW_TRIGGER_METADATA_LABEL } from './constants/WorkflowTriggerMeta
 export { WORKFLOW_TRIGGER_METADATA_WORKSPACE_MEMBER_ID_KEY } from './constants/WorkflowTriggerMetadataWorkspaceMemberIdKey';
 export { WORKFLOW_TRIGGER_METADATA_WORKSPACE_MEMBER_ID_LABEL } from './constants/WorkflowTriggerMetadataWorkspaceMemberIdLabel';
 export { WORKFLOW_TRIGGER_PAYLOAD_KEY } from './constants/WorkflowTriggerPayloadKey';
-export { WORKFLOW_TRIGGER_PAYLOAD_LABEL } from './constants/WorkflowTriggerPayloadLabel';
+export { WORKFLOW_TRIGGER_RECORD_LABEL } from './constants/WorkflowTriggerRecordLabel';
+export { WORKFLOW_TRIGGER_RECORDS_LABEL } from './constants/WorkflowTriggerRecordsLabel';
 export { WORKFLOW_DIAGRAM_DEFAULT_NODE_DIMENSIONS } from './layout/constants/WorkflowDiagramDefaultNodeDimensions';
 export { WORKFLOW_LAYOUT_DEFAULT_OPTIONS } from './layout/constants/WorkflowLayoutDefaultOptions';
 export type {
@@ -34,6 +35,8 @@ export { baseWorkflowActionSchema } from './schemas/base-workflow-action-schema'
 export { baseWorkflowActionSettingsSchema } from './schemas/base-workflow-action-settings-schema';
 export { workflowCodeActionSchema } from './schemas/code-action-schema';
 export { workflowCodeActionSettingsSchema } from './schemas/code-action-settings-schema';
+export { workflowCreateCalendarEventActionSchema } from './schemas/create-calendar-event-action-schema';
+export { workflowCreateCalendarEventActionSettingsSchema } from './schemas/create-calendar-event-action-settings-schema';
 export { workflowCreateRecordActionSchema } from './schemas/create-record-action-schema';
 export { workflowCreateRecordActionSettingsSchema } from './schemas/create-record-action-settings-schema';
 export { workflowCronTriggerSchema } from './schemas/cron-trigger-schema';
@@ -63,6 +66,11 @@ export { workflowLogicFunctionActionSchema } from './schemas/logic-function-acti
 export { workflowLogicFunctionActionSettingsSchema } from './schemas/logic-function-action-settings-schema';
 export { workflowManualTriggerSchema } from './schemas/manual-trigger-schema';
 export { objectRecordSchema } from './schemas/object-record-schema';
+export { workflowPickRecordActionSchema } from './schemas/pick-record-action-schema';
+export {
+  workflowPickRecordStrategySchema,
+  workflowPickRecordActionSettingsSchema,
+} from './schemas/pick-record-action-settings-schema';
 export { workflowSendEmailActionSchema } from './schemas/send-email-action-schema';
 export type { WorkflowEmailFiles } from './schemas/send-email-action-settings-schema';
 export {
@@ -94,6 +102,7 @@ export { workflowTriggerSchema } from './schemas/workflow-trigger-schema';
 export type { EmailRecipients } from './types/EmailRecipients';
 export type { FunctionInput } from './types/FunctionInput';
 export type {
+  RecordSchemaType,
   InputSchemaPropertyType,
   InputSchemaProperty,
   InputSchema,
@@ -181,6 +190,10 @@ export { buildManualTriggerMetadataNode } from './workflow-schema/utils/build-ma
 export { collectOutputSchemaPaths } from './workflow-schema/utils/collect-output-schema-paths';
 export type { OutputSchemaPathFailure } from './workflow-schema/utils/find-output-schema-path-failure';
 export { findOutputSchemaPathFailure } from './workflow-schema/utils/find-output-schema-path-failure';
+export {
+  isFlattenedArrayOutputSchema,
+  getCurrentItemSchemaFromFlattenedArrayOutputSchema,
+} from './workflow-schema/utils/flattened-array-output-schema';
 export { navigateOutputSchemaProperty } from './workflow-schema/utils/navigate-output-schema-property';
 export type { ResolvedVariable } from './workflow-schema/utils/resolve-variable-path-in-output-schema';
 export {

@@ -9,6 +9,8 @@ import { useEnsureAgentChatThreadExistsForDraft } from '@/ai/hooks/useEnsureAgen
 import { useEnsureAgentChatThreadIdForSend } from '@/ai/hooks/useEnsureAgentChatThreadIdForSend';
 import { agentChatDisplayedThreadState } from '@/ai/states/agentChatDisplayedThreadState';
 import { agentChatFetchedMessagesComponentFamilyState } from '@/ai/states/agentChatFetchedMessagesComponentFamilyState';
+import { agentChatIsAwaitingFirstChunkComponentFamilyState } from '@/ai/states/agentChatIsAwaitingFirstChunkComponentFamilyState';
+import { agentChatIsAwaitingPersistedRefetchComponentFamilyState } from '@/ai/states/agentChatIsAwaitingPersistedRefetchComponentFamilyState';
 import { agentChatIsInitialScrollPendingOnThreadChangeState } from '@/ai/states/agentChatIsInitialScrollPendingOnThreadChangeState';
 import { agentChatIsLoadingState } from '@/ai/states/agentChatIsLoadingState';
 import { agentChatIsStreamingComponentFamilyState } from '@/ai/states/agentChatIsStreamingComponentFamilyState';
@@ -62,6 +64,16 @@ export const AgentChatStreamSubscriptionEffect = () => {
     { threadId: currentAiChatThread },
   );
 
+  const agentChatIsAwaitingPersistedRefetch = useAtomComponentFamilyStateValue(
+    agentChatIsAwaitingPersistedRefetchComponentFamilyState,
+    { threadId: currentAiChatThread },
+  );
+
+  const agentChatIsAwaitingFirstChunk = useAtomComponentFamilyStateValue(
+    agentChatIsAwaitingFirstChunkComponentFamilyState,
+    { threadId: currentAiChatThread },
+  );
+
   const agentChatDisplayedThread = useAtomStateValue(
     agentChatDisplayedThreadState,
   );
@@ -79,9 +91,27 @@ export const AgentChatStreamSubscriptionEffect = () => {
       return;
     }
 
+    const isThreadSwitch = currentAiChatThread !== agentChatDisplayedThread;
+
+    if (
+      !isThreadSwitch &&
+      (agentChatIsAwaitingPersistedRefetch || agentChatIsAwaitingFirstChunk)
+    ) {
+      return;
+    }
+
+    if (isThreadSwitch && agentChatIsAwaitingFirstChunk) {
+      if (agentChatFetchedMessages.length > 0) {
+        setAgentChatIsInitialScrollPendingOnThreadChange(true);
+      }
+      setAgentChatDisplayedThread(currentAiChatThread);
+
+      return;
+    }
+
     setAgentChatMessages(agentChatFetchedMessages);
 
-    if (currentAiChatThread !== agentChatDisplayedThread) {
+    if (isThreadSwitch) {
       if (agentChatFetchedMessages.length > 0) {
         setAgentChatIsInitialScrollPendingOnThreadChange(true);
       }
@@ -90,6 +120,8 @@ export const AgentChatStreamSubscriptionEffect = () => {
   }, [
     agentChatFetchedMessages,
     agentChatIsStreaming,
+    agentChatIsAwaitingPersistedRefetch,
+    agentChatIsAwaitingFirstChunk,
     setAgentChatMessages,
     currentAiChatThread,
     agentChatDisplayedThread,

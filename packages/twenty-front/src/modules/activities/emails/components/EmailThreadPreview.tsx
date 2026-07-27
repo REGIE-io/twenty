@@ -5,15 +5,17 @@ import { EmailThreadNotShared } from '@/activities/emails/components/EmailThread
 import { useOpenRecordInSidePanel } from '@/side-panel/hooks/useOpenRecordInSidePanel';
 import { useContext } from 'react';
 
+import { t } from '@lingui/core/macro';
 import { CoreObjectNameSingular } from 'twenty-shared/types';
 import { isDefined } from 'twenty-shared/utils';
-import { Avatar } from 'twenty-ui/data-display';
+import { Avatar, Tag } from 'twenty-ui/data-display';
 import { ThemeContext, themeCssVariables } from 'twenty-ui/theme-constants';
 import {
   MessageChannelVisibility,
   type TimelineThread,
 } from '~/generated/graphql';
 import { formatToHumanReadableDate } from '~/utils/date-utils';
+import { getAbsoluteImageUrl } from '~/utils/image/getAbsoluteImageUrl';
 
 const StyledHeading = styled.div<{ unread: boolean }>`
   display: flex;
@@ -118,7 +120,7 @@ export const EmailThreadPreview = ({ thread }: EmailThreadPreviewProps) => {
       <StyledHeading unread={!thread.read}>
         <StyledParticipantsContainer>
           <Avatar
-            avatarUrl={thread?.firstParticipant?.avatarUrl}
+            avatarUrl={getAbsoluteImageUrl(thread?.firstParticipant?.avatarUrl)}
             placeholder={thread.firstParticipant.displayName}
             placeholderColorSeed={
               thread.firstParticipant.workspaceMemberId ||
@@ -129,7 +131,9 @@ export const EmailThreadPreview = ({ thread }: EmailThreadPreviewProps) => {
           {isDefined(thread?.lastTwoParticipants?.[0]) && (
             <StyledAvatarWrapper>
               <Avatar
-                avatarUrl={thread.lastTwoParticipants[0].avatarUrl}
+                avatarUrl={getAbsoluteImageUrl(
+                  thread.lastTwoParticipants[0].avatarUrl,
+                )}
                 placeholder={thread.lastTwoParticipants[0].displayName}
                 placeholderColorSeed={
                   thread.lastTwoParticipants[0].workspaceMemberId ||
@@ -142,7 +146,7 @@ export const EmailThreadPreview = ({ thread }: EmailThreadPreviewProps) => {
           {finalDisplayedName && (
             <StyledAvatarWrapper>
               <Avatar
-                avatarUrl={finalAvatarUrl}
+                avatarUrl={getAbsoluteImageUrl(finalAvatarUrl)}
                 placeholder={finalDisplayedName}
                 type="rounded"
                 color={isCountIcon ? theme.grayScale.gray11 : undefined}
@@ -170,6 +174,9 @@ export const EmailThreadPreview = ({ thread }: EmailThreadPreviewProps) => {
         )}
         {visibility === MessageChannelVisibility.SHARE_EVERYTHING && (
           <>
+            {thread.lastMessageIsDraft && (
+              <Tag color="orange" text={t`Draft`} />
+            )}
             <StyledSubject>{thread.subject}</StyledSubject>
             <StyledBody>{thread.lastMessageBody}</StyledBody>
           </>

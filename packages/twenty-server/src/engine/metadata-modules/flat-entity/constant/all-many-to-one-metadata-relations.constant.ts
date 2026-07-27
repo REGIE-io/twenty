@@ -174,6 +174,13 @@ export const ALL_MANY_TO_ONE_METADATA_RELATIONS = {
       isNullable: true,
       universalForeignKey: 'calendarFieldMetadataUniversalIdentifier',
     },
+    calendarEndFieldMetadata: {
+      metadataName: 'fieldMetadata',
+      foreignKey: 'calendarEndFieldMetadataId',
+      inverseOneToManyProperty: 'calendarEndViews',
+      isNullable: true,
+      universalForeignKey: 'calendarEndFieldMetadataUniversalIdentifier',
+    },
     kanbanAggregateOperationFieldMetadata: {
       metadataName: 'fieldMetadata',
       foreignKey: 'kanbanAggregateOperationFieldMetadataId',
@@ -295,6 +302,13 @@ export const ALL_MANY_TO_ONE_METADATA_RELATIONS = {
       inverseOneToManyProperty: 'roleTargets',
       isNullable: false,
       universalForeignKey: 'roleUniversalIdentifier',
+    },
+    agent: {
+      metadataName: 'agent',
+      foreignKey: 'agentId',
+      inverseOneToManyProperty: null,
+      isNullable: true,
+      universalForeignKey: 'agentUniversalIdentifier',
     },
     apiKey: null,
     workspace: null,
@@ -530,6 +544,31 @@ export const ALL_MANY_TO_ONE_METADATA_RELATIONS = {
   connectionProvider: {
     workspace: null,
     application: null,
+  },
+  searchFieldMetadata: {
+    workspace: null,
+    application: null,
+    objectMetadata: {
+      metadataName: 'objectMetadata',
+      foreignKey: 'objectMetadataId',
+      inverseOneToManyProperty: 'searchFieldMetadatas',
+      isNullable: false,
+      universalForeignKey: 'objectMetadataUniversalIdentifier',
+    },
+    fieldMetadata: {
+      metadataName: 'fieldMetadata',
+      foreignKey: 'fieldMetadataId',
+      inverseOneToManyProperty: 'searchFieldMetadatas',
+      isNullable: false,
+      universalForeignKey: 'fieldMetadataUniversalIdentifier',
+    },
+    tsVectorFieldMetadata: {
+      metadataName: 'fieldMetadata',
+      foreignKey: 'tsVectorFieldMetadataId',
+      inverseOneToManyProperty: null,
+      isNullable: false,
+      universalForeignKey: 'tsVectorFieldMetadataUniversalIdentifier',
+    },
   },
 } as const satisfies ManyToOneMetadataRelationsProperties;
 

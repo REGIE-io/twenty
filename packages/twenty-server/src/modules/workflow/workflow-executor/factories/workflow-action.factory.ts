@@ -14,6 +14,7 @@ import { FilterWorkflowAction } from 'src/modules/workflow/workflow-executor/wor
 import { FormWorkflowAction } from 'src/modules/workflow/workflow-executor/workflow-actions/form/form.workflow-action';
 import { HttpRequestWorkflowAction } from 'src/modules/workflow/workflow-executor/workflow-actions/http-request/http-request.workflow-action';
 import { IfElseWorkflowAction } from 'src/modules/workflow/workflow-executor/workflow-actions/if-else/if-else.workflow-action';
+import { CreateCalendarEventWorkflowAction } from 'src/modules/workflow/workflow-executor/workflow-actions/create-calendar-event/create-calendar-event.workflow-action';
 import { IteratorWorkflowAction } from 'src/modules/workflow/workflow-executor/workflow-actions/iterator/iterator.workflow-action';
 import { LogicFunctionWorkflowAction } from 'src/modules/workflow/workflow-executor/workflow-actions/logic-function/logic-function.workflow-action';
 import { DraftEmailWorkflowAction } from 'src/modules/workflow/workflow-executor/workflow-actions/mail-sender/draft-email.workflow-action';
@@ -21,6 +22,7 @@ import { SendEmailWorkflowAction } from 'src/modules/workflow/workflow-executor/
 import { CreateRecordWorkflowAction } from 'src/modules/workflow/workflow-executor/workflow-actions/record-crud/create-record.workflow-action';
 import { DeleteRecordWorkflowAction } from 'src/modules/workflow/workflow-executor/workflow-actions/record-crud/delete-record.workflow-action';
 import { FindRecordsWorkflowAction } from 'src/modules/workflow/workflow-executor/workflow-actions/record-crud/find-records.workflow-action';
+import { PickRecordWorkflowAction } from 'src/modules/workflow/workflow-executor/workflow-actions/record-crud/pick-record.workflow-action';
 import { UpdateRecordWorkflowAction } from 'src/modules/workflow/workflow-executor/workflow-actions/record-crud/update-record.workflow-action';
 import { UpsertRecordWorkflowAction } from 'src/modules/workflow/workflow-executor/workflow-actions/record-crud/upsert-record.workflow-action';
 import { WorkflowActionType } from 'twenty-shared/workflow';
@@ -35,6 +37,7 @@ export class WorkflowActionFactory {
     private readonly updateRecordWorkflowAction: UpdateRecordWorkflowAction,
     private readonly deleteRecordWorkflowAction: DeleteRecordWorkflowAction,
     private readonly findRecordsWorkflowAction: FindRecordsWorkflowAction,
+    private readonly pickRecordWorkflowAction: PickRecordWorkflowAction,
     private readonly formWorkflowAction: FormWorkflowAction,
     private readonly filterWorkflowAction: FilterWorkflowAction,
     private readonly ifElseWorkflowAction: IfElseWorkflowAction,
@@ -42,6 +45,7 @@ export class WorkflowActionFactory {
     private readonly httpRequestWorkflowAction: HttpRequestWorkflowAction,
     private readonly sendEmailWorkflowAction: SendEmailWorkflowAction,
     private readonly draftEmailWorkflowAction: DraftEmailWorkflowAction,
+    private readonly createCalendarEventWorkflowAction: CreateCalendarEventWorkflowAction,
     private readonly aiAgentWorkflowAction: AiAgentWorkflowAction,
     private readonly emptyWorkflowAction: EmptyWorkflowAction,
     private readonly delayWorkflowAction: DelayWorkflowAction,
@@ -57,6 +61,8 @@ export class WorkflowActionFactory {
         return this.sendEmailWorkflowAction;
       case WorkflowActionType.DRAFT_EMAIL:
         return this.draftEmailWorkflowAction;
+      case WorkflowActionType.CREATE_CALENDAR_EVENT:
+        return this.createCalendarEventWorkflowAction;
       case WorkflowActionType.CREATE_RECORD:
         return this.createRecordWorkflowAction;
       case WorkflowActionType.UPSERT_RECORD:
@@ -67,6 +73,8 @@ export class WorkflowActionFactory {
         return this.deleteRecordWorkflowAction;
       case WorkflowActionType.FIND_RECORDS:
         return this.findRecordsWorkflowAction;
+      case WorkflowActionType.PICK_RECORD:
+        return this.pickRecordWorkflowAction;
       case WorkflowActionType.FORM:
         return this.formWorkflowAction;
       case WorkflowActionType.FILTER:
