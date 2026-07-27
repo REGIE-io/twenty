@@ -5,6 +5,7 @@ import {
   AuthExceptionCode,
 } from 'src/engine/core-modules/auth/auth.exception';
 import { type SignInUpNewUserPayload } from 'src/engine/core-modules/auth/types/signInUp.type';
+import { DpaAgreementEntity } from 'src/engine/core-modules/dpa/entities/dpa-agreement.entity';
 import { AuthProviderEnum } from 'src/engine/core-modules/workspace/types/workspace.type';
 
 import { SignInUpService } from './sign-in-up.service';
@@ -142,6 +143,7 @@ const createSignInUpServiceForTests = () => {
     mockUserWorkspaceService,
     mockApplicationService,
     mockOnboardingService,
+    queryRunnerMock,
   };
 };
 
@@ -337,6 +339,7 @@ describe('SignInUpService workspace-creation policy', () => {
       mockUserWorkspaceService,
       mockApplicationService,
       mockOnboardingService,
+      queryRunnerMock,
     } = createSignInUpServiceForTests();
 
     const existingUser = {
@@ -358,6 +361,7 @@ describe('SignInUpService workspace-creation policy', () => {
         displayName: 'Acme',
         subdomain: 'acme',
         shouldBypassWorkspaceCreationChecks: true,
+        shouldRecordDpaAcceptance: false,
       },
     );
 
@@ -381,6 +385,41 @@ describe('SignInUpService workspace-creation policy', () => {
     expect(
       mockOnboardingService.setOnboardingConnectAccountPending,
     ).toHaveBeenCalled();
+    expect(queryRunnerMock.manager.save).not.toHaveBeenCalledWith(
+      DpaAgreementEntity,
+      expect.anything(),
+    );
+  });
+
+  it('records DPA acceptance for normal multi-workspace signup', async () => {
+    const {
+      service,
+      mockWorkspaceRepository,
+      mockUserRepository,
+      queryRunnerMock,
+    } = createSignInUpServiceForTests();
+
+    mockWorkspaceRepository.count.mockResolvedValue(0);
+    mockUserRepository.count.mockResolvedValue(0);
+
+    await service.signUpOnNewWorkspace(
+      {
+        type: 'newUserWithPicture',
+        newUserWithPicture: {
+          email: 'creator@gmail.com',
+          firstName: 'Creator',
+          lastName: 'User',
+        },
+      },
+      { displayName: 'Acme Inc' },
+    );
+
+    expect(queryRunnerMock.manager.save).toHaveBeenCalledWith(
+      DpaAgreementEntity,
+      expect.objectContaining({
+        acceptedByEmail: 'creator@gmail.com',
+      }),
+    );
   });
 });
 
