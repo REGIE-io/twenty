@@ -19,6 +19,7 @@ import {
   type RawJsonFilter,
   type RecordFilterValueDependencies,
   type RecordGqlOperationFilter,
+  type RelationCollectionFilter,
   type RelationType,
   type RelationFilter,
   type SelectFilter,
@@ -113,9 +114,14 @@ export const turnRecordFilterIntoRecordGqlOperationFilter = ({
       return;
     }
 
+    const isListOperand =
+      recordFilter.operand === RecordFilterOperand.IS_IN_LIST ||
+      recordFilter.operand === RecordFilterOperand.IS_NOT_IN_LIST;
+
     const innerFilter = buildDirectFieldGqlOperationFilter({
       recordFilter: {
         ...recordFilter,
+        ...(isListOperand && { operand: RecordFilterOperand.IS }),
         fieldMetadataId: targetFieldMetadataItem.id,
         relationTargetFieldMetadataId: null,
       },
@@ -125,6 +131,22 @@ export const turnRecordFilterIntoRecordGqlOperationFilter = ({
 
     if (!isDefined(innerFilter)) {
       return;
+    }
+
+    if (recordFilter.operand === RecordFilterOperand.IS_IN_LIST) {
+      return {
+        [sourceFieldMetadataItem.name]: {
+          some: innerFilter,
+        } satisfies RelationCollectionFilter,
+      } as RecordGqlOperationFilter;
+    }
+
+    if (recordFilter.operand === RecordFilterOperand.IS_NOT_IN_LIST) {
+      return {
+        [sourceFieldMetadataItem.name]: {
+          none: innerFilter,
+        } satisfies RelationCollectionFilter,
+      } as RecordGqlOperationFilter;
     }
 
     return {

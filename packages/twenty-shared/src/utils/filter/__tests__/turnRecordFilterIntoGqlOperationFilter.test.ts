@@ -1059,6 +1059,52 @@ describe('turnRecordFilterIntoRecordGqlOperationFilter', () => {
       expect(result).toEqual({ company: { name: { ilike: '%Acme%' } } });
     });
 
+    it('should compile IS_IN_LIST as a one-to-many some filter', () => {
+      const result = turnRecordFilterIntoRecordGqlOperationFilter({
+        filterValueDependencies,
+        recordFilter: {
+          ...makeFilter(
+            'f-relation',
+            RecordFilterOperand.IS_IN_LIST,
+            '["550e8400-e29b-41d4-a716-446655440000"]',
+          ),
+          relationTargetFieldMetadataId: 'f-uuid',
+        } as RecordFilter,
+        fieldMetadataItemById,
+      });
+
+      expect(result).toEqual({
+        company: {
+          some: {
+            recordId: { in: ['550e8400-e29b-41d4-a716-446655440000'] },
+          },
+        },
+      });
+    });
+
+    it('should compile IS_NOT_IN_LIST as a one-to-many none filter', () => {
+      const result = turnRecordFilterIntoRecordGqlOperationFilter({
+        filterValueDependencies,
+        recordFilter: {
+          ...makeFilter(
+            'f-relation',
+            RecordFilterOperand.IS_NOT_IN_LIST,
+            '["550e8400-e29b-41d4-a716-446655440000"]',
+          ),
+          relationTargetFieldMetadataId: 'f-uuid',
+        } as RecordFilter,
+        fieldMetadataItemById,
+      });
+
+      expect(result).toEqual({
+        company: {
+          none: {
+            recordId: { in: ['550e8400-e29b-41d4-a716-446655440000'] },
+          },
+        },
+      });
+    });
+
     // If the target field is no longer resolvable (e.g. it was
     // deleted from the workspace), dropping the filter is the safe path —
     // the alternative would silently interpret the text value as a UUID

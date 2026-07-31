@@ -2136,6 +2136,9 @@ exports[`STANDARD_OBJECTS universal identifiers should never change without an e
       "emailsUniqueIndex": {
         "universalIdentifier": "8183a8b2-9114-4f6c-8a5b-12e3f14e5e13",
       },
+      "phonesPrimaryPhoneNumberIndex": {
+        "universalIdentifier": "cd8e6b73-c6ec-4776-9454-4d1607345dd9",
+      },
       "searchVectorGinIndex": {
         "universalIdentifier": "9294b9c3-0225-4a7d-9b6c-23f4a25f6f24",
       },
