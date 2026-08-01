@@ -495,7 +495,7 @@ export interface ViewFilter {
     __typename: 'ViewFilter'
 }
 
-export type ViewFilterOperand = 'IS' | 'IS_NOT_NULL' | 'IS_NOT' | 'LESS_THAN_OR_EQUAL' | 'GREATER_THAN_OR_EQUAL' | 'IS_BEFORE' | 'IS_AFTER' | 'CONTAINS' | 'DOES_NOT_CONTAIN' | 'IS_EMPTY' | 'IS_NOT_EMPTY' | 'IS_RELATIVE' | 'IS_IN_PAST' | 'IS_IN_FUTURE' | 'IS_TODAY' | 'VECTOR_SEARCH'
+export type ViewFilterOperand = 'IS' | 'IS_NOT_NULL' | 'IS_NOT' | 'IS_IN_LIST' | 'IS_NOT_IN_LIST' | 'LESS_THAN_OR_EQUAL' | 'GREATER_THAN_OR_EQUAL' | 'IS_BEFORE' | 'IS_AFTER' | 'CONTAINS' | 'DOES_NOT_CONTAIN' | 'IS_EMPTY' | 'IS_NOT_EMPTY' | 'IS_RELATIVE' | 'IS_IN_PAST' | 'IS_IN_FUTURE' | 'IS_TODAY' | 'VECTOR_SEARCH'
 
 export interface ViewGroup {
     id: Scalars['UUID']
@@ -2740,10 +2740,10 @@ export interface MinimalMetadata {
 }
 
 export interface Query {
-    navigationMenuItems: NavigationMenuItem[]
-    navigationMenuItem?: NavigationMenuItem
     applicationSdkClientChecksums?: SdkClientChecksums
     isApplicationStopped: Scalars['Boolean']
+    navigationMenuItems: NavigationMenuItem[]
+    navigationMenuItem?: NavigationMenuItem
     enterprisePortalSession?: Scalars['String']
     enterpriseCheckoutSession?: Scalars['String']
     enterpriseSubscriptionStatus?: EnterpriseSubscriptionStatusDTO
@@ -5974,10 +5974,10 @@ export interface MinimalMetadataGenqlSelection{
 }
 
 export interface QueryGenqlSelection{
-    navigationMenuItems?: NavigationMenuItemGenqlSelection
-    navigationMenuItem?: (NavigationMenuItemGenqlSelection & { __args: {id: Scalars['UUID']} })
     applicationSdkClientChecksums?: (SdkClientChecksumsGenqlSelection & { __args: {applicationId: Scalars['UUID']} })
     isApplicationStopped?: { __args: {applicationUniversalIdentifier: Scalars['String']} }
+    navigationMenuItems?: NavigationMenuItemGenqlSelection
+    navigationMenuItem?: (NavigationMenuItemGenqlSelection & { __args: {id: Scalars['UUID']} })
     enterprisePortalSession?: { __args: {returnUrlPath?: (Scalars['String'] | null)} } | boolean | number
     enterpriseCheckoutSession?: { __args: {billingInterval?: (Scalars['String'] | null)} } | boolean | number
     enterpriseSubscriptionStatus?: EnterpriseSubscriptionStatusDTOGenqlSelection
@@ -6567,7 +6567,7 @@ export interface CreateOneIndexInput {
 /** The custom index to create */
 index: CreateIndexInput}
 
-export interface CreateIndexInput {objectMetadataId: Scalars['UUID'],fields: CreateIndexFieldInput[],indexType: IndexType}
+export interface CreateIndexInput {objectMetadataId: Scalars['UUID'],fields: CreateIndexFieldInput[],indexType: IndexType,isUnique: Scalars['Boolean']}
 
 export interface CreateIndexFieldInput {fieldMetadataId: Scalars['UUID'],subFieldName?: (Scalars['String'] | null)}
 
@@ -9082,6 +9082,8 @@ export const enumViewFilterOperand = {
    IS: 'IS' as const,
    IS_NOT_NULL: 'IS_NOT_NULL' as const,
    IS_NOT: 'IS_NOT' as const,
+   IS_IN_LIST: 'IS_IN_LIST' as const,
+   IS_NOT_IN_LIST: 'IS_NOT_IN_LIST' as const,
    LESS_THAN_OR_EQUAL: 'LESS_THAN_OR_EQUAL' as const,
    GREATER_THAN_OR_EQUAL: 'GREATER_THAN_OR_EQUAL' as const,
    IS_BEFORE: 'IS_BEFORE' as const,

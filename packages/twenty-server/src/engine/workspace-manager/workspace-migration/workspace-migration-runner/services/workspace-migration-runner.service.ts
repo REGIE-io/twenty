@@ -295,80 +295,8 @@ export class WorkspaceMigrationRunnerService {
     try {
       await queryRunner.query(`SET LOCAL lock_timeout = '8s'`);
 
-      let actionIndex = 0;
-
-      while (actionIndex < actions.length) {
-        const action = actions[actionIndex];
+      for (const action of actions) {
         const actionStart = performance.now();
-        if (
-          this.workspaceMigrationRunnerActionHandlerRegistry.isBatchableCreateAction(
-            action,
-          )
-        ) {
-          const group = [action];
-          let nextIndex = actionIndex + 1;
-
-          while (
-            nextIndex < actions.length &&
-            actions[nextIndex].type === action.type &&
-            actions[nextIndex].metadataName === action.metadataName
-          ) {
-            group.push(actions[nextIndex]);
-            nextIndex += 1;
-          }
-
-          const {
-            partialOptimisticCache,
-            metadataEvents,
-            afterCommitSideEffects,
-          } =
-            await this.workspaceMigrationRunnerActionHandlerRegistry.executeActionHandlerBatch(
-              {
-                actions: group,
-                contexts: group.map((groupedAction) => ({
-                  flatApplication,
-                  action: groupedAction,
-                  allFlatEntityMaps,
-                  queryRunner,
-                  workspaceId,
-                  preallocatedIdByUniversalIdentifierByMetadataName,
-                  getSearchFieldMetadatasByTsVectorFieldId:
-                    searchFieldMetadatasByTsVectorFieldIdAccessor.get,
-                })),
-              },
-            );
-
-          const actionMs = performance.now() - actionStart;
-
-          actionCount += group.length;
-
-          if (actionMs > slowestActionMs) {
-            slowestActionMs = actionMs;
-            slowestActionLabel = `${action.type}:${action.metadataName} (batch x${group.length})`;
-          }
-
-          if (actionMs > 50) {
-            this.logger.perf(
-              `[install-perf] slow batched action ${action.type}:${action.metadataName} (x${group.length}) took ${actionMs.toFixed(1)}ms`,
-              'Runner',
-            );
-          }
-
-          allFlatEntityMaps = {
-            ...allFlatEntityMaps,
-            ...partialOptimisticCache,
-          } as typeof allFlatEntityMaps;
-
-          if (action.metadataName === 'searchFieldMetadata') {
-            searchFieldMetadatasByTsVectorFieldIdAccessor.invalidate();
-          }
-
-          allMetadataEvents.push(...metadataEvents);
-          allAfterCommitSideEffects.push(...afterCommitSideEffects);
-          actionIndex = nextIndex;
-          continue;
-        }
-
         const {
           partialOptimisticCache,
           metadataEvents,
@@ -417,8 +345,6 @@ export class WorkspaceMigrationRunnerService {
 
         allMetadataEvents.push(...metadataEvents);
         allAfterCommitSideEffects.push(...afterCommitSideEffects);
-
-        actionIndex += 1;
       }
 
       const commitStart = performance.now();
