@@ -65,18 +65,24 @@ export class WorkspaceManagerService {
       workspaceId,
     });
 
-    const { workspaceCustomFlatApplication } =
-      await this.twentyStandardApplicationService.synchronizeTwentyStandardApplicationOrThrow(
-        {
-          workspaceId,
-        },
-      );
+    await this.twentyStandardApplicationService.synchronizeTwentyStandardApplicationOrThrow(
+      {
+        workspaceId,
+      },
+    );
 
     const dataSourceMetadataCreationEnd = performance.now();
 
     this.logger.log(
       `Metadata creation took ${dataSourceMetadataCreationEnd - dataSourceMetadataCreationStart}ms`,
     );
+
+    const { workspaceCustomFlatApplication } =
+      await this.applicationService.findWorkspaceTwentyStandardAndCustomApplicationOrThrow(
+        {
+          workspaceId,
+        },
+      );
 
     await this.setupDefaultRoles({
       workspaceId,
