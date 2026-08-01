@@ -8,6 +8,7 @@ import { ConfigureMessageCampaignCommandMenuCommand } from 'src/database/command
 import { AddMessageCampaignNameFieldCommand } from 'src/database/commands/upgrade-version-command/2-25/2-25-workspace-command-1785229970000-add-message-campaign-name-field.command';
 import { RemoveMessageCampaignNavigationMenuItemCommand } from 'src/database/commands/upgrade-version-command/2-25/2-25-workspace-command-1785332550000-remove-message-campaign-navigation-menu-item.command';
 import { AlignMessageCampaignViewFieldPositionsCommand } from 'src/database/commands/upgrade-version-command/2-25/2-25-workspace-command-1785332560000-align-message-campaign-view-field-positions.command';
+import { DropCalendarEventRecordPageCommand } from 'src/database/commands/upgrade-version-command/2-25/2-25-workspace-command-1785550773350-drop-calendar-event-record-page.command';
 import { ApplicationModule } from 'src/engine/core-modules/application/application.module';
 import { FieldMetadataEntity } from 'src/engine/metadata-modules/field-metadata/field-metadata.entity';
 import { WorkspaceCacheModule } from 'src/engine/workspace-cache/workspace-cache.module';
@@ -30,6 +31,7 @@ import { WorkspaceMigrationModule } from 'src/engine/workspace-manager/workspace
     AddMessageCampaignNameFieldCommand,
     RemoveMessageCampaignNavigationMenuItemCommand,
     AlignMessageCampaignViewFieldPositionsCommand,
+    DropCalendarEventRecordPageCommand,
   ],
 })
 export class V2_25_UpgradeVersionCommandModule {}
