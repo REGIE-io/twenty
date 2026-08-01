@@ -6290,18 +6290,6 @@ export default {
             ]
         },
         "Query": {
-            "navigationMenuItems": [
-                153
-            ],
-            "navigationMenuItem": [
-                153,
-                {
-                    "id": [
-                        4,
-                        "UUID!"
-                    ]
-                }
-            ],
             "applicationSdkClientChecksums": [
                 79,
                 {
@@ -6317,6 +6305,18 @@ export default {
                     "applicationUniversalIdentifier": [
                         1,
                         "String!"
+                    ]
+                }
+            ],
+            "navigationMenuItems": [
+                159
+            ],
+            "navigationMenuItem": [
+                159,
+                {
+                    "id": [
+                        4,
+                        "UUID!"
                     ]
                 }
             ],
@@ -10978,6 +10978,9 @@ export default {
             ],
             "indexType": [
                 27
+            ],
+            "isUnique": [
+                3
             ],
             "__typename": [
                 1

@@ -738,6 +738,8 @@ enum ViewFilterOperand {
   IS
   IS_NOT_NULL
   IS_NOT
+  IS_IN_LIST
+  IS_NOT_IN_LIST
   LESS_THAN_OR_EQUAL
   GREATER_THAN_OR_EQUAL
   IS_BEFORE
@@ -3185,10 +3187,10 @@ type MinimalMetadata {
 }
 
 type Query {
-  navigationMenuItems: [NavigationMenuItem!]!
-  navigationMenuItem(id: UUID!): NavigationMenuItem
   applicationSdkClientChecksums(applicationId: UUID!): SdkClientChecksums
   isApplicationStopped(applicationUniversalIdentifier: String!): Boolean!
+  navigationMenuItems: [NavigationMenuItem!]!
+  navigationMenuItem(id: UUID!): NavigationMenuItem
   enterprisePortalSession(returnUrlPath: String): String
   enterpriseCheckoutSession(billingInterval: String): String
   enterpriseSubscriptionStatus: EnterpriseSubscriptionStatusDTO
@@ -4257,6 +4259,7 @@ input CreateIndexInput {
   objectMetadataId: UUID!
   fields: [CreateIndexFieldInput!]!
   indexType: IndexType! = BTREE
+  isUnique: Boolean! = false
 }
 
 input CreateIndexFieldInput {
