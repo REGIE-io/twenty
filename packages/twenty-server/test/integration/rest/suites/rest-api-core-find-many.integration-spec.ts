@@ -13,6 +13,10 @@ import { makeRestAPIRequest } from 'test/integration/rest/utils/make-rest-api-re
 import { deleteAllRecords } from 'test/integration/utils/delete-all-records';
 import { generateRecordName } from 'test/integration/utils/generate-record-name';
 
+type RestPerson = {
+  id: string;
+};
+
 describe('Core REST API Find Many endpoint', () => {
   const testPersonIds = [
     TEST_PERSON_1_ID,
@@ -230,13 +234,15 @@ describe('Core REST API Find Many endpoint', () => {
     }).expect(200);
 
     expect(
-      includedResponse.body.data.people.map((person) => person.id),
+      includedResponse.body.data.people.map((person: RestPerson) => person.id),
     ).toEqual(expect.arrayContaining(includedPersonIds));
     expect(
-      excludedResponse.body.data.people.map((person) => person.id),
+      excludedResponse.body.data.people.map((person: RestPerson) => person.id),
     ).not.toContain(TEST_PERSON_1_ID);
     expect(
-      positiveExclusionResponse.body.data.people.map((person) => person.id),
+      positiveExclusionResponse.body.data.people.map(
+        (person: RestPerson) => person.id,
+      ),
     ).toEqual(expect.arrayContaining(testPersonIds));
   });
 
