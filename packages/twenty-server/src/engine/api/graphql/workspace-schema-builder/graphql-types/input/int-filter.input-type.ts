@@ -14,6 +14,7 @@ export const IntFilterType = new GraphQLInputObjectType({
     gt: { type: GraphQLInt },
     gte: { type: GraphQLInt },
     in: { type: new GraphQLList(new GraphQLNonNull(GraphQLInt)) },
+    notIn: { type: new GraphQLList(new GraphQLNonNull(GraphQLInt)) },
     lt: { type: GraphQLInt },
     lte: { type: GraphQLInt },
     neq: { type: GraphQLInt },

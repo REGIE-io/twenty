@@ -14,6 +14,7 @@ export const StringFilterType = new GraphQLInputObjectType({
     gt: { type: GraphQLString },
     gte: { type: GraphQLString },
     in: { type: new GraphQLList(new GraphQLNonNull(GraphQLString)) },
+    notIn: { type: new GraphQLList(new GraphQLNonNull(GraphQLString)) },
     lt: { type: GraphQLString },
     lte: { type: GraphQLString },
     neq: { type: GraphQLString },
