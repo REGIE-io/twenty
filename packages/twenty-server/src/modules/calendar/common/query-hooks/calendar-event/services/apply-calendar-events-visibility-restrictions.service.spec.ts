@@ -109,6 +109,25 @@ describe('ApplyCalendarEventsVisibilityRestrictionsService', () => {
     jest.clearAllMocks();
   });
 
+  it('keeps locally-created events that have no calendar-channel association', async () => {
+    const calendarEvents = [
+      createMockCalendarEvent('local-event', 'Local event', 'Created by API'),
+    ];
+    mockCalendarEventAssociationRepository.find.mockResolvedValue([]);
+    mockCalendarChannelRepository.find.mockResolvedValue([]);
+
+    await expect(
+      service.applyCalendarEventsVisibilityRestrictions(
+        calendarEvents,
+        'test-workspace-id',
+        'user-id',
+      ),
+    ).resolves.toEqual(calendarEvents);
+
+    expect(mockUserWorkspaceRepository.findOne).not.toHaveBeenCalled();
+    expect(mockConnectedAccountRepository.find).not.toHaveBeenCalled();
+  });
+
   it('should return calendar event without obfuscated title and description if the visibility is SHARE_EVERYTHING', async () => {
     const calendarEvents = [
       createMockCalendarEvent('1', 'Test Event', 'Test Description'),
