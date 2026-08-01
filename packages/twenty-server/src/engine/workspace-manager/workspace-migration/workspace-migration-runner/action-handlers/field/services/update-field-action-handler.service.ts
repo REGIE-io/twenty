@@ -363,6 +363,7 @@ export class UpdateFieldActionHandlerService extends WorkspaceMigrationRunnerAct
           {
             name: indexedFlatFieldMetadata.name,
             type: indexedFlatFieldMetadata.type,
+            options: indexedFlatFieldMetadata.options,
           },
         ]),
       );

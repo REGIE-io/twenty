@@ -138,7 +138,11 @@ export class CreateObjectActionHandlerService extends WorkspaceMigrationRunnerAc
     const indexedFieldById = new Map(
       flatFieldMetadatas.map((flatFieldMetadata) => [
         flatFieldMetadata.id,
-        { name: flatFieldMetadata.name, type: flatFieldMetadata.type },
+        {
+          name: flatFieldMetadata.name,
+          type: flatFieldMetadata.type,
+          options: flatFieldMetadata.options,
+        },
       ]),
     );
 

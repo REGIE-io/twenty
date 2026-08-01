@@ -32,6 +32,11 @@ describe('getOperatorsForFieldType', () => {
     expect(result).toContain('isEmptyArray');
   });
 
+  it('allows the full-text search operator only for TS_VECTOR', () => {
+    expect(getOperatorsForFieldType(FieldMetadataType.TS_VECTOR)).toEqual(['search']);
+    expect(getOperatorsForFieldType(FieldMetadataType.TEXT)).not.toContain('search');
+  });
+
   it.each([FieldMetadataType.SELECT, FieldMetadataType.RATING])(
     'should allow enum operators and ordering operators for %s',
     (fieldType) => {

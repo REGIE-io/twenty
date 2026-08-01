@@ -4,6 +4,7 @@ import {
   type FieldTypeAndNameMetadata,
   getTsVectorColumnExpressionFromFields,
 } from 'src/engine/workspace-manager/utils/get-ts-vector-column-expression.util';
+import { computeSearchVectorAsExpressionFromSearchFieldMetadatas } from 'src/engine/metadata-modules/flat-search-field-metadata/utils/compute-search-vector-as-expression-from-search-field-metadatas.util';
 
 const nameTextField = { name: 'name', type: FieldMetadataType.TEXT };
 const nameFullNameField = {
@@ -16,6 +17,101 @@ const phonesPhonesField = { name: 'phones', type: FieldMetadataType.PHONES };
 const linksLinksField = { name: 'domainName', type: FieldMetadataType.LINKS };
 
 describe('getTsVectorColumnExpressionFromFields', () => {
+  it('indexes select values and labels with SQL-safe literals', () => {
+    const result = getTsVectorColumnExpressionFromFields([
+      {
+        name: 'tier',
+        type: FieldMetadataType.SELECT,
+        options: [
+          {
+            id: 'tier-1',
+            position: 0,
+            value: "owner's",
+            label: "Owner's choice",
+            color: 'blue',
+          },
+        ],
+      },
+    ]);
+
+    expect(result).toContain(`WHEN 'owner''s' THEN 'Owner''s choice'`);
+    expect(result).toContain('"tier"::text');
+  });
+
+  it('indexes only the stable value when a select has no options', () => {
+    const result = getTsVectorColumnExpressionFromFields([
+      { name: 'tier', type: FieldMetadataType.SELECT, options: [] },
+    ]);
+
+    expect(result).toContain(
+      'COALESCE(public.unaccent_immutable("tier"), \'\')',
+    );
+    expect(result).not.toContain('CASE "tier"');
+  });
+
+  it('indexes multi-select labels in deterministic metadata position order', () => {
+    const result = getTsVectorColumnExpressionFromFields([
+      {
+        name: 'segments',
+        type: FieldMetadataType.MULTI_SELECT,
+        options: [
+          {
+            id: 'two',
+            position: 2,
+            value: 'partner',
+            label: 'Partner',
+            color: 'blue',
+          },
+          {
+            id: 'one',
+            position: 1,
+            value: 'enterprise',
+            label: 'Enterprise',
+            color: 'green',
+          },
+        ],
+      },
+    ]);
+
+    expect(result).toContain(`array_to_string("segments", ' ')`);
+    expect(result.indexOf("'enterprise' = ANY")).toBeLessThan(
+      result.indexOf("'partner' = ANY"),
+    );
+  });
+
+  it('uses immutable canonical UTC components for DATE_TIME', () => {
+    const result = getTsVectorColumnExpressionFromFields([
+      { name: 'occurredAt', type: FieldMetadataType.DATE_TIME },
+    ]);
+
+    expect(result).toContain(`timezone('UTC', "occurredAt")`);
+    expect(result).toContain("'T'");
+    expect(result).toContain("'Z'");
+    expect(result).not.toContain('"occurredAt"::text');
+  });
+
+  it('does not project arbitrary JSON even if metadata targets it', () => {
+    expect(
+      computeSearchVectorAsExpressionFromSearchFieldMetadatas([
+        {
+          name: 'payload',
+          type: FieldMetadataType.RAW_JSON,
+          position: 0,
+          sortKey: 'payload',
+        },
+      ]),
+    ).toBe("to_tsvector('simple', NULL)");
+  });
+
+  it('projects currency amount micros as major units without serializing the composite', () => {
+    const result = getTsVectorColumnExpressionFromFields([
+      { name: 'budget', type: FieldMetadataType.CURRENCY },
+    ]);
+
+    expect(result).toContain('"budgetAmountMicros"::numeric / 1000000');
+    expect(result).toContain('"budgetCurrencyCode"');
+  });
+
   it('should generate correct expression for simple text field', () => {
     const fields = [nameTextField] as FieldTypeAndNameMetadata[];
     const result = getTsVectorColumnExpressionFromFields(fields);
