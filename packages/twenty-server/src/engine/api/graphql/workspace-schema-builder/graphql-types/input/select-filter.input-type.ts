@@ -6,6 +6,7 @@ export const SelectFilterType = new GraphQLInputObjectType({
   name: 'SelectFilter',
   fields: {
     in: { type: new GraphQLList(GraphQLString) },
+    notIn: { type: new GraphQLList(GraphQLString) },
     is: { type: FilterIs },
   },
 });

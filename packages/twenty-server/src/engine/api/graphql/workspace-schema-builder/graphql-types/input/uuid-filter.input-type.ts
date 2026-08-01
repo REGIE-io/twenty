@@ -10,6 +10,7 @@ export const UUIDFilterType = new GraphQLInputObjectType({
     gt: { type: UUIDScalarType },
     gte: { type: UUIDScalarType },
     in: { type: new GraphQLList(UUIDScalarType) },
+    notIn: { type: new GraphQLList(UUIDScalarType) },
     lt: { type: UUIDScalarType },
     lte: { type: UUIDScalarType },
     neq: { type: UUIDScalarType },

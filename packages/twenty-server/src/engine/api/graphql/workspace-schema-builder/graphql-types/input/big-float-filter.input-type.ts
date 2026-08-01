@@ -10,6 +10,9 @@ export const BigFloatFilterType = new GraphQLInputObjectType({
     gt: { type: BigFloatScalarType },
     gte: { type: BigFloatScalarType },
     in: { type: new GraphQLList(new GraphQLNonNull(BigFloatScalarType)) },
+    notIn: {
+      type: new GraphQLList(new GraphQLNonNull(BigFloatScalarType)),
+    },
     lt: { type: BigFloatScalarType },
     lte: { type: BigFloatScalarType },
     neq: { type: BigFloatScalarType },

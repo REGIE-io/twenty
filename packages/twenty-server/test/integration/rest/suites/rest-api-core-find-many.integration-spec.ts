@@ -211,6 +211,35 @@ describe('Core REST API Find Many endpoint', () => {
     expect(filteredPeople.length).toBeGreaterThan(0);
   });
 
+  it('should support inclusion and exclusion list filters through the REST API', async () => {
+    const includedPersonIds = [TEST_PERSON_1_ID, TEST_PERSON_2_ID];
+    const includedJobTitles = includedPersonIds.map(
+      (personId) => testPersonJobTitles[personId],
+    );
+    const includedResponse = await makeRestAPIRequest({
+      method: 'get',
+      path: `/people?filter=${encodeURIComponent(`jobTitle[in]:${JSON.stringify(includedJobTitles)}`)}`,
+    }).expect(200);
+    const excludedResponse = await makeRestAPIRequest({
+      method: 'get',
+      path: `/people?filter=${encodeURIComponent(`jobTitle[notIn]:${JSON.stringify([testPersonJobTitles[TEST_PERSON_1_ID]])}`)}`,
+    }).expect(200);
+    const positiveExclusionResponse = await makeRestAPIRequest({
+      method: 'get',
+      path: `/people?filter=${encodeURIComponent('jobTitle[notIn]:["not-a-seeded-job-title"]')}`,
+    }).expect(200);
+
+    expect(
+      includedResponse.body.data.people.map((person) => person.id),
+    ).toEqual(expect.arrayContaining(includedPersonIds));
+    expect(
+      excludedResponse.body.data.people.map((person) => person.id),
+    ).not.toContain(TEST_PERSON_1_ID);
+    expect(
+      positiveExclusionResponse.body.data.people.map((person) => person.id),
+    ).toEqual(expect.arrayContaining(testPersonIds));
+  });
+
   // TODO: Refacto-common - Uncomment this after https://github.com/twentyhq/core-team-issues/issues/1627
 
   //   it('should fail to filter on a relation field name', async () => {

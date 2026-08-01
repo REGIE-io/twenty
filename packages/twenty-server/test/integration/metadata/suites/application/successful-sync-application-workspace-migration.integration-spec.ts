@@ -8,9 +8,13 @@ import { findManyObjectMetadata } from 'test/integration/metadata/suites/object-
 import { findRoles } from 'test/integration/metadata/suites/role/utils/find-roles.util';
 import { findSkills } from 'test/integration/metadata/suites/skill/utils/find-skills.util';
 import { extractRecordIdsAndDatesAsExpectAny } from 'test/utils/extract-record-ids-and-dates-as-expect-any';
+import { createOneOperationFactory } from 'test/integration/graphql/utils/create-one-operation-factory.util';
+import { findManyOperationFactory } from 'test/integration/graphql/utils/find-many-operation-factory.util';
+import { makeGraphqlAPIRequest } from 'test/integration/graphql/utils/make-graphql-api-request.util';
 import {
   type FieldManifest,
   getSystemRelationFieldUniversalIdentifier,
+  type IndexManifest,
   type Manifest,
 } from 'twenty-shared/application';
 import {
@@ -406,5 +410,105 @@ describe('syncApplication', () => {
     expect(syncData).toMatchSnapshot(
       extractRecordIdsAndDatesAsExpectAny(syncData),
     );
+  }, 60000);
+
+  it('materializes a field and its index once when the migration is re-run', async () => {
+    const indexedFieldUniversalIdentifier = uuidv4();
+    const indexUniversalIdentifier = uuidv4();
+    const indexFieldUniversalIdentifier = uuidv4();
+    const indexedObject = buildDefaultObjectManifest({
+      applicationUniversalIdentifier: TEST_APP_ID,
+      nameSingular: 'indexedTicket',
+      namePlural: 'indexedTickets',
+      labelSingular: 'Indexed ticket',
+      labelPlural: 'Indexed tickets',
+      description: 'A ticket with an application-owned index',
+      icon: 'IconTicket',
+    });
+    const indexedField: FieldManifest = {
+      universalIdentifier: indexedFieldUniversalIdentifier,
+      type: FieldMetadataType.TEXT,
+      name: 'externalReference',
+      label: 'External reference',
+      description: 'Reference supplied by an external system',
+      icon: 'IconId',
+      objectUniversalIdentifier: indexedObject.universalIdentifier,
+    };
+    const index: IndexManifest = {
+      universalIdentifier: indexUniversalIdentifier,
+      objectUniversalIdentifier: indexedObject.universalIdentifier,
+      fields: [
+        {
+          universalIdentifier: indexFieldUniversalIdentifier,
+          fieldUniversalIdentifier: indexedFieldUniversalIdentifier,
+        },
+      ],
+    };
+    const manifest = buildBaseManifest({
+      appId: TEST_APP_ID,
+      roleId: TEST_ROLE_ID,
+      overrides: {
+        objects: [indexedObject],
+        fields: [indexedField],
+        indexes: [index],
+      },
+    });
+
+    await syncApplication({ manifest, expectToFail: false });
+    await syncApplication({ manifest, expectToFail: false });
+
+    const objects = await findManyObjectMetadataWithIndexes({
+      expectToFail: false,
+    });
+    const object = objects.find(
+      ({ universalIdentifier }) =>
+        universalIdentifier === indexedObject.universalIdentifier,
+    );
+    const field = object?.fieldsList.find(
+      ({ universalIdentifier }) =>
+        universalIdentifier === indexedFieldUniversalIdentifier,
+    );
+    const indexesForField = object?.indexMetadataList.filter((indexMetadata) =>
+      indexMetadata.indexFieldMetadataList.some(
+        ({ fieldMetadataId }) => fieldMetadataId === field?.id,
+      ),
+    );
+
+    expect(field).toMatchObject({
+      name: 'externalReference',
+      type: FieldMetadataType.TEXT,
+    });
+    expect(indexesForField).toHaveLength(1);
+    expect(indexesForField?.[0]).toMatchObject({
+      isUnique: false,
+      indexType: 'BTREE',
+    });
+
+    const created = await makeGraphqlAPIRequest(
+      createOneOperationFactory({
+        objectMetadataSingularName: 'indexedTicket',
+        gqlFields: 'id externalReference',
+        data: { externalReference: 'PR56-indexed-reference' },
+      }),
+    );
+    const query = await makeGraphqlAPIRequest(
+      findManyOperationFactory({
+        objectMetadataSingularName: 'indexedTicket',
+        objectMetadataPluralName: 'indexedTickets',
+        gqlFields: 'id externalReference',
+        filter: { externalReference: { eq: 'PR56-indexed-reference' } },
+      }),
+    );
+
+    expect(created.body.errors).toBeUndefined();
+    expect(query.body.errors).toBeUndefined();
+    expect(query.body.data.indexedTickets.edges).toEqual([
+      expect.objectContaining({
+        node: expect.objectContaining({
+          id: created.body.data.createIndexedTicket.id,
+          externalReference: 'PR56-indexed-reference',
+        }),
+      }),
+    ]);
   }, 60000);
 });

@@ -123,6 +123,11 @@ export const computeWhereConditionParts = ({
         sql: `${fieldReference} IN (:...${key}${paramSuffix})`,
         params: { [`${key}${paramSuffix}`]: value },
       };
+    case 'notIn':
+      return {
+        sql: `${fieldReference} NOT IN (:...${key}${paramSuffix})`,
+        params: { [`${key}${paramSuffix}`]: value },
+      };
     case 'is':
       return {
         sql: `${fieldReference} IS ${value === 'NULL' ? 'NULL' : 'NOT NULL'}${hasNullEquivalentFieldValue ? ` OR ${fieldReference} = :${key}${secondParamSuffix}` : ''}`,
