@@ -130,14 +130,20 @@ const getColumnExpressionsFromField = (
     fieldMetadataTypeAndName.options.length > 0
   ) {
     const quotedColumnName = escapeIdentifier(columnName);
-    const cases = fieldMetadataTypeAndName.options
+    const valueCases = fieldMetadataTypeAndName.options
+      .map(
+        (option) =>
+          `WHEN ${escapeLiteral(option.value)} THEN ${escapeLiteral(option.value)}`,
+      )
+      .join(' ');
+    const labelCases = fieldMetadataTypeAndName.options
       .map(
         (option) =>
           `WHEN ${escapeLiteral(option.value)} THEN ${escapeLiteral(option.label)}`,
       )
       .join(' ');
     return [
-      `COALESCE(public.unaccent_immutable(${quotedColumnName}::text), '') || ' ' || COALESCE(public.unaccent_immutable(CASE ${quotedColumnName}::text ${cases} ELSE ${quotedColumnName}::text END), '')`,
+      `COALESCE(public.unaccent_immutable(CASE ${quotedColumnName} ${valueCases} ELSE '' END), '') || ' ' || COALESCE(public.unaccent_immutable(CASE ${quotedColumnName} ${labelCases} ELSE '' END), '')`,
     ];
   }
 
@@ -168,14 +174,17 @@ const getMultiSelectColumnExpression = (
     if (leftId !== rightId) return leftId < rightId ? -1 : 1;
     return left.value < right.value ? -1 : left.value > right.value ? 1 : 0;
   });
-  const stableValuesExpression = `COALESCE(public.unaccent_immutable(array_to_string(${quotedColumnName}, ' ')), '')`;
+  const values = orderedOptions.map(
+    (option) =>
+      `CASE WHEN ${escapeLiteral(option.value)} = ANY(${quotedColumnName}) THEN ${escapeLiteral(option.value)} ELSE '' END`,
+  );
   const labels = orderedOptions.map(
     (option) =>
       `CASE WHEN ${escapeLiteral(option.value)} = ANY(${quotedColumnName}) THEN ${escapeLiteral(option.label)} ELSE '' END`,
   );
-  return labels.length === 0
-    ? stableValuesExpression
-    : `${stableValuesExpression} || ' ' || COALESCE(public.unaccent_immutable(${labels.join(" || ' ' || ")}), '')`;
+  if (values.length === 0) return `''`;
+
+  return `COALESCE(public.unaccent_immutable(${values.join(" || ' ' || ")}), '') || ' ' || COALESCE(public.unaccent_immutable(${labels.join(" || ' ' || ")}), '')`;
 };
 
 const getColumnExpression = (

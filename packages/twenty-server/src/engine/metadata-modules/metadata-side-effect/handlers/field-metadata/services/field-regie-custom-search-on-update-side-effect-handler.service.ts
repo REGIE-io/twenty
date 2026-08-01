@@ -10,8 +10,13 @@ import { type MetadataSideEffectResult } from 'src/engine/metadata-modules/metad
 import {
   buildRegieCustomSearchFieldMetadata,
   findRegieCustomSearchRowsForField,
+  getRegieCustomSearchMarkerState,
+  getRegieCustomSearchPrerequisiteFailure,
+  getRegieCustomSearchTargetFailure,
   isRegieCustomSearchEnabled,
 } from '../utils/regie-custom-search-field-metadata.util';
+import { buildRegieCustomSearchFailure } from '../utils/build-regie-custom-search-failure.util';
+import { MetadataSideEffectExceptionCode } from 'src/engine/metadata-modules/metadata-side-effect/exceptions/metadata-side-effect-exception-code';
 
 @Injectable()
 export class FieldRegieCustomSearchOnUpdateSideEffectHandlerService extends MetadataSideEffectHandler(
@@ -30,13 +35,64 @@ export class FieldRegieCustomSearchOnUpdateSideEffectHandlerService extends Meta
       args.relatedFlatEntityMaps.flatFieldMetadataMaps.byUniversalIdentifier[
         args.flatEntity.universalIdentifier
       ];
+    const markerState = getRegieCustomSearchMarkerState(args.flatEntity);
+    if (markerState.status === 'invalid') {
+      return buildRegieCustomSearchFailure({
+        flatFieldMetadata: args.flatEntity,
+        operation: 'update',
+        code: MetadataSideEffectExceptionCode.REGIE_CUSTOM_FIELD_MARKER_INVALID,
+        reason: markerState.reason,
+      });
+    }
+    if (markerState.status === 'unsupported') {
+      return buildRegieCustomSearchFailure({
+        flatFieldMetadata: args.flatEntity,
+        operation: 'update',
+        code: MetadataSideEffectExceptionCode.REGIE_CUSTOM_FIELD_SEARCH_UNAVAILABLE,
+        reason: `field type ${args.flatEntity.type} has no Regie search projection`,
+      });
+    }
+    if (markerState.status !== 'absent') {
+      const targetFailure = getRegieCustomSearchTargetFailure({
+        ...args,
+        marker: markerState.marker,
+      });
+      if (targetFailure) {
+        return buildRegieCustomSearchFailure({
+          flatFieldMetadata: args.flatEntity,
+          operation: 'update',
+          code: targetFailure.startsWith('marker target')
+            ? MetadataSideEffectExceptionCode.REGIE_CUSTOM_FIELD_TARGET_MISMATCH
+            : MetadataSideEffectExceptionCode.REGIE_CUSTOM_FIELD_SEARCH_UNAVAILABLE,
+          reason: targetFailure,
+        });
+      }
+    }
+    if (markerState.status === 'enabled' && args.flatEntity.isActive === true) {
+      const prerequisiteFailure = getRegieCustomSearchPrerequisiteFailure({
+        ...args,
+        marker: markerState.marker,
+      });
+      if (prerequisiteFailure) {
+        return buildRegieCustomSearchFailure({
+          flatFieldMetadata: args.flatEntity,
+          operation: 'update',
+          code: prerequisiteFailure.startsWith('marker target')
+            ? MetadataSideEffectExceptionCode.REGIE_CUSTOM_FIELD_TARGET_MISMATCH
+            : MetadataSideEffectExceptionCode.REGIE_CUSTOM_FIELD_SEARCH_UNAVAILABLE,
+          reason: prerequisiteFailure,
+        });
+      }
+    }
+
     const wasEnabled =
       isDefined(previous) && isRegieCustomSearchEnabled(previous);
     const isEnabled = isRegieCustomSearchEnabled(args.flatEntity);
-    if (wasEnabled === isEnabled) return { status: 'noop' };
 
     if (isEnabled) {
       const searchFieldMetadata = buildRegieCustomSearchFieldMetadata(args);
+      // A retry/update is also the repair path for a prior ambiguous response:
+      // a matching row is an idempotent noop, a missing row is recreated.
       if (!searchFieldMetadata) return { status: 'noop' };
       return {
         status: 'success',
@@ -49,6 +105,9 @@ export class FieldRegieCustomSearchOnUpdateSideEffectHandlerService extends Meta
         },
       };
     }
+
+    if (!wasEnabled && markerState.status !== 'disabled')
+      return { status: 'noop' };
 
     const rowsToDelete = findRegieCustomSearchRowsForField(args);
     return Object.keys(rowsToDelete).length === 0

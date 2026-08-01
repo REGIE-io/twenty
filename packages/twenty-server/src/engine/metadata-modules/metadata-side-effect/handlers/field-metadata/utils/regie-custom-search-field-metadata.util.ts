@@ -1,3 +1,7 @@
+import {
+  parseRegieCustomFieldMarker,
+  type RegieCustomFieldMarker,
+} from 'twenty-shared/types';
 import { isDefined } from 'twenty-shared/utils';
 
 import { buildFlatSearchFieldMetadataForField } from 'src/engine/metadata-modules/flat-search-field-metadata/utils/build-flat-search-field-metadata-for-field.util';
@@ -7,15 +11,95 @@ import { isRegieCustomSearchFieldType } from 'src/engine/workspace-manager/utils
 
 type RegieSearchableField = {
   isActive?: boolean;
-  settings?: unknown;
+  universalSettings?: unknown;
   type: Parameters<typeof isRegieCustomSearchFieldType>[0];
+};
+
+export type RegieCustomSearchMarkerState =
+  | { status: 'absent' }
+  | { status: 'invalid'; reason: string }
+  | { status: 'disabled'; marker: RegieCustomFieldMarker }
+  | { status: 'enabled'; marker: RegieCustomFieldMarker }
+  | { status: 'unsupported'; marker: RegieCustomFieldMarker };
+
+export const getRegieCustomSearchMarkerState = (
+  field: RegieSearchableField,
+): RegieCustomSearchMarkerState => {
+  const marker = parseRegieCustomFieldMarker(field.universalSettings);
+  if (marker.status === 'absent') return marker;
+  if (marker.status === 'invalid') {
+    return { status: 'invalid', reason: marker.issues.join('; ') };
+  }
+  if (marker.marker.searchable === false) {
+    return { status: 'disabled', marker: marker.marker };
+  }
+  return isRegieCustomSearchFieldType(field.type)
+    ? { status: 'enabled', marker: marker.marker }
+    : { status: 'unsupported', marker: marker.marker };
 };
 
 export const isRegieCustomSearchEnabled = (field: RegieSearchableField) =>
   field.isActive === true &&
-  isRegieCustomSearchFieldType(field.type) &&
-  (field.settings as { regieCustomField?: { searchable?: boolean } } | null)
-    ?.regieCustomField?.searchable === true;
+  getRegieCustomSearchMarkerState(field).status === 'enabled';
+
+export const getRegieCustomSearchTargetFailure = ({
+  flatEntity,
+  relatedFlatEntityMaps,
+  marker,
+}: BuildSideEffectsArgs<'fieldMetadata'> & {
+  marker: RegieCustomFieldMarker;
+}): string | undefined => {
+  const object =
+    relatedFlatEntityMaps.flatObjectMetadataMaps.byUniversalIdentifier[
+      flatEntity.objectMetadataUniversalIdentifier
+    ];
+  if (!isDefined(object)) return 'parent object metadata is missing';
+
+  const expectedObjectName =
+    marker.target === 'account'
+      ? 'company'
+      : marker.target === 'calendar_event'
+        ? 'calendarEvent'
+        : marker.target;
+  if (object.nameSingular !== expectedObjectName) {
+    return `marker target ${marker.target} does not match object ${object.nameSingular}`;
+  }
+
+  return undefined;
+};
+
+export const getRegieCustomSearchPrerequisiteFailure = ({
+  flatEntity,
+  relatedFlatEntityMaps,
+  marker,
+}: BuildSideEffectsArgs<'fieldMetadata'> & {
+  marker: RegieCustomFieldMarker;
+}): string | undefined => {
+  const targetFailure = getRegieCustomSearchTargetFailure({
+    flatEntity,
+    relatedFlatEntityMaps,
+    marker,
+  });
+  if (targetFailure) return targetFailure;
+
+  const object =
+    relatedFlatEntityMaps.flatObjectMetadataMaps.byUniversalIdentifier[
+      flatEntity.objectMetadataUniversalIdentifier
+    ];
+  if (!isDefined(object)) return 'parent object metadata is missing';
+
+  if (!isRegieCustomSearchFieldType(flatEntity.type)) {
+    return `field type ${flatEntity.type} has no Regie search projection`;
+  }
+
+  const tsVector = findTsVectorFlatFieldMetadataForObject({
+    fieldUniversalIdentifiers: object.fieldUniversalIdentifiers,
+    flatFieldMetadataMaps: relatedFlatEntityMaps.flatFieldMetadataMaps,
+  });
+  if (!isDefined(tsVector)) return 'object has no searchVector TS_VECTOR field';
+
+  return undefined;
+};
 
 export const buildRegieCustomSearchFieldMetadata = ({
   flatEntity,

@@ -14,7 +14,14 @@ const field = (overrides: object = {}) => ({
   objectMetadataUniversalIdentifier: OBJECT,
   type: FieldMetadataType.EMAILS,
   isActive: true,
-  settings: { regieCustomField: { searchable: true } },
+  universalSettings: {
+    regieCustomField: {
+      version: 1,
+      target: 'person',
+      format: 'plain',
+      searchable: true,
+    },
+  },
   searchFieldMetadataUniversalIdentifiers: [],
   ...overrides,
 });
@@ -45,6 +52,7 @@ const args = ({
         byUniversalIdentifier: {
           [OBJECT]: {
             universalIdentifier: OBJECT,
+            nameSingular: 'person',
             applicationUniversalIdentifier: APPLICATION,
             fieldUniversalIdentifiers: [VECTOR],
             searchFieldMetadataUniversalIdentifiers: Object.keys(rows),
@@ -78,26 +86,86 @@ describe('Regie custom field search side effects', () => {
     });
   });
 
-  it('does not register ordinary or unsupported fields', () => {
+  it.each([FieldMetadataType.SELECT, FieldMetadataType.MULTI_SELECT])(
+    'keeps the strict marker searchable for %s fields',
+    (type) => {
+      const result = create.buildSideEffects(
+        args({ incoming: field({ type }) }),
+      );
+      expect(result.status).toBe('success');
+    },
+  );
+
+  it('does not register ordinary fields, but fails closed for malformed markers', () => {
     expect(
-      create.buildSideEffects(args({ incoming: field({ settings: null }) }))
+      create.buildSideEffects(
+        args({ incoming: field({ universalSettings: null }) }),
+      )
         .status,
     ).toBe('noop');
     expect(
       create.buildSideEffects(
+        args({
+          incoming: field({
+            universalSettings: { regieCustomField: { searchable: true } },
+          }),
+        }),
+      ).status,
+    ).toBe('fail');
+    expect(
+      create.buildSideEffects(
+        args({
+          incoming: field({
+            universalSettings: {
+              regieCustomField: {
+                version: 2,
+                target: 'person',
+                format: 'plain',
+                searchable: true,
+              },
+            },
+          }),
+        }),
+      ).status,
+    ).toBe('fail');
+    expect(
+      create.buildSideEffects(
+        args({
+          incoming: field({
+            universalSettings: {
+              regieCustomField: {
+                version: 1,
+                target: 'person',
+                format: 'plain',
+                searchable: true,
+                extra: true,
+              },
+            },
+          }),
+        }),
+      ).status,
+    ).toBe('fail');
+    expect(
+      create.buildSideEffects(
+        args({
+          incoming: field({
+            universalSettings: {
+              regieCustomField: {
+                version: 1,
+                target: 'lead',
+                format: 'not-a-format',
+                searchable: 'yes',
+              },
+            },
+          }),
+        }),
+      ).status,
+    ).toBe('fail');
+    expect(
+      create.buildSideEffects(
         args({ incoming: field({ type: FieldMetadataType.RAW_JSON }) }),
       ).status,
-    ).toBe('noop');
-    expect(
-      create.buildSideEffects(
-        args({ incoming: field({ type: FieldMetadataType.ADDRESS }) }),
-      ).status,
-    ).toBe('noop');
-    expect(
-      create.buildSideEffects(
-        args({ incoming: field({ type: FieldMetadataType.RICH_TEXT }) }),
-      ).status,
-    ).toBe('noop');
+    ).toBe('fail');
   });
 
   it('is idempotent and deletes only its own row', () => {
@@ -151,5 +219,94 @@ describe('Regie custom field search side effects', () => {
         original.operations.searchFieldMetadata?.flatEntityToCreate ?? {},
       ),
     );
+  });
+
+  it('fails closed when the marker targets a different object or searchVector is missing', () => {
+    expect(
+      create.buildSideEffects(
+        args({
+          incoming: field({
+            universalSettings: {
+              regieCustomField: {
+                version: 1,
+                target: 'account',
+                format: 'plain',
+                searchable: true,
+              },
+            },
+          }),
+        }),
+      ).status,
+    ).toBe('fail');
+
+    const noVectorArgs = args();
+    delete noVectorArgs.relatedFlatEntityMaps.flatFieldMetadataMaps
+      .byUniversalIdentifier[VECTOR];
+    expect(create.buildSideEffects(noVectorArgs).status).toBe('fail');
+
+    const noObjectArgs = args();
+    delete noObjectArgs.relatedFlatEntityMaps.flatObjectMetadataMaps
+      .byUniversalIdentifier[OBJECT];
+    expect(create.buildSideEffects(noObjectArgs).status).toBe('fail');
+
+    expect(
+      update.buildSideEffects(
+        args({
+          incoming: field({
+            isActive: false,
+            universalSettings: {
+              regieCustomField: {
+                version: 1,
+                target: 'account',
+                format: 'plain',
+                searchable: false,
+              },
+            },
+          }),
+          existing: field(),
+        }),
+      ).status,
+    ).toBe('fail');
+  });
+
+  it('removes a disabled marker and repairs a previously invalid marker on update', () => {
+    const ownRow = {
+      universalIdentifier: 'own',
+      fieldMetadataUniversalIdentifier: FIELD,
+      position: 0,
+    };
+    expect(
+      update.buildSideEffects(
+        args({
+          incoming: field({
+            universalSettings: {
+              regieCustomField: {
+                version: 1,
+                target: 'person',
+                format: 'plain',
+                searchable: false,
+              },
+            },
+          }),
+          existing: field(),
+          rows: { own: ownRow },
+        }),
+      ).status,
+    ).toBe('success');
+
+    const repaired = update.buildSideEffects(
+      args({
+        incoming: field(),
+        existing: field({
+          universalSettings: { regieCustomField: { searchable: true } },
+        }),
+      }),
+    );
+    expect(repaired.status).toBe('success');
+
+    const retry = update.buildSideEffects(
+      args({ incoming: field(), existing: field() }),
+    );
+    expect(retry.status).toBe('success');
   });
 });

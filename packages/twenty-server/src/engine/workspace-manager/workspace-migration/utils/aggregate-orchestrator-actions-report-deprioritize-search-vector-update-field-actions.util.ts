@@ -57,11 +57,28 @@ export const aggregateOrchestratorActionsReportDeprioritizeSearchVectorUpdateFie
             };
           }
 
+          const objectSearchVectorField = Object.values(
+            flatFieldMetadataMaps.byUniversalIdentifier,
+          ).find(
+            (candidate) =>
+              candidate.objectMetadataId ===
+                flatFieldMetadata.objectMetadataId &&
+              candidate.name === SEARCH_VECTOR_FIELD.name,
+          );
+          const mustReleaseSearchVectorDependency =
+            updateFieldAction.update.options !== undefined &&
+            objectSearchVectorField !== undefined &&
+            rebuildTargetUniversalIdentifiers.has(
+              objectSearchVectorField.universalIdentifier,
+            );
+
           return {
             ...acc,
             otherUpdateFieldActions: [
               ...acc.otherUpdateFieldActions,
-              updateFieldAction,
+              mustReleaseSearchVectorDependency
+                ? { ...updateFieldAction, rebuildSearchVector: true }
+                : updateFieldAction,
             ],
           };
         },

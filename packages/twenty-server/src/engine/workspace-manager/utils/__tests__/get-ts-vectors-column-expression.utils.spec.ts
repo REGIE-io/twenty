@@ -35,7 +35,8 @@ describe('getTsVectorColumnExpressionFromFields', () => {
     ]);
 
     expect(result).toContain(`WHEN 'owner''s' THEN 'Owner''s choice'`);
-    expect(result).toContain('"tier"::text');
+    expect(result).toContain(`WHEN 'owner''s' THEN 'owner''s'`);
+    expect(result).not.toContain('"tier"::text');
   });
 
   it('indexes only the stable value when a select has no options', () => {
@@ -73,10 +74,14 @@ describe('getTsVectorColumnExpressionFromFields', () => {
       },
     ]);
 
-    expect(result).toContain(`array_to_string("segments", ' ')`);
+    expect(result).toContain(
+      `CASE WHEN 'enterprise' = ANY("segments") THEN 'enterprise' ELSE '' END`,
+    );
     expect(result.indexOf("'enterprise' = ANY")).toBeLessThan(
       result.indexOf("'partner' = ANY"),
     );
+    expect(result).not.toContain('array_to_string');
+    expect(result).not.toContain('"segments"::text');
   });
 
   it('uses immutable canonical UTC components for DATE_TIME', () => {
