@@ -631,9 +631,3 @@ export const STANDARD_PAGE_LAYOUT_UNIVERSAL_IDENTIFIERS = {
     },
   },
 };
-
-Object.defineProperty(
-  STANDARD_PAGE_LAYOUT_UNIVERSAL_IDENTIFIERS,
-  'calendarEventRecordPage',
-  { enumerable: false },
-);
