@@ -1616,9 +1616,3 @@ export const STANDARD_OBJECTS = {
     >;
   }
 >;
-
-Object.defineProperty(
-  STANDARD_OBJECTS.calendarEvent.views,
-  'calendarEventRecordPageFields',
-  { enumerable: false },
-);
