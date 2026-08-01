@@ -116,6 +116,7 @@ export type {
   FieldMetadataSettingsMapping,
   AllFieldMetadataSettings,
   FieldMetadataSettings,
+  RegieCustomFieldSettings,
 } from './FieldMetadataSettings';
 export { NumberDataType, DateDisplayFormat } from './FieldMetadataSettings';
 export { FieldMetadataType } from './FieldMetadataType';

@@ -1,6 +1,8 @@
 import { Module } from '@nestjs/common';
 
 import { FieldSearchFieldMetadataOnDeleteSideEffectHandlerService } from 'src/engine/metadata-modules/metadata-side-effect/handlers/field-metadata/services/field-search-field-metadata-on-delete-side-effect-handler.service';
+import { FieldRegieCustomSearchOnCreateSideEffectHandlerService } from 'src/engine/metadata-modules/metadata-side-effect/handlers/field-metadata/services/field-regie-custom-search-on-create-side-effect-handler.service';
+import { FieldRegieCustomSearchOnUpdateSideEffectHandlerService } from 'src/engine/metadata-modules/metadata-side-effect/handlers/field-metadata/services/field-regie-custom-search-on-update-side-effect-handler.service';
 import { FieldUniqueBackingIndexOnCreateSideEffectHandlerService } from 'src/engine/metadata-modules/metadata-side-effect/handlers/field-metadata/services/field-unique-backing-index-on-create-side-effect-handler.service';
 import { FieldUniqueBackingIndexOnDeleteSideEffectHandlerService } from 'src/engine/metadata-modules/metadata-side-effect/handlers/field-metadata/services/field-unique-backing-index-on-delete-side-effect-handler.service';
 import { FieldUniqueBackingIndexOnUpdateSideEffectHandlerService } from 'src/engine/metadata-modules/metadata-side-effect/handlers/field-metadata/services/field-unique-backing-index-on-update-side-effect-handler.service';
@@ -17,6 +19,8 @@ import { ObjectSystemSideEffectsOnDeleteSideEffectHandlerService } from 'src/eng
     FieldUniqueBackingIndexOnUpdateSideEffectHandlerService,
     FieldUniqueBackingIndexOnDeleteSideEffectHandlerService,
     FieldSearchFieldMetadataOnDeleteSideEffectHandlerService,
+    FieldRegieCustomSearchOnCreateSideEffectHandlerService,
+    FieldRegieCustomSearchOnUpdateSideEffectHandlerService,
     ObjectSystemFieldsOnCreateSideEffectHandlerService,
     ObjectSystemRelationsOnCreateSideEffectHandlerService,
     ObjectSystemRelationsOnUpdateSideEffectHandlerService,

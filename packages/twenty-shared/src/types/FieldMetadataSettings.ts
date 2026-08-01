@@ -79,6 +79,15 @@ export type FieldMetadataSettingsMapping = {
   [FieldMetadataType.FILES]: FieldMetadataFilesSettings;
 };
 
+/** Settings owned by Regie and stored in the existing metadata settings JSON. */
+export type RegieCustomFieldSettings = {
+  regieCustomField?: { searchable?: boolean };
+};
+
+type WithRegieCustomFieldSettings<Settings> = Settings extends null
+  ? RegieCustomFieldSettings | null
+  : Settings & RegieCustomFieldSettings;
+
 export type AllFieldMetadataSettings =
   FieldMetadataSettingsMapping[keyof FieldMetadataSettingsMapping];
 
@@ -86,7 +95,10 @@ export type FieldMetadataSettings<
   T extends FieldMetadataType = FieldMetadataType,
 > =
   IsExactly<T, FieldMetadataType> extends true
-    ? null | AllFieldMetadataSettings
+    ?
+        | null
+        | (AllFieldMetadataSettings & RegieCustomFieldSettings)
+        | RegieCustomFieldSettings
     : T extends keyof FieldMetadataSettingsMapping
-      ? FieldMetadataSettingsMapping[T]
-      : never | null;
+      ? WithRegieCustomFieldSettings<FieldMetadataSettingsMapping[T]>
+      : RegieCustomFieldSettings | null;
