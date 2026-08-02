@@ -99,7 +99,9 @@ describe('Regie marker failures through the metadata side-effect engine', () => 
     expect(input).toEqual(
       operationRecord(
         'create',
-        field({ universalSettings: { regieCustomField: { searchable: true } } }),
+        field({
+          universalSettings: { regieCustomField: { searchable: true } },
+        }),
       ),
     );
   });

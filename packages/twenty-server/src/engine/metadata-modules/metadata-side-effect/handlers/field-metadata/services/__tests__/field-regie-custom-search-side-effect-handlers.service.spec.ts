@@ -100,8 +100,7 @@ describe('Regie custom field search side effects', () => {
     expect(
       create.buildSideEffects(
         args({ incoming: field({ universalSettings: null }) }),
-      )
-        .status,
+      ).status,
     ).toBe('noop');
     expect(
       create.buildSideEffects(

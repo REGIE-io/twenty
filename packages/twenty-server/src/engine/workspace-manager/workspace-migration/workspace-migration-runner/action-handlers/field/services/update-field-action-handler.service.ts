@@ -232,8 +232,7 @@ export class UpdateFieldActionHandlerService extends WorkspaceMigrationRunnerAct
         if (isDefined(indexedSearchFieldMetadata)) {
           const searchVectorFieldMetadata =
             findFlatEntityByIdInFlatEntityMapsOrThrow({
-              flatEntityId:
-                indexedSearchFieldMetadata.tsVectorFieldMetadataId,
+              flatEntityId: indexedSearchFieldMetadata.tsVectorFieldMetadataId,
               flatEntityMaps: flatFieldMetadataMaps,
             });
 
