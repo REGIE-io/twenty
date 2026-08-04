@@ -190,14 +190,25 @@ export class AddMessageCampaignNameFieldCommand extends ProvisionedWorkspaceComm
       }
     }
 
-    const searchFieldMetadatasToCreate =
-      this.computeSearchFieldMetadatasToCreate({
+    // Search field metadata is rejected unless the object already carries the
+    // TS_VECTOR field it points at. Where that field is absent, skip the search
+    // entry rather than fail the command — the name field itself does not depend
+    // on it, and the TS_VECTOR field is not created here.
+    const searchFieldMetadatasToCreate = this.computeSearchFieldMetadatasToCreate(
+      {
         flatSearchFieldMetadataMaps,
         standardFlatSearchFieldMetadataMaps:
           standardAllFlatEntityMaps.flatSearchFieldMetadataMaps,
         applicationUniversalIdentifier:
           twentyStandardFlatApplication.universalIdentifier,
-      });
+      },
+    ).filter((flatSearchFieldMetadata) =>
+      isDefined(
+        flatFieldMetadataMaps.byUniversalIdentifier[
+          flatSearchFieldMetadata.tsVectorFieldMetadataUniversalIdentifier
+        ],
+      ),
+    );
 
     const totalOperationCount =
       fieldsToCreate.length +
