@@ -6,6 +6,7 @@ import { isDefined } from 'twenty-shared/utils';
 import { ProvisionedWorkspaceCommandRunner } from 'src/database/commands/command-runners/provisioned-workspace.command-runner';
 import { WorkspaceIteratorService } from 'src/database/commands/command-runners/workspace-iterator.service';
 import { type RunOnWorkspaceArgs } from 'src/database/commands/command-runners/workspace.command-runner';
+import { IS_STANDARD_UI_METADATA_MANAGED } from 'src/database/commands/upgrade-version-command/utils/is-standard-ui-metadata-managed.util';
 import { ApplicationService } from 'src/engine/core-modules/application/application.service';
 import { RegisteredWorkspaceCommand } from 'src/engine/core-modules/upgrade/decorators/registered-workspace-command.decorator';
 import { type FlatCommandMenuItem } from 'src/engine/metadata-modules/flat-command-menu-item/types/flat-command-menu-item.type';
@@ -51,6 +52,14 @@ export class ConfigureMessageCampaignCommandMenuCommand extends ProvisionedWorks
     options,
   }: RunOnWorkspaceArgs): Promise<void> {
     const isDryRun = options.dryRun ?? false;
+
+    if (!IS_STANDARD_UI_METADATA_MANAGED) {
+      this.logger.log(
+        `Standard UI metadata is not managed, skipping message campaign command menu for workspace ${workspaceId}`,
+      );
+
+      return;
+    }
 
     const { twentyStandardFlatApplication } =
       await this.applicationService.findWorkspaceTwentyStandardAndCustomApplicationOrThrow(

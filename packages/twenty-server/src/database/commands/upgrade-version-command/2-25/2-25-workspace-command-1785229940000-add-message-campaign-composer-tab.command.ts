@@ -10,6 +10,7 @@ import { ProvisionedWorkspaceCommandRunner } from 'src/database/commands/command
 import { WorkspaceIteratorService } from 'src/database/commands/command-runners/workspace-iterator.service';
 import { type RunOnWorkspaceArgs } from 'src/database/commands/command-runners/workspace.command-runner';
 import { getStandardFlatEntitiesToCreateOrThrow } from 'src/database/commands/upgrade-version-command/2-10/utils/get-standard-flat-entities-to-create-or-throw.util';
+import { IS_STANDARD_UI_METADATA_MANAGED } from 'src/database/commands/upgrade-version-command/utils/is-standard-ui-metadata-managed.util';
 import { ApplicationService } from 'src/engine/core-modules/application/application.service';
 import { RegisteredWorkspaceCommand } from 'src/engine/core-modules/upgrade/decorators/registered-workspace-command.decorator';
 import { type FlatPageLayoutTab } from 'src/engine/metadata-modules/flat-page-layout-tab/types/flat-page-layout-tab.type';
@@ -94,6 +95,14 @@ export class AddMessageCampaignComposerTabCommand extends ProvisionedWorkspaceCo
     options,
   }: RunOnWorkspaceArgs): Promise<void> {
     const isDryRun = options.dryRun ?? false;
+
+    if (!IS_STANDARD_UI_METADATA_MANAGED) {
+      this.logger.log(
+        `Standard UI metadata is not managed, skipping message campaign record page for workspace ${workspaceId}`,
+      );
+
+      return;
+    }
 
     const { twentyStandardFlatApplication } =
       await this.applicationService.findWorkspaceTwentyStandardAndCustomApplicationOrThrow(
