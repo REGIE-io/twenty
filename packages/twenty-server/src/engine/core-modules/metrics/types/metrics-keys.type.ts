@@ -58,6 +58,7 @@ export enum MetricsKeys {
   JobWebhookCallCompleted = 'job/webhook-call-completed',
   SignUpSuccess = 'sign-up/success',
   CommonApiApplicationQueryRateLimited = 'common-api-query/application-rate-limited',
+  JobEnqueueApplicationRateLimited = 'job/enqueue-application-rate-limited',
   JobCompleted = 'job/completed',
   JobFailed = 'job/failed',
   JobStalled = 'job/stalled',
@@ -75,4 +76,10 @@ export enum MetricsKeys {
   SdkClientGenerationDurationMs = 'sdk-client-generation/duration-ms',
   ConnectedAccountSyncWebhookReceivedMessaging = 'connected-account-sync-webhook/received/messaging',
   ConnectedAccountSyncWebhookReceivedCalendar = 'connected-account-sync-webhook/received/calendar',
+  ConnectedAccountWebhookSubscriptionCreated = 'connected-account-webhook-subscription/created',
+  ConnectedAccountWebhookSubscriptionCreationFailed = 'connected-account-webhook-subscription/creation-failed',
+  ConnectedAccountWebhookSubscriptionRenewed = 'connected-account-webhook-subscription/renewed',
+  ConnectedAccountWebhookSubscriptionRenewalFailed = 'connected-account-webhook-subscription/renewal-failed',
+  ConnectedAccountWebhookSubscriptionDeleted = 'connected-account-webhook-subscription/deleted',
+  ConnectedAccountWebhookSubscriptionDeletionFailed = 'connected-account-webhook-subscription/deletion-failed',
 }
