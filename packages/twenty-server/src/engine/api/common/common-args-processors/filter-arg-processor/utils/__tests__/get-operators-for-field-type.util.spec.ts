@@ -33,8 +33,12 @@ describe('getOperatorsForFieldType', () => {
   });
 
   it('allows the full-text search operator only for TS_VECTOR', () => {
-    expect(getOperatorsForFieldType(FieldMetadataType.TS_VECTOR)).toEqual(['search']);
-    expect(getOperatorsForFieldType(FieldMetadataType.TEXT)).not.toContain('search');
+    expect(getOperatorsForFieldType(FieldMetadataType.TS_VECTOR)).toEqual([
+      'search',
+    ]);
+    expect(getOperatorsForFieldType(FieldMetadataType.TEXT)).not.toContain(
+      'search',
+    );
   });
 
   it.each([FieldMetadataType.SELECT, FieldMetadataType.RATING])(
