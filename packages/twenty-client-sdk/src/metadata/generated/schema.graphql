@@ -3187,10 +3187,10 @@ type MinimalMetadata {
 }
 
 type Query {
-  applicationSdkClientChecksums(applicationId: UUID!): SdkClientChecksums
-  isApplicationStopped(applicationUniversalIdentifier: String!): Boolean!
   navigationMenuItems: [NavigationMenuItem!]!
   navigationMenuItem(id: UUID!): NavigationMenuItem
+  applicationSdkClientChecksums(applicationId: UUID!): SdkClientChecksums
+  isApplicationStopped(applicationUniversalIdentifier: String!): Boolean!
   enterprisePortalSession(returnUrlPath: String): String
   enterpriseCheckoutSession(billingInterval: String): String
   enterpriseSubscriptionStatus: EnterpriseSubscriptionStatusDTO
