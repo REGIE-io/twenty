@@ -398,7 +398,8 @@ export class WorkspaceService {
         workspaceId: workspace.id,
       });
 
-      await this.enqueuePreInstalledAppsInstallation(workspace.id);
+      // Pre-installed apps are not part of REGIE tenant provisioning.
+      // await this.enqueuePreInstalledAppsInstallation(workspace.id);
     } catch (error) {
       await this.workspaceRepository.update(workspace.id, {
         activationStatus: WorkspaceActivationStatus.PENDING_CREATION,
