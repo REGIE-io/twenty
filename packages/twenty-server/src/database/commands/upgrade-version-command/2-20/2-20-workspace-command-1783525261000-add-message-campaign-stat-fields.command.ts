@@ -5,7 +5,6 @@ import { isDefined } from 'twenty-shared/utils';
 import { ProvisionedWorkspaceCommandRunner } from 'src/database/commands/command-runners/provisioned-workspace.command-runner';
 import { WorkspaceIteratorService } from 'src/database/commands/command-runners/workspace-iterator.service';
 import { type RunOnWorkspaceArgs } from 'src/database/commands/command-runners/workspace.command-runner';
-import { IS_STANDARD_UI_METADATA_MANAGED } from 'src/database/commands/upgrade-version-command/utils/is-standard-ui-metadata-managed.util';
 import { ApplicationService } from 'src/engine/core-modules/application/application.service';
 import { RegisteredWorkspaceCommand } from 'src/engine/core-modules/upgrade/decorators/registered-workspace-command.decorator';
 import { findFlatEntityByUniversalIdentifier } from 'src/engine/metadata-modules/flat-entity/utils/find-flat-entity-by-universal-identifier.util';
@@ -119,39 +118,30 @@ export class AddMessageCampaignStatFieldsCommand extends ProvisionedWorkspaceCom
       return standardField;
     });
 
-    // The view and its columns are standard UI metadata, which is not managed
-    // here. They share a single migration call with the stat fields below, so a
-    // failing view operation would take the fields down with it — and those
-    // fields are real schema that later commands resolve by universal identifier.
-    const viewsToCreate = IS_STANDARD_UI_METADATA_MANAGED
-      ? this.resolveViewsToCreate({
-          flatViewMaps,
-          standardAllFlatEntityMaps,
-        })
-      : [];
+    const viewsToCreate = this.resolveViewsToCreate({
+      flatViewMaps,
+      standardAllFlatEntityMaps,
+    });
 
-    const viewFieldsToCreate = IS_STANDARD_UI_METADATA_MANAGED
-      ? CAMPAIGN_VIEW_FIELD_UNIVERSAL_IDENTIFIERS.filter(
-          (universalIdentifier) =>
-            !isDefined(
-              flatViewFieldMaps.byUniversalIdentifier[universalIdentifier],
-            ),
-        ).map((universalIdentifier) => {
-          const standardViewField =
-            findFlatEntityByUniversalIdentifier<FlatViewField>({
-              flatEntityMaps: standardAllFlatEntityMaps.flatViewFieldMaps,
-              universalIdentifier,
-            });
+    const viewFieldsToCreate = CAMPAIGN_VIEW_FIELD_UNIVERSAL_IDENTIFIERS.filter(
+      (universalIdentifier) =>
+        !isDefined(flatViewFieldMaps.byUniversalIdentifier[universalIdentifier]),
+    ).map((universalIdentifier) => {
+      const standardViewField = findFlatEntityByUniversalIdentifier<FlatViewField>(
+        {
+          flatEntityMaps: standardAllFlatEntityMaps.flatViewFieldMaps,
+          universalIdentifier,
+        },
+      );
 
-          if (!isDefined(standardViewField)) {
-            throw new Error(
-              `Standard application is missing messageCampaign view column ${universalIdentifier}`,
-            );
-          }
+      if (!isDefined(standardViewField)) {
+        throw new Error(
+          `Standard application is missing messageCampaign view column ${universalIdentifier}`,
+        );
+      }
 
-          return standardViewField;
-        })
-      : [];
+      return standardViewField;
+    });
 
     const hasMetadataChanges =
       fieldsToCreate.length > 0 ||
