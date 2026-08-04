@@ -107,6 +107,7 @@ export class AddMessageCampaignComposerTabCommand extends ProvisionedWorkspaceCo
       flatViewMaps,
       flatViewFieldMaps,
       flatViewFieldGroupMaps,
+      flatFieldMetadataMaps,
     } = await this.workspaceCacheService.getOrRecompute(workspaceId, [
       'flatPageLayoutMaps',
       'flatPageLayoutTabMaps',
@@ -114,6 +115,7 @@ export class AddMessageCampaignComposerTabCommand extends ProvisionedWorkspaceCo
       'flatViewMaps',
       'flatViewFieldMaps',
       'flatViewFieldGroupMaps',
+      'flatFieldMetadataMaps',
     ]);
 
     const existingPageLayout =
@@ -174,7 +176,13 @@ export class AddMessageCampaignComposerTabCommand extends ProvisionedWorkspaceCo
         existingFlatEntityMaps: flatViewFieldMaps,
         universalIdentifiers:
           MESSAGE_CAMPAIGN_RECORD_PAGE_FIELDS_VIEW_FIELD_UNIVERSAL_IDENTIFIERS,
-      });
+      }).filter((viewField) =>
+        isDefined(
+          flatFieldMetadataMaps.byUniversalIdentifier[
+            viewField.fieldMetadataUniversalIdentifier
+          ],
+        ),
+      );
 
     const viewFieldGroupsToCreate =
       getStandardFlatEntitiesToCreateOrThrow<FlatViewFieldGroup>({

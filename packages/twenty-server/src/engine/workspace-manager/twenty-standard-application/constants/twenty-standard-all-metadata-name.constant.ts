@@ -33,3 +33,6 @@ export const TWENTY_STANDARD_UI_METADATA_NAME = [
   'pageLayoutWidget',
   'commandMenuItem',
 ] as const satisfies AllMetadataName[];
+
+export type TwentyStandardMetadataName =
+  (typeof TWENTY_STANDARD_ALL_METADATA_NAME)[number];
