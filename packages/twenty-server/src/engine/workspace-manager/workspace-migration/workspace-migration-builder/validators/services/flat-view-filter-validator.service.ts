@@ -5,7 +5,7 @@ import { ALL_METADATA_NAME } from 'twenty-shared/metadata';
 import {
   FieldMetadataType,
   type FilterableAndTSVectorFieldType,
-  type ViewFilterOperand,
+  ViewFilterOperand,
 } from 'twenty-shared/types';
 import {
   FILTER_OPERANDS_MAP,
@@ -370,6 +370,16 @@ export class FlatViewFilterValidatorService {
         ? relationTargetFieldType
         : fieldType;
 
+    const isListOperand =
+      operand === ViewFilterOperand.IS_IN_LIST ||
+      operand === ViewFilterOperand.IS_NOT_IN_LIST;
+    const effectiveOperand =
+      fieldType === FieldMetadataType.RELATION &&
+      isDefined(relationTargetFieldType) &&
+      isListOperand
+        ? ViewFilterOperand.IS
+        : operand;
+
     if (!(effectiveFieldType in FILTER_OPERANDS_MAP)) {
       return undefined;
     }
@@ -379,7 +389,7 @@ export class FlatViewFilterValidatorService {
       subFieldName,
     });
 
-    if (allowedOperands.includes(operand)) {
+    if (allowedOperands.includes(effectiveOperand)) {
       return undefined;
     }
 
