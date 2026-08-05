@@ -145,7 +145,10 @@ describe('Regie custom search generated-column immutability', () => {
       `SELECT "searchVector"::text AS "searchVector" FROM core."${tableName}" ORDER BY "customText" NULLS LAST`,
     );
 
-    expect(rows[0]?.searchVector).toContain('external-42');
+    // PostgreSQL's TS-vector tokenizer splits punctuation-delimited external
+    // IDs into searchable lexemes rather than retaining their raw spelling.
+    expect(rows[0]?.searchVector).toContain('external');
+    expect(rows[0]?.searchVector).toContain('42');
     expect(rows[0]?.searchVector).toContain('owner');
     expect(rows[0]?.searchVector).toContain('choice');
     expect(rows[0]?.searchVector).toContain('enterprise');
