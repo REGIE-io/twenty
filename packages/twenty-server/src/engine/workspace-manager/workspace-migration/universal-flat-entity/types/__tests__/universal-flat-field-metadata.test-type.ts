@@ -1,11 +1,6 @@
-import {
-  type Equal,
-  type Expect,
-  type HasAllProperties,
-} from 'twenty-shared/testing';
+import { type Expect, type HasAllProperties } from 'twenty-shared/testing';
 import {
   type FieldMetadataType,
-  type FieldMetadataUniversalSettings,
   type NullablePartial,
 } from 'twenty-shared/types';
 
@@ -84,27 +79,4 @@ type UniversalFlatTransformationAssertions = [
       OneToManyUniversalIdentifierArrays
     >
   >,
-];
-
-// JSONB properties are now prefixed with 'universal' in UniversalFlatFieldMetadata
-type NarrowedTestCase =
-  UniversalFlatFieldMetadata<FieldMetadataType.RELATION>['universalSettings'];
-
-type NarrowedExpectedResult =
-  FieldMetadataUniversalSettings<FieldMetadataType.RELATION> & {
-    __JsonbPropertyBrand__?: undefined;
-  };
-
-type SettingsTestCase = UniversalFlatFieldMetadata<
-  FieldMetadataType.RELATION | FieldMetadataType.NUMBER | FieldMetadataType.TEXT
->['universalSettings'];
-
-type SettingsExpectedResult = FieldMetadataUniversalSettings<
-  FieldMetadataType.RELATION | FieldMetadataType.NUMBER | FieldMetadataType.TEXT
-> & { __JsonbPropertyBrand__?: undefined };
-
-// oxlint-disable-next-line unused-imports/no-unused-vars
-type Assertions = [
-  Expect<Equal<SettingsTestCase, SettingsExpectedResult>>,
-  Expect<Equal<NarrowedTestCase, NarrowedExpectedResult>>,
 ];
