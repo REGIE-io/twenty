@@ -2,6 +2,8 @@ export enum ViewFilterOperand {
   IS = 'IS',
   IS_NOT_NULL = 'IS_NOT_NULL',
   IS_NOT = 'IS_NOT',
+  IS_IN_LIST = 'IS_IN_LIST',
+  IS_NOT_IN_LIST = 'IS_NOT_IN_LIST',
   LESS_THAN_OR_EQUAL = 'LESS_THAN_OR_EQUAL', // TODO: we could change this to 'lessThanOrEqual' for consistency but it would require a migration
   GREATER_THAN_OR_EQUAL = 'GREATER_THAN_OR_EQUAL', // TODO: we could change this to 'greaterThanOrEqual' for consistency but it would require a migration
   IS_BEFORE = 'IS_BEFORE',

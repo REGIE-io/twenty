@@ -12,6 +12,7 @@ import { computeMorphOrRelationFieldJoinColumnName } from 'src/engine/metadata-m
 import { type ObjectRecordFilter } from 'src/engine/api/graphql/workspace-query-builder/interfaces/object-record.interface';
 
 import { MAX_RELATION_FILTER_DEPTH } from 'src/engine/api/common/common-args-processors/filter-arg-processor/constants/max-relation-filter-depth.constant';
+import { parseOneToManyRelationFilter } from 'src/engine/api/common/utils/parse-one-to-many-relation-filter.util';
 import { validateAndTransformOperatorAndValue } from 'src/engine/api/common/common-args-processors/filter-arg-processor/utils/validate-and-transform-operator-and-value.util';
 import {
   CommonQueryRunnerException,
@@ -200,7 +201,12 @@ export class FilterArgProcessorService {
     flatFieldMetadataMaps: FlatEntityMaps<FlatFieldMetadata>,
     depth: number,
   ): ObjectRecordFilter {
-    if (fieldMetadata.settings?.relationType !== RelationType.MANY_TO_ONE) {
+    const relationType = fieldMetadata.settings?.relationType;
+
+    if (
+      relationType !== RelationType.MANY_TO_ONE &&
+      relationType !== RelationType.ONE_TO_MANY
+    ) {
       throw new CommonQueryRunnerException(
         `Cannot filter by relation field "${key}"`,
         CommonQueryRunnerExceptionCode.INVALID_ARGS_FILTER,
@@ -212,6 +218,25 @@ export class FilterArgProcessorService {
 
     if (typeof filterValue !== 'object' || filterValue === null) {
       throwUseJoinColumnInstead(key);
+    }
+
+    let relationCollectionOperator: 'some' | 'none' | undefined;
+
+    if (relationType === RelationType.ONE_TO_MANY) {
+      const parsedCollectionFilter = parseOneToManyRelationFilter(filterValue);
+
+      if (!parsedCollectionFilter) {
+        throw new CommonQueryRunnerException(
+          `One-to-many relation filter "${key}" must contain exactly one of "some" or "none"`,
+          CommonQueryRunnerExceptionCode.INVALID_ARGS_FILTER,
+          {
+            userFriendlyMessage: msg`Invalid relation list filter`,
+          },
+        );
+      }
+
+      relationCollectionOperator = parsedCollectionFilter.operator;
+      filterValue = parsedCollectionFilter.targetFilter as ObjectRecordFilter;
     }
 
     const targetObjectMetadataId = fieldMetadata.relationTargetObjectMetadataId;
@@ -251,7 +276,7 @@ export class FilterArgProcessorService {
       targetObjectMetadata,
     );
 
-    return this.validateAndTransformFilter(
+    const transformedTargetFilter = this.validateAndTransformFilter(
       filterValue,
       targetObjectMetadata,
       flatObjectMetadataMaps,
@@ -260,6 +285,10 @@ export class FilterArgProcessorService {
       targetFieldIdByJoinColumnName,
       depth + 1,
     );
+
+    return isDefined(relationCollectionOperator)
+      ? { [relationCollectionOperator]: transformedTargetFilter }
+      : transformedTargetFilter;
   }
 
   private validateAndTransformFieldFilter(

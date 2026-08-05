@@ -75,14 +75,47 @@ jobs:
               --output table
           done
 
-          echo "Waiting for ECS services to become stable"
-          if ! aws ecs wait services-stable \
-            --cluster "$ECS_CLUSTER" \
-            --services "$SERVER_SERVICE" "$WORKER_SERVICE"; then
+          echo "Waiting up to 30 minutes for ECS services to become stable"
+          deadline=$((SECONDS + 1800))
+          services_stable=false
+          while (( SECONDS < deadline )); do
+            service_state="$(aws ecs describe-services \
+              --cluster "$ECS_CLUSTER" \
+              --services "$SERVER_SERVICE" "$WORKER_SERVICE" \
+              --output json)"
+
+            if jq -e 'any(.services[].deployments[]; .rolloutState == "FAILED")' \
+              <<<"$service_state" >/dev/null; then
+              echo "An ECS deployment entered the FAILED rollout state"
+              jq '.services[] | {service: .serviceName, deployments: .deployments, events: .events[0:10]}' \
+                <<<"$service_state"
+              exit 1
+            fi
+
+            if jq -e 'all(.services[];
+              .desiredCount == .runningCount and
+              .pendingCount == 0 and
+              (.deployments | length) == 1 and
+              .deployments[0].status == "PRIMARY" and
+              .deployments[0].rolloutState == "COMPLETED"
+            )' <<<"$service_state" >/dev/null; then
+              echo "ECS services are stable"
+              services_stable=true
+              break
+            fi
+
+            jq -r '.services[] |
+              "\(.serviceName): desired=\(.desiredCount) running=\(.runningCount) pending=\(.pendingCount) deployments=\([.deployments[] | "\(.status)/\(.rolloutState // "UNKNOWN")"] | join(","))"' \
+              <<<"$service_state"
+            sleep 30
+          done
+
+          if [[ "$services_stable" != "true" ]]; then
+            echo "ECS services did not become stable within 30 minutes"
             aws ecs describe-services \
               --cluster "$ECS_CLUSTER" \
               --services "$SERVER_SERVICE" "$WORKER_SERVICE" \
-              --query 'services[].{service:serviceName,desired:desiredCount,running:runningCount,pending:pendingCount,deployments:deployments[*].{status:status,rolloutState:rolloutState,reason:rolloutStateReason},events:events[0:5].message}' \
+              --query 'services[].{service:serviceName,desired:desiredCount,running:runningCount,pending:pendingCount,deployments:deployments[*].{status:status,rolloutState:rolloutState,reason:rolloutStateReason},events:events[0:10].message}' \
               --output json
             exit 1
           fi

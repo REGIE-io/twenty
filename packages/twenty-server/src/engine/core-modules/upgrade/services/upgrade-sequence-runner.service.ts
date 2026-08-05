@@ -1,5 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 
+import { CommandShutdownService } from 'src/database/commands/command-runners/command-shutdown.service';
 import {
   type WorkspaceIteratorReport,
   WorkspaceIteratorService,
@@ -39,6 +40,7 @@ export class UpgradeSequenceRunnerService {
     private readonly upgradeAwareEntityMetadataAdapter: UpgradeAwareEntityMetadataAdapter,
     private readonly workspaceIteratorService: WorkspaceIteratorService,
     private readonly workspaceVersionService: WorkspaceVersionService,
+    private readonly commandShutdownService: CommandShutdownService,
   ) {}
 
   async run({
@@ -94,6 +96,23 @@ export class UpgradeSequenceRunnerService {
 
     while (cursor < sequence.length) {
       const step = sequence[cursor];
+
+      if (this.commandShutdownService.isShutdownRequested()) {
+        this.logger.warn(
+          formatUpgradeLog({
+            humanMessage:
+              `Stopping before step "${step.name}": shutdown requested. ` +
+              'Rerun the upgrade to resume from this step.',
+            event: 'sequence.stopped',
+            logFields: {
+              before: step.name,
+              reason: 'shutdown-requested',
+            },
+          }),
+        );
+
+        break;
+      }
 
       if (step.kind === 'fast-instance' || step.kind === 'slow-instance') {
         if (
@@ -173,6 +192,23 @@ export class UpgradeSequenceRunnerService {
         return { totalSuccesses, totalFailures };
       }
 
+      if (report.interrupted) {
+        this.logger.warn(
+          formatUpgradeLog({
+            humanMessage:
+              'Stopped during workspace steps: shutdown requested. ' +
+              'Rerun the upgrade to process the remaining workspaces.',
+            event: 'sequence.stopped',
+            logFields: {
+              reason: 'shutdown-requested',
+              processedWorkspaces: report.success.length,
+            },
+          }),
+        );
+
+        return { totalSuccesses, totalFailures };
+      }
+
       cursor += workspaceCommandsSegment.length;
 
       workspaceCursors = await this.fetchWorkspaceCursors(
@@ -243,9 +279,6 @@ export class UpgradeSequenceRunnerService {
       await this.upgradeMigrationService.getWorkspaceLastAttemptedCommandNameOrThrow(
         allProvisionedWorkspaceIds,
       );
-    const precedingStep =
-      startCursor > 0 ? sequence[startCursor - 1] : undefined;
-
     const invalidWorkspaces: Array<{
       workspaceId: string;
       cursorName: string;
@@ -262,13 +295,18 @@ export class UpgradeSequenceRunnerService {
       const isWithinSegment =
         cursorPosition >= startCursor && cursorPosition <= endCursor;
 
-      const isAtPrecedingInstanceCommandCompleted =
-        isDefined(precedingStep) &&
-        precedingStep.kind !== 'workspace' &&
-        cursorPosition === startCursor - 1 &&
-        workspaceCursor.status === 'completed';
+      // A newly registered idempotent instance command can run after later
+      // commands in the same instance block have already completed globally.
+      // Its workspace row then becomes the latest cursor even though workspace
+      // commands may safely resume at the following segment.
+      const isAtCompletedInstanceCommandInPrecedingBlock =
+        cursorPosition < startCursor &&
+        workspaceCursor.status === 'completed' &&
+        sequence
+          .slice(cursorPosition, startCursor)
+          .every((step) => step.kind !== 'workspace');
 
-      if (!isWithinSegment && !isAtPrecedingInstanceCommandCompleted) {
+      if (!isWithinSegment && !isAtCompletedInstanceCommandInPrecedingBlock) {
         invalidWorkspaces.push({
           workspaceId,
           cursorName: workspaceCursor.name,

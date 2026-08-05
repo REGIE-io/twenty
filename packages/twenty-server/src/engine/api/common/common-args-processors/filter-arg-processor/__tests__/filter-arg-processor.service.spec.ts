@@ -6,6 +6,7 @@ import { fieldMetadataConfigByFieldName } from 'src/engine/api/common/common-arg
 import { FilterArgProcessorService } from 'src/engine/api/common/common-args-processors/filter-arg-processor/filter-arg-processor.service';
 import { type FlatEntityMaps } from 'src/engine/metadata-modules/flat-entity/types/flat-entity-maps.type';
 import { type FlatFieldMetadata } from 'src/engine/metadata-modules/flat-field-metadata/types/flat-field-metadata.type';
+import { isMorphOrRelationFlatFieldMetadata } from 'src/engine/metadata-modules/flat-field-metadata/utils/is-morph-or-relation-flat-field-metadata.util';
 import { type FlatObjectMetadata } from 'src/engine/metadata-modules/flat-object-metadata/types/flat-object-metadata.type';
 
 import { failingFilterInputsByFieldMetadataType } from './constants/failing-filter-inputs-by-field-metadata-type.constant';
@@ -290,6 +291,7 @@ describe('FilterArgProcessorService', () => {
       const targetUniversalId = 'target-obj-universal-id';
 
       const relationFieldId = 'relation-field-id';
+      const inverseRelationFieldId = 'inverse-relation-field-id';
       const targetTextFieldId = 'target-text-field-id';
       const targetCurrencyFieldId = 'target-currency-field-id';
 
@@ -303,9 +305,24 @@ describe('FilterArgProcessorService', () => {
             objectMetadataId: sourceObjectId,
             universalIdentifier: 'relation-field-uid',
             relationTargetObjectMetadataId: targetObjectId,
+            relationTargetFieldMetadataId: inverseRelationFieldId,
             settings: {
               relationType: RelationType.MANY_TO_ONE,
               joinColumnName: 'targetId',
+            },
+          },
+          'inverse-relation-field-uid': {
+            id: inverseRelationFieldId,
+            name: 'source',
+            type: FieldMetadataType.RELATION,
+            isNullable: true,
+            objectMetadataId: targetObjectId,
+            universalIdentifier: 'inverse-relation-field-uid',
+            relationTargetObjectMetadataId: sourceObjectId,
+            relationTargetFieldMetadataId: relationFieldId,
+            settings: {
+              relationType: RelationType.MANY_TO_ONE,
+              joinColumnName: 'sourceId',
             },
           },
           'target-text-uid': {
@@ -327,6 +344,7 @@ describe('FilterArgProcessorService', () => {
         },
         universalIdentifierById: {
           [relationFieldId]: 'relation-field-uid',
+          [inverseRelationFieldId]: 'inverse-relation-field-uid',
           [targetTextFieldId]: 'target-text-uid',
           [targetCurrencyFieldId]: 'target-currency-uid',
         },
@@ -347,7 +365,11 @@ describe('FilterArgProcessorService', () => {
         id: targetObjectId,
         nameSingular: 'targetObject',
         namePlural: 'targetObjects',
-        fieldIds: [targetTextFieldId, targetCurrencyFieldId],
+        fieldIds: [
+          inverseRelationFieldId,
+          targetTextFieldId,
+          targetCurrencyFieldId,
+        ],
         universalIdentifier: targetUniversalId,
         labelIdentifierFieldMetadataUniversalIdentifier: null,
         imageIdentifierFieldMetadataUniversalIdentifier: null,
@@ -389,6 +411,66 @@ describe('FilterArgProcessorService', () => {
       });
 
       expect(result).toEqual({ target: { name: { eq: 'Airbnb' } } });
+    });
+
+    it('should accept a one-to-many some filter and preserve its operator', () => {
+      const {
+        flatFieldMetadataMaps,
+        flatObjectMetadataMaps,
+        sourceObjectMetadata,
+      } = createRelationFixture();
+      const relation =
+        flatFieldMetadataMaps.byUniversalIdentifier['relation-field-uid'];
+
+      if (
+        relation === undefined ||
+        !isMorphOrRelationFlatFieldMetadata(relation)
+      ) {
+        throw new Error('Expected relation fixture');
+      }
+
+      relation.settings.relationType = RelationType.ONE_TO_MANY;
+
+      const result = filterArgProcessorService.process({
+        filter: { target: { some: { name: { eq: 'Airbnb' } } } },
+        flatObjectMetadata: sourceObjectMetadata,
+        flatObjectMetadataMaps,
+        flatFieldMetadataMaps,
+      });
+
+      expect(result).toEqual({
+        target: { some: { name: { eq: 'Airbnb' } } },
+      });
+    });
+
+    it('should reject a one-to-many filter without some or none', () => {
+      const {
+        flatFieldMetadataMaps,
+        flatObjectMetadataMaps,
+        sourceObjectMetadata,
+      } = createRelationFixture();
+      const relation =
+        flatFieldMetadataMaps.byUniversalIdentifier['relation-field-uid'];
+
+      if (
+        relation === undefined ||
+        !isMorphOrRelationFlatFieldMetadata(relation)
+      ) {
+        throw new Error('Expected relation fixture');
+      }
+
+      relation.settings.relationType = RelationType.ONE_TO_MANY;
+
+      expect(() =>
+        filterArgProcessorService.process({
+          filter: { target: { name: { eq: 'Airbnb' } } },
+          flatObjectMetadata: sourceObjectMetadata,
+          flatObjectMetadataMaps,
+          flatFieldMetadataMaps,
+        }),
+      ).toThrow(
+        'One-to-many relation filter "target" must contain exactly one of "some" or "none"',
+      );
     });
 
     it('should accept a relation traversal onto a composite sub-field without tripping the depth cap', () => {

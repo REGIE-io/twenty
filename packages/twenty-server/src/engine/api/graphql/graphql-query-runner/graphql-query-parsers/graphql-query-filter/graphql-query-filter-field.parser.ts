@@ -8,6 +8,7 @@ import { compositeTypeDefinitions, RelationType } from 'twenty-shared/types';
 import { capitalize, isDefined } from 'twenty-shared/utils';
 
 import { MAX_RELATION_FILTER_DEPTH } from 'src/engine/api/common/common-args-processors/filter-arg-processor/constants/max-relation-filter-depth.constant';
+import { parseOneToManyRelationFilter } from 'src/engine/api/common/utils/parse-one-to-many-relation-filter.util';
 import { type ObjectRecordFilter } from 'src/engine/api/graphql/workspace-query-builder/interfaces/object-record.interface';
 import {
   GraphqlQueryRunnerException,
@@ -104,6 +105,21 @@ export class GraphqlQueryFilterFieldParser {
       fieldMetadata.settings?.relationType === RelationType.MANY_TO_ONE
     ) {
       return this.parseRelationSubFilter(
+        queryBuilder,
+        outerQueryBuilder,
+        objectNameSingular,
+        fieldMetadata,
+        filterValue,
+        isFirst,
+      );
+    }
+
+    if (
+      isFilterKeyARelation &&
+      isMorphOrRelationFlatFieldMetadata(fieldMetadata) &&
+      fieldMetadata.settings?.relationType === RelationType.ONE_TO_MANY
+    ) {
+      return this.parseRelationCollectionSubFilter(
         queryBuilder,
         outerQueryBuilder,
         objectNameSingular,
@@ -227,6 +243,117 @@ export class GraphqlQueryFilterFieldParser {
       queryBuilder.where(subBrackets);
     } else {
       queryBuilder.andWhere(subBrackets);
+    }
+  }
+
+  private parseRelationCollectionSubFilter(
+    queryBuilder: WhereExpressionBuilder,
+    outerQueryBuilder: WorkspaceSelectQueryBuilder<ObjectLiteral>,
+    parentAlias: string,
+    fieldMetadata: FlatFieldMetadata,
+    filterValue: Partial<ObjectRecordFilter>,
+    isFirst: boolean,
+  ): void {
+    if (this.depth >= MAX_RELATION_FILTER_DEPTH) {
+      throw new GraphqlQueryRunnerException(
+        `Relation filter nesting deeper than ${MAX_RELATION_FILTER_DEPTH} hop is not supported`,
+        GraphqlQueryRunnerExceptionCode.INVALID_QUERY_INPUT,
+        {
+          userFriendlyMessage: msg`Relation filters can only traverse one relation deep`,
+        },
+      );
+    }
+
+    const parsedCollectionFilter = parseOneToManyRelationFilter(filterValue);
+
+    if (!parsedCollectionFilter) {
+      throw new GraphqlQueryRunnerException(
+        `One-to-many relation filter "${fieldMetadata.name}" must contain exactly one of "some" or "none"`,
+        GraphqlQueryRunnerExceptionCode.INVALID_QUERY_INPUT,
+        { userFriendlyMessage: msg`Invalid relation list filter` },
+      );
+    }
+
+    const { operator, targetFilter } = parsedCollectionFilter;
+
+    if (
+      !isDefined(this.flatObjectMetadataMaps) ||
+      !isDefined(fieldMetadata.relationTargetObjectMetadataId) ||
+      !isDefined(fieldMetadata.relationTargetFieldMetadataId)
+    ) {
+      throw new GraphqlQueryRunnerException(
+        `Relation filter on "${fieldMetadata.name}" is misconfigured`,
+        GraphqlQueryRunnerExceptionCode.INVALID_QUERY_INPUT,
+        { userFriendlyMessage: msg`Relation filter is misconfigured` },
+      );
+    }
+
+    const targetObjectMetadata =
+      findFlatEntityByIdInFlatEntityMaps<FlatObjectMetadata>({
+        flatEntityId: fieldMetadata.relationTargetObjectMetadataId,
+        flatEntityMaps: this.flatObjectMetadataMaps,
+      });
+    const inverseRelationFieldMetadata =
+      findFlatEntityByIdInFlatEntityMaps<FlatFieldMetadata>({
+        flatEntityId: fieldMetadata.relationTargetFieldMetadataId,
+        flatEntityMaps: this.flatFieldMetadataMaps,
+      });
+
+    if (
+      !isDefined(inverseRelationFieldMetadata) ||
+      !isMorphOrRelationFlatFieldMetadata(inverseRelationFieldMetadata)
+    ) {
+      throw new GraphqlQueryRunnerException(
+        `Relation filter on "${fieldMetadata.name}" is misconfigured`,
+        GraphqlQueryRunnerExceptionCode.INVALID_QUERY_INPUT,
+        { userFriendlyMessage: msg`Relation filter is misconfigured` },
+      );
+    }
+
+    const inverseJoinColumnName =
+      inverseRelationFieldMetadata.settings?.joinColumnName;
+
+    if (!isDefined(targetObjectMetadata) || !isDefined(inverseJoinColumnName)) {
+      throw new GraphqlQueryRunnerException(
+        `Relation filter on "${fieldMetadata.name}" is misconfigured`,
+        GraphqlQueryRunnerExceptionCode.INVALID_QUERY_INPUT,
+        { userFriendlyMessage: msg`Relation filter is misconfigured` },
+      );
+    }
+
+    const relationAlias = `${parentAlias}_${fieldMetadata.name}_filter`;
+    const subQuery = outerQueryBuilder
+      .subQuery()
+      .select('1')
+      .from(targetObjectMetadata.nameSingular, relationAlias)
+      .where(
+        `"${relationAlias}"."${inverseJoinColumnName}" = "${parentAlias}"."id"`,
+      );
+    const childConditionParser = new GraphqlQueryFilterConditionParser(
+      targetObjectMetadata,
+      this.flatFieldMetadataMaps,
+      this.flatObjectMetadataMaps,
+      this.depth + 1,
+    );
+
+    subQuery.andWhere(
+      new Brackets((subQueryBrackets) => {
+        childConditionParser.applyFilterEntriesToWhereBrackets(
+          subQueryBrackets,
+          outerQueryBuilder,
+          relationAlias,
+          targetFilter as ObjectRecordFilter,
+        );
+      }),
+    );
+
+    const condition = `${operator === 'some' ? 'EXISTS' : 'NOT EXISTS'} (${subQuery.getQuery()})`;
+    const params = subQuery.getParameters();
+
+    if (isFirst) {
+      queryBuilder.where(condition, params);
+    } else {
+      queryBuilder.andWhere(condition, params);
     }
   }
 

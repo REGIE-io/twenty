@@ -89,7 +89,7 @@
     "build:sdk": {
       "executor": "nx:run-commands",
       "cache": true,
-      "dependsOn": ["^build"],
+      "dependsOn": ["build", "^build"],
       "inputs": ["{projectRoot}/src/sdk/**/*"],
       "outputs": [
         "{projectRoot}/dist/billing",

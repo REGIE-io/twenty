@@ -17,6 +17,16 @@ describe('getFilterOperandsForFilterableFieldType', () => {
     ]);
   });
 
+  it('should not expose list membership operands in the generic relation menu', () => {
+    expect(
+      getFilterOperandsForFilterableFieldType({ filterType: 'RELATION' }),
+    ).toEqual([
+      ViewFilterOperand.IS,
+      ViewFilterOperand.IS_NOT,
+      ...emptyOperands,
+    ]);
+  });
+
   it('should preserve actor source subfield operands', () => {
     expect(
       getFilterOperandsForFilterableFieldType({
