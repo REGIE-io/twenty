@@ -298,17 +298,10 @@ export class UpgradeSequenceRunnerService {
       const isWithinSegment =
         cursorPosition >= startCursor && cursorPosition <= endCursor;
 
-      // A completed cursor parked on any instance command before this segment
-      // means the workspace has attempted no workspace command in or after it,
-      // so the whole segment is still pending — the same conclusion as when the
-      // cursor sits on the step immediately preceding it. Requiring exact
-      // adjacency strands workspaces whose cursor was recorded before later
-      // instance commands were appended.
       const isAtPrecedingInstanceCommandCompleted =
         isDefined(precedingStep) &&
         precedingStep.kind !== 'workspace' &&
-        cursorPosition < startCursor &&
-        sequence[cursorPosition].kind !== 'workspace' &&
+        cursorPosition === startCursor - 1 &&
         workspaceCursor.status === 'completed';
 
       if (!isWithinSegment && !isAtPrecedingInstanceCommandCompleted) {
