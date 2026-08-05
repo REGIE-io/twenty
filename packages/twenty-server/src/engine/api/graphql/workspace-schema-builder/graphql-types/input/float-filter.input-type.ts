@@ -14,6 +14,7 @@ export const FloatFilterType = new GraphQLInputObjectType({
     gt: { type: GraphQLFloat },
     gte: { type: GraphQLFloat },
     in: { type: new GraphQLList(new GraphQLNonNull(GraphQLFloat)) },
+    notIn: { type: new GraphQLList(new GraphQLNonNull(GraphQLFloat)) },
     lt: { type: GraphQLFloat },
     lte: { type: GraphQLFloat },
     neq: { type: GraphQLFloat },

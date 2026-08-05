@@ -11,6 +11,9 @@ export const DateTimeFilterType = new GraphQLInputObjectType({
     gt: { type: GraphQLISODateTime },
     gte: { type: GraphQLISODateTime },
     in: { type: new GraphQLList(new GraphQLNonNull(GraphQLISODateTime)) },
+    notIn: {
+      type: new GraphQLList(new GraphQLNonNull(GraphQLISODateTime)),
+    },
     lt: { type: GraphQLISODateTime },
     lte: { type: GraphQLISODateTime },
     neq: { type: GraphQLISODateTime },

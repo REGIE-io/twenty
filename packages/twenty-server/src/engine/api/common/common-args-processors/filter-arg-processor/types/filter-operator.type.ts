@@ -6,6 +6,7 @@ export type FilterOperator =
   | 'lt'
   | 'lte'
   | 'in'
+  | 'notIn'
   | 'is'
   | 'like'
   | 'ilike'

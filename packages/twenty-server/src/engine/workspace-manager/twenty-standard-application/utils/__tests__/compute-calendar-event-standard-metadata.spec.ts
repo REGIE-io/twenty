@@ -6,6 +6,7 @@ import { isDefined } from 'twenty-shared/utils';
 
 import { WidgetConfigurationType } from 'src/engine/metadata-modules/page-layout-widget/enums/widget-configuration-type.type';
 import { computeTwentyStandardApplicationAllFlatEntityMaps } from 'src/engine/workspace-manager/twenty-standard-application/utils/twenty-standard-application-all-flat-entity-maps.constant';
+import { removeLegacyCalendarEventRecordPageFromCurrentSync } from 'src/engine/workspace-manager/twenty-standard-application/services/twenty-standard-application.service';
 
 const WORKSPACE_ID = '20202020-1111-4111-8111-111111111111';
 const TWENTY_STANDARD_APPLICATION_ID = '20202020-2222-4222-8222-222222222222';
@@ -184,5 +185,66 @@ describe('CalendarEvent standard metadata build', () => {
         STANDARD_OBJECTS.calendarEvent.fields.callRecordings
           .universalIdentifier,
     });
+  });
+
+  it('removes the complete legacy graph from current synchronization only', () => {
+    const { allFlatEntityMaps: maps } =
+      computeTwentyStandardApplicationAllFlatEntityMaps({
+        now: NOW,
+        workspaceId: WORKSPACE_ID,
+        twentyStandardApplicationId: TWENTY_STANDARD_APPLICATION_ID,
+      });
+    const page =
+      STANDARD_PAGE_LAYOUT_UNIVERSAL_IDENTIFIERS.calendarEventRecordPage;
+    const view =
+      STANDARD_OBJECTS.calendarEvent.views.calendarEventRecordPageFields;
+    const entities = [
+      [maps.flatViewMaps, [view.universalIdentifier]],
+      [
+        maps.flatViewFieldGroupMaps,
+        Object.values(view.viewFieldGroups).map(
+          ({ universalIdentifier }) => universalIdentifier,
+        ),
+      ],
+      [
+        maps.flatViewFieldMaps,
+        Object.values(view.viewFields).map(
+          ({ universalIdentifier }) => universalIdentifier,
+        ),
+      ],
+      [maps.flatPageLayoutMaps, [page.universalIdentifier]],
+      [
+        maps.flatPageLayoutTabMaps,
+        Object.values(page.tabs).map(
+          ({ universalIdentifier }) => universalIdentifier,
+        ),
+      ],
+      [
+        maps.flatPageLayoutWidgetMaps,
+        Object.values(page.tabs).flatMap(({ widgets }) =>
+          Object.values(widgets).map(
+            ({ universalIdentifier }) => universalIdentifier,
+          ),
+        ),
+      ],
+    ] as const;
+
+    for (const [flatEntityMaps, universalIdentifiers] of entities) {
+      expect(
+        universalIdentifiers.every(
+          (id) => flatEntityMaps.byUniversalIdentifier[id],
+        ),
+      ).toBe(true);
+    }
+
+    removeLegacyCalendarEventRecordPageFromCurrentSync(maps);
+
+    for (const [flatEntityMaps, universalIdentifiers] of entities) {
+      expect(
+        universalIdentifiers.every(
+          (id) => !flatEntityMaps.byUniversalIdentifier[id],
+        ),
+      ).toBe(true);
+    }
   });
 });

@@ -22,9 +22,12 @@ export const FIREFLIES_LIST_CALLS_BY_PARTICIPANT_UNIVERSAL_IDENTIFIER =
 export const FIREFLIES_SEARCH_CALLS_UNIVERSAL_IDENTIFIER =
   'cb2dd01d-8dca-4222-acce-1d1dbdef9146';
 
-// Shared core CalendarEvent record page layout that apps attach tabs to.
+// Calendar Event record page owned by the Fireflies app.
 export const CALENDAR_EVENT_RECORD_PAGE_LAYOUT_UNIVERSAL_IDENTIFIER =
-  'b9b10e40-9ce2-4704-8ac6-c6e92e2563c1';
+  'd4468d18-9f13-4a2d-8e59-221fbfd4dcc4';
+
+export const CALENDAR_EVENT_RECORD_PAGE_FIELDS_VIEW_UNIVERSAL_IDENTIFIER =
+  'cd94a644-81f8-4169-86d6-7c8b5bf865fa';
 
 export const CALENDAR_EVENT_SUMMARY_PAGE_LAYOUT_TAB_UNIVERSAL_IDENTIFIER =
   'f4fed96d-1551-40dc-a0c1-0b4d2a782733';

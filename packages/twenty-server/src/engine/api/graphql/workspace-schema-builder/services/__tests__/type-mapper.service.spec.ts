@@ -29,6 +29,7 @@ describe('TypeMapperService', () => {
         'lt',
         'lte',
         'neq',
+        'notIn',
       ]);
 
       for (const operator of ['eq', 'gt', 'gte', 'lt', 'lte', 'neq']) {
@@ -36,6 +37,7 @@ describe('TypeMapperService', () => {
       }
 
       expect(fields.in.type.toString()).toBe('[DateTime!]');
+      expect(fields.notIn.type.toString()).toBe('[DateTime!]');
       expect(fields.is.type.toString()).toBe('FilterIs');
     });
 

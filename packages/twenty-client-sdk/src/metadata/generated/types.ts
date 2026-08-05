@@ -10979,6 +10979,9 @@ export default {
             "indexType": [
                 27
             ],
+            "isUnique": [
+                3
+            ],
             "__typename": [
                 1
             ]

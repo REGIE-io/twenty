@@ -8,6 +8,7 @@ export const STRING_FILTER_OPERATORS: FilterOperator[] = [
   'lt',
   'lte',
   'in',
+  'notIn',
   'is',
   'like',
   'ilike',
@@ -23,6 +24,7 @@ export const NUMBER_FILTER_OPERATORS: FilterOperator[] = [
   'lt',
   'lte',
   'in',
+  'notIn',
   'is',
 ];
 
@@ -36,6 +38,7 @@ export const DATE_FILTER_OPERATORS: FilterOperator[] = [
   'lt',
   'lte',
   'in',
+  'notIn',
   'is',
 ];
 
@@ -47,6 +50,7 @@ export const UUID_FILTER_OPERATORS: FilterOperator[] = [
   'lt',
   'lte',
   'in',
+  'notIn',
   'is',
 ];
 
@@ -70,6 +74,7 @@ export const ENUM_FILTER_OPERATORS: FilterOperator[] = [
   'lt',
   'lte',
   'in',
+  'notIn',
   'containsAny',
   'is',
   'isEmptyArray',

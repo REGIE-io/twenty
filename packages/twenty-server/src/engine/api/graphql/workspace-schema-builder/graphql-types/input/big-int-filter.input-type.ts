@@ -10,6 +10,7 @@ export const BigIntFilterType = new GraphQLInputObjectType({
     gt: { type: GraphQLBigInt },
     gte: { type: GraphQLBigInt },
     in: { type: new GraphQLList(new GraphQLNonNull(GraphQLBigInt)) },
+    notIn: { type: new GraphQLList(new GraphQLNonNull(GraphQLBigInt)) },
     lt: { type: GraphQLBigInt },
     lte: { type: GraphQLBigInt },
     neq: { type: GraphQLBigInt },
