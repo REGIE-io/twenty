@@ -1,5 +1,6 @@
 import { DataSource, QueryRunner } from 'typeorm';
 
+import { columnExists } from 'src/database/commands/upgrade-version-command/utils/column-exists.util';
 import { RegisteredInstanceCommand } from 'src/engine/core-modules/upgrade/decorators/registered-instance-command.decorator';
 import { SlowInstanceCommand } from 'src/engine/core-modules/upgrade/interfaces/slow-instance-command.interface';
 
@@ -11,6 +12,19 @@ export class BackfillMetadataOverridesSlowInstanceCommand
 {
   async runDataMigration(dataSource: DataSource): Promise<void> {
     for (const table of TABLES) {
+      // 2.20 drops "standardOverrides". Without this guard a retry of this step
+      // fails forever against the dropped column and wedges the sequence.
+      const hasStandardOverrides = await columnExists({
+        dataSource,
+        schemaName: 'core',
+        tableName: table,
+        columnName: 'standardOverrides',
+      });
+
+      if (!hasStandardOverrides) {
+        continue;
+      }
+
       const activeCountBefore = await this.getActiveCount(dataSource, table);
 
       await dataSource.query(
