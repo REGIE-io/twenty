@@ -46,7 +46,10 @@ export const getRegieCustomSearchTargetFailure = ({
   flatEntity,
   relatedFlatEntityMaps,
   marker,
-}: BuildSideEffectsArgs<'fieldMetadata'> & {
+}: Pick<
+  BuildSideEffectsArgs<'fieldMetadata'>,
+  'flatEntity' | 'relatedFlatEntityMaps'
+> & {
   marker: RegieCustomFieldMarker;
 }): string | undefined => {
   const object =
@@ -72,7 +75,10 @@ export const getRegieCustomSearchPrerequisiteFailure = ({
   flatEntity,
   relatedFlatEntityMaps,
   marker,
-}: BuildSideEffectsArgs<'fieldMetadata'> & {
+}: Pick<
+  BuildSideEffectsArgs<'fieldMetadata'>,
+  'flatEntity' | 'relatedFlatEntityMaps'
+> & {
   marker: RegieCustomFieldMarker;
 }): string | undefined => {
   const targetFailure = getRegieCustomSearchTargetFailure({

@@ -86,7 +86,12 @@ describe('Regie marker failures through the metadata side-effect engine', () => 
     const result = engineFor('create', handler).expandWithSideEffects({
       allFlatEntityOperationRecordByMetadataName: input,
       sideEffectRelatedFlatEntityMaps: relatedMaps(),
-      context: { buildOptions: { isSystemBuild: false } },
+      context: {
+        buildOptions: {
+          isSystemBuild: false,
+          applicationUniversalIdentifier: APPLICATION,
+        },
+      },
     });
 
     expect(result.status).toBe('fail');
@@ -117,7 +122,12 @@ describe('Regie marker failures through the metadata side-effect engine', () => 
         field(),
       ),
       sideEffectRelatedFlatEntityMaps: relatedMaps(),
-      context: { buildOptions: { isSystemBuild: false } },
+      context: {
+        buildOptions: {
+          isSystemBuild: false,
+          applicationUniversalIdentifier: APPLICATION,
+        },
+      },
     });
     expect(repaired.status).toBe('success');
     if (repaired.status !== 'success') throw new Error('expected success');
@@ -133,7 +143,12 @@ describe('Regie marker failures through the metadata side-effect engine', () => 
         field(),
       ),
       sideEffectRelatedFlatEntityMaps: relatedMaps({ [rowId]: row }),
-      context: { buildOptions: { isSystemBuild: false } },
+      context: {
+        buildOptions: {
+          isSystemBuild: false,
+          applicationUniversalIdentifier: APPLICATION,
+        },
+      },
     });
     expect(retry.status).toBe('success');
     if (retry.status !== 'success') throw new Error('expected success');

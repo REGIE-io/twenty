@@ -225,8 +225,9 @@ export class UpdateFieldActionHandlerService extends WorkspaceMigrationRunnerAct
           flatSearchFieldMetadataMaps.byUniversalIdentifier,
         ).find(
           (searchFieldMetadata) =>
+            isDefined(searchFieldMetadata) &&
             searchFieldMetadata.fieldMetadataId ===
-            optimisticFlatFieldMetadata.id,
+              optimisticFlatFieldMetadata.id,
         );
 
         if (isDefined(indexedSearchFieldMetadata)) {

@@ -1,4 +1,4 @@
-import { assertIsDefinedOrThrow } from 'twenty-shared/utils';
+import { assertIsDefinedOrThrow, isDefined } from 'twenty-shared/utils';
 
 import { findFlatEntityByUniversalIdentifierOrThrow } from 'src/engine/metadata-modules/flat-entity/utils/find-flat-entity-by-universal-identifier-or-throw.util';
 import { SEARCH_VECTOR_FIELD } from 'src/engine/metadata-modules/search-field-metadata/constants/search-vector-field.constants';
@@ -61,8 +61,9 @@ export const aggregateOrchestratorActionsReportDeprioritizeSearchVectorUpdateFie
             flatFieldMetadataMaps.byUniversalIdentifier,
           ).find(
             (candidate) =>
-              candidate.objectMetadataId ===
-                flatFieldMetadata.objectMetadataId &&
+              isDefined(candidate) &&
+              candidate.objectMetadataUniversalIdentifier ===
+                flatFieldMetadata.objectMetadataUniversalIdentifier &&
               candidate.name === SEARCH_VECTOR_FIELD.name,
           );
           const mustReleaseSearchVectorDependency =

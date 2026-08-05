@@ -134,9 +134,15 @@ export type RegieCustomFieldSettings = {
   regieCustomField?: RegieCustomFieldMarker;
 };
 
-type WithRegieCustomFieldSettings<Settings> = Settings extends null
+// Keep `null` as a whole union member. The distributive form (`Settings
+// extends null`) turns `NumberSettings | null` into `NumberSettings & Regie |
+// Regie | null`, which makes the unqualified marker appear valid wherever a
+// type-specific settings object is expected.
+type WithRegieCustomFieldSettings<Settings> = [Settings] extends [null]
   ? RegieCustomFieldSettings | null
-  : Settings & RegieCustomFieldSettings;
+  :
+      | (NonNullable<Settings> & RegieCustomFieldSettings)
+      | (null extends Settings ? null : never);
 
 export type AllFieldMetadataSettings =
   FieldMetadataSettingsMapping[keyof FieldMetadataSettingsMapping];

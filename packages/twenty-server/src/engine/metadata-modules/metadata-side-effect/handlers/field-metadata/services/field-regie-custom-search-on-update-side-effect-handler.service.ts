@@ -93,7 +93,7 @@ export class FieldRegieCustomSearchOnUpdateSideEffectHandlerService extends Meta
       const searchFieldMetadata = buildRegieCustomSearchFieldMetadata(args);
       // A retry/update is also the repair path for a prior ambiguous response:
       // a matching row is an idempotent noop, a missing row is recreated.
-      if (!searchFieldMetadata) return { status: 'noop' };
+      if (!isDefined(searchFieldMetadata)) return { status: 'noop' };
       return {
         status: 'success',
         operations: {

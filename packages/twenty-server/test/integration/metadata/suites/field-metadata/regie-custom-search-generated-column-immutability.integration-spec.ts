@@ -1,6 +1,9 @@
 import { FieldMetadataType } from 'twenty-shared/types';
 
-import { getTsVectorColumnExpressionFromFields } from 'src/engine/workspace-manager/utils/get-ts-vector-column-expression.util';
+import {
+  getTsVectorColumnExpressionFromFields,
+  type FieldTypeAndNameMetadata,
+} from 'src/engine/workspace-manager/utils/get-ts-vector-column-expression.util';
 
 const REGIE_PROJECTION_FIELDS = [
   { name: 'customText', type: FieldMetadataType.TEXT },
@@ -47,7 +50,7 @@ const REGIE_PROJECTION_FIELDS = [
   { name: 'customEmails', type: FieldMetadataType.EMAILS },
   { name: 'customPhones', type: FieldMetadataType.PHONES },
   { name: 'customLinks', type: FieldMetadataType.LINKS },
-] as const;
+] satisfies FieldTypeAndNameMetadata[];
 
 const COLUMN_DEFINITIONS = `
   "customText" text,

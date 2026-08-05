@@ -112,7 +112,12 @@ const getColumnExpressionsFromField = (
     if (fieldMetadataTypeAndName.type === FieldMetadataType.CURRENCY) {
       const amountMicrosColumn = computeCompositeColumnName(
         fieldMetadataTypeAndName,
-        { name: 'amountMicros', type: FieldMetadataType.NUMERIC },
+        {
+          name: 'amountMicros',
+          type: FieldMetadataType.NUMERIC,
+          hidden: false,
+          isRequired: false,
+        },
       );
       return [
         ...baseExpressions,

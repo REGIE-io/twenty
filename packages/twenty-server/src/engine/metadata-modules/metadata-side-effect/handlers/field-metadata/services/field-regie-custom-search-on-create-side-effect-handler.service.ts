@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import { isDefined } from 'twenty-shared/utils';
 
 import {
   type BuildSideEffectsArgs,
@@ -80,7 +81,7 @@ export class FieldRegieCustomSearchOnCreateSideEffectHandlerService extends Meta
     }
 
     const searchFieldMetadata = buildRegieCustomSearchFieldMetadata(args);
-    if (!searchFieldMetadata) return { status: 'noop' };
+    if (!isDefined(searchFieldMetadata)) return { status: 'noop' };
 
     return {
       status: 'success',

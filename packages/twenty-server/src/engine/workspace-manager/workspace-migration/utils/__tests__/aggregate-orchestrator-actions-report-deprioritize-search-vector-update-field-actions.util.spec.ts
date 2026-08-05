@@ -50,6 +50,7 @@ describe('aggregateOrchestratorActionsReportDeprioritizeSearchVectorUpdateFieldA
       getFlatFieldMetadataMock({
         universalIdentifier: 'search-vector-field-1',
         objectMetadataId: 'object-1',
+        objectMetadataUniversalIdentifier: 'object-1',
         type: FieldMetadataType.TS_VECTOR,
         id: 'search-vector-field-1',
         name: SEARCH_VECTOR_FIELD.name,
@@ -129,6 +130,7 @@ describe('aggregateOrchestratorActionsReportDeprioritizeSearchVectorUpdateFieldA
       getFlatFieldMetadataMock({
         universalIdentifier: 'search-vector-field-1',
         objectMetadataId: 'object-1',
+        objectMetadataUniversalIdentifier: 'object-1',
         type: FieldMetadataType.TS_VECTOR,
         id: 'search-vector-field-1',
         name: SEARCH_VECTOR_FIELD.name,
@@ -136,6 +138,7 @@ describe('aggregateOrchestratorActionsReportDeprioritizeSearchVectorUpdateFieldA
       getFlatFieldMetadataMock({
         universalIdentifier: 'select-field-1',
         objectMetadataId: 'object-1',
+        objectMetadataUniversalIdentifier: 'object-1',
         type: FieldMetadataType.SELECT,
         id: 'select-field-1',
         name: 'tier',
