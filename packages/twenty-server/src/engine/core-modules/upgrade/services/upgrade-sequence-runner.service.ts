@@ -279,9 +279,6 @@ export class UpgradeSequenceRunnerService {
       await this.upgradeMigrationService.getWorkspaceLastAttemptedCommandNameOrThrow(
         allProvisionedWorkspaceIds,
       );
-    const precedingStep =
-      startCursor > 0 ? sequence[startCursor - 1] : undefined;
-
     const invalidWorkspaces: Array<{
       workspaceId: string;
       cursorName: string;
@@ -298,13 +295,18 @@ export class UpgradeSequenceRunnerService {
       const isWithinSegment =
         cursorPosition >= startCursor && cursorPosition <= endCursor;
 
-      const isAtPrecedingInstanceCommandCompleted =
-        isDefined(precedingStep) &&
-        precedingStep.kind !== 'workspace' &&
-        cursorPosition === startCursor - 1 &&
-        workspaceCursor.status === 'completed';
+      // A newly registered idempotent instance command can run after later
+      // commands in the same instance block have already completed globally.
+      // Its workspace row then becomes the latest cursor even though workspace
+      // commands may safely resume at the following segment.
+      const isAtCompletedInstanceCommandInPrecedingBlock =
+        cursorPosition < startCursor &&
+        workspaceCursor.status === 'completed' &&
+        sequence
+          .slice(cursorPosition, startCursor)
+          .every((step) => step.kind !== 'workspace');
 
-      if (!isWithinSegment && !isAtPrecedingInstanceCommandCompleted) {
+      if (!isWithinSegment && !isAtCompletedInstanceCommandInPrecedingBlock) {
         invalidWorkspaces.push({
           workspaceId,
           cursorName: workspaceCursor.name,
