@@ -1,5 +1,6 @@
 import { DataSource, QueryRunner } from 'typeorm';
 
+import { columnExists } from 'src/database/commands/upgrade-version-command/utils/column-exists.util';
 import { RegisteredInstanceCommand } from 'src/engine/core-modules/upgrade/decorators/registered-instance-command.decorator';
 import { SlowInstanceCommand } from 'src/engine/core-modules/upgrade/interfaces/slow-instance-command.interface';
 
@@ -14,6 +15,19 @@ export class BackfillIsFeaturedOnApplicationRegistrationSlowInstanceCommand
   implements SlowInstanceCommand
 {
   async runDataMigration(dataSource: DataSource): Promise<void> {
+    // 2.20 renames "isFeatured" to "isVetted". Without this guard a retry of
+    // this step fails forever against the renamed column and wedges the sequence.
+    const hasIsFeatured = await columnExists({
+      dataSource,
+      schemaName: 'core',
+      tableName: 'applicationRegistration',
+      columnName: 'isFeatured',
+    });
+
+    if (!hasIsFeatured) {
+      return;
+    }
+
     await dataSource.query(
       `UPDATE "core"."applicationRegistration"
        SET "isFeatured" = true
