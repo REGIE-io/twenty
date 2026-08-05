@@ -188,12 +188,21 @@ export class UpgradeSequenceReaderService {
     });
 
     if (status === 'completed') {
-      const nextStep = sequence[instanceCursor + 1];
+      // Scan past any further instance commands rather than only looking at the
+      // immediately next step. When new instance commands are appended after the
+      // last completed one — which happens whenever a release adds commands to a
+      // version this instance has already passed — the next step is an instance
+      // command, and returning `name` unchanged would hand the workspace a cursor
+      // pointing at an instance command. The runner then rejects that cursor for
+      // every workspace segment it is not directly adjacent to.
+      const nextWorkspaceStep = sequence
+        .slice(instanceCursor + 1)
+        .find((step): step is WorkspaceUpgradeStep => step.kind === 'workspace');
 
-      if (isDefined(nextStep) && nextStep.kind === 'workspace') {
+      if (isDefined(nextWorkspaceStep)) {
         const lastWc = this.findLastWorkspaceCommandInSegmentStartingAt(
           sequence,
-          nextStep,
+          nextWorkspaceStep,
         );
 
         return { name: lastWc.name, status: 'completed' };
