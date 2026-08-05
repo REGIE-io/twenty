@@ -144,13 +144,13 @@ type UniversalSettingsAssertions = [
   Expect<
     Equal<
       RegieMarkerOf<Exclude<NarrowedSettingsTestCase, null>>,
-      RegieCustomFieldMarker | undefined
+      RegieCustomFieldMarker
     >
   >,
   Expect<
     Equal<
       RegieMarkerOf<Exclude<SettingsTestCase, null>>,
-      RegieCustomFieldMarker | undefined
+      RegieCustomFieldMarker
     >
   >,
 ];
