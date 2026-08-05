@@ -126,7 +126,7 @@ import { AddStatusesToBillingSubscriptionIndexSlowInstanceCommand } from './2-23
 import { AddOnConnectLogicFunctionToConnectionProviderFastInstanceCommand } from './2-24/2-24-instance-command-fast-1784712843602-add-on-connect-logic-function-to-connection-provider';
 import { RepairKeyValuePairApplicationIdFastInstanceCommand } from './2-24/2-24-instance-command-fast-1784897347051-repair-key-value-pair-application-id';
 import { AddAgentForeignKeyToRoleTargetFastInstanceCommand } from './2-25/2-25-instance-command-fast-1784820332810-add-agent-foreign-key-to-role-target';
-import { AddListOperandsToViewFilterEnumFastInstanceCommand } from './2-25/2-25-instance-command-fast-1784967600000-add-list-operands-to-view-filter-enum';
+import { AddListOperandsToViewFilterEnumFastInstanceCommand } from './2-27/2-27-instance-command-fast-1785900200000-add-list-operands-to-view-filter-enum';
 import { AddAppTokenSsoExchangeIndexFastInstanceCommand } from './2-25/2-25-instance-command-fast-1785143586000-add-app-token-sso-exchange-index';
 import { AddPageLayoutCascadeDeleteIndexesFastInstanceCommand } from './2-25/2-25-instance-command-fast-1784904030251-add-page-layout-cascade-delete-indexes';
 import { AddChannelWebhookSubscriptionExternalIdIndexesFastInstanceCommand } from 'src/database/commands/upgrade-version-command/2-25/2-25-instance-command-fast-1785173910915-add-channel-webhook-subscription-external-id-indexes';
@@ -137,7 +137,6 @@ import { AddOpenRecordInToObjectMetadataFastInstanceCommand } from 'src/database
 import { CreateUserSessionCoreTableFastInstanceCommand } from 'src/database/commands/upgrade-version-command/2-27/2-27-instance-command-fast-1785518325511-create-user-session-core-table';
 import { CreateApplicationAuthorizationCoreTableFastInstanceCommand } from 'src/database/commands/upgrade-version-command/2-27/2-27-instance-command-fast-1785681272278-create-application-authorization-core-table';
 import { ReapplyStranded225InstanceCommandsFastInstanceCommand } from 'src/database/commands/upgrade-version-command/2-27/2-27-instance-command-fast-1785900000000-reapply-stranded-2-25-instance-commands';
-import { RepairListOperandsOnAdvancedInstancesFastInstanceCommand } from 'src/database/commands/upgrade-version-command/2-27/2-27-instance-command-fast-1785900100000-repair-list-operands-on-advanced-instances';
 
 export const INSTANCE_COMMANDS = [
   AddViewFieldGroupIdIndexOnViewFieldFastInstanceCommand,
@@ -277,5 +276,4 @@ export const INSTANCE_COMMANDS = [
   CreateUserSessionCoreTableFastInstanceCommand,
   CreateApplicationAuthorizationCoreTableFastInstanceCommand,
   ReapplyStranded225InstanceCommandsFastInstanceCommand,
-  RepairListOperandsOnAdvancedInstancesFastInstanceCommand,
 ];
