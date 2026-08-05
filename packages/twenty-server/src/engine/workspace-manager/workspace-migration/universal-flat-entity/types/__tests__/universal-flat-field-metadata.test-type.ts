@@ -5,12 +5,8 @@ import {
 } from 'twenty-shared/testing';
 import {
   type FieldMetadataType,
-  type FieldNumberVariant,
+  type FieldMetadataUniversalSettings,
   type NullablePartial,
-  type NumberDataType,
-  type RelationOnDeleteAction,
-  type RelationType,
-  type SerializedRelation,
 } from 'twenty-shared/types';
 
 import { type UniversalFlatFieldMetadata } from 'src/engine/workspace-manager/workspace-migration/universal-flat-entity/types/universal-flat-field-metadata.type';
@@ -94,43 +90,16 @@ type UniversalFlatTransformationAssertions = [
 type NarrowedTestCase =
   UniversalFlatFieldMetadata<FieldMetadataType.RELATION>['universalSettings'];
 
-type NarrowedExpectedResult = {
-  relationType: RelationType;
-  onDelete?: RelationOnDeleteAction | undefined;
-  joinColumnName?: string | null | undefined;
-  junctionTargetFieldUniversalIdentifier?:
-    | SerializedRelation
-    | null
-    | undefined;
-  __JsonbPropertyBrand__?: undefined;
-};
+type NarrowedExpectedResult =
+  FieldMetadataUniversalSettings<FieldMetadataType.RELATION>;
 
 type SettingsTestCase = UniversalFlatFieldMetadata<
   FieldMetadataType.RELATION | FieldMetadataType.NUMBER | FieldMetadataType.TEXT
 >['universalSettings'];
 
-type SettingsExpectedResult =
-  | {
-      relationType: RelationType;
-      onDelete?: RelationOnDeleteAction | undefined;
-      joinColumnName?: string | null | undefined;
-      junctionTargetFieldUniversalIdentifier?:
-        | SerializedRelation
-        | null
-        | undefined;
-      __JsonbPropertyBrand__?: undefined;
-    }
-  | {
-      dataType?: NumberDataType | undefined;
-      decimals?: number | undefined;
-      type?: FieldNumberVariant | undefined;
-      __JsonbPropertyBrand__?: undefined;
-    }
-  | {
-      displayedMaxRows?: number | undefined;
-      __JsonbPropertyBrand__?: undefined;
-    }
-  | null;
+type SettingsExpectedResult = FieldMetadataUniversalSettings<
+  FieldMetadataType.RELATION | FieldMetadataType.NUMBER | FieldMetadataType.TEXT
+>;
 
 // oxlint-disable-next-line unused-imports/no-unused-vars
 type Assertions = [
