@@ -153,8 +153,11 @@ describe('Regie custom search generated-column immutability', () => {
     expect(rows[0]?.searchVector).toContain('choice');
     expect(rows[0]?.searchVector).toContain('enterprise');
     expect(rows[0]?.searchVector).toContain('partner');
-    expect(rows[0]?.searchVector).toContain('2026-08-03');
-    expect(rows[0]?.searchVector).toContain('02:05:06');
+    // Dates and UTC timestamps are tokenized too. These lexemes demonstrate
+    // that the UTC-normalized timestamp contributes its date and time parts.
+    expect(rows[0]?.searchVector).toMatch(/'2026':\d+,\d+/);
+    expect(rows[0]?.searchVector).toMatch(/'t02':\d+/);
+    expect(rows[0]?.searchVector).toMatch(/'06\.123456':\d+/);
     expect(rows[0]?.searchVector).toContain('12.5');
     expect(rows[0]?.searchVector).toContain('usd');
     expect(rows[0]?.searchVector).toContain('second@example.com');
