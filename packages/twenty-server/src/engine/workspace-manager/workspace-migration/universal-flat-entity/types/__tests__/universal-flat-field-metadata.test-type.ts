@@ -91,7 +91,9 @@ type NarrowedTestCase =
   UniversalFlatFieldMetadata<FieldMetadataType.RELATION>['universalSettings'];
 
 type NarrowedExpectedResult =
-  FieldMetadataUniversalSettings<FieldMetadataType.RELATION>;
+  FieldMetadataUniversalSettings<FieldMetadataType.RELATION> & {
+    __JsonbPropertyBrand__?: undefined;
+  };
 
 type SettingsTestCase = UniversalFlatFieldMetadata<
   FieldMetadataType.RELATION | FieldMetadataType.NUMBER | FieldMetadataType.TEXT
@@ -99,7 +101,7 @@ type SettingsTestCase = UniversalFlatFieldMetadata<
 
 type SettingsExpectedResult = FieldMetadataUniversalSettings<
   FieldMetadataType.RELATION | FieldMetadataType.NUMBER | FieldMetadataType.TEXT
->;
+> & { __JsonbPropertyBrand__?: undefined };
 
 // oxlint-disable-next-line unused-imports/no-unused-vars
 type Assertions = [
