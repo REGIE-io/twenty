@@ -328,7 +328,7 @@ describe('Regie marker preservation for enum field creation', () => {
           type,
           objectMetadataId: COMPANY_FLAT_OBJECT_MOCK.id,
           settings: marker,
-          options: [{ label: 'One', value: 'ONE' }],
+          options: [{ label: 'One', position: 0, value: 'ONE' }],
         },
         flatObjectMetadataMaps,
         flatFieldMetadataMaps: emptyFlatFieldMetadataMaps,

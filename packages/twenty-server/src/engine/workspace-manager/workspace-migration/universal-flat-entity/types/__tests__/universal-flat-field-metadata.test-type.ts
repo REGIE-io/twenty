@@ -10,7 +10,6 @@ import {
   type NumberDataType,
   type RelationOnDeleteAction,
   type RelationType,
-  type RegieCustomFieldMarker,
   type SerializedRelation,
 } from 'twenty-shared/types';
 
@@ -104,14 +103,14 @@ type NarrowedExpectedResult = {
     | null
     | undefined;
   __JsonbPropertyBrand__?: undefined;
-} & { regieCustomField?: RegieCustomFieldMarker };
+};
 
 type SettingsTestCase = UniversalFlatFieldMetadata<
   FieldMetadataType.RELATION | FieldMetadataType.NUMBER | FieldMetadataType.TEXT
 >['universalSettings'];
 
 type SettingsExpectedResult =
-  | ({
+  | {
       relationType: RelationType;
       onDelete?: RelationOnDeleteAction | undefined;
       joinColumnName?: string | null | undefined;
@@ -120,17 +119,17 @@ type SettingsExpectedResult =
         | null
         | undefined;
       __JsonbPropertyBrand__?: undefined;
-    } & { regieCustomField?: RegieCustomFieldMarker })
-  | ({
+    }
+  | {
       dataType?: NumberDataType | undefined;
       decimals?: number | undefined;
       type?: FieldNumberVariant | undefined;
       __JsonbPropertyBrand__?: undefined;
-    } & { regieCustomField?: RegieCustomFieldMarker })
-  | ({
+    }
+  | {
       displayedMaxRows?: number | undefined;
       __JsonbPropertyBrand__?: undefined;
-    } & { regieCustomField?: RegieCustomFieldMarker })
+    }
   | null;
 
 // oxlint-disable-next-line unused-imports/no-unused-vars

@@ -7,6 +7,7 @@ import { isDefined } from 'twenty-shared/utils';
 import { buildFlatSearchFieldMetadataForField } from 'src/engine/metadata-modules/flat-search-field-metadata/utils/build-flat-search-field-metadata-for-field.util';
 import { findTsVectorFlatFieldMetadataForObject } from 'src/engine/metadata-modules/flat-search-field-metadata/utils/find-ts-vector-flat-field-metadata-for-object.util';
 import { type BuildSideEffectsArgs } from 'src/engine/metadata-modules/metadata-side-effect/interfaces/base-metadata-side-effect-handler.service';
+import { type UniversalFlatSearchFieldMetadata } from 'src/engine/workspace-manager/workspace-migration/universal-flat-entity/types/universal-flat-search-field-metadata.type';
 import { isRegieCustomSearchFieldType } from 'src/engine/workspace-manager/utils/is-regie-search-vector-projection-field-type.util';
 
 type RegieSearchableField = {
@@ -155,12 +156,13 @@ export const findRegieCustomSearchRowsForField = ({
   flatEntity,
   relatedFlatEntityMaps,
 }: BuildSideEffectsArgs<'fieldMetadata'>) =>
-  Object.fromEntries(
-    Object.entries(
-      relatedFlatEntityMaps.flatSearchFieldMetadataMaps.byUniversalIdentifier,
-    ).filter(
-      ([, row]) =>
-        isDefined(row) &&
-        row.fieldMetadataUniversalIdentifier === flatEntity.universalIdentifier,
-    ),
+  Object.entries(
+    relatedFlatEntityMaps.flatSearchFieldMetadataMaps.byUniversalIdentifier,
+  ).reduce<Record<string, UniversalFlatSearchFieldMetadata>>(
+    (rows, [universalIdentifier, row]) =>
+      isDefined(row) &&
+      row.fieldMetadataUniversalIdentifier === flatEntity.universalIdentifier
+        ? { ...rows, [universalIdentifier]: row }
+        : rows,
+    {},
   );
