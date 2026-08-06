@@ -146,7 +146,7 @@ export const fromCreateFieldInputToFlatFieldMetadatasToCreate = async ({
               type: createFieldInput.type,
               options,
               defaultValue: commonFlatFieldMetadata.defaultValue as string, // Could this be improved ?
-              universalSettings: null,
+              universalSettings: commonFlatFieldMetadata.universalSettings,
             } satisfies UniversalFlatFieldMetadata<
               typeof createFieldInput.type
             >,

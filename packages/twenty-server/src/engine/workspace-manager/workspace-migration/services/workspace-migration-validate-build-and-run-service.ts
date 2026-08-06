@@ -12,6 +12,7 @@ import { AllFlatEntityOperationByMetadataName } from 'src/engine/metadata-module
 import { getFlatEntityMapsExceptionContext } from 'src/engine/metadata-modules/flat-entity/utils/get-flat-entity-maps-exception-context.util';
 import { transpileFlatEntityOperationArrayToRecord } from 'src/engine/metadata-modules/flat-entity/utils/transpile-flat-entity-operation-array-to-record.util';
 import { MetadataSideEffectEngineService } from 'src/engine/metadata-modules/metadata-side-effect/services/metadata-side-effect-engine.service';
+import { MetadataSideEffectExceptionCode } from 'src/engine/metadata-modules/metadata-side-effect/exceptions/metadata-side-effect-exception-code';
 import { MetadataEventEmitter } from 'src/engine/subscriptions/metadata-event/metadata-event-emitter';
 import { WorkspaceMigrationV2Exception } from 'src/engine/workspace-manager/workspace-migration.exception';
 import {
@@ -292,6 +293,34 @@ export class WorkspaceMigrationValidateBuildAndRunService {
         });
 
       if (sideEffectExpansionResult.status === 'fail') {
+        const regieFailures = Object.values(sideEffectExpansionResult.report)
+          .flat()
+          .flatMap((failure) =>
+            failure.errors
+              .filter((error) =>
+                [
+                  MetadataSideEffectExceptionCode.REGIE_CUSTOM_FIELD_MARKER_INVALID,
+                  MetadataSideEffectExceptionCode.REGIE_CUSTOM_FIELD_SEARCH_UNAVAILABLE,
+                  MetadataSideEffectExceptionCode.REGIE_CUSTOM_FIELD_TARGET_MISMATCH,
+                ].includes(error.code as MetadataSideEffectExceptionCode),
+              )
+              .map((error) => ({
+                code: error.code,
+                metadataName: failure.metadataName,
+                universalIdentifier:
+                  failure.flatEntityMinimalInformation.universalIdentifier,
+              })),
+          );
+        if (regieFailures.length > 0) {
+          this.logger.warn(
+            JSON.stringify({
+              event: 'regie_custom_field_search_side_effect_failed',
+              workspaceId,
+              failures: regieFailures,
+            }),
+            WorkspaceMigrationValidateBuildAndRunService.name,
+          );
+        }
         return sideEffectExpansionResult;
       }
 

@@ -1,4 +1,4 @@
-import { assertIsDefinedOrThrow } from 'twenty-shared/utils';
+import { assertIsDefinedOrThrow, isDefined } from 'twenty-shared/utils';
 
 import { findFlatEntityByUniversalIdentifierOrThrow } from 'src/engine/metadata-modules/flat-entity/utils/find-flat-entity-by-universal-identifier-or-throw.util';
 import { SEARCH_VECTOR_FIELD } from 'src/engine/metadata-modules/search-field-metadata/constants/search-vector-field.constants';
@@ -57,11 +57,29 @@ export const aggregateOrchestratorActionsReportDeprioritizeSearchVectorUpdateFie
             };
           }
 
+          const objectSearchVectorField = Object.values(
+            flatFieldMetadataMaps.byUniversalIdentifier,
+          ).find(
+            (candidate) =>
+              isDefined(candidate) &&
+              candidate.objectMetadataUniversalIdentifier ===
+                flatFieldMetadata.objectMetadataUniversalIdentifier &&
+              candidate.name === SEARCH_VECTOR_FIELD.name,
+          );
+          const mustReleaseSearchVectorDependency =
+            updateFieldAction.update.options !== undefined &&
+            objectSearchVectorField !== undefined &&
+            rebuildTargetUniversalIdentifiers.has(
+              objectSearchVectorField.universalIdentifier,
+            );
+
           return {
             ...acc,
             otherUpdateFieldActions: [
               ...acc.otherUpdateFieldActions,
-              updateFieldAction,
+              mustReleaseSearchVectorDependency
+                ? { ...updateFieldAction, rebuildSearchVector: true }
+                : updateFieldAction,
             ],
           };
         },

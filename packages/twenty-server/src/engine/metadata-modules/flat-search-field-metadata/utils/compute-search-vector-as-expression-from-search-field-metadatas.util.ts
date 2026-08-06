@@ -1,14 +1,18 @@
-import { type FieldMetadataType } from 'twenty-shared/types';
-import { isSearchableFieldType } from 'twenty-shared/utils';
+import {
+  type FieldMetadataOptions,
+  type FieldMetadataType,
+} from 'twenty-shared/types';
 
 import {
   type FieldTypeAndNameMetadata,
   getTsVectorColumnExpressionFromFields,
 } from 'src/engine/workspace-manager/utils/get-ts-vector-column-expression.util';
+import { isSearchVectorProjectionFieldType } from 'src/engine/workspace-manager/utils/is-regie-search-vector-projection-field-type.util';
 
 export type SearchVectorTargetField = {
   name: string;
   type: FieldMetadataType;
+  options?: FieldMetadataOptions;
   // Per-object ordinal from the searchFieldMetadata row, driving deterministic order.
   position: number;
   // Tie-break for rows sharing a position (searchFieldMetadata universalIdentifier).
@@ -20,12 +24,17 @@ export const buildSearchVectorTargetField = ({
   position,
   sortKey,
 }: {
-  field: { name: string; type: FieldMetadataType };
+  field: {
+    name: string;
+    type: FieldMetadataType;
+    options?: FieldMetadataOptions;
+  };
   position: number;
   sortKey: string;
 }): SearchVectorTargetField => ({
   name: field.name,
   type: field.type,
+  options: field.options,
   position,
   sortKey,
 });
@@ -48,8 +57,14 @@ export const computeSearchVectorAsExpressionFromSearchFieldMetadatas = (
       return a.sortKey < b.sortKey ? -1 : a.sortKey > b.sortKey ? 1 : 0;
     })
     .flatMap((targetField) =>
-      isSearchableFieldType(targetField.type)
-        ? [{ name: targetField.name, type: targetField.type }]
+      isSearchVectorProjectionFieldType(targetField.type)
+        ? [
+            {
+              name: targetField.name,
+              type: targetField.type,
+              options: targetField.options,
+            },
+          ]
         : [],
     );
 

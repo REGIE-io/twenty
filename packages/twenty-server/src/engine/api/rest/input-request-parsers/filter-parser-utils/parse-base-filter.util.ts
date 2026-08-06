@@ -14,6 +14,7 @@ export enum FilterComparators {
   endsWith = 'endsWith',
   like = 'like',
   ilike = 'ilike',
+  search = 'search',
 
   // Not handled rigth now
   // regex = 'regex',
@@ -62,6 +63,15 @@ export const parseBaseFilter = (
       `'filter' invalid for '${baseFilter}', comparator ${comparator} not in ${Object.keys(
         FilterComparators,
       ).join(', ')}`,
+    );
+  }
+
+  // REST parsing runs before object metadata is available. `searchVector` is the
+  // sole system TS_VECTOR field exposed by this grammar; keep `search` confined
+  // to it so scalar/custom JSON fields can never opt into the TS query operator.
+  if (comparator === FilterComparators.search && fields !== 'searchVector') {
+    throw new BadRequestException(
+      `'filter' invalid for '${baseFilter}', comparator search is only supported on searchVector`,
     );
   }
 

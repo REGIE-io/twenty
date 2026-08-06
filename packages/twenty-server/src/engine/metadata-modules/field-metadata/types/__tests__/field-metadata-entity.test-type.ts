@@ -1,12 +1,12 @@
 import { type Expect, type HasAllProperties } from 'twenty-shared/testing';
 import {
-  type AllFieldMetadataSettings,
   type FieldMetadataDefaultValueForAnyType,
   type FieldMetadataDefaultValueMapping,
   type FieldMetadataOptionForAnyType,
-  type FieldMetadataSettingsMapping,
+  type FieldMetadataSettings,
   type FieldMetadataType,
   type NullablePartial,
+  type RegieCustomFieldSettings,
 } from 'twenty-shared/types';
 import { type Relation as TypeOrmRelation } from 'typeorm';
 
@@ -108,29 +108,27 @@ type RelationAssertions = [
   >,
 ];
 
-type NotDefinedSettings = {
-  settings: never | null;
+type RegieMarkerSettings = {
+  settings: JsonbProperty<RegieCustomFieldSettings | null>;
 };
 
 // oxlint-disable-next-line unused-imports/no-unused-vars
 type SettingsAssertions = [
-  Expect<HasAllProperties<FullNameFieldMetadata, NotDefinedSettings>>,
-  Expect<HasAllProperties<RatingFieldMetadata, NotDefinedSettings>>,
-  Expect<HasAllProperties<SelectFieldMetadata, NotDefinedSettings>>,
-  Expect<HasAllProperties<MultiSelectFieldMetadata, NotDefinedSettings>>,
-  Expect<HasAllProperties<PositionFieldMetadata, NotDefinedSettings>>,
-  Expect<HasAllProperties<RawJsonFieldMetadata, NotDefinedSettings>>,
-  Expect<HasAllProperties<ActorFieldMetadata, NotDefinedSettings>>,
-  Expect<HasAllProperties<UUIDFieldMetadata, NotDefinedSettings>>,
-  Expect<HasAllProperties<BooleanFieldMetadata, NotDefinedSettings>>,
+  Expect<HasAllProperties<FullNameFieldMetadata, RegieMarkerSettings>>,
+  Expect<HasAllProperties<RatingFieldMetadata, RegieMarkerSettings>>,
+  Expect<HasAllProperties<SelectFieldMetadata, RegieMarkerSettings>>,
+  Expect<HasAllProperties<MultiSelectFieldMetadata, RegieMarkerSettings>>,
+  Expect<HasAllProperties<PositionFieldMetadata, RegieMarkerSettings>>,
+  Expect<HasAllProperties<RawJsonFieldMetadata, RegieMarkerSettings>>,
+  Expect<HasAllProperties<ActorFieldMetadata, RegieMarkerSettings>>,
+  Expect<HasAllProperties<UUIDFieldMetadata, RegieMarkerSettings>>,
+  Expect<HasAllProperties<BooleanFieldMetadata, RegieMarkerSettings>>,
 
   Expect<
     HasAllProperties<
       TextFieldMetadata,
       {
-        settings: JsonbProperty<
-          FieldMetadataSettingsMapping[FieldMetadataType.TEXT]
-        >;
+        settings: JsonbProperty<FieldMetadataSettings<FieldMetadataType.TEXT>>;
       }
     >
   >,
@@ -139,7 +137,7 @@ type SettingsAssertions = [
       NumberFieldMetadata,
       {
         settings: JsonbProperty<
-          FieldMetadataSettingsMapping[FieldMetadataType.NUMBER]
+          FieldMetadataSettings<FieldMetadataType.NUMBER>
         >;
       }
     >
@@ -149,7 +147,7 @@ type SettingsAssertions = [
       CurrencyFieldMetadata,
       {
         settings: JsonbProperty<
-          FieldMetadataSettingsMapping[FieldMetadataType.CURRENCY]
+          FieldMetadataSettings<FieldMetadataType.CURRENCY>
         >;
       }
     >
@@ -158,9 +156,7 @@ type SettingsAssertions = [
     HasAllProperties<
       DateFieldMetadata,
       {
-        settings: JsonbProperty<
-          FieldMetadataSettingsMapping[FieldMetadataType.DATE]
-        >;
+        settings: JsonbProperty<FieldMetadataSettings<FieldMetadataType.DATE>>;
       }
     >
   >,
@@ -169,7 +165,7 @@ type SettingsAssertions = [
       DateTimeFieldMetadata,
       {
         settings: JsonbProperty<
-          FieldMetadataSettingsMapping[FieldMetadataType.DATE_TIME]
+          FieldMetadataSettings<FieldMetadataType.DATE_TIME>
         >;
       }
     >
@@ -178,9 +174,7 @@ type SettingsAssertions = [
     HasAllProperties<
       ArrayFieldMetadata,
       {
-        settings: JsonbProperty<
-          FieldMetadataSettingsMapping[FieldMetadataType.ARRAY]
-        >;
+        settings: JsonbProperty<FieldMetadataSettings<FieldMetadataType.ARRAY>>;
       }
     >
   >,
@@ -189,7 +183,7 @@ type SettingsAssertions = [
       PhonesFieldMetadata,
       {
         settings: JsonbProperty<
-          FieldMetadataSettingsMapping[FieldMetadataType.PHONES]
+          FieldMetadataSettings<FieldMetadataType.PHONES>
         >;
       }
     >
@@ -199,7 +193,7 @@ type SettingsAssertions = [
       EmailsFieldMetadata,
       {
         settings: JsonbProperty<
-          FieldMetadataSettingsMapping[FieldMetadataType.EMAILS]
+          FieldMetadataSettings<FieldMetadataType.EMAILS>
         >;
       }
     >
@@ -208,9 +202,7 @@ type SettingsAssertions = [
     HasAllProperties<
       LinksFieldMetadata,
       {
-        settings: JsonbProperty<
-          FieldMetadataSettingsMapping[FieldMetadataType.LINKS]
-        >;
+        settings: JsonbProperty<FieldMetadataSettings<FieldMetadataType.LINKS>>;
       }
     >
   >,
@@ -220,7 +212,7 @@ type SettingsAssertions = [
       RelationFieldMetadata,
       {
         settings: JsonbProperty<
-          FieldMetadataSettingsMapping[FieldMetadataType.RELATION]
+          FieldMetadataSettings<FieldMetadataType.RELATION>
         >;
       }
     >
@@ -230,7 +222,7 @@ type SettingsAssertions = [
       MorphRelationFieldMetadata,
       {
         settings: JsonbProperty<
-          FieldMetadataSettingsMapping[FieldMetadataType.MORPH_RELATION]
+          FieldMetadataSettings<FieldMetadataType.MORPH_RELATION>
         >;
       }
     >
@@ -239,7 +231,7 @@ type SettingsAssertions = [
   Expect<
     HasAllProperties<
       AbstractFieldMetadata,
-      { settings: JsonbProperty<AllFieldMetadataSettings> | null }
+      { settings: JsonbProperty<FieldMetadataSettings> | null }
     >
   >,
 ];

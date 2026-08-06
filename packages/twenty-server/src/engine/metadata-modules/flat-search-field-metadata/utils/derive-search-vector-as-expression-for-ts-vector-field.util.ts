@@ -1,4 +1,7 @@
-import { type FieldMetadataType } from 'twenty-shared/types';
+import {
+  type FieldMetadataOptions,
+  type FieldMetadataType,
+} from 'twenty-shared/types';
 import { isDefined } from 'twenty-shared/utils';
 
 import {
@@ -14,7 +17,7 @@ export const deriveSearchVectorAsExpressionForTsVectorField = ({
   targetSearchFieldMetadatas: FlatSearchFieldMetadata[];
   indexedFieldById: ReadonlyMap<
     string,
-    { name: string; type: FieldMetadataType }
+    { name: string; type: FieldMetadataType; options?: FieldMetadataOptions }
   >;
 }): string => {
   const targetSearchableFields = targetSearchFieldMetadatas.flatMap(

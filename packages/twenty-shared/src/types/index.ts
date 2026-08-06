@@ -115,10 +115,18 @@ export type {
   FieldNumberVariant,
   FieldCurrencyFormat,
   FieldMetadataSettingsMapping,
+  RegieCustomFieldMarker,
+  RegieCustomFieldMarkerParseResult,
+  RegieCustomFieldSettings,
   AllFieldMetadataSettings,
   FieldMetadataSettings,
 } from './FieldMetadataSettings';
-export { NumberDataType, DateDisplayFormat } from './FieldMetadataSettings';
+export {
+  NumberDataType,
+  DateDisplayFormat,
+  regieCustomFieldMarkerSchema,
+  parseRegieCustomFieldMarker,
+} from './FieldMetadataSettings';
 export { FieldMetadataType } from './FieldMetadataType';
 export type { FieldMetadataUniversalSettings } from './FieldMetadataUniversalSettings';
 export type { FieldRatingValue } from './FieldRatingValue';
