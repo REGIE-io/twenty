@@ -4,8 +4,8 @@ import { msg, t } from '@lingui/core/macro';
 import { ALL_METADATA_NAME } from 'twenty-shared/metadata';
 import {
   FieldMetadataType,
+  ViewFilterOperand,
   type FilterableAndTSVectorFieldType,
-  type ViewFilterOperand,
 } from 'twenty-shared/types';
 import {
   FILTER_OPERANDS_MAP,
@@ -364,6 +364,16 @@ export class FlatViewFilterValidatorService {
     subFieldName: string | null | undefined;
     relationTargetFieldType: FieldMetadataType | undefined;
   }) {
+    const isListRelationOperand =
+      fieldType === FieldMetadataType.RELATION &&
+      relationTargetFieldType === FieldMetadataType.RELATION &&
+      (operand === ViewFilterOperand.IS_IN_LIST ||
+        operand === ViewFilterOperand.IS_NOT_IN_LIST);
+
+    if (isListRelationOperand) {
+      return undefined;
+    }
+
     const effectiveFieldType =
       fieldType === FieldMetadataType.RELATION &&
       isDefined(relationTargetFieldType)

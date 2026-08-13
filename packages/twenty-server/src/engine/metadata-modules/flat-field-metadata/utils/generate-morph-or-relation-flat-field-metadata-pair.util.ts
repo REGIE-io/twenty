@@ -22,18 +22,20 @@ import { type UniversalFlatObjectMetadata } from 'src/engine/workspace-manager/w
 type ComputeFieldMetadataRelationSettingsForRelationTypeArgs = {
   relationType: RelationType;
   joinColumnName: string;
+  onDelete?: RelationOnDeleteAction;
   junctionTargetFieldUniversalIdentifier?: string;
 };
 
 const computeFieldMetadataRelationSettingsForRelationType = ({
   relationType,
   joinColumnName,
+  onDelete,
   junctionTargetFieldUniversalIdentifier,
 }: ComputeFieldMetadataRelationSettingsForRelationTypeArgs): FlatFieldMetadata<MorphOrRelationFieldMetadataType>['universalSettings'] => {
   if (relationType === RelationType.MANY_TO_ONE) {
     const settings = {
       relationType: RelationType.MANY_TO_ONE,
-      onDelete: RelationOnDeleteAction.SET_NULL,
+      onDelete: onDelete ?? RelationOnDeleteAction.SET_NULL,
       joinColumnName,
     };
 
@@ -93,6 +95,7 @@ export const generateMorphOrRelationFlatFieldMetadataPair = ({
     computeFieldMetadataRelationSettingsForRelationType({
       joinColumnName: sourceFlatObjectMetadataJoinColumnName,
       relationType: relationCreationPayload.type,
+      onDelete: relationCreationPayload.onDelete,
       junctionTargetFieldUniversalIdentifier:
         junctionTargetFlatFieldMetadata?.universalIdentifier,
     });
@@ -152,6 +155,7 @@ export const generateMorphOrRelationFlatFieldMetadataPair = ({
     label: relationCreationPayload.targetFieldLabel,
     name:
       targetFieldName ??
+      relationCreationPayload.targetFieldName ??
       computeMetadataNameFromLabel({
         label: relationCreationPayload.targetFieldLabel,
       }),

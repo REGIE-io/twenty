@@ -19,6 +19,7 @@ import {
   type RawJsonFilter,
   type RecordFilterValueDependencies,
   type RecordGqlOperationFilter,
+  type RelationCollectionFilter,
   type RelationType,
   type RelationFilter,
   type SelectFilter,
@@ -59,6 +60,10 @@ import {
   computeMorphRelationGqlFieldJoinColumnName,
   computeRelationGqlFieldJoinColumnName,
 } from '@/utils/fieldMetadata/compute-relation-gql-field-join-column-name';
+
+const PHONE_FILTER_NON_SIGNIFICANT_CHARS = /(?!^)\+|[^0-9+]/g;
+
+const CONTAINS_DIGIT = /[0-9]/;
 
 type FieldSharedMorphRelation = {
   type: RelationType;
@@ -113,9 +118,14 @@ export const turnRecordFilterIntoRecordGqlOperationFilter = ({
       return;
     }
 
+    const isListOperand =
+      recordFilter.operand === RecordFilterOperand.IS_IN_LIST ||
+      recordFilter.operand === RecordFilterOperand.IS_NOT_IN_LIST;
+
     const innerFilter = buildDirectFieldGqlOperationFilter({
       recordFilter: {
         ...recordFilter,
+        ...(isListOperand && { operand: RecordFilterOperand.IS }),
         fieldMetadataId: targetFieldMetadataItem.id,
         relationTargetFieldMetadataId: null,
       },
@@ -125,6 +135,22 @@ export const turnRecordFilterIntoRecordGqlOperationFilter = ({
 
     if (!isDefined(innerFilter)) {
       return;
+    }
+
+    if (recordFilter.operand === RecordFilterOperand.IS_IN_LIST) {
+      return {
+        [sourceFieldMetadataItem.name]: {
+          some: innerFilter,
+        } satisfies RelationCollectionFilter,
+      } as RecordGqlOperationFilter;
+    }
+
+    if (recordFilter.operand === RecordFilterOperand.IS_NOT_IN_LIST) {
+      return {
+        [sourceFieldMetadataItem.name]: {
+          none: innerFilter,
+        } satisfies RelationCollectionFilter,
+      } as RecordGqlOperationFilter;
     }
 
     return {
@@ -1403,9 +1429,11 @@ const buildDirectFieldGqlOperationFilter = ({
     }
     case 'PHONES': {
       if (!isSubFieldFilter) {
-        const filterValue = recordFilter.value.replace(/[^0-9]/g, '');
+        const filterValue = recordFilter.value
+          .trim()
+          .replace(PHONE_FILTER_NON_SIGNIFICANT_CHARS, '');
 
-        if (!isNonEmptyString(filterValue)) {
+        if (!CONTAINS_DIGIT.test(filterValue)) {
           return;
         }
 

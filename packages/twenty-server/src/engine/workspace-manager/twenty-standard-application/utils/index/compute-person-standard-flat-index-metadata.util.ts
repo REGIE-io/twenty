@@ -43,6 +43,21 @@ export const buildPersonStandardFlatIndexMetadatas = ({
     twentyStandardApplicationId,
     now,
   }),
+  phonesPrimaryPhoneNumberIndex: createStandardIndexFlatMetadata({
+    objectName,
+    workspaceId,
+    context: {
+      indexName: 'phonesPrimaryPhoneNumberIndex',
+      relatedFieldNames: ['phones'],
+      subFieldNamesByFieldName: {
+        phones: 'primaryPhoneNumber',
+      },
+    },
+    standardObjectMetadataRelatedEntityIds,
+    dependencyFlatEntityMaps,
+    twentyStandardApplicationId,
+    now,
+  }),
   searchVectorGinIndex: createStandardIndexFlatMetadata({
     objectName,
     workspaceId,

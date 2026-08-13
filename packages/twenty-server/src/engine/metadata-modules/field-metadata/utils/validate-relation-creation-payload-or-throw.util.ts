@@ -1,6 +1,7 @@
 import { plainToInstance } from 'class-transformer';
 import {
   IsEnum,
+  IsOptional,
   IsString,
   IsUUID,
   validateOrReject,
@@ -22,6 +23,10 @@ class RelationCreationPayloadValidation {
 
   @IsString()
   targetFieldIcon: string;
+
+  @IsOptional()
+  @IsString()
+  targetFieldName?: string;
 
   @IsEnum(RelationType)
   type: RelationType;

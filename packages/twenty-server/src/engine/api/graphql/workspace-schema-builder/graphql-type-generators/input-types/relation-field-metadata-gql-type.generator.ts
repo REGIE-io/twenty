@@ -2,6 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 
 import {
   GraphQLInputFieldConfigMap,
+  GraphQLInputObjectType,
   isInputObjectType,
   isObjectType,
 } from 'graphql';
@@ -86,8 +87,12 @@ export class RelationFieldMetadataGqlInputTypeGenerator {
     typeOptions: { settings?: FlatFieldMetadata['settings'] };
     context: SchemaGenerationContext;
   }) {
-    if (fieldMetadata.settings?.relationType === RelationType.ONE_TO_MANY)
-      return {};
+    if (fieldMetadata.settings?.relationType === RelationType.ONE_TO_MANY) {
+      return this.getRelationCollectionFilterInputField({
+        fieldMetadata,
+        context,
+      });
+    }
 
     const { joinColumnName } = extractGraphQLRelationFieldNames(fieldMetadata);
 
@@ -227,6 +232,68 @@ export class RelationFieldMetadataGqlInputTypeGenerator {
       [fieldMetadataName]: {
         type: targetInputType,
         description: `${descriptionPrefix} ${targetObjectMetadata.nameSingular}`,
+      },
+    };
+  }
+
+  private getRelationCollectionFilterInputField({
+    fieldMetadata,
+    context,
+  }: {
+    fieldMetadata: FlatFieldMetadata<
+      FieldMetadataType.RELATION | FieldMetadataType.MORPH_RELATION
+    >;
+    context: SchemaGenerationContext;
+  }): GraphQLInputFieldConfigMap {
+    if (!isDefined(fieldMetadata.relationTargetObjectMetadataId)) {
+      return {};
+    }
+
+    const targetObjectMetadata = findFlatEntityByIdInFlatEntityMaps({
+      flatEntityId: fieldMetadata.relationTargetObjectMetadataId,
+      flatEntityMaps: context.flatObjectMetadataMaps,
+    });
+
+    if (!isDefined(targetObjectMetadata)) {
+      return {};
+    }
+
+    const targetInputType = this.gqlTypesStorage.getGqlTypeByKey(
+      computeObjectMetadataInputTypeKey(
+        targetObjectMetadata.nameSingular,
+        GqlInputTypeDefinitionKind.Filter,
+      ),
+    );
+
+    if (!isDefined(targetInputType) || !isInputObjectType(targetInputType)) {
+      return {};
+    }
+
+    const key = `${targetInputType.name}RelationCollectionFilter`;
+    let collectionFilterType = this.gqlTypesStorage.getGqlTypeByKey(key);
+
+    if (!isDefined(collectionFilterType)) {
+      collectionFilterType = new GraphQLInputObjectType({
+        name: key,
+        fields: {
+          some: { type: targetInputType },
+          none: { type: targetInputType },
+        },
+      });
+      this.gqlTypesStorage.addGqlType(key, collectionFilterType);
+    }
+
+    if (!isInputObjectType(collectionFilterType)) {
+      return {};
+    }
+
+    const { fieldMetadataName } =
+      extractGraphQLRelationFieldNames(fieldMetadata);
+
+    return {
+      [fieldMetadataName]: {
+        type: collectionFilterType,
+        description: `Filter list of related ${targetObjectMetadata.namePlural}`,
       },
     };
   }

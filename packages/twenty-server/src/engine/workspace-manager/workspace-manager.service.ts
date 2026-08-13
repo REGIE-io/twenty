@@ -15,6 +15,7 @@ import { InjectWorkspaceScopedRepository } from 'src/engine/twenty-orm/workspace
 import { WorkspaceScopedRepository } from 'src/engine/twenty-orm/workspace-scoped-repository/workspace-scoped-repository';
 import { WorkspaceDataSourceService } from 'src/engine/workspace-datasource/workspace-datasource.service';
 import { STANDARD_ROLE } from 'src/engine/workspace-manager/twenty-standard-application/constants/standard-role.constant';
+import { TWENTY_STANDARD_UI_METADATA_NAME } from 'src/engine/workspace-manager/twenty-standard-application/constants/twenty-standard-all-metadata-name.constant';
 import { TwentyStandardApplicationService } from 'src/engine/workspace-manager/twenty-standard-application/services/twenty-standard-application.service';
 
 @Injectable()
@@ -69,6 +70,7 @@ export class WorkspaceManagerService {
       await this.twentyStandardApplicationService.synchronizeTwentyStandardApplicationOrThrow(
         {
           workspaceId,
+          excludedMetadataNames: TWENTY_STANDARD_UI_METADATA_NAME,
         },
       );
 

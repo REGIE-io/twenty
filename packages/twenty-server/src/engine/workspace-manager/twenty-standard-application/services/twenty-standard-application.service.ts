@@ -9,7 +9,7 @@ import { GlobalWorkspaceOrmManager } from 'src/engine/twenty-orm/global-workspac
 import { WorkspaceCacheService } from 'src/engine/workspace-cache/services/workspace-cache.service';
 import {
   TWENTY_STANDARD_ALL_METADATA_NAME,
-  TWENTY_STANDARD_UI_METADATA_NAME,
+  type TwentyStandardMetadataName,
 } from 'src/engine/workspace-manager/twenty-standard-application/constants/twenty-standard-all-metadata-name.constant';
 import { computeTwentyStandardApplicationAllFlatEntityMaps } from 'src/engine/workspace-manager/twenty-standard-application/utils/twenty-standard-application-all-flat-entity-maps.constant';
 import { WorkspaceMigrationBuilderException } from 'src/engine/workspace-manager/workspace-migration/exceptions/workspace-migration-builder-exception';
@@ -26,8 +26,10 @@ export class TwentyStandardApplicationService {
 
   async synchronizeTwentyStandardApplicationOrThrow({
     workspaceId,
+    excludedMetadataNames = [],
   }: {
     workspaceId: string;
+    excludedMetadataNames?: readonly TwentyStandardMetadataName[];
   }): Promise<{ workspaceCustomFlatApplication: FlatApplication }> {
     const { twentyStandardFlatApplication, workspaceCustomFlatApplication } =
       await this.applicationService.findWorkspaceTwentyStandardAndCustomApplicationOrThrow(
@@ -53,13 +55,10 @@ export class TwentyStandardApplicationService {
     const fromToAllFlatEntityMaps: FromToAllUniversalFlatEntityMaps = {};
 
     for (const metadataName of TWENTY_STANDARD_ALL_METADATA_NAME) {
-      if (
-        (TWENTY_STANDARD_UI_METADATA_NAME as readonly string[]).includes(
-          metadataName,
-        )
-      ) {
+      if (excludedMetadataNames.includes(metadataName)) {
         continue;
       }
+
       const flatEntityMapsKey = getMetadataFlatEntityMapsKey(metadataName);
       const fromFlatEntityMaps =
         fromTwentyStandardAllFlatEntityMaps[flatEntityMapsKey];
