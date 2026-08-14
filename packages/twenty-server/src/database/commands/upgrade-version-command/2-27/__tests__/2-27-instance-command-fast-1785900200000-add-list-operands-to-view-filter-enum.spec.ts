@@ -1,13 +1,12 @@
 import { type QueryRunner } from 'typeorm';
 
-import { RepairListOperandsOnAdvancedInstancesFastInstanceCommand } from 'src/database/commands/upgrade-version-command/2-27/2-27-instance-command-fast-1785900100000-repair-list-operands-on-advanced-instances';
+import { AddListOperandsToViewFilterEnumFastInstanceCommand } from 'src/database/commands/upgrade-version-command/2-27/2-27-instance-command-fast-1785900200000-add-list-operands-to-view-filter-enum';
 
-describe('RepairListOperandsOnAdvancedInstancesFastInstanceCommand', () => {
+describe('AddListOperandsToViewFilterEnumFastInstanceCommand', () => {
   it('adds both list operands idempotently and leaves rollback as a no-op', async () => {
     const query = jest.fn().mockResolvedValue(undefined);
     const queryRunner = { query } as unknown as QueryRunner;
-    const command =
-      new RepairListOperandsOnAdvancedInstancesFastInstanceCommand();
+    const command = new AddListOperandsToViewFilterEnumFastInstanceCommand();
 
     await command.up(queryRunner);
 
