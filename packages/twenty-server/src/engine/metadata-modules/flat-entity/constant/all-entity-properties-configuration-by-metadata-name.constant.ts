@@ -133,6 +133,11 @@ export const ALL_ENTITY_PROPERTIES_CONFIGURATION_BY_METADATA_NAME = {
       toStringify: false,
       universalProperty: undefined,
     },
+    writability: {
+      toCompare: true,
+      toStringify: false,
+      universalProperty: undefined,
+    },
     isNullable: {
       toCompare: true,
       toStringify: false,
@@ -251,6 +256,11 @@ export const ALL_ENTITY_PROPERTIES_CONFIGURATION_BY_METADATA_NAME = {
       universalProperty: undefined,
     },
     isUIEditable: {
+      toCompare: true,
+      toStringify: false,
+      universalProperty: undefined,
+    },
+    writability: {
       toCompare: true,
       toStringify: false,
       universalProperty: undefined,
@@ -450,6 +460,11 @@ export const ALL_ENTITY_PROPERTIES_CONFIGURATION_BY_METADATA_NAME = {
     },
   },
   viewFieldGroup: {
+    isSystemSideEffect: {
+      toCompare: false,
+      toStringify: false,
+      universalProperty: undefined,
+    },
     name: {
       toStringify: false,
       universalProperty: undefined,
@@ -1761,7 +1776,7 @@ export const ALL_ENTITY_PROPERTIES_CONFIGURATION_BY_METADATA_NAME = {
     },
     value: {
       toCompare: false,
-      toStringify: false,
+      toStringify: true,
       universalProperty: undefined,
     },
     description: {
@@ -1770,6 +1785,11 @@ export const ALL_ENTITY_PROPERTIES_CONFIGURATION_BY_METADATA_NAME = {
       universalProperty: undefined,
     },
     isSecret: {
+      toCompare: true,
+      toStringify: false,
+      universalProperty: undefined,
+    },
+    isDeprecated: {
       toCompare: true,
       toStringify: false,
       universalProperty: undefined,

@@ -226,6 +226,9 @@ export class PublicFeatureFlagMetadata {
   @Field(() => String)
   description: string;
 
+  @Field(() => String)
+  icon: string;
+
   @Field(() => String, { nullable: true })
   imagePath?: string;
 }
@@ -301,7 +304,7 @@ export class ClientConfig {
   @Field(() => ApiConfig)
   api: ApiConfig;
 
-  onboarding: OnboardingConfig;
+  onboarding: OnboardingConfig | null;
 
   @Field(() => Boolean)
   canManageFeatureFlags: boolean;
@@ -309,6 +312,8 @@ export class ClientConfig {
   @Field(() => [PublicFeatureFlag])
   publicFeatureFlags: PublicFeatureFlag[];
 
+  // Always true now that cookie sessions are the only web auth path. Kept in
+  // the schema because removing a field breaks the public API contract.
   @Field(() => Boolean)
   isCookieSessionEnabled: boolean;
 
@@ -338,6 +343,12 @@ export class ClientConfig {
 
   @Field(() => String, { nullable: true })
   calendarBookingPageId?: string;
+
+  @Field(() => Boolean)
+  isBookCallOnboardingStepEnabled: boolean;
+
+  @Field(() => Boolean)
+  isCompanyEnrichmentEnabled: boolean;
 
   @Field(() => Boolean)
   isCloudflareIntegrationEnabled: boolean;
