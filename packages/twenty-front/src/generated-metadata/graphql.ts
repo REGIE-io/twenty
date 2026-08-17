@@ -1209,6 +1209,7 @@ export type CreateIndexFieldInput = {
 export type CreateIndexInput = {
   fields: Array<CreateIndexFieldInput>;
   indexType?: IndexType;
+  isUnique?: Scalars['Boolean']['input'];
   objectMetadataId: Scalars['UUID']['input'];
 };
 
@@ -6396,8 +6397,8 @@ export enum ViewFilterOperand {
   IS_AFTER = 'IS_AFTER',
   IS_BEFORE = 'IS_BEFORE',
   IS_EMPTY = 'IS_EMPTY',
-  IS_IN_LIST = 'IS_IN_LIST',
   IS_IN_FUTURE = 'IS_IN_FUTURE',
+  IS_IN_LIST = 'IS_IN_LIST',
   IS_IN_PAST = 'IS_IN_PAST',
   IS_NOT = 'IS_NOT',
   IS_NOT_EMPTY = 'IS_NOT_EMPTY',

@@ -6759,7 +6759,7 @@ export interface CreateOneIndexInput {
 /** The custom index to create */
 index: CreateIndexInput}
 
-export interface CreateIndexInput {objectMetadataId: Scalars['UUID'],fields: CreateIndexFieldInput[],indexType: IndexType}
+export interface CreateIndexInput {objectMetadataId: Scalars['UUID'],fields: CreateIndexFieldInput[],indexType: IndexType,isUnique: Scalars['Boolean']}
 
 export interface CreateIndexFieldInput {fieldMetadataId: Scalars['UUID'],subFieldName?: (Scalars['String'] | null)}
 

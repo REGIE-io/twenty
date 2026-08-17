@@ -4260,6 +4260,7 @@ input CreateIndexInput {
   objectMetadataId: UUID!
   fields: [CreateIndexFieldInput!]!
   indexType: IndexType! = BTREE
+  isUnique: Boolean! = false
 }
 
 input CreateIndexFieldInput {
