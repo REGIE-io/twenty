@@ -339,11 +339,11 @@ export abstract class BaseWorkspaceMigrationRunnerActionHandlerService<
 
     const [metadataResult, workspaceSchemaResult] = await Promise.allSettled([
       this.asyncMethodPerformanceMetricWrapper({
-        label: 'executeForMetadataBatch',
+        label: 'executeForMetadata',
         method: async () => this.executeForMetadataBatch(flatContexts),
       }),
       this.asyncMethodPerformanceMetricWrapper({
-        label: 'executeForWorkspaceSchemaBatch',
+        label: 'executeForWorkspaceSchema',
         method: async () => this.executeForWorkspaceSchemaBatch(flatContexts),
       }),
     ]);

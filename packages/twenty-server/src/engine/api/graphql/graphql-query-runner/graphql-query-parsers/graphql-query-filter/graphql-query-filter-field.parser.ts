@@ -1,5 +1,9 @@
 import { msg } from '@lingui/core/macro';
-import { Brackets, type WhereExpressionBuilder } from 'typeorm';
+import {
+  Brackets,
+  type ObjectLiteral,
+  type WhereExpressionBuilder,
+} from 'typeorm';
 import { compositeTypeDefinitions, RelationType } from 'twenty-shared/types';
 import { capitalize, isDefined } from 'twenty-shared/utils';
 
@@ -27,6 +31,7 @@ import {
   PermissionsExceptionCode,
   PermissionsExceptionMessage,
 } from 'src/engine/metadata-modules/permissions/permissions.exception';
+import { type WorkspaceSelectQueryBuilder } from 'src/engine/twenty-orm/repository/workspace-select-query-builder';
 
 import { GraphqlQueryFilterConditionParser } from './graphql-query-filter-condition.parser';
 import { type RecordQueryBuilder } from 'src/engine/api/graphql/graphql-query-runner/types/record-query-builder.type';
@@ -110,13 +115,13 @@ export class GraphqlQueryFilterFieldParser {
     }
 
     if (
-      isFilterKeyARelation &&
+      isReferencedByFieldName &&
       isMorphOrRelationFlatFieldMetadata(fieldMetadata) &&
       fieldMetadata.settings?.relationType === RelationType.ONE_TO_MANY
     ) {
       return this.parseRelationCollectionSubFilter(
         queryBuilder,
-        outerQueryBuilder,
+        outerQueryBuilder as WorkspaceSelectQueryBuilder<ObjectLiteral>,
         objectNameSingular,
         fieldMetadata,
         filterValue,
