@@ -101,16 +101,13 @@ export const ObjectFilterDropdownInnerSelectOperandDropdown = () => {
 
   if (
     !isDefined(selectedOperandInDropdown) ||
-    !isDefined(effectiveFieldMetadataItem)
+    !isDefined(effectiveFieldMetadataItem) ||
+    !isDefined(effectiveFilterType)
   ) {
     return null;
   }
 
-  const filterType = getFilterTypeFromFieldType(
-    effectiveFieldMetadataItem.type,
-  );
-
-  const isDateFilter = DATE_FILTER_TYPES.includes(filterType);
+  const isDateFilter = DATE_FILTER_TYPES.includes(effectiveFilterType);
 
   const widthInPixels = isDateFilter
     ? DATE_PICKER_DROPDOWN_CONTENT_WIDTH

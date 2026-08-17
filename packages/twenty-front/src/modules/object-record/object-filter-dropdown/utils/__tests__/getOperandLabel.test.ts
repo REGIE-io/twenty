@@ -35,6 +35,9 @@ describe('getOperandLabel', () => {
     expect(getOperandLabel(ViewFilterOperand.IS_NOT, undefined, 'TEXT')).toBe(
       'Does not exactly equal',
     );
+    expect(getOperandLabel(ViewFilterOperand.IS, undefined, 'text')).toBe(
+      'Exactly equals',
+    );
   });
 });
 

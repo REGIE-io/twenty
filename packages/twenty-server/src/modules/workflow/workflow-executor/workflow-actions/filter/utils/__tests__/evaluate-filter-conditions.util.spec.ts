@@ -872,6 +872,46 @@ describe('evaluateFilterConditions', () => {
         );
       });
 
+      it('should compare text containment case-insensitively', () => {
+        const contains = createFilter(
+          ViewFilterOperand.CONTAINS,
+          'ACME Corporation',
+          'acme',
+          'TEXT',
+        );
+        const doesNotContain = createFilter(
+          ViewFilterOperand.DOES_NOT_CONTAIN,
+          'ACME Corporation',
+          'acme',
+          'TEXT',
+        );
+
+        expect(evaluateFilterConditions({ filters: [contains] })).toBe(true);
+        expect(evaluateFilterConditions({ filters: [doesNotContain] })).toBe(
+          false,
+        );
+      });
+
+      it('should not treat unset text as not exactly equal', () => {
+        const nullValue = createFilter(
+          ViewFilterOperand.IS_NOT,
+          null,
+          'acme',
+          'TEXT',
+        );
+        const undefinedValue = createFilter(
+          ViewFilterOperand.IS_NOT,
+          undefined,
+          'acme',
+          'TEXT',
+        );
+
+        expect(evaluateFilterConditions({ filters: [nullValue] })).toBe(false);
+        expect(evaluateFilterConditions({ filters: [undefinedValue] })).toBe(
+          false,
+        );
+      });
+
       it('should evaluate starts with case-insensitively for text', () => {
         const matching = createFilter(
           ViewFilterOperand.STARTS_WITH,

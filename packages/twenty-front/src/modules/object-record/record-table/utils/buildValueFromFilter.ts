@@ -82,22 +82,6 @@ type TextOperand =
   | ViewFilterOperand.IS_NOT
   | ViewFilterOperand.STARTS_WITH;
 
-const computeValueFromContainsOperand = (
-  operand: ContainsBasedOperand,
-  value: string,
-) => {
-  switch (operand) {
-    case ViewFilterOperand.CONTAINS:
-    case ViewFilterOperand.IS_NOT_EMPTY:
-      return value;
-    case ViewFilterOperand.DOES_NOT_CONTAIN:
-    case ViewFilterOperand.IS_EMPTY:
-      return undefined;
-    default:
-      assertUnreachable(operand);
-  }
-};
-
 const computeValueFromTextOperand = (operand: TextOperand, value: string) => {
   switch (operand) {
     case ViewFilterOperand.IS:
@@ -342,9 +326,9 @@ const VALUE_HANDLER_REGISTRY: Partial<Record<FieldMetadataType, ValueHandler>> =
     [FieldMetadataType.TEXT]: ({ operand, value }) =>
       computeValueFromTextOperand(operand as TextOperand, value),
     [FieldMetadataType.ARRAY]: ({ operand, value }) =>
-      computeValueFromContainsOperand(operand as ContainsBasedOperand, value),
+      computeValueFromTextOperand(operand as ContainsBasedOperand, value),
     [FieldMetadataType.RAW_JSON]: ({ operand, value }) =>
-      computeValueFromContainsOperand(operand as ContainsBasedOperand, value),
+      computeValueFromTextOperand(operand as ContainsBasedOperand, value),
     [FieldMetadataType.DATE_TIME]: ({ operand, value, timeZone }) =>
       computeValueFromFilterDate(
         operand as RecordFilterToRecordInputOperand<'DATE_TIME'>,

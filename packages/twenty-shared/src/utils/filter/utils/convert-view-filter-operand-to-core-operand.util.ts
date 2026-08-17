@@ -22,6 +22,8 @@ const operandMapping: Record<string, ViewFilterOperand> = {
   [ViewFilterOperand.IS]: ViewFilterOperand.IS,
   [ViewFilterOperand.IS_NOT_NULL]: ViewFilterOperand.IS_NOT_NULL,
   [ViewFilterOperand.IS_NOT]: ViewFilterOperand.IS_NOT,
+  [ViewFilterOperand.IS_IN_LIST]: ViewFilterOperand.IS_IN_LIST,
+  [ViewFilterOperand.IS_NOT_IN_LIST]: ViewFilterOperand.IS_NOT_IN_LIST,
   [ViewFilterOperand.LESS_THAN_OR_EQUAL]: ViewFilterOperand.LESS_THAN_OR_EQUAL,
   [ViewFilterOperand.GREATER_THAN_OR_EQUAL]:
     ViewFilterOperand.GREATER_THAN_OR_EQUAL,

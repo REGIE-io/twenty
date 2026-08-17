@@ -13,6 +13,7 @@ export const getOperandLabel = (
   const timeZoneAbbreviationSuffix = shouldDisplayTimeZoneAbbreviation
     ? ` (${timeZoneAbbreviation})`
     : '';
+  const normalizedFilterType = filterType?.toUpperCase();
 
   switch (operand) {
     case ViewFilterOperand.CONTAINS:
@@ -30,9 +31,11 @@ export const getOperandLabel = (
     case ViewFilterOperand.IS_AFTER:
       return t`Is after or equal`;
     case ViewFilterOperand.IS:
-      return filterType === 'TEXT' ? t`Exactly equals` : t`Is`;
+      return normalizedFilterType === 'TEXT' ? t`Exactly equals` : t`Is`;
     case ViewFilterOperand.IS_NOT:
-      return filterType === 'TEXT' ? t`Does not exactly equal` : t`Is not`;
+      return normalizedFilterType === 'TEXT'
+        ? t`Does not exactly equal`
+        : t`Is not`;
     case ViewFilterOperand.IS_NOT_NULL:
       return t`Is not null`;
     case ViewFilterOperand.IS_EMPTY:
