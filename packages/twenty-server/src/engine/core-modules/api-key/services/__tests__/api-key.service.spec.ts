@@ -304,7 +304,9 @@ describe('ApiKeyService', () => {
 
       const result = await service.findByWorkspaceId(mockWorkspaceId);
 
-      expect(mockApiKeyRepository.find).toHaveBeenCalledWith(mockWorkspaceId);
+      expect(mockApiKeyRepository.find).toHaveBeenCalledWith(mockWorkspaceId, {
+        order: { createdAt: 'ASC', id: 'ASC' },
+      });
       expect(result).toEqual(mockApiKeys);
     });
   });
@@ -319,6 +321,7 @@ describe('ApiKeyService', () => {
 
       expect(mockApiKeyRepository.find).toHaveBeenCalledWith(mockWorkspaceId, {
         where: { revokedAt: IsNull() },
+        order: { createdAt: 'ASC', id: 'ASC' },
       });
       expect(result).toEqual(activeApiKeys);
     });
