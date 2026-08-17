@@ -77,8 +77,11 @@ const selectFilterValueSchema = nonEmptyStringFilterValueSchema.refine(
 );
 
 const containsOperandsSchemas = {
+  [ViewFilterOperand.IS]: nonEmptyStringFilterValueSchema,
+  [ViewFilterOperand.IS_NOT]: nonEmptyStringFilterValueSchema,
   [ViewFilterOperand.CONTAINS]: nonEmptyStringFilterValueSchema,
   [ViewFilterOperand.DOES_NOT_CONTAIN]: nonEmptyStringFilterValueSchema,
+  [ViewFilterOperand.STARTS_WITH]: nonEmptyStringFilterValueSchema,
 };
 
 const numericOperandsSchemas = {
