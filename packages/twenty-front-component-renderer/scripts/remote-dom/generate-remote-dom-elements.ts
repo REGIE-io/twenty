@@ -27,8 +27,8 @@ if (process.env.FORCE_COLOR && !process.env.TWENTY_REMOTE_DOM_REEXEC) {
     process.execPath,
     [...process.execArgv, ...process.argv.slice(1)],
     {
-    env: { ...env, TWENTY_REMOTE_DOM_REEXEC: '1' },
-    stdio: 'inherit',
+      env: { ...env, TWENTY_REMOTE_DOM_REEXEC: '1' },
+      stdio: 'inherit',
     },
   );
 

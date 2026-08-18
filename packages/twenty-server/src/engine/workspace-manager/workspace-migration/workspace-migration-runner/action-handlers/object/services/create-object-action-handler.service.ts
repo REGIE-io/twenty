@@ -193,5 +193,4 @@ export class CreateObjectActionHandlerService extends WorkspaceMigrationRunnerAc
       columnDefinitions,
     });
   }
-
 }
