@@ -46,4 +46,15 @@ describe('parseBaseFilter', () => {
       value: '["2023-12-01T14:23:23.914Z","2024-12-01T14:23:23.914Z"]',
     });
   });
+
+  it('accepts the search comparator only for the TS_VECTOR searchVector field', () => {
+    expect(parseBaseFilter('searchVector[search]:custom value')).toEqual({
+      fields: ['searchVector'],
+      comparator: 'search',
+      value: 'custom value',
+    });
+    expect(() => parseBaseFilter('name[search]:custom value')).toThrow(
+      'comparator search is only supported on searchVector',
+    );
+  });
 });

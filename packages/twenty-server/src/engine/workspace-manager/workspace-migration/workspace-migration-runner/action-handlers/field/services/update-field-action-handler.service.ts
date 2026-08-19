@@ -220,6 +220,32 @@ export class UpdateFieldActionHandlerService extends WorkspaceMigrationRunnerAct
       update.options !== undefined &&
       isEnumFlatFieldMetadata(optimisticFlatFieldMetadata)
     ) {
+      if (flatAction.rebuildSearchVector === true) {
+        const indexedSearchFieldMetadata = Object.values(
+          flatSearchFieldMetadataMaps.byUniversalIdentifier,
+        ).find(
+          (searchFieldMetadata) =>
+            isDefined(searchFieldMetadata) &&
+            searchFieldMetadata.fieldMetadataId ===
+              optimisticFlatFieldMetadata.id,
+        );
+
+        if (isDefined(indexedSearchFieldMetadata)) {
+          const searchVectorFieldMetadata =
+            findFlatEntityByIdInFlatEntityMapsOrThrow({
+              flatEntityId: indexedSearchFieldMetadata.tsVectorFieldMetadataId,
+              flatEntityMaps: flatFieldMetadataMaps,
+            });
+
+          await this.workspaceSchemaManagerService.columnManager.dropColumns({
+            queryRunner,
+            schemaName,
+            tableName,
+            columnNames: [searchVectorFieldMetadata.name],
+          });
+        }
+      }
+
       if (update.defaultValue !== undefined) {
         optimisticFlatFieldMetadata = {
           ...optimisticFlatFieldMetadata,
@@ -363,6 +389,7 @@ export class UpdateFieldActionHandlerService extends WorkspaceMigrationRunnerAct
           {
             name: indexedFlatFieldMetadata.name,
             type: indexedFlatFieldMetadata.type,
+            options: indexedFlatFieldMetadata.options,
           },
         ]),
       );

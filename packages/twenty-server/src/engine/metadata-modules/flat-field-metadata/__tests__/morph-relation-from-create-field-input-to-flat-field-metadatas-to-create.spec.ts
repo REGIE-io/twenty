@@ -305,3 +305,40 @@ describe('fromCreateFieldInputToFlatFieldMetadatasToCreate MORPH_RELATION test s
     );
   });
 });
+
+describe('Regie marker preservation for enum field creation', () => {
+  const marker = {
+    twentyOwnedSibling: 'preserve-me',
+    regieCustomField: {
+      version: 1 as const,
+      target: 'account' as const,
+      format: 'plain' as const,
+      searchable: true,
+    },
+  };
+
+  it.each([FieldMetadataType.SELECT, FieldMetadataType.MULTI_SELECT])(
+    'preserves the full marker in %s universal settings',
+    async (type) => {
+      const result = await fromCreateFieldInputToFlatFieldMetadatasToCreate({
+        flatApplication: MOCK_FLAT_APPLICATION,
+        createFieldInput: {
+          name: 'regieEnum',
+          label: 'Regie Enum',
+          type,
+          objectMetadataId: COMPANY_FLAT_OBJECT_MOCK.id,
+          settings: marker,
+          options: [{ label: 'One', position: 0, value: 'ONE' }],
+        },
+        flatObjectMetadataMaps,
+        flatFieldMetadataMaps: emptyFlatFieldMetadataMaps,
+      });
+
+      expect(result.status).toBe('success');
+      if (result.status !== 'success') throw new Error('expected success');
+      expect(result.result.flatFieldMetadatas[0].universalSettings).toEqual(
+        marker,
+      );
+    },
+  );
+});

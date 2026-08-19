@@ -21,6 +21,36 @@ import { type FlatObjectMetadata } from 'src/engine/metadata-modules/flat-object
 import { belongsToTwentyStandardApp } from 'src/engine/metadata-modules/utils/belongs-to-twenty-standard-app.util';
 import { mergeUpdateInExistingRecord } from 'src/utils/merge-update-in-existing-record.util';
 
+const hasRegieCustomFieldSetting = (settings: unknown): boolean =>
+  typeof settings === 'object' &&
+  settings !== null &&
+  Object.prototype.hasOwnProperty.call(settings, 'regieCustomField');
+
+const mergeRegieCustomFieldSettings = <Settings>(
+  existingSettings: Settings,
+  updatedSettings: Settings,
+): Settings => {
+  // Settings are normally replaced by a field update. A Regie marker is a
+  // namespaced extension, though, so a partial settings update must not erase
+  // either the marker or sibling Twenty-owned settings.
+  if (
+    !hasRegieCustomFieldSetting(existingSettings) &&
+    !hasRegieCustomFieldSetting(updatedSettings)
+  ) {
+    return updatedSettings;
+  }
+  if (
+    typeof existingSettings !== 'object' ||
+    existingSettings === null ||
+    typeof updatedSettings !== 'object' ||
+    updatedSettings === null
+  ) {
+    return updatedSettings;
+  }
+
+  return { ...existingSettings, ...updatedSettings } as Settings;
+};
+
 type ComputeFlatFieldToUpdateAndRelatedFlatFieldToUpdateReturnType = {
   flatFieldMetadataFromTo: FromTo<FlatFieldMetadata, 'flatFieldMetadata'>;
   relatedFlatFieldMetadatasFromTo: FromTo<
@@ -66,7 +96,10 @@ export const computeFlatFieldToUpdateAndRelatedFlatFieldToUpdate = ({
   };
 
   if (updatedEditableFieldProperties.settings !== undefined) {
-    const updatedSettings = toFlatFieldMetadata.settings;
+    const updatedSettings = mergeRegieCustomFieldSettings(
+      fromFlatFieldMetadata.settings,
+      toFlatFieldMetadata.settings,
+    );
 
     const isRelationSettings =
       isFieldMetadataSettingsOfType(
@@ -102,6 +135,8 @@ export const computeFlatFieldToUpdateAndRelatedFlatFieldToUpdate = ({
     } else {
       toFlatFieldMetadata.universalSettings = updatedSettings;
     }
+
+    toFlatFieldMetadata.settings = updatedSettings;
   }
 
   if (

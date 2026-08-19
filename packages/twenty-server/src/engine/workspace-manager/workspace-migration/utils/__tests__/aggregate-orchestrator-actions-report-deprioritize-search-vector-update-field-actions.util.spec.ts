@@ -50,6 +50,7 @@ describe('aggregateOrchestratorActionsReportDeprioritizeSearchVectorUpdateFieldA
       getFlatFieldMetadataMock({
         universalIdentifier: 'search-vector-field-1',
         objectMetadataId: 'object-1',
+        objectMetadataUniversalIdentifier: 'object-1',
         type: FieldMetadataType.TS_VECTOR,
         id: 'search-vector-field-1',
         name: SEARCH_VECTOR_FIELD.name,
@@ -107,5 +108,70 @@ describe('aggregateOrchestratorActionsReportDeprioritizeSearchVectorUpdateFieldA
     expect(result.objectMetadata).toEqual(
       orchestratorActionsReport.objectMetadata,
     );
+  });
+
+  it('marks an enum option update to release its search-vector dependency before rebuilding', () => {
+    const orchestratorActionsReport = {
+      ...createEmptyOrchestratorActionsReport(),
+      fieldMetadata: {
+        create: [],
+        update: [
+          {
+            type: 'update',
+            metadataName: 'fieldMetadata',
+            universalIdentifier: 'select-field-1',
+            update: { options: [] },
+          } satisfies UniversalUpdateFieldAction,
+        ],
+        delete: [],
+      },
+    };
+    const flatFieldMetadataMaps = [
+      getFlatFieldMetadataMock({
+        universalIdentifier: 'search-vector-field-1',
+        objectMetadataId: 'object-1',
+        objectMetadataUniversalIdentifier: 'object-1',
+        type: FieldMetadataType.TS_VECTOR,
+        id: 'search-vector-field-1',
+        name: SEARCH_VECTOR_FIELD.name,
+      }),
+      getFlatFieldMetadataMock({
+        universalIdentifier: 'select-field-1',
+        objectMetadataId: 'object-1',
+        objectMetadataUniversalIdentifier: 'object-1',
+        type: FieldMetadataType.SELECT,
+        id: 'select-field-1',
+        name: 'tier',
+      }),
+    ].reduce<FlatEntityMaps<FlatFieldMetadata>>(
+      (flatEntityMaps, field) =>
+        addFlatEntityToFlatEntityMapsOrThrow({
+          flatEntity: field,
+          flatEntityMaps,
+        }),
+      createEmptyFlatEntityMaps() as FlatEntityMaps<FlatFieldMetadata>,
+    );
+
+    const result =
+      aggregateOrchestratorActionsReportDeprioritizeSearchVectorUpdateFieldActions(
+        {
+          orchestratorActionsReport,
+          flatFieldMetadataMaps,
+          searchVectorUniversalIdentifiersToRebuild: new Set([
+            'search-vector-field-1',
+          ]),
+        },
+      );
+
+    expect(result.fieldMetadata.update).toEqual([
+      expect.objectContaining({
+        universalIdentifier: 'select-field-1',
+        rebuildSearchVector: true,
+      }),
+      expect.objectContaining({
+        universalIdentifier: 'search-vector-field-1',
+        rebuildSearchVector: true,
+      }),
+    ]);
   });
 });

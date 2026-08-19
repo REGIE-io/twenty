@@ -57,6 +57,8 @@ export const getOperatorsForFieldType = (
       return RICH_TEXT_FILTER_OPERATORS;
 
     case FieldMetadataType.TS_VECTOR:
+      return ['search'];
+
     case FieldMetadataType.ACTOR:
     case FieldMetadataType.ADDRESS:
     case FieldMetadataType.CURRENCY:

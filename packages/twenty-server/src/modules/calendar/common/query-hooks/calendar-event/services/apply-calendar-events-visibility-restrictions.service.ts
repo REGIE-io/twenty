@@ -77,6 +77,15 @@ export class ApplyCalendarEventsVisibilityRestrictionsService {
               association.calendarEventId === calendarEvents[i].id,
           );
 
+          // Locally-created/API events do not have an external calendar
+          // channel association. They are workspace records, not restricted
+          // calendar data, and must remain in REST/GraphQL list results. The
+          // previous fall-through removed every such event after pagination
+          // and counting, producing an empty data array with a non-zero count.
+          if (associations.length === 0) {
+            continue;
+          }
+
           const calendarChannels = associations
             .map((association) =>
               calendarChannelMap.get(association.calendarChannelId),

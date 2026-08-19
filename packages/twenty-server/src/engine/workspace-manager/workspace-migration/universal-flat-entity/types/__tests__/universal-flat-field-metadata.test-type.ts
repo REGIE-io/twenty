@@ -4,10 +4,11 @@ import {
   type HasAllProperties,
 } from 'twenty-shared/testing';
 import {
-  type FieldMetadataType,
   type FieldNumberVariant,
+  type FieldMetadataType,
   type NullablePartial,
   type NumberDataType,
+  type RegieCustomFieldMarker,
   type RelationOnDeleteAction,
   type RelationType,
   type SerializedRelation,
@@ -90,11 +91,19 @@ type UniversalFlatTransformationAssertions = [
   >,
 ];
 
-// JSONB properties are now prefixed with 'universal' in UniversalFlatFieldMetadata
-type NarrowedTestCase =
+// The Regie namespace extends, rather than replaces, the existing universal
+// settings contract. Check both halves independently so the marker does not
+// weaken the relation/number/text transformation guarantees.
+type WithoutRegieMarker<T> = T extends object ? Omit<T, 'regieCustomField'> : T;
+
+type RegieMarkerOf<T> = T extends { regieCustomField?: infer Marker }
+  ? Marker
+  : never;
+
+type NarrowedSettingsTestCase =
   UniversalFlatFieldMetadata<FieldMetadataType.RELATION>['universalSettings'];
 
-type NarrowedExpectedResult = {
+type NarrowedSettingsExpectedResult = {
   relationType: RelationType;
   onDelete?: RelationOnDeleteAction | undefined;
   joinColumnName?: string | null | undefined;
@@ -110,16 +119,7 @@ type SettingsTestCase = UniversalFlatFieldMetadata<
 >['universalSettings'];
 
 type SettingsExpectedResult =
-  | {
-      relationType: RelationType;
-      onDelete?: RelationOnDeleteAction | undefined;
-      joinColumnName?: string | null | undefined;
-      junctionTargetFieldUniversalIdentifier?:
-        | SerializedRelation
-        | null
-        | undefined;
-      __JsonbPropertyBrand__?: undefined;
-    }
+  | NarrowedSettingsExpectedResult
   | {
       dataType?: NumberDataType | undefined;
       decimals?: number | undefined;
@@ -133,7 +133,24 @@ type SettingsExpectedResult =
   | null;
 
 // oxlint-disable-next-line unused-imports/no-unused-vars
-type Assertions = [
-  Expect<Equal<SettingsTestCase, SettingsExpectedResult>>,
-  Expect<Equal<NarrowedTestCase, NarrowedExpectedResult>>,
+type UniversalSettingsAssertions = [
+  Expect<
+    Equal<
+      WithoutRegieMarker<NarrowedSettingsTestCase>,
+      NarrowedSettingsExpectedResult
+    >
+  >,
+  Expect<Equal<WithoutRegieMarker<SettingsTestCase>, SettingsExpectedResult>>,
+  Expect<
+    Equal<
+      RegieMarkerOf<Exclude<NarrowedSettingsTestCase, null>>,
+      RegieCustomFieldMarker
+    >
+  >,
+  Expect<
+    Equal<
+      RegieMarkerOf<Exclude<SettingsTestCase, null>>,
+      RegieCustomFieldMarker
+    >
+  >,
 ];

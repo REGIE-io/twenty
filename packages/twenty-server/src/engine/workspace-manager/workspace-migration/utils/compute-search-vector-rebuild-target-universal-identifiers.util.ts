@@ -21,9 +21,13 @@ export const computeSearchVectorRebuildTargetUniversalIdentifiers = ({
   const emptyFlatSearchFieldMetadataMaps: MetadataUniversalFlatEntityMaps<'searchFieldMetadata'> =
     { byUniversalIdentifier: {} };
 
-  const renamedFieldSearchFieldMetadataUniversalIdentifiers =
+  const searchProjectionChangedFieldSearchFieldMetadataUniversalIdentifiers =
     orchestratorActionsReport.fieldMetadata.update
-      .filter((updateAction) => isDefined(updateAction.update.name))
+      .filter(
+        (updateAction) =>
+          isDefined(updateAction.update.name) ||
+          isDefined(updateAction.update.options),
+      )
       .flatMap(
         (updateAction) =>
           findFlatEntityByUniversalIdentifier({
@@ -54,7 +58,7 @@ export const computeSearchVectorRebuildTargetUniversalIdentifiers = ({
             universalIdentifier: deleteAction.universalIdentifier,
           })?.tsVectorFieldMetadataUniversalIdentifier,
       ),
-      ...renamedFieldSearchFieldMetadataUniversalIdentifiers.map(
+      ...searchProjectionChangedFieldSearchFieldMetadataUniversalIdentifiers.map(
         (searchFieldMetadataUniversalIdentifier) =>
           findFlatEntityByUniversalIdentifier({
             flatEntityMaps: toFlatSearchFieldMetadataMaps,
