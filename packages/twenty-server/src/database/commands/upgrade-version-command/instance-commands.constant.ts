@@ -137,6 +137,7 @@ import { AddOpenRecordInToObjectMetadataFastInstanceCommand } from 'src/database
 import { CreateUserSessionCoreTableFastInstanceCommand } from 'src/database/commands/upgrade-version-command/2-27/2-27-instance-command-fast-1785518325511-create-user-session-core-table';
 import { CreateApplicationAuthorizationCoreTableFastInstanceCommand } from 'src/database/commands/upgrade-version-command/2-27/2-27-instance-command-fast-1785681272278-create-application-authorization-core-table';
 import { ReapplyStranded225InstanceCommandsFastInstanceCommand } from 'src/database/commands/upgrade-version-command/2-27/2-27-instance-command-fast-1785900000000-reapply-stranded-2-25-instance-commands';
+import { AddStartsWithViewFilterOperandFastInstanceCommand } from 'src/database/commands/upgrade-version-command/2-27/2-27-instance-command-fast-1786996800000-add-starts-with-view-filter-operand';
 
 export const INSTANCE_COMMANDS = [
   AddViewFieldGroupIdIndexOnViewFieldFastInstanceCommand,
@@ -276,4 +277,5 @@ export const INSTANCE_COMMANDS = [
   CreateUserSessionCoreTableFastInstanceCommand,
   CreateApplicationAuthorizationCoreTableFastInstanceCommand,
   ReapplyStranded225InstanceCommandsFastInstanceCommand,
+  AddStartsWithViewFilterOperandFastInstanceCommand,
 ];

@@ -174,23 +174,43 @@ function evaluateTextAndArrayFilter(
     key: compositeFieldSubFieldName,
   });
 
+  const isTextFilter = filterType === 'TEXT';
+  const normalizedLeftOperand =
+    isTextFilter && isString(filter.leftOperand)
+      ? filter.leftOperand.toLocaleLowerCase()
+      : filter.leftOperand;
+  const normalizedRightOperand =
+    isTextFilter && isString(filter.rightOperand)
+      ? filter.rightOperand.toLocaleLowerCase()
+      : filter.rightOperand;
+
   switch (filter.operand) {
     case ViewFilterOperand.CONTAINS:
       return (
-        contains(filter.leftOperand, filter.rightOperand) ||
+        contains(normalizedLeftOperand, normalizedRightOperand) ||
         (isDefined(nullEquivalentRightValue) &&
           !isNotEmptyTextOrArray(filter.leftOperand))
       );
     case ViewFilterOperand.DOES_NOT_CONTAIN:
       return (
-        !contains(filter.leftOperand, filter.rightOperand) ||
+        !contains(normalizedLeftOperand, normalizedRightOperand) ||
         (isDefined(nullEquivalentRightValue) &&
           isNotEmptyTextOrArray(filter.leftOperand))
       );
     case ViewFilterOperand.IS:
-      return isEqual(filter.leftOperand, filter.rightOperand);
+      return isEqual(normalizedLeftOperand, normalizedRightOperand);
     case ViewFilterOperand.IS_NOT:
-      return !isEqual(filter.leftOperand, filter.rightOperand);
+      return (
+        isDefined(normalizedLeftOperand) &&
+        isDefined(normalizedRightOperand) &&
+        !isEqual(normalizedLeftOperand, normalizedRightOperand)
+      );
+    case ViewFilterOperand.STARTS_WITH:
+      return (
+        isString(normalizedLeftOperand) &&
+        isString(normalizedRightOperand) &&
+        normalizedLeftOperand.startsWith(normalizedRightOperand)
+      );
     case ViewFilterOperand.IS_EMPTY:
       return !isNotEmptyTextOrArray(filter.leftOperand);
 
