@@ -48,4 +48,18 @@ describe('getIncompatibleViewFilterOperandError', () => {
 
     expect(error).toBeUndefined();
   });
+
+  it.each([ViewFilterOperand.IS_IN_LIST, ViewFilterOperand.IS_NOT_IN_LIST])(
+    'should allow %s for a relation target selected through a relation',
+    (operand) => {
+      expect(
+        getIncompatibleViewFilterOperandError({
+          operand,
+          fieldType: FieldMetadataType.RELATION,
+          subFieldName: null,
+          relationTargetFieldType: FieldMetadataType.RELATION,
+        }),
+      ).toBeUndefined();
+    },
+  );
 });

@@ -1,5 +1,5 @@
 import { msg, t } from '@lingui/core/macro';
-import { FieldMetadataType, type ViewFilterOperand } from 'twenty-shared/types';
+import { FieldMetadataType, ViewFilterOperand } from 'twenty-shared/types';
 import {
   getFilterOperandsForFilterableFieldType,
   getFilterTypeFromFieldType,
@@ -19,6 +19,16 @@ export const getIncompatibleViewFilterOperandError = ({
   subFieldName: string | null | undefined;
   relationTargetFieldType: FieldMetadataType | undefined;
 }) => {
+  const isListRelationOperand =
+    fieldType === FieldMetadataType.RELATION &&
+    relationTargetFieldType === FieldMetadataType.RELATION &&
+    (operand === ViewFilterOperand.IS_IN_LIST ||
+      operand === ViewFilterOperand.IS_NOT_IN_LIST);
+
+  if (isListRelationOperand) {
+    return undefined;
+  }
+
   const effectiveFieldType = getEffectiveFilterFieldType({
     fieldType,
     relationTargetFieldType,
