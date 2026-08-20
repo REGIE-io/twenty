@@ -2,14 +2,8 @@ import { Injectable } from '@nestjs/common';
 
 import { msg, t } from '@lingui/core/macro';
 import { ALL_METADATA_NAME } from 'twenty-shared/metadata';
-import {
-  FieldMetadataType,
-  ViewFilterOperand,
-} from 'twenty-shared/types';
-import {
-  FILTER_OPERANDS_MAP,
-  isDefined,
-} from 'twenty-shared/utils';
+import { FieldMetadataType, ViewFilterOperand } from 'twenty-shared/types';
+import { FILTER_OPERANDS_MAP, isDefined } from 'twenty-shared/utils';
 
 import { findFlatEntityByUniversalIdentifier } from 'src/engine/metadata-modules/flat-entity/utils/find-flat-entity-by-universal-identifier.util';
 import { type FlatFieldMetadata } from 'src/engine/metadata-modules/flat-field-metadata/types/flat-field-metadata.type';
