@@ -48,6 +48,7 @@ import { UpgradeSequenceReaderService } from 'src/engine/core-modules/upgrade/se
 import { UserWorkspaceEntity } from 'src/engine/core-modules/user-workspace/user-workspace.entity';
 import { UserWorkspaceService } from 'src/engine/core-modules/user-workspace/user-workspace.service';
 import { UserEntity } from 'src/engine/core-modules/user/user.entity';
+import { WORKSPACE_FIELDS_UPDATABLE_BEFORE_ACTIVATION } from 'src/engine/core-modules/workspace/constants/workspace-fields-updatable-before-activation.constant';
 import { WorkspaceEntity } from 'src/engine/core-modules/workspace/workspace.entity';
 import {
   WorkspaceException,
@@ -295,7 +296,6 @@ export class WorkspaceService {
         ...payload,
       });
     } catch (error) {
-      // revert custom domain registration on error
       if (payload.customDomain && customDomainRegistered) {
         this.dnsManagerService
           .deleteHostnameSilently(payload.customDomain)
@@ -803,12 +803,6 @@ export class WorkspaceService {
     apiKey: ApiKeyEntity | undefined;
     workspaceActivationStatus: WorkspaceActivationStatus;
   }) {
-    if (
-      workspaceActivationStatus === WorkspaceActivationStatus.PENDING_CREATION
-    ) {
-      return;
-    }
-
     const systemFields = new Set(['id', 'createdAt', 'updatedAt', 'deletedAt']);
 
     const fieldsBeingUpdated = Object.keys(payload).filter(
@@ -816,6 +810,28 @@ export class WorkspaceService {
     );
 
     if (fieldsBeingUpdated.length === 0) {
+      return;
+    }
+
+    if (
+      workspaceActivationStatus === WorkspaceActivationStatus.PENDING_CREATION
+    ) {
+      const fieldsRequiringActivation = fieldsBeingUpdated.filter(
+        (field) => !(field in WORKSPACE_FIELDS_UPDATABLE_BEFORE_ACTIVATION),
+      );
+
+      if (fieldsRequiringActivation.length > 0) {
+        const fieldsList = fieldsRequiringActivation.join(', ');
+
+        throw new PermissionsException(
+          PermissionsExceptionMessage.PERMISSION_DENIED,
+          PermissionsExceptionCode.PERMISSION_DENIED,
+          {
+            userFriendlyMessage: msg`These fields cannot be updated before the workspace is activated: ${fieldsList}.`,
+          },
+        );
+      }
+
       return;
     }
 

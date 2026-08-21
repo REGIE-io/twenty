@@ -7,6 +7,8 @@ import { billingState } from '@/client-config/states/billingState';
 import { calendarBookingPageIdState } from '@/client-config/states/calendarBookingPageIdState';
 import { canManageFeatureFlagsState } from '@/client-config/states/canManageFeatureFlagsState';
 import { captchaState } from '@/client-config/states/captchaState';
+import { isBookCallOnboardingStepEnabledState } from '@/client-config/states/isBookCallOnboardingStepEnabledState';
+import { isCompanyEnrichmentEnabledState } from '@/client-config/states/isCompanyEnrichmentEnabledState';
 import { isAnalyticsEnabledState } from '@/client-config/states/isAnalyticsEnabledState';
 import { isAttachmentPreviewEnabledState } from '@/client-config/states/isAttachmentPreviewEnabledState';
 import { isConfigVariablesInDbEnabledState } from '@/client-config/states/isConfigVariablesInDbEnabledState';
@@ -23,7 +25,6 @@ import { isImapSmtpCaldavEnabledState } from '@/client-config/states/isImapSmtpC
 import { maintenanceModeState } from '@/client-config/states/maintenanceModeState';
 import { isMicrosoftCalendarEnabledState } from '@/client-config/states/isMicrosoftCalendarEnabledState';
 import { isMicrosoftMessagingEnabledState } from '@/client-config/states/isMicrosoftMessagingEnabledState';
-import { isCookieSessionEnabledState } from '@/client-config/states/isCookieSessionEnabledState';
 import { isMultiWorkspaceEnabledState } from '@/client-config/states/isMultiWorkspaceEnabledState';
 import { isOnboardingAiChatEnabledState } from '@/client-config/states/isOnboardingAiChatEnabledState';
 import { labPublicFeatureFlagsState } from '@/client-config/states/labPublicFeatureFlagsState';
@@ -58,9 +59,6 @@ export const useClientConfig = (): UseClientConfigResult => {
   );
   const setIsMultiWorkspaceEnabled = useSetAtomState(
     isMultiWorkspaceEnabledState,
-  );
-  const setIsCookieSessionEnabled = useSetAtomState(
-    isCookieSessionEnabledState,
   );
   const setIsEmailVerificationRequired = useSetAtomState(
     isEmailVerificationRequiredState,
@@ -108,6 +106,14 @@ export const useClientConfig = (): UseClientConfigResult => {
   );
 
   const setCalendarBookingPageId = useSetAtomState(calendarBookingPageIdState);
+
+  const setIsBookCallOnboardingStepEnabled = useSetAtomState(
+    isBookCallOnboardingStepEnabledState,
+  );
+
+  const setIsCompanyEnrichmentEnabled = useSetAtomState(
+    isCompanyEnrichmentEnabledState,
+  );
 
   const setIsEmailingDomainInDemoMode = useSetAtomState(
     isEmailingDomainInDemoModeState,
@@ -176,7 +182,6 @@ export const useClientConfig = (): UseClientConfigResult => {
       setIsAnalyticsEnabled(clientConfig.analyticsEnabled);
       setIsDeveloperDefaultSignInPrefilled(clientConfig.signInPrefilled);
       setIsMultiWorkspaceEnabled(clientConfig.isMultiWorkspaceEnabled);
-      setIsCookieSessionEnabled(clientConfig.isCookieSessionEnabled);
       setIsEmailVerificationRequired(clientConfig.isEmailVerificationRequired);
       setBilling(clientConfig.billing);
       setSupportChat(clientConfig.support);
@@ -193,7 +198,7 @@ export const useClientConfig = (): UseClientConfigResult => {
       });
 
       setApiConfig(clientConfig?.api);
-      setOnboardingConfig(clientConfig?.onboarding);
+      setOnboardingConfig(clientConfig?.onboarding ?? null);
       setDomainConfiguration({
         defaultSubdomain: clientConfig?.defaultSubdomain,
         frontDomain: clientConfig?.frontDomain,
@@ -215,6 +220,12 @@ export const useClientConfig = (): UseClientConfigResult => {
       }));
 
       setCalendarBookingPageId(clientConfig?.calendarBookingPageId ?? null);
+      setIsBookCallOnboardingStepEnabled(
+        clientConfig?.isBookCallOnboardingStepEnabled ?? false,
+      );
+      setIsCompanyEnrichmentEnabled(
+        clientConfig?.isCompanyEnrichmentEnabled ?? false,
+      );
       setIsImapSmtpCaldavEnabled(clientConfig?.isImapSmtpCaldavEnabled);
       setIsEmailingDomainInDemoMode(
         clientConfig?.isEmailingDomainInDemoMode ?? false,
@@ -260,12 +271,13 @@ export const useClientConfig = (): UseClientConfigResult => {
     setIsGoogleMessagingEnabled,
     setIsAnalyticsEnabled,
     setIsAttachmentPreviewEnabled,
+    setIsBookCallOnboardingStepEnabled,
+    setIsCompanyEnrichmentEnabled,
     setIsConfigVariablesInDbEnabled,
     setIsDeveloperDefaultSignInPrefilled,
     setIsEmailVerificationRequired,
     setIsImapSmtpCaldavEnabled,
     setIsMultiWorkspaceEnabled,
-    setIsCookieSessionEnabled,
     setIsEmailingDomainInDemoMode,
     setIsClickHouseConfigured,
     setIsCloudflareIntegrationEnabled,

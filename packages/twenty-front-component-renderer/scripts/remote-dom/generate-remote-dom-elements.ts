@@ -1,4 +1,5 @@
 import * as prettier from '@prettier/sync';
+import { spawnSync } from 'child_process';
 import * as fs from 'fs';
 import * as path from 'path';
 import { IndentationText, Project, QuoteKind } from 'ts-morph';
@@ -16,6 +17,23 @@ import {
   HtmlElementConfigArrayZ,
   OUTPUT_FILES,
 } from './generators';
+
+// Nx sets FORCE_COLOR for child commands. Under Node 24, @prettier/sync can
+// stall while starting its esbuild worker in that environment. Formatting does
+// not need color, so restart once without it before loading the generator.
+if (process.env.FORCE_COLOR && !process.env.TWENTY_REMOTE_DOM_REEXEC) {
+  const { FORCE_COLOR: _forceColor, ...env } = process.env;
+  const result = spawnSync(
+    process.execPath,
+    [...process.execArgv, ...process.argv.slice(1)],
+    {
+      env: { ...env, TWENTY_REMOTE_DOM_REEXEC: '1' },
+      stdio: 'inherit',
+    },
+  );
+
+  process.exit(result.status ?? 1);
+}
 
 const SCRIPT_DIR = path.dirname(fileURLToPath(import.meta.url));
 const PACKAGE_PATH = path.resolve(SCRIPT_DIR, '../..');
@@ -59,7 +77,7 @@ const getUtilityComponentSchemas = (): ComponentSchema[] => [
     },
     events: [],
     customHostRenderer: 'RemoteStyleRenderer',
-    customHostRendererPath: '../components/RemoteStyleRenderer',
+    customHostRendererPath: '@/host/components/RemoteStyleRenderer',
   },
 ];
 

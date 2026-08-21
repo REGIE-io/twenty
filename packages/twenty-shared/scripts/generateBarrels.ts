@@ -1,10 +1,24 @@
 import prettier from '@prettier/sync';
+import { spawnSync } from 'child_process';
 import * as fs from 'fs';
 import { globSync } from 'glob';
 import path from 'path';
 import { type Options } from 'prettier';
 import slash from 'slash';
 import ts from 'typescript';
+
+// Nx sets FORCE_COLOR for task output. @prettier/sync spawns an esbuild worker
+// and, under Node 24, that forced-color worker can fail to terminate. This
+// generator produces files rather than terminal output, so color is irrelevant.
+if (process.env.FORCE_COLOR && !process.env.TWENTY_BARREL_REEXEC) {
+  const { FORCE_COLOR: _forceColor, ...env } = process.env;
+  const result = spawnSync(process.execPath, process.argv.slice(1), {
+    env: { ...env, TWENTY_BARREL_REEXEC: '1' },
+    stdio: 'inherit',
+  });
+
+  process.exit(result.status ?? 1);
+}
 
 // TODO prastoin refactor this file in several one into its dedicated package and make it a TypeScript CLI
 
@@ -397,7 +411,6 @@ const extractExportsFromSourceFile = (sourceFile: ts.SourceFile) => {
             const isTypeExport =
               node.isTypeOnly || ts.isTypeOnlyExportDeclaration(node);
             if (isTypeExport) {
-              // should handle kind
               exports.push({
                 kind: 'type',
                 name: exportName,

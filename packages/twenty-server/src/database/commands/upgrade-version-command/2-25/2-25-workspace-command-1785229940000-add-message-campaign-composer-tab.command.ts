@@ -9,7 +9,9 @@ import { isDefined } from 'twenty-shared/utils';
 import { ProvisionedWorkspaceCommandRunner } from 'src/database/commands/command-runners/provisioned-workspace.command-runner';
 import { WorkspaceIteratorService } from 'src/database/commands/command-runners/workspace-iterator.service';
 import { type RunOnWorkspaceArgs } from 'src/database/commands/command-runners/workspace.command-runner';
+import { computeTwentyStandardApplicationAllFlatEntityMapsPre231 } from 'src/database/commands/upgrade-version-command/2-10/utils/compute-twenty-standard-application-all-flat-entity-maps-pre-2-31.util';
 import { getStandardFlatEntitiesToCreateOrThrow } from 'src/database/commands/upgrade-version-command/2-10/utils/get-standard-flat-entities-to-create-or-throw.util';
+import { toPre231RecordPageUniversalIdentifier } from 'src/database/commands/upgrade-version-command/2-10/utils/remap-record-page-universal-identifiers-to-pre-2-31.util';
 import { IS_STANDARD_UI_METADATA_MANAGED } from 'src/database/commands/upgrade-version-command/utils/is-standard-ui-metadata-managed.util';
 import { ApplicationService } from 'src/engine/core-modules/application/application.service';
 import { RegisteredWorkspaceCommand } from 'src/engine/core-modules/upgrade/decorators/registered-workspace-command.decorator';
@@ -19,60 +21,72 @@ import { type FlatViewFieldGroup } from 'src/engine/metadata-modules/flat-view-f
 import { type FlatViewField } from 'src/engine/metadata-modules/flat-view-field/types/flat-view-field.type';
 import { type FlatView } from 'src/engine/metadata-modules/flat-view/types/flat-view.type';
 import { WorkspaceCacheService } from 'src/engine/workspace-cache/services/workspace-cache.service';
-import { computeTwentyStandardApplicationAllFlatEntityMaps } from 'src/engine/workspace-manager/twenty-standard-application/utils/twenty-standard-application-all-flat-entity-maps.constant';
 import { WorkspaceMigrationValidateBuildAndRunService } from 'src/engine/workspace-manager/workspace-migration/services/workspace-migration-validate-build-and-run-service';
 
-const MESSAGE_CAMPAIGN_RECORD_PAGE_FIELDS_VIEW_UNIVERSAL_IDENTIFIER =
-  STANDARD_OBJECTS.messageCampaign.views.messageCampaignRecordPageFields
-    .universalIdentifier;
+// This command predates the 2-31 record-page reconcile: workspace rows still
+// hold the pre-derivation universal identifiers.
+const MESSAGE_CAMPAIGN_RECORD_PAGE_VIEW =
+  STANDARD_OBJECTS.messageCampaign.views.messageCampaignRecordPageFields;
+const MESSAGE_CAMPAIGN_RECORD_PAGE_LAYOUT =
+  STANDARD_PAGE_LAYOUT_UNIVERSAL_IDENTIFIERS.messageCampaignRecordPage;
 
-const MESSAGE_CAMPAIGN_RECORD_PAGE_FIELDS_VIEW_FIELD_UNIVERSAL_IDENTIFIERS =
-  Object.values(
-    STANDARD_OBJECTS.messageCampaign.views.messageCampaignRecordPageFields
-      .viewFields,
-  ).map((viewField) => viewField.universalIdentifier);
+const MESSAGE_CAMPAIGN_RECORD_PAGE_FIELDS_VIEW_UNIVERSAL_IDENTIFIER =
+  toPre231RecordPageUniversalIdentifier(
+    MESSAGE_CAMPAIGN_RECORD_PAGE_VIEW.universalIdentifier,
+  );
+
+const MESSAGE_CAMPAIGN_RECORD_PAGE_FIELDS_VIEW_FIELD_UNIVERSAL_IDENTIFIERS = [
+  MESSAGE_CAMPAIGN_RECORD_PAGE_VIEW.viewFields.status.universalIdentifier,
+  MESSAGE_CAMPAIGN_RECORD_PAGE_VIEW.viewFields.sentAt.universalIdentifier,
+  MESSAGE_CAMPAIGN_RECORD_PAGE_VIEW.viewFields.sentCount.universalIdentifier,
+  MESSAGE_CAMPAIGN_RECORD_PAGE_VIEW.viewFields.failedCount.universalIdentifier,
+  MESSAGE_CAMPAIGN_RECORD_PAGE_VIEW.viewFields.bouncedCount.universalIdentifier,
+  MESSAGE_CAMPAIGN_RECORD_PAGE_VIEW.viewFields.complainedCount
+    .universalIdentifier,
+].map(toPre231RecordPageUniversalIdentifier);
 
 const MESSAGE_CAMPAIGN_RECORD_PAGE_FIELDS_VIEW_FIELD_GROUP_UNIVERSAL_IDENTIFIERS =
-  Object.values(
-    STANDARD_OBJECTS.messageCampaign.views.messageCampaignRecordPageFields
-      .viewFieldGroups,
-  ).map((viewFieldGroup) => viewFieldGroup.universalIdentifier);
+  [
+    toPre231RecordPageUniversalIdentifier(
+      MESSAGE_CAMPAIGN_RECORD_PAGE_VIEW.viewFieldGroups.stats
+        .universalIdentifier,
+    ),
+  ];
 
 const MESSAGE_CAMPAIGN_PAGE_LAYOUT_UNIVERSAL_IDENTIFIER =
-  STANDARD_PAGE_LAYOUT_UNIVERSAL_IDENTIFIERS.messageCampaignRecordPage
-    .universalIdentifier;
+  toPre231RecordPageUniversalIdentifier(
+    MESSAGE_CAMPAIGN_RECORD_PAGE_LAYOUT.universalIdentifier,
+  );
 
-const HOME_TAB_UNIVERSAL_IDENTIFIER =
-  STANDARD_PAGE_LAYOUT_UNIVERSAL_IDENTIFIERS.messageCampaignRecordPage.tabs.home
-    .universalIdentifier;
+const HOME_TAB_UNIVERSAL_IDENTIFIER = toPre231RecordPageUniversalIdentifier(
+  MESSAGE_CAMPAIGN_RECORD_PAGE_LAYOUT.tabs.home.universalIdentifier,
+);
 
-const COMPOSER_TAB_UNIVERSAL_IDENTIFIER =
-  STANDARD_PAGE_LAYOUT_UNIVERSAL_IDENTIFIERS.messageCampaignRecordPage.tabs
-    .composer.universalIdentifier;
+const COMPOSER_TAB_UNIVERSAL_IDENTIFIER = toPre231RecordPageUniversalIdentifier(
+  MESSAGE_CAMPAIGN_RECORD_PAGE_LAYOUT.tabs.composer.universalIdentifier,
+);
 
 const COMPOSER_WIDGET_UNIVERSAL_IDENTIFIER =
-  STANDARD_PAGE_LAYOUT_UNIVERSAL_IDENTIFIERS.messageCampaignRecordPage.tabs
-    .composer.widgets.messageCampaign.universalIdentifier;
+  toPre231RecordPageUniversalIdentifier(
+    MESSAGE_CAMPAIGN_RECORD_PAGE_LAYOUT.tabs.composer.widgets.messageCampaign
+      .universalIdentifier,
+  );
 
 const HOME_FIELDS_WIDGET_UNIVERSAL_IDENTIFIER =
-  STANDARD_PAGE_LAYOUT_UNIVERSAL_IDENTIFIERS.messageCampaignRecordPage.tabs.home
-    .widgets.fields.universalIdentifier;
-
-const HOME_DETAILS_WIDGET_UNIVERSAL_IDENTIFIER =
-  STANDARD_PAGE_LAYOUT_UNIVERSAL_IDENTIFIERS.messageCampaignRecordPage.tabs.home
-    .widgets.details.universalIdentifier;
-
-const HOME_LIST_WIDGET_UNIVERSAL_IDENTIFIER =
-  STANDARD_PAGE_LAYOUT_UNIVERSAL_IDENTIFIERS.messageCampaignRecordPage.tabs.home
-    .widgets.list.universalIdentifier;
+  toPre231RecordPageUniversalIdentifier(
+    MESSAGE_CAMPAIGN_RECORD_PAGE_LAYOUT.tabs.home.widgets.fields
+      .universalIdentifier,
+  );
 
 const HOME_RECIPIENTS_WIDGET_UNIVERSAL_IDENTIFIER =
-  STANDARD_PAGE_LAYOUT_UNIVERSAL_IDENTIFIERS.messageCampaignRecordPage.tabs.home
-    .widgets.recipients.universalIdentifier;
+  toPre231RecordPageUniversalIdentifier(
+    MESSAGE_CAMPAIGN_RECORD_PAGE_LAYOUT.tabs.home.widgets.recipients
+      .universalIdentifier,
+  );
 
+// Deleted from the standard definitions, so it has no constant to derive from.
 const HOME_OBSOLETE_MESSAGES_WIDGET_UNIVERSAL_IDENTIFIER =
-  STANDARD_PAGE_LAYOUT_UNIVERSAL_IDENTIFIERS.messageCampaignRecordPage.tabs.home
-    .widgets.messages.universalIdentifier;
+  'a33b43f4-72a1-476d-9372-30e82f450377';
 
 @RegisteredWorkspaceCommand('2.25.0', 1785229940000)
 @Command({
@@ -116,7 +130,6 @@ export class AddMessageCampaignComposerTabCommand extends ProvisionedWorkspaceCo
       flatViewMaps,
       flatViewFieldMaps,
       flatViewFieldGroupMaps,
-      flatFieldMetadataMaps,
     } = await this.workspaceCacheService.getOrRecompute(workspaceId, [
       'flatPageLayoutMaps',
       'flatPageLayoutTabMaps',
@@ -124,7 +137,6 @@ export class AddMessageCampaignComposerTabCommand extends ProvisionedWorkspaceCo
       'flatViewMaps',
       'flatViewFieldMaps',
       'flatViewFieldGroupMaps',
-      'flatFieldMetadataMaps',
     ]);
 
     const existingPageLayout =
@@ -140,8 +152,8 @@ export class AddMessageCampaignComposerTabCommand extends ProvisionedWorkspaceCo
       return;
     }
 
-    const { allFlatEntityMaps: standardAllFlatEntityMaps } =
-      computeTwentyStandardApplicationAllFlatEntityMaps({
+    const standardAllFlatEntityMaps =
+      computeTwentyStandardApplicationAllFlatEntityMapsPre231({
         now: new Date().toISOString(),
         workspaceId,
         twentyStandardApplicationId: twentyStandardFlatApplication.id,
@@ -157,15 +169,17 @@ export class AddMessageCampaignComposerTabCommand extends ProvisionedWorkspaceCo
         ],
       });
 
+    // Every identifier here must still exist in the standard layout:
+    // getStandardFlatEntitiesToCreateOrThrow resolves against the current
+    // standard maps and throws when one is absent, failing the upgrade for
+    // every workspace crossing this version.
     const pageLayoutWidgetsToCreate =
       getStandardFlatEntitiesToCreateOrThrow<FlatPageLayoutWidget>({
         standardFlatEntityMaps:
           standardAllFlatEntityMaps.flatPageLayoutWidgetMaps,
         existingFlatEntityMaps: flatPageLayoutWidgetMaps,
         universalIdentifiers: [
-          HOME_DETAILS_WIDGET_UNIVERSAL_IDENTIFIER,
           COMPOSER_WIDGET_UNIVERSAL_IDENTIFIER,
-          HOME_LIST_WIDGET_UNIVERSAL_IDENTIFIER,
           HOME_RECIPIENTS_WIDGET_UNIVERSAL_IDENTIFIER,
           HOME_FIELDS_WIDGET_UNIVERSAL_IDENTIFIER,
         ],
@@ -185,13 +199,7 @@ export class AddMessageCampaignComposerTabCommand extends ProvisionedWorkspaceCo
         existingFlatEntityMaps: flatViewFieldMaps,
         universalIdentifiers:
           MESSAGE_CAMPAIGN_RECORD_PAGE_FIELDS_VIEW_FIELD_UNIVERSAL_IDENTIFIERS,
-      }).filter((viewField) =>
-        isDefined(
-          flatFieldMetadataMaps.byUniversalIdentifier[
-            viewField.fieldMetadataUniversalIdentifier
-          ],
-        ),
-      );
+      });
 
     const viewFieldGroupsToCreate =
       getStandardFlatEntitiesToCreateOrThrow<FlatViewFieldGroup>({
@@ -225,9 +233,7 @@ export class AddMessageCampaignComposerTabCommand extends ProvisionedWorkspaceCo
         : [];
 
     const pageLayoutWidgetsToUpdate = [
-      HOME_DETAILS_WIDGET_UNIVERSAL_IDENTIFIER,
       HOME_FIELDS_WIDGET_UNIVERSAL_IDENTIFIER,
-      HOME_LIST_WIDGET_UNIVERSAL_IDENTIFIER,
       HOME_RECIPIENTS_WIDGET_UNIVERSAL_IDENTIFIER,
     ]
       .map((universalIdentifier) => {
