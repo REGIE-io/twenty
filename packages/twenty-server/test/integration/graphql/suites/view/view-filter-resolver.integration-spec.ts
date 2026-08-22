@@ -49,7 +49,7 @@ describe('View Filter Resolver', () => {
         label: 'Test Field',
         type: FieldMetadataType.TEXT,
         objectMetadataId: testObjectMetadataId,
-        isLabelSyncedWithName: false,
+        isLabelSyncedWithName: true,
       },
     });
 

@@ -885,6 +885,22 @@ describe('turnRecordFilterIntoRecordGqlOperationFilter', () => {
         }),
       ).toThrow('FULL_NAME IS requires a firstName or lastName subfield');
     });
+
+    it('should reject IS_NOT with an invalid FULL_NAME subfield', () => {
+      expect(() =>
+        turnRecordFilterIntoRecordGqlOperationFilter({
+          filterValueDependencies,
+          recordFilter: makeFilter(
+            'f-fullname',
+            RecordFilterOperand.IS_NOT,
+            'Watson',
+            'FULL_NAME',
+            'displayName',
+          ),
+          fieldMetadataItemById,
+        }),
+      ).toThrow('FULL_NAME IS_NOT requires a firstName or lastName subfield');
+    });
   });
 
   describe('ADDRESS filter', () => {

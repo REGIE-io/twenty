@@ -104,4 +104,17 @@ describe('getFilterOperandsForFilterableFieldType', () => {
       ...emptyOperands,
     ]);
   });
+
+  it('should not expose exact operands for an invalid FULL_NAME subfield', () => {
+    expect(
+      getFilterOperandsForFilterableFieldType({
+        filterType: 'FULL_NAME',
+        subFieldName: 'displayName',
+      }),
+    ).toEqual([
+      ViewFilterOperand.CONTAINS,
+      ViewFilterOperand.DOES_NOT_CONTAIN,
+      ...emptyOperands,
+    ]);
+  });
 });
