@@ -73,6 +73,28 @@ exports[`getStepFilterOperands CURRENCY returns currencyCode operands when subFi
 ]
 `;
 
+exports[`getStepFilterOperands FULL_NAME returns exact operands when subFieldName is firstName 1`] = `
+[
+  "CONTAINS",
+  "IS",
+  "IS_NOT",
+  "DOES_NOT_CONTAIN",
+  "IS_EMPTY",
+  "IS_NOT_EMPTY",
+]
+`;
+
+exports[`getStepFilterOperands FULL_NAME returns exact operands when subFieldName is lastName 1`] = `
+[
+  "CONTAINS",
+  "IS",
+  "IS_NOT",
+  "DOES_NOT_CONTAIN",
+  "IS_EMPTY",
+  "IS_NOT_EMPTY",
+]
+`;
+
 exports[`getStepFilterOperands returns the expected operands for filterType=ADDRESS 1`] = `
 [
   "CONTAINS",
