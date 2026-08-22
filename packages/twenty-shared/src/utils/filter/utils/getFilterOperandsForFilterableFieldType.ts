@@ -20,6 +20,18 @@ export const getFilterOperandsForFilterableFieldType = ({
   filterType: FilterableAndTSVectorFieldType;
   subFieldName?: string | null | undefined;
 }): readonly ViewFilterOperand[] => {
+  if (filterType === 'FULL_NAME') {
+    if (subFieldName === 'firstName') {
+      return COMPOSITE_FIELD_FILTER_OPERANDS_MAP.FULL_NAME.firstName;
+    }
+
+    if (subFieldName === 'lastName') {
+      return COMPOSITE_FIELD_FILTER_OPERANDS_MAP.FULL_NAME.lastName;
+    }
+
+    return FILTER_OPERANDS_MAP.FULL_NAME;
+  }
+
   if (filterType === 'CURRENCY') {
     if (subFieldName === 'currencyCode') {
       return COMPOSITE_FIELD_FILTER_OPERANDS_MAP.CURRENCY.currencyCode;

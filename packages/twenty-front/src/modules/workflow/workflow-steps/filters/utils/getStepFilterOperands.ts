@@ -25,11 +25,21 @@ export const getStepFilterOperands = ({
   switch (filterType) {
     case 'TEXT':
     case 'EMAILS':
-    case 'FULL_NAME':
     case 'ADDRESS':
     case 'LINKS':
     case 'PHONES':
       return FILTER_OPERANDS_MAP.TEXT;
+    case 'FULL_NAME': {
+      if (subFieldName === 'firstName') {
+        return COMPOSITE_FIELD_FILTER_OPERANDS_MAP.FULL_NAME.firstName;
+      }
+
+      if (subFieldName === 'lastName') {
+        return COMPOSITE_FIELD_FILTER_OPERANDS_MAP.FULL_NAME.lastName;
+      }
+
+      return FILTER_OPERANDS_MAP.FULL_NAME;
+    }
     case 'CURRENCY': {
       if (subFieldName === 'currencyCode') {
         return COMPOSITE_FIELD_FILTER_OPERANDS_MAP.CURRENCY.currencyCode;

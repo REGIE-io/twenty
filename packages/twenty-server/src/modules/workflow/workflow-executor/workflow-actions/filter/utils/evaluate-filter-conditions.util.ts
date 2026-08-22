@@ -173,13 +173,17 @@ function evaluateTextAndArrayFilter(
     key: compositeFieldSubFieldName,
   });
 
-  const isTextFilter = filterType === 'TEXT';
+  const isCaseInsensitiveTextFilter =
+    filterType === 'TEXT' ||
+    (filterType === 'FULL_NAME' &&
+      (compositeFieldSubFieldName === 'firstName' ||
+        compositeFieldSubFieldName === 'lastName'));
   const normalizedLeftOperand =
-    isTextFilter && isString(filter.leftOperand)
+    isCaseInsensitiveTextFilter && isString(filter.leftOperand)
       ? filter.leftOperand.toLocaleLowerCase()
       : filter.leftOperand;
   const normalizedRightOperand =
-    isTextFilter && isString(filter.rightOperand)
+    isCaseInsensitiveTextFilter && isString(filter.rightOperand)
       ? filter.rightOperand.toLocaleLowerCase()
       : filter.rightOperand;
 

@@ -68,6 +68,20 @@ describe('getStepFilterOperands', () => {
     });
   });
 
+  describe('FULL_NAME', () => {
+    it.each(['firstName', 'lastName'])(
+      'returns exact operands when subFieldName is %s',
+      (subFieldName) => {
+        expect(
+          getStepFilterOperands({
+            filterType: 'FULL_NAME',
+            subFieldName,
+          }),
+        ).toMatchSnapshot();
+      },
+    );
+  });
+
   describe('ACTOR', () => {
     it('returns SELECT operands when subFieldName is source', () => {
       const operands = getStepFilterOperands({
