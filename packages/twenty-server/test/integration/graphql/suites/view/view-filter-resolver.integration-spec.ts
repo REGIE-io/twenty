@@ -1,4 +1,5 @@
 import { expectOneNotInternalServerErrorSnapshot } from 'test/integration/graphql/utils/expect-one-not-internal-server-error-snapshot.util';
+import { VIEW_FILTER_GQL_FIELDS } from 'test/integration/constants/view-gql-fields.constants';
 import { createTestViewWithGraphQL } from 'test/integration/graphql/utils/view-graphql.util';
 import { createOneFieldMetadata } from 'test/integration/metadata/suites/field-metadata/utils/create-one-field-metadata.util';
 import { createOneObjectMetadata } from 'test/integration/metadata/suites/object-metadata/utils/create-one-object-metadata.util';
@@ -153,6 +154,7 @@ describe('View Filter Resolver', () => {
           operand: ViewFilterOperand.IS,
           value: 'Mary Jane',
         },
+        gqlFields: `${VIEW_FILTER_GQL_FIELDS} subFieldName`,
         expectToFail: false,
       });
 
@@ -276,6 +278,7 @@ describe('View Filter Resolver', () => {
             value: 'Watson',
           },
         },
+        gqlFields: `${VIEW_FILTER_GQL_FIELDS} subFieldName`,
         expectToFail: false,
       });
 
