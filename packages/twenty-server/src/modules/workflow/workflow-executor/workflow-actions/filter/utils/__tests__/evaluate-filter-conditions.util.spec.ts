@@ -45,6 +45,20 @@ describe('evaluateFilterConditions', () => {
   });
 
   describe('single filter operands', () => {
+    it('should compare FULL_NAME text subfields case-insensitively', () => {
+      const filter = {
+        ...createFilter(
+          ViewFilterOperand.IS,
+          'Mary Jane',
+          'mary jane',
+          'FULL_NAME',
+        ),
+        compositeFieldSubFieldName: 'firstName',
+      };
+
+      expect(evaluateFilterConditions({ filters: [filter] })).toBe(true);
+    });
+
     describe('Relation/UUID filter operands', () => {
       it('should return true when values are equal (RELATION)', () => {
         const filter = createFilter(

@@ -855,12 +855,53 @@ const buildDirectFieldGqlOperationFilter = ({
       });
     }
     case 'FULL_NAME': {
+      const isFullNameSubField =
+        isExpectedSubFieldName(
+          FieldMetadataType.FULL_NAME,
+          'firstName',
+          subFieldName,
+        ) ||
+        isExpectedSubFieldName(
+          FieldMetadataType.FULL_NAME,
+          'lastName',
+          subFieldName,
+        );
       const fullNameFilters = generateILikeFiltersForCompositeFields(
         recordFilter.value,
         fieldMetadataItem.name,
         ['firstName', 'lastName'],
       );
       switch (recordFilter.operand) {
+        case RecordFilterOperand.IS:
+          if (!isFullNameSubField) {
+            throw new Error(
+              'FULL_NAME IS requires a firstName or lastName subfield',
+            );
+          }
+
+          return {
+            [fieldMetadataItem.name]: {
+              [subFieldName]: {
+                ilike: escapeForIlike(recordFilter.value),
+              },
+            },
+          };
+        case RecordFilterOperand.IS_NOT:
+          if (!isFullNameSubField) {
+            throw new Error(
+              'FULL_NAME IS_NOT requires a firstName or lastName subfield',
+            );
+          }
+
+          return {
+            not: {
+              [fieldMetadataItem.name]: {
+                [subFieldName]: {
+                  ilike: escapeForIlike(recordFilter.value),
+                },
+              },
+            },
+          };
         case RecordFilterOperand.CONTAINS:
           if (!isSubFieldFilter) {
             return {

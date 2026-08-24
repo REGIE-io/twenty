@@ -77,4 +77,44 @@ describe('getFilterOperandsForFilterableFieldType', () => {
       ...emptyOperands,
     ]);
   });
+
+  it('should expose exact operands for FULL_NAME firstName and lastName subfields', () => {
+    for (const subFieldName of ['firstName', 'lastName']) {
+      expect(
+        getFilterOperandsForFilterableFieldType({
+          filterType: 'FULL_NAME',
+          subFieldName,
+        }),
+      ).toEqual([
+        ViewFilterOperand.CONTAINS,
+        ViewFilterOperand.IS,
+        ViewFilterOperand.IS_NOT,
+        ViewFilterOperand.DOES_NOT_CONTAIN,
+        ...emptyOperands,
+      ]);
+    }
+  });
+
+  it('should not expose exact operands for a bare FULL_NAME field', () => {
+    expect(
+      getFilterOperandsForFilterableFieldType({ filterType: 'FULL_NAME' }),
+    ).toEqual([
+      ViewFilterOperand.CONTAINS,
+      ViewFilterOperand.DOES_NOT_CONTAIN,
+      ...emptyOperands,
+    ]);
+  });
+
+  it('should not expose exact operands for an invalid FULL_NAME subfield', () => {
+    expect(
+      getFilterOperandsForFilterableFieldType({
+        filterType: 'FULL_NAME',
+        subFieldName: 'displayName',
+      }),
+    ).toEqual([
+      ViewFilterOperand.CONTAINS,
+      ViewFilterOperand.DOES_NOT_CONTAIN,
+      ...emptyOperands,
+    ]);
+  });
 });

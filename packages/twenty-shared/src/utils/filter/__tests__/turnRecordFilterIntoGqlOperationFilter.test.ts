@@ -834,6 +834,73 @@ describe('turnRecordFilterIntoRecordGqlOperationFilter', () => {
 
       expect(result).toHaveProperty('or');
     });
+
+    it('should handle IS on a firstName subfield as escaped case-insensitive equality', () => {
+      const result = turnRecordFilterIntoRecordGqlOperationFilter({
+        filterValueDependencies,
+        recordFilter: makeFilter(
+          'f-fullname',
+          RecordFilterOperand.IS,
+          'Mary%_\\Jane',
+          'FULL_NAME',
+          'firstName',
+        ),
+        fieldMetadataItemById,
+      });
+
+      expect(result).toEqual({
+        fullName: { firstName: { ilike: 'Mary\\%\\_\\\\Jane' } },
+      });
+    });
+
+    it('should handle IS_NOT on a lastName subfield', () => {
+      const result = turnRecordFilterIntoRecordGqlOperationFilter({
+        filterValueDependencies,
+        recordFilter: makeFilter(
+          'f-fullname',
+          RecordFilterOperand.IS_NOT,
+          'Watson',
+          'FULL_NAME',
+          'lastName',
+        ),
+        fieldMetadataItemById,
+      });
+
+      expect(result).toEqual({
+        not: { fullName: { lastName: { ilike: 'Watson' } } },
+      });
+    });
+
+    it('should reject IS without a FULL_NAME text subfield', () => {
+      expect(() =>
+        turnRecordFilterIntoRecordGqlOperationFilter({
+          filterValueDependencies,
+          recordFilter: makeFilter(
+            'f-fullname',
+            RecordFilterOperand.IS,
+            'Mary Jane Watson',
+            'FULL_NAME',
+          ),
+          fieldMetadataItemById,
+        }),
+      ).toThrow('FULL_NAME IS requires a firstName or lastName subfield');
+    });
+
+    it('should reject IS_NOT with an invalid FULL_NAME subfield', () => {
+      expect(() =>
+        turnRecordFilterIntoRecordGqlOperationFilter({
+          filterValueDependencies,
+          recordFilter: makeFilter(
+            'f-fullname',
+            RecordFilterOperand.IS_NOT,
+            'Watson',
+            'FULL_NAME',
+            'displayName',
+          ),
+          fieldMetadataItemById,
+        }),
+      ).toThrow('FULL_NAME IS_NOT requires a firstName or lastName subfield');
+    });
   });
 
   describe('ADDRESS filter', () => {

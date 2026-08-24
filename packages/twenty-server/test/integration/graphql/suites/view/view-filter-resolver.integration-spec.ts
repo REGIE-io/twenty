@@ -1,4 +1,5 @@
 import { expectOneNotInternalServerErrorSnapshot } from 'test/integration/graphql/utils/expect-one-not-internal-server-error-snapshot.util';
+import { VIEW_FILTER_GQL_FIELDS } from 'test/integration/constants/view-gql-fields.constants';
 import { createTestViewWithGraphQL } from 'test/integration/graphql/utils/view-graphql.util';
 import { createOneFieldMetadata } from 'test/integration/metadata/suites/field-metadata/utils/create-one-field-metadata.util';
 import { createOneObjectMetadata } from 'test/integration/metadata/suites/object-metadata/utils/create-one-object-metadata.util';
@@ -18,6 +19,7 @@ describe('View Filter Resolver', () => {
   let testViewId: string;
   let testObjectMetadataId: string;
   let testFieldMetadataId: string;
+  let testFullNameFieldMetadataId: string;
 
   beforeAll(async () => {
     const {
@@ -53,6 +55,23 @@ describe('View Filter Resolver', () => {
     });
 
     testFieldMetadataId = fieldMetadataId;
+
+    const {
+      data: {
+        createOneField: { id: fullNameFieldMetadataId },
+      },
+    } = await createOneFieldMetadata({
+      expectToFail: false,
+      input: {
+        name: 'testFullName',
+        label: 'Test Full Name',
+        type: FieldMetadataType.FULL_NAME,
+        objectMetadataId: testObjectMetadataId,
+        isLabelSyncedWithName: true,
+      },
+    });
+
+    testFullNameFieldMetadataId = fullNameFieldMetadataId;
   });
 
   afterAll(async () => {
@@ -126,6 +145,43 @@ describe('View Filter Resolver', () => {
   });
 
   describe('createViewFilter', () => {
+    it('should create an exact filter for a FULL_NAME text subfield', async () => {
+      const { data, errors } = await createOneViewFilter({
+        input: {
+          fieldMetadataId: testFullNameFieldMetadataId,
+          viewId: testViewId,
+          subFieldName: 'firstName',
+          operand: ViewFilterOperand.IS,
+          value: 'Mary Jane',
+        },
+        gqlFields: `${VIEW_FILTER_GQL_FIELDS} subFieldName`,
+        expectToFail: false,
+      });
+
+      expect(errors).toBeUndefined();
+      expect(data.createViewFilter).toMatchObject({
+        fieldMetadataId: testFullNameFieldMetadataId,
+        subFieldName: 'firstName',
+        operand: ViewFilterOperand.IS,
+        value: 'Mary Jane',
+        viewId: testViewId,
+      });
+    });
+
+    it('should reject exact filters for a bare FULL_NAME field', async () => {
+      const { errors } = await createOneViewFilter({
+        input: {
+          fieldMetadataId: testFullNameFieldMetadataId,
+          viewId: testViewId,
+          operand: ViewFilterOperand.IS,
+          value: 'Mary Jane Watson',
+        },
+        expectToFail: true,
+      });
+
+      expect(errors).toBeDefined();
+    });
+
     it('should create a new view filter with string value', async () => {
       const { data, errors } = await createOneViewFilter({
         input: {
@@ -202,6 +258,39 @@ describe('View Filter Resolver', () => {
   });
 
   describe('updateViewFilter', () => {
+    it('should update a FULL_NAME text subfield filter to exact matching', async () => {
+      const { data: createData } = await createOneViewFilter({
+        input: {
+          fieldMetadataId: testFullNameFieldMetadataId,
+          viewId: testViewId,
+          subFieldName: 'lastName',
+          operand: ViewFilterOperand.CONTAINS,
+          value: 'Wat',
+        },
+        expectToFail: false,
+      });
+
+      const { data, errors } = await updateOneViewFilter({
+        input: {
+          id: createData.createViewFilter.id,
+          update: {
+            operand: ViewFilterOperand.IS_NOT,
+            value: 'Watson',
+          },
+        },
+        gqlFields: `${VIEW_FILTER_GQL_FIELDS} subFieldName`,
+        expectToFail: false,
+      });
+
+      expect(errors).toBeUndefined();
+      expect(data.updateViewFilter).toMatchObject({
+        id: createData.createViewFilter.id,
+        subFieldName: 'lastName',
+        operand: ViewFilterOperand.IS_NOT,
+        value: 'Watson',
+      });
+    });
+
     it('should update an existing view filter', async () => {
       const { data: createData } = await createOneViewFilter({
         input: {
