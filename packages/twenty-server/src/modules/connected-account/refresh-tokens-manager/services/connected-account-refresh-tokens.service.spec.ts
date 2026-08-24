@@ -14,6 +14,7 @@ import {
 import { ConnectedAccountTokenEncryptionService } from 'src/engine/metadata-modules/connected-account/services/connected-account-token-encryption.service';
 import { GoogleAPIRefreshAccessTokenService } from 'src/modules/connected-account/refresh-tokens-manager/drivers/google/services/google-api-refresh-tokens.service';
 import { MicrosoftAPIRefreshAccessTokenService } from 'src/modules/connected-account/refresh-tokens-manager/drivers/microsoft/services/microsoft-api-refresh-tokens.service';
+import { RegieTokenServiceClient } from 'src/modules/connected-account/token-delegation/services/regie-token-service.client';
 
 import { PlaintextString } from 'src/engine/core-modules/secret-encryption/branded-strings';
 import { ConnectedAccountRefreshTokensService } from './connected-account-refresh-tokens.service';
@@ -115,6 +116,10 @@ describe('ConnectedAccountRefreshTokensService', () => {
         {
           provide: ConnectedAccountTokenEncryptionService,
           useValue: connectedAccountTokenEncryptionService,
+        },
+        {
+          provide: RegieTokenServiceClient,
+          useValue: { fetchAccessToken: jest.fn() },
         },
       ],
     }).compile();

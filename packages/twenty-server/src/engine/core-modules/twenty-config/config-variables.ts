@@ -327,6 +327,26 @@ export class ConfigVariables {
   CALENDAR_PROVIDER_MICROSOFT_ENABLED = false;
 
   @ConfigVariablesMetadata({
+    group: ConfigVariablesGroup.ADVANCED_SETTINGS,
+    description:
+      'Base URL of the Regie service that vends access tokens for delegated connected accounts',
+    type: ConfigVariableType.STRING,
+    isSensitive: false,
+  })
+  @IsOptional()
+  REGIE_TOKEN_SERVICE_URL: string;
+
+  @ConfigVariablesMetadata({
+    group: ConfigVariablesGroup.ADVANCED_SETTINGS,
+    description:
+      'Shared secret sent as x-api-key when requesting a delegated access token from Regie',
+    type: ConfigVariableType.STRING,
+    isSensitive: true,
+  })
+  @IsOptional()
+  REGIE_TOKEN_SERVICE_SECRET: string;
+
+  @ConfigVariablesMetadata({
     group: ConfigVariablesGroup.TOKENS_DURATION,
     description: 'Duration for which the access token is valid',
     type: ConfigVariableType.STRING,

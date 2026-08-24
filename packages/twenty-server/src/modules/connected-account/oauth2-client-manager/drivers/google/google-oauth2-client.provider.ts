@@ -47,24 +47,35 @@ export class GoogleOAuth2ClientProvider {
       );
     }
 
-    const { refreshToken: encryptedRefreshToken } =
-      await this.connectedAccountRefreshTokensService.resolveTokens(
-        connectedAccount,
-        connectedAccount.workspaceId,
-      );
+    const {
+      accessToken: encryptedAccessToken,
+      refreshToken: encryptedRefreshToken,
+    } = await this.connectedAccountRefreshTokensService.resolveTokens(
+      connectedAccount,
+      connectedAccount.workspaceId,
+    );
 
-    if (!isDefined(encryptedRefreshToken)) {
+    // A delegated account holds no refresh token: Regie owns the grant and vends a
+    // short-lived access token per cycle. Crediting the client with that token instead
+    // also stops googleapis refreshing on its own, which is the point of delegating.
+    const encryptedCredential = encryptedRefreshToken ?? encryptedAccessToken;
+
+    if (!isDefined(encryptedCredential)) {
       throw new ConnectedAccountRefreshAccessTokenException(
-        `Refresh token missing for connected account ${connectedAccountId}`,
+        `No usable credential for connected account ${connectedAccountId}`,
         ConnectedAccountRefreshAccessTokenExceptionCode.REFRESH_TOKEN_NOT_FOUND,
       );
     }
 
-    const plaintextRefreshToken =
+    const plaintextCredential =
       this.connectedAccountTokenEncryptionService.decrypt({
-        ciphertext: encryptedRefreshToken,
+        ciphertext: encryptedCredential,
         workspaceId: connectedAccount.workspaceId,
       });
+
+    const credentials = isDefined(encryptedRefreshToken)
+      ? { refresh_token: plaintextCredential }
+      : { access_token: plaintextCredential };
 
     const clientId = this.twentyConfigService.get('AUTH_GOOGLE_CLIENT_ID');
     const clientSecret = this.twentyConfigService.get(
@@ -78,7 +89,7 @@ export class GoogleOAuth2ClientProvider {
         transporterOptions: { fetchImplementation: fetch },
       });
 
-      oAuth2Client.setCredentials({ refresh_token: plaintextRefreshToken });
+      oAuth2Client.setCredentials(credentials);
 
       return oAuth2Client;
     } catch (error) {

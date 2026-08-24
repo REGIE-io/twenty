@@ -31,6 +31,10 @@ export type ImapSmtpCaldavParams<Pwd extends string = string> = {
   IMAP?: ConnectionParameters<Pwd>;
   SMTP?: ConnectionParameters<Pwd>;
   CALDAV?: ConnectionParameters<Pwd>;
+  // Set on accounts whose OAuth grant is held by Regie. Unrelated to IMAP/CalDAV, but
+  // connectionParameters is the only free-form column on connectedAccount, and its
+  // CHECK constraint validates the password paths only.
+  regieMailboxId?: string | null;
 };
 
 export type EncryptedConnectionParameters =
