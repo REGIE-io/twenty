@@ -28,6 +28,12 @@ import { CoreEntityCacheModule } from 'src/engine/core-entity-cache/core-entity-
 import { WorkspaceEntityCacheProviderService } from 'src/engine/core-modules/workspace/services/workspace-entity-cache-provider.service';
 import { WorkspaceService } from 'src/engine/core-modules/workspace/services/workspace.service';
 import { InternalMetadataTokenGuard } from 'src/engine/core-modules/workspace/internal/guards/internal-metadata-token.guard';
+import { CreateCalendarChannelService } from 'src/engine/core-modules/auth/services/create-calendar-channel.service';
+import { CalendarChannelEntity } from 'src/engine/metadata-modules/calendar-channel/entities/calendar-channel.entity';
+import { ConnectedAccountEntity } from 'src/engine/metadata-modules/connected-account/entities/connected-account.entity';
+import { RefreshTokensManagerModule } from 'src/modules/connected-account/refresh-tokens-manager/connected-account-refresh-tokens-manager.module';
+import { InternalConnectedAccountProvisioningController } from 'src/engine/core-modules/workspace/internal/internal-connected-account-provisioning.controller';
+import { InternalConnectedAccountProvisioningService } from 'src/engine/core-modules/workspace/internal/internal-connected-account-provisioning.service';
 import { InternalWorkspaceMemberProvisioningController } from 'src/engine/core-modules/workspace/internal/internal-workspace-member-provisioning.controller';
 import { InternalWorkspaceMemberProvisioningService } from 'src/engine/core-modules/workspace/internal/internal-workspace-member-provisioning.service';
 import { WorkspaceGaugeService } from 'src/engine/core-modules/workspace/workspace-gauge.service';
@@ -53,6 +59,8 @@ import { WorkspaceMigrationModule } from 'src/engine/workspace-manager/workspace
       WorkspaceEntity,
       UserEntity,
       UserWorkspaceEntity,
+      ConnectedAccountEntity,
+      CalendarChannelEntity,
     ]),
     MetricsModule,
     BillingModule,
@@ -82,8 +90,12 @@ import { WorkspaceMigrationModule } from 'src/engine/workspace-manager/workspace
     UpgradeModule,
     SdkClientModule,
     CompanyEnrichmentModule,
+    RefreshTokensManagerModule,
   ],
-  controllers: [InternalWorkspaceMemberProvisioningController],
+  controllers: [
+    InternalWorkspaceMemberProvisioningController,
+    InternalConnectedAccountProvisioningController,
+  ],
   exports: [WorkspaceService, CheckCustomDomainValidRecordsCronCommand],
   providers: [
     WorkspaceResolver,
@@ -91,6 +103,8 @@ import { WorkspaceMigrationModule } from 'src/engine/workspace-manager/workspace
     WorkspaceGaugeService,
     WorkspaceEntityCacheProviderService,
     InternalWorkspaceMemberProvisioningService,
+    InternalConnectedAccountProvisioningService,
+    CreateCalendarChannelService,
     InternalMetadataTokenGuard,
     BillingDisabledGuard,
     CheckCustomDomainValidRecordsCronCommand,
