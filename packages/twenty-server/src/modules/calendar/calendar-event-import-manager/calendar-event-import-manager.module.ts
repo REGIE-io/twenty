@@ -15,6 +15,7 @@ import { WorkspaceDataSourceModule } from 'src/engine/workspace-datasource/works
 import { BlocklistWorkspaceEntity } from 'src/modules/blocklist/standard-objects/blocklist.workspace-entity';
 import { CalendarEventCleanerModule } from 'src/modules/calendar/calendar-event-cleaner/calendar-event-cleaner.module';
 import { CalendarTriggerEventListFetchCommand } from 'src/modules/calendar/calendar-event-import-manager/commands/calendar-trigger-event-list-fetch.command';
+import { CalendarTriggerEventsImportCommand } from 'src/modules/calendar/calendar-event-import-manager/commands/calendar-trigger-events-import.command';
 import { CalendarEventListFetchCronCommand } from 'src/modules/calendar/calendar-event-import-manager/crons/commands/calendar-event-list-fetch.cron.command';
 import { CalendarEventsImportCronCommand } from 'src/modules/calendar/calendar-event-import-manager/crons/commands/calendar-import.cron.command';
 import { CalendarOngoingStaleCronCommand } from 'src/modules/calendar/calendar-event-import-manager/crons/commands/calendar-ongoing-stale.cron.command';
@@ -85,6 +86,7 @@ import { RefreshTokensManagerModule } from 'src/modules/connected-account/refres
     CalendarOngoingStaleCronJob,
     CalendarOngoingStaleCronCommand,
     CalendarTriggerEventListFetchCommand,
+    CalendarTriggerEventsImportCommand,
     CalendarOngoingStaleJob,
     CalendarRelaunchFailedCalendarChannelsCronJob,
     CalendarRelaunchFailedCalendarChannelsCronCommand,
