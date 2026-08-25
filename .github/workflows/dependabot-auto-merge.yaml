@@ -1,0 +1,180 @@
+name: Dependabot Auto Merge
+
+# A pull_request_target run for a dependabot[bot] PR gets a read-only token and
+# no secrets, so the privileged work runs on workflow_run instead.
+on:
+  workflow_run:
+    workflows: ["CI Twenty Apps"]
+    types:
+      - completed
+
+permissions:
+  contents: write
+  pull-requests: write
+  actions: read
+
+# Two successful CI runs for the same head must not overlap: one could retarget
+# while the other reads the new base and merges on CI that tested main.
+concurrency:
+  group: dependabot-auto-merge-${{ github.event.workflow_run.head_branch }}
+  cancel-in-progress: false
+
+jobs:
+  retarget-and-merge:
+    if: >
+      github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.event == 'pull_request' &&
+      github.event.workflow_run.head_repository.full_name == github.repository &&
+      startsWith(github.event.workflow_run.head_branch, 'dependabot/')
+    runs-on: ubuntu-latest
+    env:
+      HEAD_BRANCH: ${{ github.event.workflow_run.head_branch }}
+      HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    steps:
+      - name: Resolve Dependabot PR
+        id: pr
+        run: |
+          pr_json=$(gh pr list --repo "$GITHUB_REPOSITORY" \
+            --head "$HEAD_BRANCH" --state open \
+            --json number,author,baseRefName,url,headRefOid --limit 1)
+          number=$(echo "$pr_json" | jq -r '.[0].number // empty')
+          author=$(echo "$pr_json" | jq -r '.[0].author.login // empty')
+          base=$(echo "$pr_json" | jq -r '.[0].baseRefName // empty')
+          url=$(echo "$pr_json" | jq -r '.[0].url // empty')
+          head_oid=$(echo "$pr_json" | jq -r '.[0].headRefOid // empty')
+          if [ -z "$number" ] || [ "$author" != "dependabot[bot]" ]; then
+            echo "No open Dependabot PR for $HEAD_BRANCH; nothing to do."
+            echo "eligible=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          if [ "$head_oid" != "$HEAD_SHA" ]; then
+            echo "Run SHA $HEAD_SHA is not the current PR head $head_oid; skipping stale run."
+            echo "eligible=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          # CI Twenty Apps passes when discovery finds no apps, so scope has to
+          # be enforced here: every path must be an app path, or nothing merges.
+          # Scope from the PR's own commits, not the base diff: retargeting to
+          # develop does not rewrite ancestry, so a base diff would also list
+          # main-only commits and fail this check whenever main is ahead.
+          changed=$(gh api --paginate \
+            "repos/$GITHUB_REPOSITORY/pulls/$number/commits" --jq '.[].sha' \
+            | while read -r sha; do
+                gh api "repos/$GITHUB_REPOSITORY/commits/$sha" --jq '.files[].filename'
+              done | sort -u)
+          if [ -z "$changed" ]; then
+            echo "PR #$number has an empty change set; not in scope."
+            echo "eligible=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          outside=$(echo "$changed" | grep -vE '^packages/twenty-apps/(public|internal)/' || true)
+          if [ -n "$outside" ]; then
+            echo "PR #$number touches paths outside the app scope:"
+            echo "$outside"
+            echo "eligible=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          echo "eligible=true" >> "$GITHUB_OUTPUT"
+          echo "number=$number" >> "$GITHUB_OUTPUT"
+          echo "base=$base" >> "$GITHUB_OUTPUT"
+          echo "url=$url" >> "$GITHUB_OUTPUT"
+
+      - name: Verify PAT is available
+        if: steps.pr.outputs.eligible == 'true'
+        env:
+          PAT: ${{ secrets.DEPENDABOT_AUTOMERGE_PAT }}
+        run: |
+          if [ -z "$PAT" ]; then
+            echo "::error::DEPENDABOT_AUTOMERGE_PAT is unavailable in this job."
+            exit 1
+          fi
+
+      - name: Retarget PR to develop
+        if: steps.pr.outputs.eligible == 'true' && steps.pr.outputs.base == 'main'
+        run: gh pr edit "${{ steps.pr.outputs.url }}" --base develop
+
+      # Untrusted branch checked out with a contents:write PAT - safe only
+      # because nothing here runs code from it. Do not add build/test steps.
+      - name: Checkout PR head
+        if: steps.pr.outputs.eligible == 'true' && steps.pr.outputs.base == 'main'
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          ref: ${{ env.HEAD_BRANCH }}
+          token: ${{ secrets.DEPENDABOT_AUTOMERGE_PAT }}
+
+      # Retargeting alone does not re-run CI, and a GITHUB_TOKEN push would be
+      # suppressed from triggering it, hence the PAT above.
+      - name: Retrigger CI against develop
+        if: steps.pr.outputs.eligible == 'true' && steps.pr.outputs.base == 'main'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit --allow-empty -m "ci: retrigger checks against develop"
+          git push
+
+      # A base of develop is not proof CI tested develop: a main-tested run can
+      # read that base right after another handler retargeted. The retrigger
+      # commit only exists post-retarget, so it is the reliable marker.
+      - name: Verify run tested the retriggered head
+        id: retrigger
+        if: steps.pr.outputs.eligible == 'true' && steps.pr.outputs.base == 'develop'
+        run: |
+          subject=$(gh api "repos/$GITHUB_REPOSITORY/commits/$HEAD_SHA" \
+            --jq '.commit.message' | head -1)
+          if [ "$subject" != "ci: retrigger checks against develop" ]; then
+            echo "Run head $HEAD_SHA is not the retrigger commit; CI did not validate develop."
+            echo "verified=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          echo "verified=true" >> "$GITHUB_OUTPUT"
+
+      # Metadata lives on a different run than the one that triggered this, and
+      # both start on the same push, so poll for it.
+      - name: Resolve metadata run id
+        id: metadata-run
+        if: steps.retrigger.outputs.verified == 'true'
+        run: |
+          run_id=""
+          for _ in $(seq 1 30); do
+            run_id=$(gh run list --repo "$GITHUB_REPOSITORY" \
+              --workflow "Dependabot Metadata" --commit "$HEAD_SHA" \
+              --json databaseId,conclusion \
+              --jq 'map(select(.conclusion == "success")) | .[0].databaseId // empty')
+            if [ -n "$run_id" ]; then
+              break
+            fi
+            sleep 10
+          done
+          if [ -z "$run_id" ]; then
+            echo "::error::No successful Dependabot Metadata run for $HEAD_SHA after polling."
+            exit 1
+          fi
+          echo "run-id=$run_id" >> "$GITHUB_OUTPUT"
+
+      - name: Download metadata artifact
+        if: steps.retrigger.outputs.verified == 'true'
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: dependabot-metadata
+          run-id: ${{ steps.metadata-run.outputs.run-id }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Read update type
+        id: metadata
+        if: steps.retrigger.outputs.verified == 'true'
+        run: |
+          update_type=$(grep '^update-type=' dependabot-metadata.txt | cut -d= -f2-)
+          echo "update-type=$update_type" >> "$GITHUB_OUTPUT"
+
+      # Merge with the PAT, not GITHUB_TOKEN: with checks already green this
+      # merges immediately, and a GITHUB_TOKEN merge commit would not trigger
+      # the push workflows on develop (deploy-dev.yml).
+      - name: Enable auto-merge for patch and minor updates
+        if: >
+          steps.retrigger.outputs.verified == 'true' &&
+          (steps.metadata.outputs.update-type == 'version-update:semver-patch' ||
+           steps.metadata.outputs.update-type == 'version-update:semver-minor')
+        env:
+          GH_TOKEN: ${{ secrets.DEPENDABOT_AUTOMERGE_PAT }}
+        run: gh pr merge --auto --merge "${{ steps.pr.outputs.url }}"

@@ -1,0 +1,40 @@
+name: Dependabot Metadata
+
+# fetch-metadata needs a pull_request context, which the privileged
+# workflow_run stage does not have - so capture update-type here and hand it
+# over as an artifact. Reads only, so the Dependabot read-only token is fine.
+# No paths filter: the retrigger commit is empty and would never match one.
+on:
+  pull_request:
+    branches:
+      - main
+      - develop
+
+permissions:
+  contents: read
+
+jobs:
+  capture:
+    if: github.event.pull_request.user.login == 'dependabot[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Fetch Dependabot metadata
+        id: metadata
+        uses: dependabot/fetch-metadata@d7267f607e9d3fb96fc2fbe83e0af444713e90b7 # v2.3.0
+
+      - name: Write metadata to file
+        env:
+          UPDATE_TYPE: ${{ steps.metadata.outputs.update-type }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          {
+            echo "update-type=$UPDATE_TYPE"
+            echo "pr-number=$PR_NUMBER"
+          } > dependabot-metadata.txt
+
+      - name: Upload metadata artifact
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: dependabot-metadata
+          path: dependabot-metadata.txt
+          retention-days: 1
