@@ -204,6 +204,46 @@ describe('turnRecordFilterIntoRecordGqlOperationFilter', () => {
   });
 
   describe('TEXT filter', () => {
+    it.each([
+      [RecordFilterOperand.IS, 'Acme', { name: { ilike: 'Acme' } }],
+      [
+        RecordFilterOperand.IS_NOT,
+        'Acme',
+        { not: { name: { ilike: 'Acme' } } },
+      ],
+      [RecordFilterOperand.STARTS_WITH, 'Ac', { name: { ilike: 'Ac%' } }],
+    ])('should handle %s operand', (operand, value, expected) => {
+      expect(
+        turnRecordFilterIntoRecordGqlOperationFilter({
+          filterValueDependencies,
+          recordFilter: makeFilter('f-text', operand, value),
+          fieldMetadataItemById,
+        }),
+      ).toEqual(expected);
+    });
+
+    it.each([
+      [RecordFilterOperand.IS, '100%_off\\deal', '100\\%\\_off\\\\deal'],
+      [
+        RecordFilterOperand.STARTS_WITH,
+        '100%_off\\deal',
+        '100\\%\\_off\\\\deal%',
+      ],
+      [
+        RecordFilterOperand.CONTAINS,
+        '100%_off\\deal',
+        '%100\\%\\_off\\\\deal%',
+      ],
+    ])('should escape ILIKE metacharacters for %s', (operand, value, ilike) => {
+      expect(
+        turnRecordFilterIntoRecordGqlOperationFilter({
+          filterValueDependencies,
+          recordFilter: makeFilter('f-text', operand, value),
+          fieldMetadataItemById,
+        }),
+      ).toEqual({ name: { ilike } });
+    });
+
     it('should handle CONTAINS operand', () => {
       const result = turnRecordFilterIntoRecordGqlOperationFilter({
         filterValueDependencies,
@@ -793,6 +833,73 @@ describe('turnRecordFilterIntoRecordGqlOperationFilter', () => {
       });
 
       expect(result).toHaveProperty('or');
+    });
+
+    it('should handle IS on a firstName subfield as escaped case-insensitive equality', () => {
+      const result = turnRecordFilterIntoRecordGqlOperationFilter({
+        filterValueDependencies,
+        recordFilter: makeFilter(
+          'f-fullname',
+          RecordFilterOperand.IS,
+          'Mary%_\\Jane',
+          'FULL_NAME',
+          'firstName',
+        ),
+        fieldMetadataItemById,
+      });
+
+      expect(result).toEqual({
+        fullName: { firstName: { ilike: 'Mary\\%\\_\\\\Jane' } },
+      });
+    });
+
+    it('should handle IS_NOT on a lastName subfield', () => {
+      const result = turnRecordFilterIntoRecordGqlOperationFilter({
+        filterValueDependencies,
+        recordFilter: makeFilter(
+          'f-fullname',
+          RecordFilterOperand.IS_NOT,
+          'Watson',
+          'FULL_NAME',
+          'lastName',
+        ),
+        fieldMetadataItemById,
+      });
+
+      expect(result).toEqual({
+        not: { fullName: { lastName: { ilike: 'Watson' } } },
+      });
+    });
+
+    it('should reject IS without a FULL_NAME text subfield', () => {
+      expect(() =>
+        turnRecordFilterIntoRecordGqlOperationFilter({
+          filterValueDependencies,
+          recordFilter: makeFilter(
+            'f-fullname',
+            RecordFilterOperand.IS,
+            'Mary Jane Watson',
+            'FULL_NAME',
+          ),
+          fieldMetadataItemById,
+        }),
+      ).toThrow('FULL_NAME IS requires a firstName or lastName subfield');
+    });
+
+    it('should reject IS_NOT with an invalid FULL_NAME subfield', () => {
+      expect(() =>
+        turnRecordFilterIntoRecordGqlOperationFilter({
+          filterValueDependencies,
+          recordFilter: makeFilter(
+            'f-fullname',
+            RecordFilterOperand.IS_NOT,
+            'Watson',
+            'FULL_NAME',
+            'displayName',
+          ),
+          fieldMetadataItemById,
+        }),
+      ).toThrow('FULL_NAME IS_NOT requires a firstName or lastName subfield');
     });
   });
 

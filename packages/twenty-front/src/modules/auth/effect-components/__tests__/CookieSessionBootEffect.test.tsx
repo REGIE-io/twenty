@@ -7,7 +7,6 @@ import { CookieSessionBootEffect } from '@/auth/effect-components/CookieSessionB
 import { isCookieAuthActiveState } from '@/auth/states/isCookieAuthActiveState';
 import { tokenPairState } from '@/auth/states/tokenPairState';
 import { clientConfigApiStatusState } from '@/client-config/states/clientConfigApiStatusState';
-import { isCookieSessionEnabledState } from '@/client-config/states/isCookieSessionEnabledState';
 
 const mockQuery = jest.fn();
 const mockEnsureTokenRenewed = jest.fn();
@@ -55,7 +54,6 @@ const renderBootEffect = () => {
     isErrored: false,
     isSaved: false,
   });
-  store.set(isCookieSessionEnabledState.atom, true);
   store.set(isCookieAuthActiveState.atom, false);
   store.set(tokenPairState.atom, buildTokenPair());
 
@@ -89,7 +87,9 @@ describe('CookieSessionBootEffect', () => {
       expect(store.get(isCookieAuthActiveState.atom)).toBe(true);
     });
 
-    expect(store.get(tokenPairState.atom)).toBeNull();
+    // Retained as a fallback for servers that predate cookie sessions, which
+    // would otherwise sign the user out mid-rollout.
+    expect(store.get(tokenPairState.atom)).not.toBeNull();
   });
 
   it('should stay retryable when the probe fails for an unrelated reason', async () => {
