@@ -1,10 +1,10 @@
 name: Dependabot Metadata
 
-# Dependabot security PRs initially target the default branch. Capture metadata
-# there with a read-only token; the privileged workflow consumes the artifact.
+# With `develop` as the default branch, Dependabot security PRs target it
+# directly. Capture metadata with a read-only token for the privileged workflow.
 on:
   pull_request:
-    branches: [main]
+    branches: [develop]
     types: [opened, synchronize, reopened]
 
 permissions:
