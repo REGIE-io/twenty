@@ -1,0 +1,41 @@
+name: Dependabot Metadata
+
+# Dependabot security PRs initially target the default branch. Capture metadata
+# there with a read-only token; the privileged workflow consumes the artifact.
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, synchronize, reopened]
+
+permissions:
+  contents: read
+
+jobs:
+  capture:
+    if: github.event.pull_request.user.login == 'dependabot[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Fetch Dependabot metadata
+        id: metadata
+        uses: dependabot/fetch-metadata@d7267f607e9d3fb96fc2fbe83e0af444713e90b7 # v2.3.0
+
+      - name: Write metadata
+        env:
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          UPDATE_TYPE: ${{ steps.metadata.outputs.update-type }}
+        run: |
+          mkdir -p "$RUNNER_TEMP/dependabot-metadata"
+          jq -n \
+            --arg headSha "$HEAD_SHA" \
+            --argjson prNumber "$PR_NUMBER" \
+            --arg updateType "$UPDATE_TYPE" \
+            '{headSha: $headSha, prNumber: $prNumber, updateType: $updateType}' \
+            > "$RUNNER_TEMP/dependabot-metadata/metadata.json"
+
+      - name: Upload metadata
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: dependabot-metadata-${{ github.event.pull_request.head.sha }}
+          path: ${{ runner.temp }}/dependabot-metadata/metadata.json
+          retention-days: 1
