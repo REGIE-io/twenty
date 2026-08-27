@@ -43,7 +43,10 @@ jobs:
           url=$(jq -r '.[0].url // empty' <<< "$pr_json")
           head_oid=$(jq -r '.[0].headRefOid // empty' <<< "$pr_json")
 
-          if [[ -z "$number" || "$author" != "dependabot[bot]" ]]; then
+          # GitHub's webhook payload uses dependabot[bot], while `gh pr list`
+          # currently normalizes the same GitHub App identity to app/dependabot.
+          if [[ -z "$number" ||
+                ( "$author" != "dependabot[bot]" && "$author" != "app/dependabot" ) ]]; then
             echo "No open Dependabot PR for $HEAD_BRANCH; nothing to do."
             echo "eligible=false" >> "$GITHUB_OUTPUT"
             exit 0
