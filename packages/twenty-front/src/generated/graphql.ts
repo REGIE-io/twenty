@@ -436,6 +436,7 @@ export type QuerySearchArgs = {
   includedObjectNameSingulars?: InputMaybe<Array<Scalars['String']['input']>>;
   limit: Scalars['Int']['input'];
   searchInput: Scalars['String']['input'];
+  skipIlikeFallback?: InputMaybe<Scalars['Boolean']['input']>;
 };
 
 

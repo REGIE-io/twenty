@@ -42,6 +42,7 @@ export class SearchResolver {
       includedObjectNameSingulars,
       excludedObjectNameSingulars,
       after,
+      skipIlikeFallback,
     }: SearchArgs,
   ) {
     const { flatObjectMetadataMaps, flatFieldMetadataMaps } =
@@ -73,6 +74,7 @@ export class SearchResolver {
         includedObjectNameSingulars,
         excludedObjectNameSingulars,
         after,
+        skipIlikeFallback,
         workspaceId: workspace.id,
       });
 
