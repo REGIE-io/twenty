@@ -107,7 +107,7 @@ const chartRecordFilterSchema = z.object({
   operand: z
     .enum(FILTER_OPERAND_OPTIONS)
     .describe(
-      'Filter operator. Valid operators per field type — TEXT/EMAILS/FULL_NAME/ARRAY/PHONES: CONTAINS, DOES_NOT_CONTAIN, IS_EMPTY, IS_NOT_EMPTY. NUMBER/CURRENCY/RATING: GREATER_THAN_OR_EQUAL, LESS_THAN_OR_EQUAL, IS, IS_NOT, IS_EMPTY, IS_NOT_EMPTY. DATE/DATE_TIME: IS, IS_RELATIVE, IS_IN_PAST, IS_IN_FUTURE, IS_TODAY, IS_BEFORE, IS_AFTER, IS_EMPTY, IS_NOT_EMPTY. SELECT: IS, IS_NOT, IS_EMPTY, IS_NOT_EMPTY. MULTI_SELECT: CONTAINS, DOES_NOT_CONTAIN, IS_EMPTY, IS_NOT_EMPTY. RELATION: IS, IS_NOT, IS_EMPTY, IS_NOT_EMPTY. BOOLEAN: IS.',
+      'Filter operator. Valid operators per field type — TEXT/EMAILS/ARRAY/PHONES: CONTAINS, DOES_NOT_CONTAIN, IS_EMPTY, IS_NOT_EMPTY. FULL_NAME: CONTAINS, DOES_NOT_CONTAIN, IS_EMPTY, IS_NOT_EMPTY; firstName and lastName subfields also support IS and IS_NOT. NUMBER/CURRENCY/RATING: GREATER_THAN_OR_EQUAL, LESS_THAN_OR_EQUAL, IS, IS_NOT, IS_EMPTY, IS_NOT_EMPTY. DATE/DATE_TIME: IS, IS_RELATIVE, IS_IN_PAST, IS_IN_FUTURE, IS_TODAY, IS_BEFORE, IS_AFTER, IS_EMPTY, IS_NOT_EMPTY. SELECT: IS, IS_NOT, IS_EMPTY, IS_NOT_EMPTY. MULTI_SELECT: CONTAINS, DOES_NOT_CONTAIN, IS_EMPTY, IS_NOT_EMPTY. RELATION: IS, IS_NOT, IS_EMPTY, IS_NOT_EMPTY. BOOLEAN: IS.',
     ),
   value: z
     .string()
@@ -293,7 +293,6 @@ export const widgetTypeSchema = z.enum([
   WidgetType.RECORD_TABLE,
 ]);
 
-// Graph configuration schema for AGGREGATE type (KPI numbers)
 const aggregateChartConfigSchemaBase = z.object({
   configurationType: z.literal(WidgetConfigurationType.AGGREGATE_CHART),
   aggregateFieldMetadataId: z
@@ -332,7 +331,6 @@ const aggregateChartConfigSchema = aggregateChartConfigSchemaBase.extend({
 const aggregateChartConfigSchemaWithoutDefaults =
   aggregateChartConfigSchemaBase;
 
-// Graph configuration schema for BAR charts
 const barChartConfigSchemaCore = z.object({
   configurationType: z.literal(WidgetConfigurationType.BAR_CHART),
   aggregateFieldMetadataId: z
@@ -424,7 +422,6 @@ const barChartConfigSchema = withRangeMinMaxRefinement(
   ),
 );
 
-// Graph configuration schema for LINE charts
 const lineChartConfigSchemaCore = z.object({
   configurationType: z.literal(WidgetConfigurationType.LINE_CHART),
   aggregateFieldMetadataId: z
@@ -510,7 +507,6 @@ const lineChartConfigSchema = withRangeMinMaxRefinement(
   ),
 );
 
-// Graph configuration schema for PIE charts
 const pieChartConfigSchemaCore = z.object({
   configurationType: z.literal(WidgetConfigurationType.PIE_CHART),
   aggregateFieldMetadataId: z
@@ -568,7 +564,6 @@ const pieChartConfigSchema = withManualSortRefinement(
   }),
 );
 
-// Record table configuration
 const recordTableConfigSchema = z.object({
   configurationType: z.literal(WidgetConfigurationType.RECORD_TABLE),
   viewId: z
@@ -584,13 +579,11 @@ const recordTableConfigSchema = z.object({
     .describe('Maximum number of records displayed in the table widget.'),
 });
 
-// Iframe configuration
 const iframeConfigSchema = z.object({
   configurationType: z.literal(WidgetConfigurationType.IFRAME),
   url: z.string().url().optional().describe('URL to embed'),
 });
 
-// Rich text configuration
 const richTextConfigSchema = z.object({
   configurationType: z.literal(WidgetConfigurationType.STANDALONE_RICH_TEXT),
   body: z
@@ -661,5 +654,4 @@ export const widgetConfigurationSchemaWithoutDefaults = z
   .optional()
   .describe('Widget configuration - structure depends on widget type');
 
-// Export enums for documentation
 export { AggregateOperations, WidgetConfigurationType };

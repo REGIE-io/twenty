@@ -2,16 +2,8 @@ import { Injectable } from '@nestjs/common';
 
 import { msg, t } from '@lingui/core/macro';
 import { ALL_METADATA_NAME } from 'twenty-shared/metadata';
-import {
-  FieldMetadataType,
-  ViewFilterOperand,
-  type FilterableAndTSVectorFieldType,
-} from 'twenty-shared/types';
-import {
-  FILTER_OPERANDS_MAP,
-  getFilterOperandsForFilterableFieldType,
-  isDefined,
-} from 'twenty-shared/utils';
+import { FieldMetadataType, ViewFilterOperand } from 'twenty-shared/types';
+import { FILTER_OPERANDS_MAP, isDefined } from 'twenty-shared/utils';
 
 import { findFlatEntityByUniversalIdentifier } from 'src/engine/metadata-modules/flat-entity/utils/find-flat-entity-by-universal-identifier.util';
 import { type FlatFieldMetadata } from 'src/engine/metadata-modules/flat-field-metadata/types/flat-field-metadata.type';
@@ -23,6 +15,7 @@ import { type FailedFlatEntityValidation } from 'src/engine/workspace-manager/wo
 import { getEmptyFlatEntityValidationError } from 'src/engine/workspace-manager/workspace-migration/workspace-migration-builder/builders/utils/get-flat-entity-validation-error.util';
 import { type FlatEntityUpdateValidationArgs } from 'src/engine/workspace-manager/workspace-migration/workspace-migration-builder/types/universal-flat-entity-update-validation-args.type';
 import { type UniversalFlatEntityValidationArgs } from 'src/engine/workspace-manager/workspace-migration/workspace-migration-builder/types/universal-flat-entity-validation-args.type';
+import { getIncompatibleViewFilterOperandError } from 'src/engine/workspace-manager/workspace-migration/workspace-migration-builder/validators/utils/get-incompatible-view-filter-operand-error.util';
 
 @Injectable()
 export class FlatViewFilterValidatorService {
@@ -364,16 +357,6 @@ export class FlatViewFilterValidatorService {
     subFieldName: string | null | undefined;
     relationTargetFieldType: FieldMetadataType | undefined;
   }) {
-    const isListRelationOperand =
-      fieldType === FieldMetadataType.RELATION &&
-      relationTargetFieldType === FieldMetadataType.RELATION &&
-      (operand === ViewFilterOperand.IS_IN_LIST ||
-        operand === ViewFilterOperand.IS_NOT_IN_LIST);
-
-    if (isListRelationOperand) {
-      return undefined;
-    }
-
     const effectiveFieldType =
       fieldType === FieldMetadataType.RELATION &&
       isDefined(relationTargetFieldType)
@@ -384,19 +367,11 @@ export class FlatViewFilterValidatorService {
       return undefined;
     }
 
-    const allowedOperands = getFilterOperandsForFilterableFieldType({
-      filterType: effectiveFieldType as FilterableAndTSVectorFieldType,
+    return getIncompatibleViewFilterOperandError({
+      operand,
+      fieldType,
       subFieldName,
+      relationTargetFieldType,
     });
-
-    if (allowedOperands.includes(operand)) {
-      return undefined;
-    }
-
-    return {
-      code: ViewFilterExceptionCode.INVALID_VIEW_FILTER_DATA,
-      message: t`Operand "${operand}" is not supported on field type "${effectiveFieldType}". Supported operands: ${allowedOperands.join(', ')}.`,
-      userFriendlyMessage: msg`Filter operand is not supported for this field type`,
-    };
   }
 }

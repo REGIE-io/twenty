@@ -137,7 +137,6 @@ function evaluateFilterGroup(
 }
 
 function contains(leftValue: unknown, rightValue: unknown): boolean {
-  // if two arrays, check if any item is in the other array
   if (Array.isArray(leftValue) && Array.isArray(rightValue)) {
     return leftValue.some((item) => rightValue.includes(item));
   }
@@ -174,23 +173,47 @@ function evaluateTextAndArrayFilter(
     key: compositeFieldSubFieldName,
   });
 
+  const isCaseInsensitiveTextFilter =
+    filterType === 'TEXT' ||
+    (filterType === 'FULL_NAME' &&
+      (compositeFieldSubFieldName === 'firstName' ||
+        compositeFieldSubFieldName === 'lastName'));
+  const normalizedLeftOperand =
+    isCaseInsensitiveTextFilter && isString(filter.leftOperand)
+      ? filter.leftOperand.toLocaleLowerCase()
+      : filter.leftOperand;
+  const normalizedRightOperand =
+    isCaseInsensitiveTextFilter && isString(filter.rightOperand)
+      ? filter.rightOperand.toLocaleLowerCase()
+      : filter.rightOperand;
+
   switch (filter.operand) {
     case ViewFilterOperand.CONTAINS:
       return (
-        contains(filter.leftOperand, filter.rightOperand) ||
+        contains(normalizedLeftOperand, normalizedRightOperand) ||
         (isDefined(nullEquivalentRightValue) &&
           !isNotEmptyTextOrArray(filter.leftOperand))
       );
     case ViewFilterOperand.DOES_NOT_CONTAIN:
       return (
-        !contains(filter.leftOperand, filter.rightOperand) ||
+        !contains(normalizedLeftOperand, normalizedRightOperand) ||
         (isDefined(nullEquivalentRightValue) &&
           isNotEmptyTextOrArray(filter.leftOperand))
       );
     case ViewFilterOperand.IS:
-      return isEqual(filter.leftOperand, filter.rightOperand);
+      return isEqual(normalizedLeftOperand, normalizedRightOperand);
     case ViewFilterOperand.IS_NOT:
-      return !isEqual(filter.leftOperand, filter.rightOperand);
+      return (
+        isDefined(normalizedLeftOperand) &&
+        isDefined(normalizedRightOperand) &&
+        !isEqual(normalizedLeftOperand, normalizedRightOperand)
+      );
+    case ViewFilterOperand.STARTS_WITH:
+      return (
+        isString(normalizedLeftOperand) &&
+        isString(normalizedRightOperand) &&
+        normalizedLeftOperand.startsWith(normalizedRightOperand)
+      );
     case ViewFilterOperand.IS_EMPTY:
       return !isNotEmptyTextOrArray(filter.leftOperand);
 

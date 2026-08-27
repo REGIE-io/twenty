@@ -5,6 +5,7 @@ import { ViewFilterOperand } from 'twenty-shared/types';
 export const getOperandLabel = (
   operand: ViewFilterOperand | null | undefined,
   timeZoneAbbreviation?: string | null | undefined,
+  filterType?: string,
 ) => {
   const shouldDisplayTimeZoneAbbreviation =
     isNonEmptyString(timeZoneAbbreviation);
@@ -12,12 +13,15 @@ export const getOperandLabel = (
   const timeZoneAbbreviationSuffix = shouldDisplayTimeZoneAbbreviation
     ? ` (${timeZoneAbbreviation})`
     : '';
+  const normalizedFilterType = filterType?.toUpperCase();
 
   switch (operand) {
     case ViewFilterOperand.CONTAINS:
       return t`Contains`;
     case ViewFilterOperand.DOES_NOT_CONTAIN:
       return t`Doesn't contain`;
+    case ViewFilterOperand.STARTS_WITH:
+      return t`Starts with`;
     case ViewFilterOperand.GREATER_THAN_OR_EQUAL:
       return t`Greater than or equal`;
     case ViewFilterOperand.LESS_THAN_OR_EQUAL:
@@ -27,9 +31,11 @@ export const getOperandLabel = (
     case ViewFilterOperand.IS_AFTER:
       return t`Is after or equal`;
     case ViewFilterOperand.IS:
-      return t`Is`;
+      return normalizedFilterType === 'TEXT' ? t`Exactly equals` : t`Is`;
     case ViewFilterOperand.IS_NOT:
-      return t`Is not`;
+      return normalizedFilterType === 'TEXT'
+        ? t`Does not exactly equal`
+        : t`Is not`;
     case ViewFilterOperand.IS_NOT_NULL:
       return t`Is not null`;
     case ViewFilterOperand.IS_EMPTY:
@@ -64,6 +70,8 @@ export const getOperandLabelShort = (
     case ViewFilterOperand.IS:
     case ViewFilterOperand.CONTAINS:
       return ': ';
+    case ViewFilterOperand.STARTS_WITH:
+      return t`: Starts with `;
     case ViewFilterOperand.IS_NOT:
     case ViewFilterOperand.DOES_NOT_CONTAIN:
       return t`: Not`;

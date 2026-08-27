@@ -6,9 +6,9 @@ import { inspect } from 'util';
 
 import bytes from 'bytes';
 import { useContainer } from 'class-validator';
-import { type NextFunction, type Request, type Response } from 'express';
 import session from 'express-session';
 import graphqlUploadExpress from 'graphql-upload/graphqlUploadExpress.mjs';
+import { ApiPath } from 'twenty-shared/types';
 
 import { NodeEnvironment } from 'src/engine/core-modules/twenty-config/interfaces/node-environment.interface';
 
@@ -18,17 +18,18 @@ import { LoggerService } from 'src/engine/core-modules/logger/logger.service';
 import { getSessionStorageOptions } from 'src/engine/core-modules/session-storage/session-storage.module-factory';
 import { TwentyConfigService } from 'src/engine/core-modules/twenty-config/twenty-config.service';
 import { configTransformers } from 'src/engine/core-modules/twenty-config/utils/config-transformers.util';
-import { resolveAllowedCredentialedOrigins } from 'src/engine/core-modules/user-session/utils/resolve-allowed-credentialed-origins.util';
+import { applyCredentialedCors } from 'src/engine/core-modules/user-session/utils/apply-credentialed-cors.util';
 import { shouldCaptureException } from 'src/engine/utils/global-exception-handler.util';
 
 import { AppModule } from './app.module';
 import './instrument';
 
 import { settings } from './engine/constants/settings';
+import { enableValidationMetadataCache } from './utils/enable-validation-metadata-cache.util';
 import { generateFrontConfig } from './utils/generate-front-config';
 
-// Trigger
 const bootstrap = async () => {
+  enableValidationMetadataCache();
   setPgDateTypeParser();
 
   const app = await NestFactory.create<NestExpressApplication>(AppModule, {
@@ -66,46 +67,13 @@ const bootstrap = async () => {
 
   app.set('trust proxy', trustProxy);
 
-  // The cors package only emits Vary: Origin when it reflects one, so wildcard
-  // and reflected responses would share a cache entry and a credentialed
-  // request could be served the wildcard, which browsers reject.
-  app.use((_request: Request, response: Response, next: NextFunction) => {
-    response.vary('Origin');
-    next();
-  });
-
-  app.enableCors({
-    // Resolved per request rather than once at boot: the origins derive from
-    // config the admin panel can change, and a snapshot would drift from the
-    // CSRF guard, which resolves them per request and would then disagree with
-    // CORS about the same origin.
-    origin: (
-      origin: string | undefined,
-      callback: (error: Error | null, allow?: boolean | string) => void,
-    ) => {
-      if (
-        origin &&
-        resolveAllowedCredentialedOrigins(twentyConfigService).has(
-          origin.toLowerCase(),
-        )
-      ) {
-        return callback(null, true);
-      }
-
-      return callback(null, '*');
-    },
-    credentials: true,
-    // Expose WWW-Authenticate so browser-based MCP clients can read the
-    // resource_metadata pointer on 401. Required by MCP authorization spec.
-    exposedHeaders: ['WWW-Authenticate'],
-  });
+  applyCredentialedCors(app, twentyConfigService);
 
   app.use(session(getSessionStorageOptions(twentyConfigService)));
 
   // Apply class-validator container so that we can use injection in validators
   useContainer(app.select(AppModule), { fallbackOnErrors: true });
 
-  // Use our logger
   app.useLogger(logger);
 
   app.useBodyParser('json', { limit: settings.storage.maxFileSize });
@@ -115,9 +83,8 @@ const bootstrap = async () => {
   });
   app.useBodyParser('text', { type: 'text/plain', limit: '1024kb' });
 
-  // Graphql file upload
   app.use(
-    '/graphql',
+    `/${ApiPath.GraphQL}`,
     graphqlUploadExpress({
       maxFieldSize: bytes(settings.storage.maxFileSize)!,
       maxFiles: 10,
@@ -125,14 +92,13 @@ const bootstrap = async () => {
   );
 
   app.use(
-    '/metadata',
+    `/${ApiPath.Metadata}`,
     graphqlUploadExpress({
       maxFieldSize: bytes(settings.storage.maxFileSize)!,
       maxFiles: 10,
     }),
   );
 
-  // Inject the server url in the frontend page
   generateFrontConfig();
 
   const keepAliveTimeout = twentyConfigService.get(

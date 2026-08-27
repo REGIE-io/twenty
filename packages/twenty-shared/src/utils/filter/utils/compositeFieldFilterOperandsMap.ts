@@ -19,6 +19,22 @@ type CompositeFieldFilterOperandMap = {
 };
 
 export const COMPOSITE_FIELD_FILTER_OPERANDS_MAP = {
+  FULL_NAME: {
+    firstName: [
+      ViewFilterOperand.CONTAINS,
+      ViewFilterOperand.IS,
+      ViewFilterOperand.IS_NOT,
+      ViewFilterOperand.DOES_NOT_CONTAIN,
+      ...emptyOperands,
+    ],
+    lastName: [
+      ViewFilterOperand.CONTAINS,
+      ViewFilterOperand.IS,
+      ViewFilterOperand.IS_NOT,
+      ViewFilterOperand.DOES_NOT_CONTAIN,
+      ...emptyOperands,
+    ],
+  },
   CURRENCY: {
     currencyCode: [
       ViewFilterOperand.IS,
