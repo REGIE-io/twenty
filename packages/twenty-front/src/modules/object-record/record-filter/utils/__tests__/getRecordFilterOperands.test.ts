@@ -65,6 +65,20 @@ describe('getRecordFilterOperands', () => {
     });
   });
 
+  describe('FULL_NAME', () => {
+    it.each(['firstName', 'lastName'])(
+      'returns exact operands when subFieldName is %s',
+      (subFieldName) => {
+        expect(
+          getRecordFilterOperands({
+            filterType: 'FULL_NAME',
+            subFieldName,
+          }),
+        ).toMatchSnapshot();
+      },
+    );
+  });
+
   describe('ACTOR', () => {
     it('returns IS/IS_NOT operands when subFieldName is source (actor source subField)', () => {
       const operands = getRecordFilterOperands({

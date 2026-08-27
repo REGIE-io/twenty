@@ -1,4 +1,5 @@
 import { DEFAULT_ADVANCED_FILTER_DROPDOWN_OFFSET } from '@/object-record/advanced-filter/constants/DefaultAdvancedFilterDropdownOffset';
+import { useSetRecordFilterUsedInAdvancedFilterDropdownRow } from '@/object-record/advanced-filter/hooks/useSetRecordFilterUsedInAdvancedFilterDropdownRow';
 import { AdvancedFilterContext } from '@/object-record/advanced-filter/states/context/AdvancedFilterContext';
 import { useApplyObjectFilterDropdownOperand } from '@/object-record/object-filter-dropdown/hooks/useApplyObjectFilterDropdownOperand';
 
@@ -42,10 +43,17 @@ export const AdvancedFilterRecordFilterOperandSelectContent = ({
   const { applyObjectFilterDropdownOperand } =
     useApplyObjectFilterDropdownOperand();
 
+  const { setRecordFilterUsedInAdvancedFilterDropdownRow } =
+    useSetRecordFilterUsedInAdvancedFilterDropdownRow();
+
   const handleOperandChange = (operand: ViewFilterOperand) => {
     closeDropdown(dropdownId);
 
     applyObjectFilterDropdownOperand(operand);
+  };
+
+  const handleDropdownOpen = () => {
+    setRecordFilterUsedInAdvancedFilterDropdownRow(filter);
   };
 
   const selectedItemId = useAtomComponentStateValue(
@@ -72,7 +80,11 @@ export const AdvancedFilterRecordFilterOperandSelectContent = ({
         <SelectControl
           selectedOption={{
             label: filter?.operand
-              ? getOperandLabel(filter.operand, timeZoneAbbreviation)
+              ? getOperandLabel(
+                  filter.operand,
+                  timeZoneAbbreviation,
+                  filter.type,
+                )
               : t`Select operand`,
             value: null,
           }}
@@ -101,7 +113,11 @@ export const AdvancedFilterRecordFilterOperandSelectContent = ({
                     onClick={() => {
                       handleOperandChange(filterOperand);
                     }}
-                    text={getOperandLabel(filterOperand, timeZoneAbbreviation)}
+                    text={getOperandLabel(
+                      filterOperand,
+                      timeZoneAbbreviation,
+                      filter.type,
+                    )}
                   />
                 </SelectableListItem>
               ))}
@@ -111,6 +127,7 @@ export const AdvancedFilterRecordFilterOperandSelectContent = ({
       }
       dropdownOffset={DEFAULT_ADVANCED_FILTER_DROPDOWN_OFFSET}
       dropdownPlacement="bottom-start"
+      onOpen={handleDropdownOpen}
     />
   );
 };

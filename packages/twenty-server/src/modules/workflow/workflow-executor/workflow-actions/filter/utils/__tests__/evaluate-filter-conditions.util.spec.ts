@@ -45,6 +45,20 @@ describe('evaluateFilterConditions', () => {
   });
 
   describe('single filter operands', () => {
+    it('should compare FULL_NAME text subfields case-insensitively', () => {
+      const filter = {
+        ...createFilter(
+          ViewFilterOperand.IS,
+          'Mary Jane',
+          'mary jane',
+          'FULL_NAME',
+        ),
+        compositeFieldSubFieldName: 'firstName',
+      };
+
+      expect(evaluateFilterConditions({ filters: [filter] })).toBe(true);
+    });
+
     describe('Relation/UUID filter operands', () => {
       it('should return true when values are equal (RELATION)', () => {
         const filter = createFilter(
@@ -94,7 +108,6 @@ describe('evaluateFilterConditions', () => {
         expect(result).toBe(true);
       });
 
-      // Enhanced relation filter tests with object id extraction
       it('should extract id from left operand object for relation comparison', () => {
         const uuid1 = '550e8400-e29b-41d4-a716-446655440000';
         const leftObject = { id: uuid1, name: 'John Doe' };
@@ -843,6 +856,86 @@ describe('evaluateFilterConditions', () => {
           ViewFilterOperand.IS_NOT,
           'World',
           'World',
+          'TEXT',
+        );
+
+        expect(evaluateFilterConditions({ filters: [matching] })).toBe(true);
+        expect(evaluateFilterConditions({ filters: [notMatching] })).toBe(
+          false,
+        );
+      });
+
+      it('should compare text equality case-insensitively', () => {
+        const isMatching = createFilter(
+          ViewFilterOperand.IS,
+          'ACME',
+          'acme',
+          'TEXT',
+        );
+        const isNotMatching = createFilter(
+          ViewFilterOperand.IS_NOT,
+          'Acme',
+          'aCME',
+          'TEXT',
+        );
+
+        expect(evaluateFilterConditions({ filters: [isMatching] })).toBe(true);
+        expect(evaluateFilterConditions({ filters: [isNotMatching] })).toBe(
+          false,
+        );
+      });
+
+      it('should compare text containment case-insensitively', () => {
+        const contains = createFilter(
+          ViewFilterOperand.CONTAINS,
+          'ACME Corporation',
+          'acme',
+          'TEXT',
+        );
+        const doesNotContain = createFilter(
+          ViewFilterOperand.DOES_NOT_CONTAIN,
+          'ACME Corporation',
+          'acme',
+          'TEXT',
+        );
+
+        expect(evaluateFilterConditions({ filters: [contains] })).toBe(true);
+        expect(evaluateFilterConditions({ filters: [doesNotContain] })).toBe(
+          false,
+        );
+      });
+
+      it('should not treat unset text as not exactly equal', () => {
+        const nullValue = createFilter(
+          ViewFilterOperand.IS_NOT,
+          null,
+          'acme',
+          'TEXT',
+        );
+        const undefinedValue = createFilter(
+          ViewFilterOperand.IS_NOT,
+          undefined,
+          'acme',
+          'TEXT',
+        );
+
+        expect(evaluateFilterConditions({ filters: [nullValue] })).toBe(false);
+        expect(evaluateFilterConditions({ filters: [undefinedValue] })).toBe(
+          false,
+        );
+      });
+
+      it('should evaluate starts with case-insensitively for text', () => {
+        const matching = createFilter(
+          ViewFilterOperand.STARTS_WITH,
+          'ACME Corporation',
+          'acme',
+          'TEXT',
+        );
+        const notMatching = createFilter(
+          ViewFilterOperand.STARTS_WITH,
+          'Example Acme',
+          'acme',
           'TEXT',
         );
 
@@ -1634,7 +1727,6 @@ describe('evaluateFilterConditions', () => {
           50,
           'unknown',
         );
-        // strings are converted to numbers
         const filter3 = createFilter(
           ViewFilterOperand.GREATER_THAN_OR_EQUAL,
           '1234',
