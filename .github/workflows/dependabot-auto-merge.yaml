@@ -1,0 +1,287 @@
+name: Dependabot Auto Merge
+
+# Privileged work runs from trusted default-branch code after CI Twenty Apps.
+# Never check out or execute untrusted PR code in this workflow.
+on:
+  workflow_run:
+    workflows: ['CI Twenty Apps']
+    types: [completed]
+
+permissions:
+  actions: read
+  contents: write
+  pull-requests: write
+
+# The main pass retargets and pushes a marker commit. Serialize the develop pass
+# behind it so the validation artifact is complete before it is consumed.
+concurrency:
+  group: dependabot-auto-merge-${{ github.event.workflow_run.head_branch }}
+  cancel-in-progress: false
+
+jobs:
+  retarget-and-merge:
+    if: >
+      github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.event == 'pull_request' &&
+      github.event.workflow_run.head_repository.full_name == github.repository &&
+      startsWith(github.event.workflow_run.head_branch, 'dependabot/')
+    runs-on: ubuntu-latest
+    env:
+      HEAD_BRANCH: ${{ github.event.workflow_run.head_branch }}
+      HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    steps:
+      - name: Resolve Dependabot PR
+        id: pr
+        run: |
+          pr_json=$(gh pr list --repo "$GITHUB_REPOSITORY" \
+            --head "$HEAD_BRANCH" --state open \
+            --json number,author,baseRefName,url,headRefOid --limit 1)
+          number=$(jq -r '.[0].number // empty' <<< "$pr_json")
+          author=$(jq -r '.[0].author.login // empty' <<< "$pr_json")
+          base=$(jq -r '.[0].baseRefName // empty' <<< "$pr_json")
+          url=$(jq -r '.[0].url // empty' <<< "$pr_json")
+          head_oid=$(jq -r '.[0].headRefOid // empty' <<< "$pr_json")
+
+          # GitHub's webhook payload uses dependabot[bot], while `gh pr list`
+          # currently normalizes the same GitHub App identity to app/dependabot.
+          if [[ -z "$number" ||
+                ( "$author" != "dependabot[bot]" && "$author" != "app/dependabot" ) ]]; then
+            echo "No open Dependabot PR for $HEAD_BRANCH; nothing to do."
+            echo "eligible=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          if [[ "$head_oid" != "$HEAD_SHA" ]]; then
+            echo "Run SHA $HEAD_SHA is not current PR head $head_oid; skipping stale run."
+            echo "eligible=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          if [[ "$base" != "main" && "$base" != "develop" ]]; then
+            echo "PR #$number targets unsupported base $base."
+            echo "eligible=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          echo "eligible=true" >> "$GITHUB_OUTPUT"
+          echo "number=$number" >> "$GITHUB_OUTPUT"
+          echo "base=$base" >> "$GITHUB_OUTPUT"
+          echo "url=$url" >> "$GITHUB_OUTPUT"
+
+      - name: Resolve main-pass metadata
+        id: metadata-run
+        if: steps.pr.outputs.eligible == 'true' && steps.pr.outputs.base == 'main'
+        run: |
+          run_id=""
+          for _ in $(seq 1 30); do
+            run_id=$(gh api --method GET \
+              "repos/$GITHUB_REPOSITORY/actions/workflows/dependabot-metadata.yaml/runs" \
+              -f event=pull_request \
+              -f head_sha="$HEAD_SHA" \
+              -f status=success \
+              -f per_page=10 \
+              --jq '.workflow_runs[0].id // empty')
+            if [[ -n "$run_id" ]]; then
+              break
+            fi
+            sleep 10
+          done
+          if [[ -z "$run_id" ]]; then
+            echo "::error::No successful Dependabot Metadata run for $HEAD_SHA."
+            exit 1
+          fi
+          echo "run-id=$run_id" >> "$GITHUB_OUTPUT"
+
+      - name: Download main-pass metadata
+        if: steps.pr.outputs.eligible == 'true' && steps.pr.outputs.base == 'main'
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: dependabot-metadata-${{ env.HEAD_SHA }}
+          path: ${{ runner.temp }}/dependabot-metadata
+          run-id: ${{ steps.metadata-run.outputs.run-id }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Validate main-pass eligibility
+        id: validation
+        if: steps.pr.outputs.eligible == 'true' && steps.pr.outputs.base == 'main'
+        env:
+          PR_NUMBER: ${{ steps.pr.outputs.number }}
+        run: |
+          metadata="$RUNNER_TEMP/dependabot-metadata/metadata.json"
+          metadata_pr=$(jq -r '.prNumber' "$metadata")
+          metadata_sha=$(jq -r '.headSha' "$metadata")
+          update_type=$(jq -r '.updateType' "$metadata")
+
+          if [[ "$metadata_pr" != "$PR_NUMBER" || "$metadata_sha" != "$HEAD_SHA" ]]; then
+            echo "::error::Metadata does not match PR #$PR_NUMBER at $HEAD_SHA."
+            exit 1
+          fi
+          if [[ "$update_type" != "version-update:semver-patch" && \
+                "$update_type" != "version-update:semver-minor" ]]; then
+            echo "Update type $update_type requires human review."
+            echo "eligible=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          changed=$(gh api --paginate \
+            "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER/files?per_page=100" \
+            --jq '.[].filename' | sort -u)
+          if [[ -z "$changed" ]]; then
+            echo "PR #$PR_NUMBER has an empty change set."
+            echo "eligible=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          outside=$(grep -vE '^packages/twenty-apps/(public|internal)/' \
+            <<< "$changed" || true)
+          if [[ -n "$outside" ]]; then
+            echo "PR #$PR_NUMBER touches paths outside the app scope:"
+            echo "$outside"
+            echo "eligible=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          mkdir -p "$RUNNER_TEMP/dependabot-validation"
+          jq -n \
+            --arg headBranch "$HEAD_BRANCH" \
+            --arg originalHeadSha "$HEAD_SHA" \
+            --argjson prNumber "$PR_NUMBER" \
+            --argjson validationRunId "$GITHUB_RUN_ID" \
+            --arg updateType "$update_type" \
+            '{
+              headBranch: $headBranch,
+              originalHeadSha: $originalHeadSha,
+              prNumber: $prNumber,
+              validationRunId: $validationRunId,
+              updateType: $updateType
+            }' > "$RUNNER_TEMP/dependabot-validation/validation.json"
+          echo "eligible=true" >> "$GITHUB_OUTPUT"
+
+      - name: Upload trusted validation record
+        if: steps.validation.outputs.eligible == 'true'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: dependabot-validation-${{ steps.pr.outputs.number }}-${{ env.HEAD_SHA }}
+          path: ${{ runner.temp }}/dependabot-validation/validation.json
+          retention-days: 1
+
+      - name: Verify PAT is available
+        if: steps.validation.outputs.eligible == 'true'
+        env:
+          PAT: ${{ secrets.DEPENDABOT_AUTOMERGE_PAT }}
+        run: |
+          if [[ -z "$PAT" ]]; then
+            echo "::error::DEPENDABOT_AUTOMERGE_PAT is unavailable."
+            exit 1
+          fi
+
+      - name: Retarget PR to develop
+        if: steps.validation.outputs.eligible == 'true'
+        run: gh pr edit "${{ steps.pr.outputs.url }}" --base develop
+
+      - name: Checkout validated Dependabot head
+        if: steps.validation.outputs.eligible == 'true'
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          ref: ${{ env.HEAD_SHA }}
+          token: ${{ secrets.DEPENDABOT_AUTOMERGE_PAT }}
+
+      - name: Retrigger CI against develop
+        if: steps.validation.outputs.eligible == 'true'
+        run: |
+          remote_sha=$(git ls-remote --heads origin \
+            "refs/heads/$HEAD_BRANCH" | awk '{print $1}')
+          if [[ "$remote_sha" != "$HEAD_SHA" ]]; then
+            echo "::error::Dependabot branch moved from $HEAD_SHA to $remote_sha."
+            exit 1
+          fi
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit --allow-empty \
+            -m "ci: retrigger Dependabot against develop" \
+            -m "Dependabot-Validation-Run: $GITHUB_RUN_ID"
+          git push origin "HEAD:refs/heads/$HEAD_BRANCH"
+
+      - name: Verify develop-pass marker
+        id: retrigger
+        if: steps.pr.outputs.eligible == 'true' && steps.pr.outputs.base == 'develop'
+        run: |
+          commit=$(gh api "repos/$GITHUB_REPOSITORY/commits/$HEAD_SHA")
+          subject=$(jq -r '.commit.message | split("\n")[0]' <<< "$commit")
+          parent_count=$(jq '.parents | length' <<< "$commit")
+          parent_sha=$(jq -r '.parents[0].sha // empty' <<< "$commit")
+          tree_sha=$(jq -r '.commit.tree.sha' <<< "$commit")
+          validation_run_id=$(jq -r '.commit.message' <<< "$commit" \
+            | sed -n 's/^Dependabot-Validation-Run: \([0-9][0-9]*\)$/\1/p' \
+            | tail -1)
+
+          if [[ "$subject" != "ci: retrigger Dependabot against develop" || \
+                "$parent_count" != "1" || -z "$validation_run_id" ]]; then
+            echo "::error::Develop head is not a valid retrigger marker."
+            exit 1
+          fi
+          parent_tree_sha=$(gh api "repos/$GITHUB_REPOSITORY/commits/$parent_sha" \
+            --jq '.commit.tree.sha')
+          if [[ "$tree_sha" != "$parent_tree_sha" ]]; then
+            echo "::error::Retrigger commit is not empty."
+            exit 1
+          fi
+
+          validation_run=$(gh api \
+            "repos/$GITHUB_REPOSITORY/actions/runs/$validation_run_id")
+          run_name=$(jq -r '.name' <<< "$validation_run")
+          run_event=$(jq -r '.event' <<< "$validation_run")
+          run_conclusion=$(jq -r '.conclusion' <<< "$validation_run")
+          run_repository=$(jq -r '.repository.full_name' <<< "$validation_run")
+          if [[ "$run_name" != "Dependabot Auto Merge" || \
+                "$run_event" != "workflow_run" || \
+                "$run_conclusion" != "success" || \
+                "$run_repository" != "$GITHUB_REPOSITORY" ]]; then
+            echo "::error::Validation run $validation_run_id is not trusted."
+            exit 1
+          fi
+
+          echo "original-head-sha=$parent_sha" >> "$GITHUB_OUTPUT"
+          echo "validation-run-id=$validation_run_id" >> "$GITHUB_OUTPUT"
+
+      - name: Download trusted validation record
+        if: steps.retrigger.outcome == 'success'
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: dependabot-validation-${{ steps.pr.outputs.number }}-${{ steps.retrigger.outputs.original-head-sha }}
+          path: ${{ runner.temp }}/dependabot-validation
+          run-id: ${{ steps.retrigger.outputs.validation-run-id }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Verify trusted validation record
+        id: trusted
+        if: steps.retrigger.outcome == 'success'
+        env:
+          ORIGINAL_HEAD_SHA: ${{ steps.retrigger.outputs.original-head-sha }}
+          PR_NUMBER: ${{ steps.pr.outputs.number }}
+          VALIDATION_RUN_ID: ${{ steps.retrigger.outputs.validation-run-id }}
+        run: |
+          validation="$RUNNER_TEMP/dependabot-validation/validation.json"
+          if ! jq -e \
+            --arg headBranch "$HEAD_BRANCH" \
+            --arg originalHeadSha "$ORIGINAL_HEAD_SHA" \
+            --argjson prNumber "$PR_NUMBER" \
+            --argjson validationRunId "$VALIDATION_RUN_ID" \
+            '(.headBranch == $headBranch) and
+             (.originalHeadSha == $originalHeadSha) and
+             (.prNumber == $prNumber) and
+             (.validationRunId == $validationRunId) and
+             (.updateType == "version-update:semver-patch" or
+              .updateType == "version-update:semver-minor")' \
+            "$validation" >/dev/null; then
+            echo "::error::Validation artifact does not match this PR and marker."
+            exit 1
+          fi
+          echo "verified=true" >> "$GITHUB_OUTPUT"
+
+      # Auto-merge waits for every required develop check; the PAT is also
+      # needed so the eventual merge commit triggers the develop deployment.
+      - name: Enable auto-merge
+        if: steps.trusted.outputs.verified == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.DEPENDABOT_AUTOMERGE_PAT }}
+        run: gh pr merge --auto --merge "${{ steps.pr.outputs.url }}"
