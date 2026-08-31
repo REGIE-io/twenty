@@ -75,6 +75,18 @@ accepts E.164 input; national-format input is unambiguous only when accompanied
 by an explicit ISO country code. Query exact lexemes rather than the `:*` prefix
 behavior of generic search.
 
+Do not index separate formatted, national, international, with-plus, and
+without-plus copies. Each valid stored phone produces one canonical key from its
+calling code and national number, and each request is parsed into that same key.
+For example, `+1 (415) 555-2671`, stored parts `+1` and `4155552671`, and an
+E.164 request for `+14155552671` all resolve to the digits `14155552671` before
+field qualification.
+
+Legacy rows that predate the current phone transformer need an explicit rollout
+decision: normalize them during upgrade or add narrowly scoped compatibility
+handling. They should not force permanent duplication of every display format
+in the new index.
+
 ### Field-permission provenance
 
 A single unqualified phone vector would allow a readable record to be surfaced
@@ -168,6 +180,7 @@ phase and assess lock duration before rollout.
 
 - Final person-phone API name and response DTO.
 - E.164-only input versus national input with an explicit ISO country code.
+- Upgrade normalization strategy for legacy, non-canonical stored phones.
 - Field-qualified lexeme encoding.
 - Whether an empty phone vector remains after the last `PHONES` field is removed.
 - Upgrade phase and operational strategy for large existing person tables.

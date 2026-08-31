@@ -37,19 +37,22 @@ only; it is not a generic search endpoint with an optional object or field hint.
 6. The API accepts a valid E.164 number. Supporting a national number requires an
    explicit ISO country code in the request; the API must not silently guess a
    country.
-7. A returned record must have matched an eligible phone value. A value in a
+7. Display variants are not stored in the lookup index. The incoming value and
+   stored phone components are independently normalized to the same canonical
+   E.164-equivalent key.
+8. A returned record must have matched an eligible phone value. A value in a
    name, email, title, postal code, note, or any other non-phone field must never
    produce a result.
-8. The query uses a PostgreSQL index for both hits and misses. It must not invoke
+9. The query uses a PostgreSQL index for both hits and misses. It must not invoke
    the generic search service's `ILIKE` fallback.
-9. An empty indexed result is definitive and returns immediately.
-10. Object-, record-, and field-level read permissions are enforced. A match in a
+10. An empty indexed result is definitive and returns immediately.
+11. Object-, record-, and field-level read permissions are enforced. A match in a
    phone field the caller cannot read must not reveal or return the record.
-11. Result limits and pagination are deterministic and cannot be consumed by
+12. Result limits and pagination are deterministic and cannot be consumed by
     matches from non-phone fields.
-12. Creating, renaming, deleting, activating, deactivating, or changing the type
+13. Creating, renaming, deleting, activating, deactivating, or changing the type
     of a custom field updates its participation without manual database work.
-13. Updating a record's primary or additional phone values updates the searchable
+14. Updating a record's primary or additional phone values updates the searchable
     index as part of the same database write semantics.
 
 ## Non-goals
