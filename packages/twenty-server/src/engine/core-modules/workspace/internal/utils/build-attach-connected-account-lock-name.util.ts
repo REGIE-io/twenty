@@ -1,6 +1,6 @@
 import { type ConnectedAccountProvider } from 'twenty-shared/types';
 
-import { ATTACH_CONNECTED_ACCOUNT_LOCK_PREFIX } from 'src/engine/core-modules/workspace/internal/constants/attach-connected-account-lock.constants';
+import { ATTACH_CONNECTED_ACCOUNT_LOCK_PREFIX } from 'src/engine/core-modules/workspace/internal/constants/internal-connected-account-provisioning.constants';
 
 // Keyed on the same tuple findOrCreateConnectedAccount looks up on, so concurrent attaches
 // for one mailbox serialize while unrelated ones stay parallel.

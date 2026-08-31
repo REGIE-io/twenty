@@ -21,14 +21,16 @@ import {
   type AttachConnectedAccountResult,
   type DetachConnectedAccountResult,
 } from 'src/engine/core-modules/workspace/internal/types/internal-connected-account-provisioning.type';
-import { ACQUIRE_ATTACH_CONNECTED_ACCOUNT_LOCK_STATEMENT } from 'src/engine/core-modules/workspace/internal/constants/attach-connected-account-lock.constants';
+import {
+  ACQUIRE_ATTACH_CONNECTED_ACCOUNT_LOCK_STATEMENT,
+  REGIE_MAILBOX_ID_PARAMETER_KEY,
+} from 'src/engine/core-modules/workspace/internal/constants/internal-connected-account-provisioning.constants';
 import { buildAttachConnectedAccountLockName } from 'src/engine/core-modules/workspace/internal/utils/build-attach-connected-account-lock-name.util';
 import { WorkspaceEntity } from 'src/engine/core-modules/workspace/workspace.entity';
 import { CalendarChannelEntity } from 'src/engine/metadata-modules/calendar-channel/entities/calendar-channel.entity';
 import { ConnectedAccountEntity } from 'src/engine/metadata-modules/connected-account/entities/connected-account.entity';
 import { plaintextStringSchema } from 'src/engine/core-modules/secret-encryption/branded-strings/plaintext-string.type';
 import { ConnectedAccountTokenEncryptionService } from 'src/engine/metadata-modules/connected-account/services/connected-account-token-encryption.service';
-import { REGIE_MAILBOX_ID_PARAMETER_KEY } from 'src/modules/connected-account/token-delegation/utils/get-delegated-mailbox-id.util';
 
 @Injectable()
 export class InternalConnectedAccountProvisioningService {
