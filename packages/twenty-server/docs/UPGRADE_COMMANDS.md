@@ -1,5 +1,7 @@
 # Upgrade Commands
 
+For the Regie stage and production ECS deployment procedure, including the dedicated runner, recovery, mandatory post-upgrade restart, and canaries, see [REGIE_ECS_UPGRADE_RUNBOOK.md](./REGIE_ECS_UPGRADE_RUNBOOK.md).
+
 The upgrade process relies on two types of commands:
 
 - **Instance commands** — schema and data migrations that run once at the instance level (replacing raw TypeORM migrations).
