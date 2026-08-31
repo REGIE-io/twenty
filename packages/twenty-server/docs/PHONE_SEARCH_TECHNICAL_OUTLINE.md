@@ -6,8 +6,9 @@ detailed implementation specification.
 ## Proposed shape
 
 Add a second internal generated `TS_VECTOR` field, tentatively named
-`phoneSearchVector`, to each searchable object that has at least one `PHONES`
-field. Back it with a single-column GIN index.
+`phoneSearchVector`, to the `person` object. Back it with a single-column GIN
+index. Build the field/index machinery from object metadata so it can be reused
+for another object later without making the first public API generic.
 
 The two vectors have separate contracts:
 
@@ -62,8 +63,17 @@ tokens for an arbitrary field name. Each contributing field must cover:
   contract; and
 - each number in the additional-phone value.
 
-The query must use exact lexemes rather than the `:*` prefix behavior of generic
-search. It should OR accepted normalized representations of one input number.
+Twenty's write transformer parses valid phones with `libphonenumber-js`. It
+stores `nationalNumber` in the number column/value and stores or infers the `+`
+country calling code and ISO country code separately for both primary and
+additional phones. The index expression must produce a canonical,
+E.164-equivalent token from calling code plus national number rather than depend
+on the input's display formatting.
+
+The API parser must produce the same canonical token. The initial contract
+accepts E.164 input; national-format input is unambiguous only when accompanied
+by an explicit ISO country code. Query exact lexemes rather than the `:*` prefix
+behavior of generic search.
 
 ### Field-permission provenance
 
@@ -84,11 +94,11 @@ must remain a single lexeme and must not depend on a mutable field name.
 
 ## Query API and service
 
-Add a dedicated resolver/service rather than a flag on generic search. A
+Add a person-specific resolver/service rather than a flag on generic search. A
 tentative request contains:
 
-- target object name or metadata identifier;
 - phone number;
+- optional ISO country code if national-format input is supported;
 - limit; and
 - cursor.
 
@@ -156,8 +166,8 @@ phase and assess lock duration before rollout.
 
 ## Decisions to settle before implementation
 
-- Generic object-scoped versus person-specific public API.
-- Exact normalization and country-context ownership.
+- Final person-phone API name and response DTO.
+- E.164-only input versus national input with an explicit ISO country code.
 - Field-qualified lexeme encoding.
 - Whether an empty phone vector remains after the last `PHONES` field is removed.
 - Upgrade phase and operational strategy for large existing person tables.

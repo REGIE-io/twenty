@@ -15,34 +15,41 @@ entire object table on a routine miss.
 
 ## Goal
 
-Provide an indexed, object-scoped API that finds records by phone number across
-all readable `PHONES` fields on the object, including fields added after the
-object was created.
+Provide a dedicated, indexed API that finds people by phone number across all
+readable `PHONES` fields on the `person` object, including custom phone fields
+added after the object was created. The operation accepts phone lookup input
+only; it is not a generic search endpoint with an optional object or field hint.
 
 ## Functional requirements
 
-1. The caller can specify the target object and phone number. The initial caller
-   is expected to search the `person` object.
-2. Only fields whose metadata type is `PHONES` may contribute matches.
+1. The API searches the `person` object for one phone number. It does not accept
+   an arbitrary search term or caller-selected target object.
+2. Only fields on `person` whose metadata type is `PHONES` may contribute
+   matches.
 3. Every eligible `PHONES` field contributes both its primary phone and all
    additional phones.
 4. Standard and custom `PHONES` fields behave identically.
-5. Phone formatting differences supported by the phone normalization contract
-   must not prevent a match. At minimum, compact international and national
-   representations stored by Twenty must be searchable.
-6. A returned record must have matched an eligible phone value. A value in a
+5. The lookup uses the same phone parsing rules as Twenty's `PHONES` write path.
+   Twenty parses valid input with `libphonenumber-js`, stores the national number
+   in the number subfield, and stores or infers the `+` country calling code and
+   ISO country code separately. The canonical lookup key is the E.164-equivalent
+   concatenation of calling code and national number.
+6. The API accepts a valid E.164 number. Supporting a national number requires an
+   explicit ISO country code in the request; the API must not silently guess a
+   country.
+7. A returned record must have matched an eligible phone value. A value in a
    name, email, title, postal code, note, or any other non-phone field must never
    produce a result.
-7. The query uses a PostgreSQL index for both hits and misses. It must not invoke
+8. The query uses a PostgreSQL index for both hits and misses. It must not invoke
    the generic search service's `ILIKE` fallback.
-8. An empty indexed result is definitive and returns immediately.
-9. Object-, record-, and field-level read permissions are enforced. A match in a
+9. An empty indexed result is definitive and returns immediately.
+10. Object-, record-, and field-level read permissions are enforced. A match in a
    phone field the caller cannot read must not reveal or return the record.
-10. Result limits and pagination are deterministic and cannot be consumed by
+11. Result limits and pagination are deterministic and cannot be consumed by
     matches from non-phone fields.
-11. Creating, renaming, deleting, activating, deactivating, or changing the type
+12. Creating, renaming, deleting, activating, deactivating, or changing the type
     of a custom field updates its participation without manual database work.
-12. Updating a record's primary or additional phone values updates the searchable
+13. Updating a record's primary or additional phone values updates the searchable
     index as part of the same database write semantics.
 
 ## Non-goals
@@ -60,6 +67,8 @@ object was created.
 - A phone stored in the standard additional-phone collection is found.
 - A phone stored in the primary or additional portion of a custom `PHONES` field
   is found after that field is created.
+- An E.164 lookup matches the equivalent calling-code and national-number parts
+  produced by Twenty's phone write transformer.
 - Removing or changing the type of that custom field removes its values from the
   lookup surface.
 - The same digits in a non-phone field do not return the record.
@@ -71,9 +80,10 @@ object was created.
 ## Open product decisions
 
 - Final GraphQL naming and response shape: for example,
-  `searchRecordsByPhone(objectNameSingular, phoneNumber, ...)` versus a
-  person-specific API.
+  `searchPeopleByPhone(phoneNumber, countryCode, ...)` versus
+  `findPeopleByPhone(...)`.
 - Whether results should identify the matching field in addition to the record.
-- The authoritative normalization contract for numbers without a country code.
+- Whether national-format input is needed in the first version; if it is, the
+  request must carry its ISO country context.
 - Whether inactive phone fields should remain searchable for administrative
   workflows; the default requirement is no.
