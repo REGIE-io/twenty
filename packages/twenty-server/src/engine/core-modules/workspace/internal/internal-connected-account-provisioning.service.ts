@@ -1,4 +1,9 @@
-import { BadRequestException, Injectable, Logger } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  InternalServerErrorException,
+  Logger,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 
 import {
@@ -6,7 +11,7 @@ import {
   CalendarChannelVisibility,
 } from 'twenty-shared/types';
 import { isDefined } from 'twenty-shared/utils';
-import { In, Repository } from 'typeorm';
+import { type EntityManager, In, Repository } from 'typeorm';
 
 import { CreateCalendarChannelService } from 'src/engine/core-modules/auth/services/create-calendar-channel.service';
 import { UserWorkspaceEntity } from 'src/engine/core-modules/user-workspace/user-workspace.entity';
@@ -16,6 +21,8 @@ import {
   type AttachConnectedAccountResult,
   type DetachConnectedAccountResult,
 } from 'src/engine/core-modules/workspace/internal/types/internal-connected-account-provisioning.type';
+import { ACQUIRE_ATTACH_CONNECTED_ACCOUNT_LOCK_STATEMENT } from 'src/engine/core-modules/workspace/internal/constants/attach-connected-account-lock.constants';
+import { buildAttachConnectedAccountLockName } from 'src/engine/core-modules/workspace/internal/utils/build-attach-connected-account-lock-name.util';
 import { WorkspaceEntity } from 'src/engine/core-modules/workspace/workspace.entity';
 import { CalendarChannelEntity } from 'src/engine/metadata-modules/calendar-channel/entities/calendar-channel.entity';
 import { ConnectedAccountEntity } from 'src/engine/metadata-modules/connected-account/entities/connected-account.entity';
@@ -48,9 +55,14 @@ export class InternalConnectedAccountProvisioningService {
    * Records a Regie-provisioned mailbox here, with its tokens, and gives it a calendar
    * channel.
    *
-   * Not transactional by design: a failure between the two writes leaves a connected
-   * account with no channel, which is inert — every sync job selects on channels — and
-   * the next attach reuses it. Keyed lookups make the whole call idempotent.
+   * Both writes run in one transaction, serialized per mailbox by an advisory lock. Attach
+   * is driven by a user toggle, so a double-click or a retried call can arrive twice at
+   * once, and neither table has a unique constraint to fall back on. Keyed lookups make a
+   * sequential retry idempotent; the lock is what makes a concurrent one safe.
+   *
+   * The transaction is taken from the repository's own manager: calendarChannel is a core
+   * entity, and the global workspace datasource resolves workspace entities by string name,
+   * so handing it a class throws "Entity target must be a string".
    */
   async attachConnectedAccount(
     input: AttachConnectedAccountInput,
@@ -59,17 +71,49 @@ export class InternalConnectedAccountProvisioningService {
 
     const userWorkspaceId = await this.resolveUserWorkspaceId(input);
 
-    const { connectedAccount, created: accountCreated } =
-      await this.findOrCreateConnectedAccount(input, userWorkspaceId);
+    return this.connectedAccountRepository.manager.transaction(
+      async (transactionManager) => {
+        const transactionQueryRunner = transactionManager.queryRunner;
 
-    const { calendarChannelId, created: channelCreated } =
-      await this.findOrCreateCalendarChannel(input, connectedAccount.id);
+        if (!isDefined(transactionQueryRunner)) {
+          throw new InternalServerErrorException(
+            'Attaching a connected account requires a transaction-scoped entity manager.',
+          );
+        }
 
-    return {
-      connectedAccountId: connectedAccount.id,
-      calendarChannelId,
-      created: accountCreated || channelCreated,
-    };
+        await transactionQueryRunner.query(
+          ACQUIRE_ATTACH_CONNECTED_ACCOUNT_LOCK_STATEMENT,
+          [
+            buildAttachConnectedAccountLockName({
+              workspaceId: input.workspaceId,
+              userWorkspaceId,
+              provider: input.provider,
+              handle: input.handle,
+            }),
+          ],
+        );
+
+        const { connectedAccount, created: accountCreated } =
+          await this.findOrCreateConnectedAccount(
+            input,
+            userWorkspaceId,
+            transactionManager,
+          );
+
+        const { calendarChannelId, created: channelCreated } =
+          await this.findOrCreateCalendarChannel(
+            input,
+            connectedAccount.id,
+            transactionManager,
+          );
+
+        return {
+          connectedAccountId: connectedAccount.id,
+          calendarChannelId,
+          created: accountCreated || channelCreated,
+        };
+      },
+    );
   }
 
   /**
@@ -154,8 +198,13 @@ export class InternalConnectedAccountProvisioningService {
   private async findOrCreateConnectedAccount(
     input: AttachConnectedAccountInput,
     userWorkspaceId: string,
+    transactionManager: EntityManager,
   ): Promise<{ connectedAccount: ConnectedAccountEntity; created: boolean }> {
-    const existing = await this.connectedAccountRepository.findOneBy({
+    const connectedAccountRepository = transactionManager.getRepository(
+      ConnectedAccountEntity,
+    );
+
+    const existing = await connectedAccountRepository.findOneBy({
       workspaceId: input.workspaceId,
       userWorkspaceId,
       provider: input.provider,
@@ -175,7 +224,7 @@ export class InternalConnectedAccountProvisioningService {
     if (isDefined(existing)) {
       // Re-attaching replaces the stored grant: Regie may have reconnected the mailbox,
       // and the previous tokens could belong to a revoked consent.
-      await this.connectedAccountRepository.update(
+      await connectedAccountRepository.update(
         { id: existing.id, workspaceId: input.workspaceId },
         {
           connectionParameters: {
@@ -193,15 +242,16 @@ export class InternalConnectedAccountProvisioningService {
         },
       );
 
-      const refreshed = await this.connectedAccountRepository.findOneByOrFail({
+      const refreshed = await connectedAccountRepository.findOneByOrFail({
         id: existing.id,
+        workspaceId: input.workspaceId,
       });
 
       return { connectedAccount: refreshed, created: false };
     }
 
-    const saved = await this.connectedAccountRepository.save(
-      this.connectedAccountRepository.create({
+    const saved = await connectedAccountRepository.save(
+      connectedAccountRepository.create({
         workspaceId: input.workspaceId,
         userWorkspaceId,
         provider: input.provider,
@@ -224,8 +274,13 @@ export class InternalConnectedAccountProvisioningService {
   private async findOrCreateCalendarChannel(
     input: AttachConnectedAccountInput,
     connectedAccountId: string,
+    transactionManager: EntityManager,
   ): Promise<{ calendarChannelId: string; created: boolean }> {
-    const existing = await this.calendarChannelRepository.findOneBy({
+    const calendarChannelRepository = transactionManager.getRepository(
+      CalendarChannelEntity,
+    );
+
+    const existing = await calendarChannelRepository.findOneBy({
       connectedAccountId,
       workspaceId: input.workspaceId,
     });
@@ -244,7 +299,7 @@ export class InternalConnectedAccountProvisioningService {
       // Re-enabled rather than replaced, so the stored sync cursor survives and turning
       // sync back on does not force a full resync.
       if (!existing.isSyncEnabled || isFailed) {
-        await this.calendarChannelRepository.update(
+        await calendarChannelRepository.update(
           { id: existing.id, workspaceId: input.workspaceId },
           {
             isSyncEnabled: true,
@@ -265,28 +320,22 @@ export class InternalConnectedAccountProvisioningService {
       return { calendarChannelId: existing.id, created: false };
     }
 
-    // The transaction has to come from the repository's own manager. calendarChannel is
-    // a core entity, and the global workspace datasource resolves workspace entities by
-    // string name — handing it a class throws "Entity target must be a string".
     const calendarChannelId =
-      await this.calendarChannelRepository.manager.transaction(
-        async (transactionManager) =>
-          this.createCalendarChannelService.createCalendarChannel({
-            workspaceId: input.workspaceId,
-            connectedAccountId,
-            handle: input.handle,
-            // Twenty's visibility model assumes Twenty is the frontend: under METADATA
-            // plus an API key, a user's own meeting titles come back redacted. Regie is
-            // the only frontend and enforces privacy itself.
-            calendarVisibility:
-              input.calendarVisibility ??
-              CalendarChannelVisibility.SHARE_EVERYTHING,
-            // Regie owns email, so no message channel is configured. That also starts the
-            // channel ready to fetch rather than pending configuration.
-            skipMessageChannelConfiguration: true,
-            transactionManager,
-          }),
-      );
+      await this.createCalendarChannelService.createCalendarChannel({
+        workspaceId: input.workspaceId,
+        connectedAccountId,
+        handle: input.handle,
+        // Twenty's visibility model assumes Twenty is the frontend: under METADATA
+        // plus an API key, a user's own meeting titles come back redacted. Regie is
+        // the only frontend and enforces privacy itself.
+        calendarVisibility:
+          input.calendarVisibility ??
+          CalendarChannelVisibility.SHARE_EVERYTHING,
+        // Regie owns email, so no message channel is configured. That also starts the
+        // channel ready to fetch rather than pending configuration.
+        skipMessageChannelConfiguration: true,
+        transactionManager,
+      });
 
     return { calendarChannelId, created: true };
   }
