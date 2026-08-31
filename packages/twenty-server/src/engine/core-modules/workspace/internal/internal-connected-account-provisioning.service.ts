@@ -1,7 +1,10 @@
 import { BadRequestException, Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 
-import { CalendarChannelVisibility } from 'twenty-shared/types';
+import {
+  CalendarChannelSyncStage,
+  CalendarChannelVisibility,
+} from 'twenty-shared/types';
 import { isDefined } from 'twenty-shared/utils';
 import { In, Repository } from 'typeorm';
 
@@ -16,7 +19,8 @@ import {
 import { WorkspaceEntity } from 'src/engine/core-modules/workspace/workspace.entity';
 import { CalendarChannelEntity } from 'src/engine/metadata-modules/calendar-channel/entities/calendar-channel.entity';
 import { ConnectedAccountEntity } from 'src/engine/metadata-modules/connected-account/entities/connected-account.entity';
-import { ConnectedAccountRefreshTokensService } from 'src/modules/connected-account/refresh-tokens-manager/services/connected-account-refresh-tokens.service';
+import { plaintextStringSchema } from 'src/engine/core-modules/secret-encryption/branded-strings/plaintext-string.type';
+import { ConnectedAccountTokenEncryptionService } from 'src/engine/metadata-modules/connected-account/services/connected-account-token-encryption.service';
 import { REGIE_MAILBOX_ID_PARAMETER_KEY } from 'src/modules/connected-account/token-delegation/utils/get-delegated-mailbox-id.util';
 
 @Injectable()
@@ -37,17 +41,16 @@ export class InternalConnectedAccountProvisioningService {
     @InjectRepository(CalendarChannelEntity)
     private readonly calendarChannelRepository: Repository<CalendarChannelEntity>,
     private readonly createCalendarChannelService: CreateCalendarChannelService,
-    private readonly connectedAccountRefreshTokensService: ConnectedAccountRefreshTokensService,
+    private readonly connectedAccountTokenEncryptionService: ConnectedAccountTokenEncryptionService,
   ) {}
 
   /**
-   * Records a Regie-owned mailbox here and gives it a calendar channel.
+   * Records a Regie-provisioned mailbox here, with its tokens, and gives it a calendar
+   * channel.
    *
-   * Not transactional by design: the delegation check in the middle is an HTTP call to
-   * Regie that itself writes, and holding a transaction open across it would trade a
-   * harmless orphan record for real lock contention. A failed check leaves a connected
+   * Not transactional by design: a failure between the two writes leaves a connected
    * account with no channel, which is inert — every sync job selects on channels — and
-   * the next attach reuses it.
+   * the next attach reuses it. Keyed lookups make the whole call idempotent.
    */
   async attachConnectedAccount(
     input: AttachConnectedAccountInput,
@@ -58,10 +61,6 @@ export class InternalConnectedAccountProvisioningService {
 
     const { connectedAccount, created: accountCreated } =
       await this.findOrCreateConnectedAccount(input, userWorkspaceId);
-
-    if (input.verifyTokenDelegation !== false) {
-      await this.verifyTokenDelegation(connectedAccount, input.workspaceId);
-    }
 
     const { calendarChannelId, created: channelCreated } =
       await this.findOrCreateCalendarChannel(input, connectedAccount.id);
@@ -163,12 +162,19 @@ export class InternalConnectedAccountProvisioningService {
       handle: input.handle,
     });
 
+    // Tokens are encrypted with the workspace's key, exactly as Twenty's own OAuth
+    // callback does. From here the account is indistinguishable from a natively
+    // connected one and refreshes through the stock path.
+    const { encryptedAccessToken, encryptedRefreshToken } =
+      this.connectedAccountTokenEncryptionService.encryptTokenPair({
+        accessToken: plaintextStringSchema.parse(input.accessToken),
+        refreshToken: plaintextStringSchema.parse(input.refreshToken),
+        workspaceId: input.workspaceId,
+      });
+
     if (isDefined(existing)) {
-      // Marking an account delegated must also revoke Twenty's ability to act on its
-      // own. An account connected through Twenty's OAuth keeps a usable refresh token,
-      // and the Google client would take that branch and refresh independently — the
-      // double-refresh delegation exists to prevent. Clearing the anchor forces the
-      // first delegated resolution now rather than up to an hour from now.
+      // Re-attaching replaces the stored grant: Regie may have reconnected the mailbox,
+      // and the previous tokens could belong to a revoked consent.
       await this.connectedAccountRepository.update(
         { id: existing.id, workspaceId: input.workspaceId },
         {
@@ -176,13 +182,17 @@ export class InternalConnectedAccountProvisioningService {
             ...(existing.connectionParameters ?? {}),
             [REGIE_MAILBOX_ID_PARAMETER_KEY]: input.regieMailboxId,
           },
-          accessToken: null,
-          refreshToken: null,
+          accessToken: encryptedAccessToken,
+          refreshToken: encryptedRefreshToken,
+          // Cleared so the next sync refreshes rather than trusting an anchor that
+          // belongs to the tokens just replaced.
           lastCredentialsRefreshedAt: null,
+          // A past auth failure describes the grant we just replaced, exactly as
+          // Twenty's own reconnect path clears it.
+          authFailedAt: null,
         },
       );
 
-      // Re-read so the delegation check below sees the marker just written.
       const refreshed = await this.connectedAccountRepository.findOneByOrFail({
         id: existing.id,
       });
@@ -196,8 +206,8 @@ export class InternalConnectedAccountProvisioningService {
         userWorkspaceId,
         provider: input.provider,
         handle: input.handle,
-        accessToken: null,
-        refreshToken: null,
+        accessToken: encryptedAccessToken,
+        refreshToken: encryptedRefreshToken,
         connectionParameters: {
           [REGIE_MAILBOX_ID_PARAMETER_KEY]: input.regieMailboxId,
         },
@@ -205,7 +215,7 @@ export class InternalConnectedAccountProvisioningService {
     );
 
     this.logger.log(
-      `Attached delegated connected account ${saved.id} (${input.provider}) in workspace ${input.workspaceId}`,
+      `Attached connected account ${saved.id} (${input.provider}) in workspace ${input.workspaceId}`,
     );
 
     return { connectedAccount: saved, created: true };
@@ -221,12 +231,34 @@ export class InternalConnectedAccountProvisioningService {
     });
 
     if (isDefined(existing)) {
+      // A failed channel is additionally moved back to fetch-pending, because attach is
+      // where a fresh grant arrives and nothing else will revive it: the list-fetch cron
+      // selects on the pending stage, and the relaunch cron takes FAILED_UNKNOWN only.
+      //
+      // Gated on FAILED rather than applied always. Twenty's own reconnect resets
+      // unconditionally, but it runs only on a real re-consent, whereas attach runs on
+      // every enable — resetting here would wipe the cursor on each toggle and could
+      // rewrite the stage under a job that is still running.
+      const isFailed = existing.syncStage === CalendarChannelSyncStage.FAILED;
+
       // Re-enabled rather than replaced, so the stored sync cursor survives and turning
       // sync back on does not force a full resync.
-      if (!existing.isSyncEnabled) {
+      if (!existing.isSyncEnabled || isFailed) {
         await this.calendarChannelRepository.update(
           { id: existing.id, workspaceId: input.workspaceId },
-          { isSyncEnabled: true },
+          {
+            isSyncEnabled: true,
+            // syncStatus is left alone deliberately: the stock transitions overwrite it
+            // on the next fetch, and upstream's reset leaves it untouched too.
+            ...(isFailed
+              ? {
+                  syncStage:
+                    CalendarChannelSyncStage.CALENDAR_EVENT_LIST_FETCH_PENDING,
+                  syncStageStartedAt: null,
+                  throttleFailureCount: 0,
+                }
+              : {}),
+          },
         );
       }
 
@@ -257,25 +289,5 @@ export class InternalConnectedAccountProvisioningService {
       );
 
     return { calendarChannelId, created: true };
-  }
-
-  // Resolving tokens exercises the whole handshake: the secret, reachability, the
-  // mailbox existing on Regie's side, and the grant still being alive.
-  private async verifyTokenDelegation(
-    connectedAccount: ConnectedAccountEntity,
-    workspaceId: string,
-  ): Promise<void> {
-    try {
-      await this.connectedAccountRefreshTokensService.resolveTokens(
-        connectedAccount,
-        workspaceId,
-      );
-    } catch (error) {
-      throw new BadRequestException(
-        `Token delegation check failed for ${connectedAccount.handle} (mailbox ${connectedAccount.connectionParameters?.[REGIE_MAILBOX_ID_PARAMETER_KEY]}): ${
-          error instanceof Error ? error.message : 'unknown error'
-        }`,
-      );
-    }
   }
 }

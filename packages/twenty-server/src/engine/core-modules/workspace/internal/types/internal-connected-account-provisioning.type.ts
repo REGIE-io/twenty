@@ -11,8 +11,11 @@ export type AttachConnectedAccountInput = {
   // the handle: a rep may connect a mailbox that is not their login address.
   memberEmail: string;
   regieMailboxId: string;
+  // Regie owns the OAuth grant and hands both tokens over at attach. Twenty then refreshes
+  // through its own stock path, exactly as it would for a natively connected account.
+  accessToken: string;
+  refreshToken: string;
   calendarVisibility?: CalendarChannelVisibility;
-  verifyTokenDelegation?: boolean;
 };
 
 export type AttachConnectedAccountResult = {

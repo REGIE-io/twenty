@@ -31,6 +31,7 @@ import { InternalMetadataTokenGuard } from 'src/engine/core-modules/workspace/in
 import { CreateCalendarChannelService } from 'src/engine/core-modules/auth/services/create-calendar-channel.service';
 import { CalendarChannelEntity } from 'src/engine/metadata-modules/calendar-channel/entities/calendar-channel.entity';
 import { ConnectedAccountEntity } from 'src/engine/metadata-modules/connected-account/entities/connected-account.entity';
+import { ConnectedAccountTokenEncryptionModule } from 'src/engine/metadata-modules/connected-account/services/connected-account-token-encryption.module';
 import { RefreshTokensManagerModule } from 'src/modules/connected-account/refresh-tokens-manager/connected-account-refresh-tokens-manager.module';
 import { InternalConnectedAccountProvisioningController } from 'src/engine/core-modules/workspace/internal/internal-connected-account-provisioning.controller';
 import { InternalConnectedAccountProvisioningService } from 'src/engine/core-modules/workspace/internal/internal-connected-account-provisioning.service';
@@ -91,6 +92,7 @@ import { WorkspaceMigrationModule } from 'src/engine/workspace-manager/workspace
     SdkClientModule,
     CompanyEnrichmentModule,
     RefreshTokensManagerModule,
+    ConnectedAccountTokenEncryptionModule,
   ],
   controllers: [
     InternalWorkspaceMemberProvisioningController,

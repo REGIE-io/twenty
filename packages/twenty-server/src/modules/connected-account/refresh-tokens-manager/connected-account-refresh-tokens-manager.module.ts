@@ -8,7 +8,6 @@ import { ConnectedAccountTokenEncryptionModule } from 'src/engine/metadata-modul
 import { GoogleAPIRefreshAccessTokenModule } from 'src/modules/connected-account/refresh-tokens-manager/drivers/google/google-api-refresh-access-token.module';
 import { MicrosoftAPIRefreshAccessTokenModule } from 'src/modules/connected-account/refresh-tokens-manager/drivers/microsoft/microsoft-api-refresh-access-token.module';
 import { ConnectedAccountRefreshTokensService } from 'src/modules/connected-account/refresh-tokens-manager/services/connected-account-refresh-tokens.service';
-import { RegieTokenServiceClient } from 'src/modules/connected-account/token-delegation/services/regie-token-service.client';
 
 @Module({
   imports: [
@@ -19,7 +18,7 @@ import { RegieTokenServiceClient } from 'src/modules/connected-account/token-del
     AppOAuthRefreshModule,
     ConnectedAccountTokenEncryptionModule,
   ],
-  providers: [ConnectedAccountRefreshTokensService, RegieTokenServiceClient],
+  providers: [ConnectedAccountRefreshTokensService],
   exports: [ConnectedAccountRefreshTokensService],
 })
 export class RefreshTokensManagerModule {}

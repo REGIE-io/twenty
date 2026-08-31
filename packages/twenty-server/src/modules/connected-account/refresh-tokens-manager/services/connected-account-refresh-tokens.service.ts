@@ -16,8 +16,6 @@ import {
 import { ConnectedAccountTokenEncryptionService } from 'src/engine/metadata-modules/connected-account/services/connected-account-token-encryption.service';
 import { GoogleAPIRefreshAccessTokenService } from 'src/modules/connected-account/refresh-tokens-manager/drivers/google/services/google-api-refresh-tokens.service';
 import { MicrosoftAPIRefreshAccessTokenService } from 'src/modules/connected-account/refresh-tokens-manager/drivers/microsoft/services/microsoft-api-refresh-tokens.service';
-import { RegieTokenServiceClient } from 'src/modules/connected-account/token-delegation/services/regie-token-service.client';
-import { getDelegatedMailboxId } from 'src/modules/connected-account/token-delegation/utils/get-delegated-mailbox-id.util';
 
 // Tokens flowing through this service can be in two states depending on
 // where they enter the pipeline. We model both shapes explicitly so the
@@ -50,7 +48,6 @@ export class ConnectedAccountRefreshTokensService {
     private readonly microsoftAPIRefreshAccessTokenService: MicrosoftAPIRefreshAccessTokenService,
     private readonly appOAuthRefreshAccessTokenService: AppOAuthRefreshAccessTokenService,
     private readonly connectedAccountTokenEncryptionService: ConnectedAccountTokenEncryptionService,
-    private readonly regieTokenServiceClient: RegieTokenServiceClient,
     @InjectRepository(ConnectedAccountEntity)
     private readonly connectedAccountRepository: Repository<ConnectedAccountEntity>,
   ) {}
@@ -70,18 +67,6 @@ export class ConnectedAccountRefreshTokensService {
       return this.getExistingEncryptedTokens(connectedAccount, workspaceId);
     }
 
-    // Must precede the refresh-token guard: a delegated account holds no refresh token
-    // by design, so the guard below would reject it before we ever ask Regie.
-    const delegatedMailboxId = getDelegatedMailboxId(connectedAccount);
-
-    if (isDefined(delegatedMailboxId)) {
-      return this.resolveDelegatedTokens(
-        connectedAccount,
-        delegatedMailboxId,
-        workspaceId,
-      );
-    }
-
     const encryptedRefreshToken = connectedAccount.refreshToken;
 
     if (!isDefined(encryptedRefreshToken)) {
@@ -99,53 +84,6 @@ export class ConnectedAccountRefreshTokensService {
       connectedAccount,
       encryptedRefreshToken,
       workspaceId,
-    );
-  }
-
-  // Regie owns the grant for these accounts and stays the only party that ever spends
-  // the refresh token. We borrow a short-lived access token instead, which is what makes
-  // single-use Microsoft refresh tokens safe across two systems.
-  private async resolveDelegatedTokens(
-    connectedAccount: ConnectedAccountEntity,
-    mailboxId: string,
-    workspaceId: string,
-  ): Promise<ConnectedAccountTokens> {
-    this.logger.debug(
-      `Delegating token resolution to Regie for connected account ${connectedAccount.id.slice(0, 7)} in workspace ${workspaceId.slice(0, 7)}`,
-    );
-
-    const delegated = await this.regieTokenServiceClient.fetchAccessToken({
-      mailboxId,
-      connectedAccountId: connectedAccount.id,
-    });
-
-    const encryptedAccessToken =
-      this.connectedAccountTokenEncryptionService.encrypt({
-        plaintext: delegated.accessToken,
-        workspaceId,
-      });
-
-    await this.connectedAccountRepository.update(
-      { id: connectedAccount.id, workspaceId },
-      {
-        accessToken: encryptedAccessToken,
-        lastCredentialsRefreshedAt: this.toValidityAnchor(delegated.expiresAt),
-      },
-    );
-
-    return { accessToken: encryptedAccessToken, refreshToken: null };
-  }
-
-  // isAccessTokenStillValid measures staleness as "refreshed within the assumed
-  // lifetime". Back-dating the anchor to expiry-minus-lifetime expresses Regie's real
-  // expiry in those terms, so the existing validity check needs no delegation branch.
-  private toValidityAnchor(expiresAt: Date | null): Date {
-    if (!isDefined(expiresAt)) {
-      return new Date();
-    }
-
-    return new Date(
-      expiresAt.getTime() - CONNECTED_ACCOUNT_ACCESS_TOKEN_EXPIRATION,
     );
   }
 

@@ -1,6 +1,5 @@
 import { Transform } from 'class-transformer';
 import {
-  IsBoolean,
   IsEmail,
   IsIn,
   IsNotEmpty,
@@ -39,13 +38,17 @@ export class AttachConnectedAccountDto {
   @IsNotEmpty()
   regieMailboxId: string;
 
+  // Regie owns the OAuth grant; Twenty stores these and refreshes them itself. Required,
+  // because an account saved without them cannot sync and fails only at the next cron.
+  @IsString()
+  @IsNotEmpty()
+  accessToken: string;
+
+  @IsString()
+  @IsNotEmpty()
+  refreshToken: string;
+
   @IsOptional()
   @IsIn(Object.values(CalendarChannelVisibility))
   calendarVisibility?: CalendarChannelVisibility;
-
-  // Defaults to true in the service. Resolving a token during attach turns a
-  // misconfiguration into a loud failure here rather than a silent one at sync time.
-  @IsOptional()
-  @IsBoolean()
-  verifyTokenDelegation?: boolean;
 }

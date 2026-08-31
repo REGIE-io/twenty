@@ -47,35 +47,24 @@ export class GoogleOAuth2ClientProvider {
       );
     }
 
-    const {
-      accessToken: encryptedAccessToken,
-      refreshToken: encryptedRefreshToken,
-    } = await this.connectedAccountRefreshTokensService.resolveTokens(
-      connectedAccount,
-      connectedAccount.workspaceId,
-    );
+    const { refreshToken: encryptedRefreshToken } =
+      await this.connectedAccountRefreshTokensService.resolveTokens(
+        connectedAccount,
+        connectedAccount.workspaceId,
+      );
 
-    // A delegated account holds no refresh token: Regie owns the grant and vends a
-    // short-lived access token per cycle. Crediting the client with that token instead
-    // also stops googleapis refreshing on its own, which is the point of delegating.
-    const encryptedCredential = encryptedRefreshToken ?? encryptedAccessToken;
-
-    if (!isDefined(encryptedCredential)) {
+    if (!isDefined(encryptedRefreshToken)) {
       throw new ConnectedAccountRefreshAccessTokenException(
-        `No usable credential for connected account ${connectedAccountId}`,
+        `Refresh token missing for connected account ${connectedAccountId}`,
         ConnectedAccountRefreshAccessTokenExceptionCode.REFRESH_TOKEN_NOT_FOUND,
       );
     }
 
-    const plaintextCredential =
+    const plaintextRefreshToken =
       this.connectedAccountTokenEncryptionService.decrypt({
-        ciphertext: encryptedCredential,
+        ciphertext: encryptedRefreshToken,
         workspaceId: connectedAccount.workspaceId,
       });
-
-    const credentials = isDefined(encryptedRefreshToken)
-      ? { refresh_token: plaintextCredential }
-      : { access_token: plaintextCredential };
 
     const clientId = this.twentyConfigService.get('AUTH_GOOGLE_CLIENT_ID');
     const clientSecret = this.twentyConfigService.get(
@@ -89,7 +78,7 @@ export class GoogleOAuth2ClientProvider {
         transporterOptions: { fetchImplementation: fetch },
       });
 
-      oAuth2Client.setCredentials(credentials);
+      oAuth2Client.setCredentials({ refresh_token: plaintextRefreshToken });
 
       return oAuth2Client;
     } catch (error) {

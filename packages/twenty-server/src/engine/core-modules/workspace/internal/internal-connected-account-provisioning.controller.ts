@@ -48,8 +48,9 @@ export class InternalConnectedAccountProvisioningController {
         handle: body.handle,
         memberEmail: body.memberEmail,
         regieMailboxId: body.regieMailboxId,
+        accessToken: body.accessToken,
+        refreshToken: body.refreshToken,
         calendarVisibility: body.calendarVisibility,
-        verifyTokenDelegation: body.verifyTokenDelegation,
       },
     );
   }
