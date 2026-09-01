@@ -8,9 +8,10 @@
  */
 
 export { eachTestingContextFilter } from './EachTestingContextFilter';
+export type { PhoneSearchCanonicalizationFixture } from './phone-search-canonicalization.fixtures';
 export {
-  malformedPhoneSearchInputs,
   phoneSearchCanonicalizationFixtures,
+  malformedPhoneSearchInputs,
 } from './phone-search-canonicalization.fixtures';
 export type { EachTestingContext } from './types/EachTestingContext.type';
 export type { SuccessfulAndFailingTestCases } from './types/SuccessfulAndFailingTestCases';
