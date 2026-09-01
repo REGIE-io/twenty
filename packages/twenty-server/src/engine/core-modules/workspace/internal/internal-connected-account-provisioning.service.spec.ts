@@ -457,6 +457,18 @@ describe('InternalConnectedAccountProvisioningService', () => {
         createCalendarChannelService.createCalendarChannel,
       ).not.toHaveBeenCalled();
     });
+
+    it('creates the channel with contact auto-creation off', async () => {
+      const { service, createCalendarChannelService } = makeServiceHarness();
+
+      await service.attachConnectedAccount(ATTACH_INPUT);
+
+      expect(
+        createCalendarChannelService.createCalendarChannel,
+      ).toHaveBeenCalledWith(
+        expect.objectContaining({ isContactAutoCreationEnabled: false }),
+      );
+    });
   });
 
   describe('detachConnectedAccount', () => {
