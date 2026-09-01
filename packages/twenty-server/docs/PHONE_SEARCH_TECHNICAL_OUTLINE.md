@@ -308,11 +308,57 @@ column, then recreates its GIN index. On a large Person table that rewrites data
 and takes locks. Rollout should use normal slow-upgrade observability and be
 benchmarked on a representative large workspace before enabling broadly.
 
-No separate record backfill is needed: adding the stored generated column
-computes values for existing rows. A preflight/report should count legacy phone
-values missing either calling code or normalized national number; those rows
-will intentionally not match until normalized rather than causing permanent
-display-format tokens in the index.
+#### When current values are indexed
+
+There are two upgrade artifacts with different responsibilities:
+
+- The fast instance upgrade changes the core `SearchFieldMetadata` constraint
+  and installs the immutable phone-token SQL helper. It does not scan workspace
+  Person records or build their indexes.
+- The idempotent slow workspace command adds the desired metadata to each
+  workspace and passes it to the normal workspace migration runner. That schema
+  migration is what indexes current record values.
+
+For an existing workspace, the runner first adds/rebuilds the stored generated
+`phoneSearchVector` column. PostgreSQL evaluates its expression for every
+existing Person row, including values in every active standard or custom
+`PHONES` field. The runner then creates/recreates the GIN index over those
+computed vectors. Thus existing primary and additional phone values are indexed
+during the workspace upgrade itself.
+
+This does not require a separate application data-copy or row-by-row backfill
+script. The generated-column creation is the backfill, and GIN construction is
+the indexing pass. Both are table-wide operations, which is why the workspace
+command belongs in the slow phase.
+
+The other lifecycle cases behave as follows:
+
+- A fresh workspace creates Person with the generated column and GIN index as
+  part of its initial schema, before it has user records.
+- A newly created custom `PHONES` field starts with null columns on existing
+  records. Adding its contribution still rebuilds the generated column/index
+  across the Person table, but there are no historical values for that new
+  field to migrate. Values written later are maintained automatically.
+- An active custom `PHONES` field that predates this feature can already contain
+  values. The workspace upgrade discovers it, adds its contribution, and the
+  same generated-column/index pass includes its current values.
+- Renaming, deactivating, reactivating, deleting, or adding a contributing field
+  changes the generated expression and therefore triggers the current
+  drop/re-add/reindex path. Reactivation indexes values that remained stored
+  while the field was inactive.
+- Ordinary record writes after provisioning do not rebuild the whole index.
+  PostgreSQL recomputes the generated value for the affected row and updates the
+  GIN index transactionally.
+- Deleting and recreating a field does not migrate its old values. Field deletion
+  drops the old physical columns; the newly created field begins empty and must
+  be populated normally.
+
+A preflight/report should count legacy phone values missing either calling code
+or normalized national number. Those values cannot produce the canonical token.
+If supporting them is required, use a separate, explicit normalization data
+command; once it updates a row, PostgreSQL updates the generated vector and GIN
+entry automatically. Do not add a general display-format backfill to the phone
+index.
 
 ### 8. Suggested implementation order
 
@@ -331,7 +377,8 @@ it and maintains the GIN index when any referenced primary or additional phone
 column changes. No application-level record-write hook should be required.
 
 Metadata changes still require rebuilding the generated expression because the
-set of referenced physical columns has changed.
+set of referenced physical columns has changed. In the current migration
+runner, that rebuild is table-wide; record-value changes are row-local.
 
 ## Detailed test model
 
