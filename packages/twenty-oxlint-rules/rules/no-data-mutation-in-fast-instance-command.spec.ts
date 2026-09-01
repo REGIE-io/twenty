@@ -56,6 +56,11 @@ ruleTester.run(RULE_NAME, rule, {
       filename: FAST_FILE,
       code: `class C { async up(q) { await q.query(\`CREATE PROCEDURE sync_x() LANGUAGE plpgsql AS \$body\$ BEGIN DELETE FROM core."x"; END \$body\$\`); } }`,
     },
+    // Referential actions in anonymous DDL blocks are not immediate DML.
+    {
+      filename: FAST_FILE,
+      code: `class C { async up(q) { await q.query(\`DO \$\$ BEGIN ALTER TABLE core."x" ADD CONSTRAINT "fk" FOREIGN KEY ("parentId") REFERENCES core."parent"(id) ON DELETE CASCADE; END \$\$\`); } }`,
+    },
     // Rollback DML lives in down() and is allowed (incl. via a CTE).
     {
       filename: FAST_FILE,
