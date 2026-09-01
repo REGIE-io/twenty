@@ -1,4 +1,5 @@
 import { STANDARD_OBJECTS } from 'twenty-shared/metadata';
+import { FieldMetadataType } from 'twenty-shared/types';
 
 import { IndexType } from 'src/engine/metadata-modules/index-metadata/types/indexType.types';
 import { computeTwentyStandardApplicationAllFlatEntityMaps } from 'src/engine/workspace-manager/twenty-standard-application/utils/twenty-standard-application-all-flat-entity-maps.constant';
@@ -56,5 +57,52 @@ describe('Person standard metadata build', () => {
         flatFieldMetadataMaps: allFlatEntityMaps.flatFieldMetadataMaps,
       }),
     ).toEqual(['phonesPrimaryPhoneNumber']);
+  });
+
+  it('provisions the hidden Person phone vector, its GIN index, and the standard phone contribution', () => {
+    const vectorUniversalIdentifier =
+      STANDARD_OBJECTS.person.fields.phoneSearchVector.universalIdentifier;
+    const vector =
+      allFlatEntityMaps.flatFieldMetadataMaps.byUniversalIdentifier[
+        vectorUniversalIdentifier
+      ];
+    const phoneIndex =
+      allFlatEntityMaps.flatIndexMaps.byUniversalIdentifier[
+        STANDARD_OBJECTS.person.indexes.phoneSearchVectorGinIndex
+          .universalIdentifier
+      ];
+    const standardPhonesContribution = Object.values(
+      allFlatEntityMaps.flatSearchFieldMetadataMaps.byUniversalIdentifier,
+    ).find(
+      (searchField) =>
+        searchField?.fieldMetadataUniversalIdentifier ===
+          STANDARD_OBJECTS.person.fields.phones.universalIdentifier &&
+        searchField.tsVectorFieldMetadataUniversalIdentifier ===
+          vectorUniversalIdentifier,
+    );
+
+    expect(vector).toMatchObject({
+      name: 'phoneSearchVector',
+      type: FieldMetadataType.TS_VECTOR,
+      isSystem: true,
+      isUIEditable: false,
+    });
+    expect(phoneIndex).toMatchObject({
+      indexType: IndexType.GIN,
+      isSystemSideEffect: true,
+    });
+    expect(phoneIndex?.universalFlatIndexFieldMetadatas).toEqual([
+      expect.objectContaining({
+        fieldMetadataUniversalIdentifier: vectorUniversalIdentifier,
+      }),
+    ]);
+    expect(standardPhonesContribution).toMatchObject({
+      objectMetadataUniversalIdentifier:
+        STANDARD_OBJECTS.person.universalIdentifier,
+      fieldMetadataUniversalIdentifier:
+        STANDARD_OBJECTS.person.fields.phones.universalIdentifier,
+      tsVectorFieldMetadataUniversalIdentifier: vectorUniversalIdentifier,
+      isSystemSideEffect: true,
+    });
   });
 });

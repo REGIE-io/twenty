@@ -6,6 +6,7 @@ import { addFlatEntityToFlatEntityMapsOrThrow } from 'src/engine/metadata-module
 import { getFlatFieldMetadataMock } from 'src/engine/metadata-modules/flat-field-metadata/__mocks__/get-flat-field-metadata.mock';
 import { type FlatFieldMetadata } from 'src/engine/metadata-modules/flat-field-metadata/types/flat-field-metadata.type';
 import { SEARCH_VECTOR_FIELD } from 'src/engine/metadata-modules/search-field-metadata/constants/search-vector-field.constants';
+import { PHONE_SEARCH_VECTOR_FIELD } from 'src/engine/metadata-modules/search-field-metadata/constants/phone-search-vector-field.constants';
 import { createEmptyOrchestratorActionsReport } from 'src/engine/workspace-manager/workspace-migration/constant/empty-orchestrator-actions-report.constant';
 import { aggregateOrchestratorActionsReportDeprioritizeSearchVectorUpdateFieldActions } from 'src/engine/workspace-manager/workspace-migration/utils/aggregate-orchestrator-actions-report-deprioritize-search-vector-update-field-actions.util';
 import { type UniversalUpdateFieldAction } from 'src/engine/workspace-manager/workspace-migration/workspace-migration-builder/builders/field/types/workspace-migration-field-action';
@@ -107,5 +108,69 @@ describe('aggregateOrchestratorActionsReportDeprioritizeSearchVectorUpdateFieldA
     expect(result.objectMetadata).toEqual(
       orchestratorActionsReport.objectMetadata,
     );
+  });
+
+  it('also deprioritizes a secondary TS_VECTOR rebuild', () => {
+    const report = {
+      ...createEmptyOrchestratorActionsReport(),
+      fieldMetadata: {
+        create: [],
+        delete: [],
+        update: [
+          {
+            type: 'update',
+            metadataName: 'fieldMetadata',
+            universalIdentifier: 'phone-vector',
+            update: {},
+          } satisfies UniversalUpdateFieldAction,
+          {
+            type: 'update',
+            metadataName: 'fieldMetadata',
+            universalIdentifier: 'text',
+            update: {},
+          } satisfies UniversalUpdateFieldAction,
+        ],
+      },
+    };
+    const maps = [
+      getFlatFieldMetadataMock({
+        universalIdentifier: 'phone-vector',
+        id: 'phone-vector',
+        objectMetadataId: 'object-1',
+        name: PHONE_SEARCH_VECTOR_FIELD.name,
+        type: FieldMetadataType.TS_VECTOR,
+      }),
+      getFlatFieldMetadataMock({
+        universalIdentifier: 'text',
+        id: 'text',
+        objectMetadataId: 'object-1',
+        name: 'title',
+        type: FieldMetadataType.TEXT,
+      }),
+    ].reduce<FlatEntityMaps<FlatFieldMetadata>>(
+      (all, field) =>
+        addFlatEntityToFlatEntityMapsOrThrow({
+          flatEntity: field,
+          flatEntityMaps: all,
+        }),
+      createEmptyFlatEntityMaps() as FlatEntityMaps<FlatFieldMetadata>,
+    );
+    const result =
+      aggregateOrchestratorActionsReportDeprioritizeSearchVectorUpdateFieldActions(
+        {
+          orchestratorActionsReport: report,
+          flatFieldMetadataMaps: maps,
+          searchVectorUniversalIdentifiersToRebuild: new Set(['phone-vector']),
+        },
+      );
+    expect(
+      (result.fieldMetadata.update as UniversalUpdateFieldAction[]).map(
+        ({ universalIdentifier }) => universalIdentifier,
+      ),
+    ).toEqual(['text', 'phone-vector']);
+    expect(
+      (result.fieldMetadata.update as UniversalUpdateFieldAction[]).at(-1)
+        ?.rebuildSearchVector,
+    ).toBe(true);
   });
 });

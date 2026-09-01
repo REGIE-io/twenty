@@ -9,6 +9,7 @@ import {
 export type SearchVectorTargetField = {
   name: string;
   type: FieldMetadataType;
+  universalIdentifier: string;
   // Per-object ordinal from the searchFieldMetadata row, driving deterministic order.
   position: number;
   // Tie-break for rows sharing a position (searchFieldMetadata universalIdentifier).
@@ -20,12 +21,13 @@ export const buildSearchVectorTargetField = ({
   position,
   sortKey,
 }: {
-  field: { name: string; type: FieldMetadataType };
+  field: { name: string; type: FieldMetadataType; universalIdentifier: string };
   position: number;
   sortKey: string;
 }): SearchVectorTargetField => ({
   name: field.name,
   type: field.type,
+  universalIdentifier: field.universalIdentifier,
   position,
   sortKey,
 });

@@ -419,8 +419,4 @@ describe('SearchPeopleByPhone resolver', () => {
       generic.data.search.edges.map((edge) => edge.node.recordId),
     ).toContain(personByCase.nonPhoneOnly);
   });
-
-  it.todo(
-    'returns a readable custom-phone match, hides a restricted-only match, and deduplicates a number in both fields (requires a reusable role/field-permission fixture)',
-  );
 });

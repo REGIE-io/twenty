@@ -133,7 +133,9 @@ export class FlatSearchFieldMetadataValidatorService {
           flatSearchFieldMetadata.universalIdentifier !==
             flatSearchFieldMetadataToValidate.universalIdentifier &&
           flatSearchFieldMetadata.fieldMetadataUniversalIdentifier ===
-            flatSearchFieldMetadataToValidate.fieldMetadataUniversalIdentifier,
+            flatSearchFieldMetadataToValidate.fieldMetadataUniversalIdentifier &&
+          flatSearchFieldMetadata.tsVectorFieldMetadataUniversalIdentifier ===
+            flatSearchFieldMetadataToValidate.tsVectorFieldMetadataUniversalIdentifier,
       );
 
     if (equivalentExistingFlatSearchFieldMetadataExists) {

@@ -271,6 +271,13 @@ const PARTIAL_SEARCH_VECTOR_FIELD = {
   searchFieldMetadataUniversalIdentifiers: [],
 } as const satisfies PartialSystemFlatFieldMetadata<FieldMetadataType.TS_VECTOR>;
 
+const PARTIAL_PHONE_SEARCH_VECTOR_FIELD = {
+  ...PARTIAL_SEARCH_VECTOR_FIELD,
+  name: 'phoneSearchVector',
+  label: 'Phone search vector',
+  description: 'Field used for exact phone search',
+} as const satisfies PartialSystemFlatFieldMetadata<FieldMetadataType.TS_VECTOR>;
+
 export const PARTIAL_SYSTEM_FLAT_FIELD_METADATAS = {
   id: PARTIAL_ID_FIELD,
   createdAt: PARTIAL_CREATED_AT_FIELD,
@@ -280,4 +287,5 @@ export const PARTIAL_SYSTEM_FLAT_FIELD_METADATAS = {
   updatedBy: PARTIAL_UPDATED_BY_FIELD,
   position: PARTIAL_POSITION_FIELD,
   searchVector: PARTIAL_SEARCH_VECTOR_FIELD,
+  phoneSearchVector: PARTIAL_PHONE_SEARCH_VECTOR_FIELD,
 } as const satisfies Record<string, PartialSystemFlatFieldMetadata>;

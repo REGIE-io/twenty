@@ -542,4 +542,22 @@ export const buildPersonStandardFlatFieldMetadatas = ({
     twentyStandardApplicationId,
     now,
   }),
+  phoneSearchVector: createStandardFieldFlatMetadata({
+    objectName,
+    workspaceId,
+    context: {
+      fieldName: 'phoneSearchVector',
+      type: FieldMetadataType.TS_VECTOR,
+      label: i18nLabel(msg`Phone search vector`),
+      description: i18nLabel(msg`Field used for exact phone search`),
+      icon: 'IconPhone',
+      isSystem: true,
+      isNullable: true,
+      isUIEditable: false,
+    },
+    standardObjectMetadataRelatedEntityIds,
+    dependencyFlatEntityMaps,
+    twentyStandardApplicationId,
+    now,
+  }),
 });

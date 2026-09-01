@@ -4,6 +4,7 @@ import { addFlatEntityToFlatEntityMapsOrThrow } from 'src/engine/metadata-module
 import { type FlatSearchFieldMetadata } from 'src/engine/metadata-modules/flat-search-field-metadata/types/flat-search-field-metadata.type';
 import { SEARCH_FIELDS_BY_STANDARD_OBJECT_NAME } from 'src/engine/workspace-manager/twenty-standard-application/constants/search-fields-by-standard-object-name.constant';
 import { buildStandardFlatSearchFieldMetadatas } from 'src/engine/workspace-manager/twenty-standard-application/utils/search-field-metadata/build-standard-flat-search-field-metadatas.util';
+import { buildPhoneStandardFlatSearchFieldMetadatas } from 'src/engine/workspace-manager/twenty-standard-application/utils/search-field-metadata/build-phone-standard-flat-search-field-metadatas.util';
 import { type CreateStandardSearchFieldArgs } from 'src/engine/workspace-manager/twenty-standard-application/utils/search-field-metadata/create-standard-search-field-flat-metadata.util';
 
 export const buildStandardFlatSearchFieldMetadataMaps = (
@@ -13,13 +14,20 @@ export const buildStandardFlatSearchFieldMetadataMaps = (
     Object.keys(
       SEARCH_FIELDS_BY_STANDARD_OBJECT_NAME,
     ) as (keyof typeof SEARCH_FIELDS_BY_STANDARD_OBJECT_NAME)[]
-  ).flatMap((objectName) =>
-    buildStandardFlatSearchFieldMetadatas({
-      ...args,
-      objectName,
-      searchFields: SEARCH_FIELDS_BY_STANDARD_OBJECT_NAME[objectName],
-    }),
-  );
+  )
+    .flatMap((objectName) =>
+      buildStandardFlatSearchFieldMetadatas({
+        ...args,
+        objectName,
+        searchFields: SEARCH_FIELDS_BY_STANDARD_OBJECT_NAME[objectName],
+      }),
+    )
+    .concat(
+      buildPhoneStandardFlatSearchFieldMetadatas({
+        ...args,
+        objectName: 'person',
+      }),
+    );
 
   let flatSearchFieldMetadataMaps = createEmptyFlatEntityMaps();
 

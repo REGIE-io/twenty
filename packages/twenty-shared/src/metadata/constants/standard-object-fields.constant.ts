@@ -1,5 +1,6 @@
 import { TWENTY_STANDARD_APPLICATION_UNIVERSAL_IDENTIFIER } from '@/application/constants/TwentyStandardApplicationUniversalIdentifier';
 import { getSystemRelationFieldUniversalIdentifier } from '@/application/deterministic-identifier/get-system-relation-field-universal-identifier.util';
+import { getFieldUniversalIdentifier } from '@/application/deterministic-identifier/get-field-universal-identifier.util';
 import { STANDARD_OBJECT_UNIVERSAL_IDENTIFIERS } from '@/metadata/constants/standard-object-universal-identifiers.constant';
 import { buildStandardObjectSystemFields } from '@/metadata/utils/internal/build-standard-object-system-fields.util';
 
@@ -9,7 +10,8 @@ import { buildStandardObjectSystemFields } from '@/metadata/utils/internal/build
 // - System field universal identifiers (id, createdAt, updatedAt, deletedAt,
 //   createdBy, updatedBy, position, searchVector) are deterministically derived
 //   from the standard application universal identifier, the object universal
-//   identifier and the field name (buildStandardObjectSystemFields). The name
+//   identifier and the field name (buildStandardObjectSystemFields). Person's
+//   phoneSearchVector follows the same derivation but exists only on Person. The name
 //   field is a default field, not a system field, and keeps its hardcoded
 //   universal identifier.
 // - System relation field universal identifiers are deterministically derived
@@ -779,6 +781,14 @@ export const STANDARD_OBJECT_FIELDS = {
     ...buildStandardObjectSystemFields(
       STANDARD_OBJECT_UNIVERSAL_IDENTIFIERS.person,
     ),
+    phoneSearchVector: {
+      universalIdentifier: getFieldUniversalIdentifier({
+        applicationUniversalIdentifier:
+          TWENTY_STANDARD_APPLICATION_UNIVERSAL_IDENTIFIER,
+        objectUniversalIdentifier: STANDARD_OBJECT_UNIVERSAL_IDENTIFIERS.person,
+        name: 'phoneSearchVector',
+      }),
+    },
     name: { universalIdentifier: '20202020-3875-44d5-8c33-a6239011cab8' },
     emails: { universalIdentifier: '20202020-3c51-43fa-8b6e-af39e29368ab' },
     linkedinLink: {

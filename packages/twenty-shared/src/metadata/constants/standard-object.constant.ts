@@ -819,6 +819,9 @@ export const STANDARD_OBJECTS = {
       searchVectorGinIndex: {
         universalIdentifier: '9294b9c3-0225-4a7d-9b6c-23f4a25f6f24',
       },
+      phoneSearchVectorGinIndex: {
+        universalIdentifier: 'd7591d3f-e1a4-5d87-8be5-8127b3f3b75a',
+      },
     },
     views: {
       allPeople: buildStandardObjectIndexView({

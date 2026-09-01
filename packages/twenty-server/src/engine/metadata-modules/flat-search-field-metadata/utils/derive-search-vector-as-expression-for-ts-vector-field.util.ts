@@ -5,17 +5,21 @@ import {
   buildSearchVectorTargetField,
   computeSearchVectorAsExpressionFromSearchFieldMetadatas,
 } from 'src/engine/metadata-modules/flat-search-field-metadata/utils/compute-search-vector-as-expression-from-search-field-metadatas.util';
+import { computePhoneSearchVectorAsExpressionFromSearchFieldMetadatas } from 'src/engine/metadata-modules/flat-search-field-metadata/utils/compute-phone-search-vector-as-expression-from-search-field-metadatas.util';
 import { type FlatSearchFieldMetadata } from 'src/engine/metadata-modules/flat-search-field-metadata/types/flat-search-field-metadata.type';
+import { PHONE_SEARCH_VECTOR_FIELD } from 'src/engine/metadata-modules/search-field-metadata/constants/phone-search-vector-field.constants';
 
 export const deriveSearchVectorAsExpressionForTsVectorField = ({
   targetSearchFieldMetadatas,
   indexedFieldById,
+  tsVectorField,
 }: {
   targetSearchFieldMetadatas: FlatSearchFieldMetadata[];
   indexedFieldById: ReadonlyMap<
     string,
-    { name: string; type: FieldMetadataType }
+    { name: string; type: FieldMetadataType; universalIdentifier: string }
   >;
+  tsVectorField: { name: string; universalIdentifier: string };
 }): string => {
   const targetSearchableFields = targetSearchFieldMetadatas.flatMap(
     (flatSearchFieldMetadata) => {
@@ -36,6 +40,12 @@ export const deriveSearchVectorAsExpressionForTsVectorField = ({
       ];
     },
   );
+
+  if (tsVectorField.name === PHONE_SEARCH_VECTOR_FIELD.name) {
+    return computePhoneSearchVectorAsExpressionFromSearchFieldMetadatas(
+      targetSearchableFields,
+    );
+  }
 
   return computeSearchVectorAsExpressionFromSearchFieldMetadatas(
     targetSearchableFields,

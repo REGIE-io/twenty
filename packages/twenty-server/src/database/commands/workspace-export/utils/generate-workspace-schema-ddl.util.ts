@@ -34,14 +34,18 @@ const buildSearchFieldMetadataDerivationInputs = ({
 }): {
   indexedFieldById: ReadonlyMap<
     string,
-    { name: string; type: FieldMetadataType }
+    { name: string; type: FieldMetadataType; universalIdentifier: string }
   >;
   flatSearchFieldMetadataMaps: FlatEntityMaps<FlatSearchFieldMetadata>;
 } => {
   const indexedFieldById = new Map(
     fieldMetadatas.map((fieldMetadata) => [
       fieldMetadata.id,
-      { name: fieldMetadata.name, type: fieldMetadata.type },
+      {
+        name: fieldMetadata.name,
+        type: fieldMetadata.type,
+        universalIdentifier: fieldMetadata.universalIdentifier,
+      },
     ]),
   );
 
@@ -132,6 +136,7 @@ export const generateWorkspaceSchemaDdl = (
                   flatSearchFieldMetadataMaps,
                 }),
               indexedFieldById,
+              tsVectorField: flatFieldMetadata,
             })
           : undefined,
       }),
