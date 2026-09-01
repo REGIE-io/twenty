@@ -9,8 +9,12 @@ import { createOneFieldMetadata } from 'test/integration/metadata/suites/field-m
 import { deleteOneFieldMetadata } from 'test/integration/metadata/suites/field-metadata/utils/delete-one-field-metadata.util';
 import { updateOneFieldMetadata } from 'test/integration/metadata/suites/field-metadata/utils/update-one-field-metadata.util';
 import { makeMetadataAPIRequest } from 'test/integration/metadata/suites/utils/make-metadata-api-request.util';
+import { getAppProviderByClassName } from 'test/integration/utils/get-app-provider-by-class-name.util';
 import gql from 'graphql-tag';
 import { FieldMetadataType } from 'twenty-shared/types';
+
+import { InitializePersonPhoneSearchLookupCommand } from 'src/database/commands/upgrade-version-command/2-32/2-32-workspace-command-1786800001000-initialize-person-phone-search-lookup.command';
+import { SEED_APPLE_WORKSPACE_ID } from 'src/engine/workspace-manager/dev-seeder/core/constants/seeder-workspaces.constant';
 
 type PhoneValue = {
   primaryPhoneNumber?: string;
@@ -84,7 +88,12 @@ const createField = async (name: string, objectMetadataId: string) => {
       createdFieldIds.push(id);
       return id;
     }
-    if (!JSON.stringify(response.errors).includes('PHONE_SEARCH_METADATA_BUSY'))
+    const serializedErrors = JSON.stringify(response.errors);
+
+    if (
+      !serializedErrors.includes('PHONE_SEARCH_METADATA_BUSY') &&
+      !serializedErrors.includes('"code":"503"')
+    )
       throw new Error(
         `Field creation failed: ${JSON.stringify(response.errors)}`,
       );
@@ -97,6 +106,10 @@ const createField = async (name: string, objectMetadataId: string) => {
 const waitForPhoneMatch = async (phoneNumber: string, recordId: string) => {
   for (let attempt = 0; attempt < 600; attempt++) {
     const response = await searchPeopleByPhone({ phoneNumber, limit: 10 });
+    const serializedErrors = JSON.stringify(response.errors);
+
+    if (response.errors && !serializedErrors.includes('"code":"503"'))
+      throw new Error(`Phone search failed: ${serializedErrors}`);
     const ids = response.data?.searchPeopleByPhone.edges.map(
       ({ node }) => node.recordId,
     );
@@ -114,6 +127,15 @@ describe('SearchPeopleByPhone resolver', () => {
   const personByCase: Record<string, string> = {};
 
   beforeAll(async () => {
+    await getAppProviderByClassName<InitializePersonPhoneSearchLookupCommand>(
+      InitializePersonPhoneSearchLookupCommand.name,
+    ).runOnWorkspace({
+      workspaceId: SEED_APPLE_WORKSPACE_ID,
+      options: {},
+      index: 0,
+      total: 1,
+    });
+
     const objectsResponse = await makeMetadataAPIRequest({
       query: gql`
         query PhoneSearchTestObjects {

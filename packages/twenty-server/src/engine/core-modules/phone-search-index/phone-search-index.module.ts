@@ -22,6 +22,7 @@ import { PhoneSearchIndexReconcilerCronCommand } from 'src/engine/core-modules/p
     PhoneSearchTriggerManagerService,
     PhoneSearchIndexBackfillService,
     PhoneSearchIndexReconcilerService,
+    PhoneSearchIndexReconcilerCronCommand,
     PhoneSearchMetadataGateService,
     PhoneSearchFieldLifecycleService,
     PhoneSearchFieldLifecycleCoordinatorService,

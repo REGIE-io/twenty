@@ -3,10 +3,12 @@ import {
   Injectable,
   ServiceUnavailableException,
 } from '@nestjs/common';
+import { InjectDataSource } from '@nestjs/typeorm';
 
 import { parsePhoneNumberWithError } from 'libphonenumber-js';
 import { FieldMetadataType, type ObjectRecord } from 'twenty-shared/types';
 import { isDefined } from 'twenty-shared/utils';
+import { type DataSource } from 'typeorm';
 
 import {
   decodeCursor,
@@ -43,6 +45,7 @@ const canonicalizePhoneNumber = ({
 export class PhoneSearchService {
   constructor(
     private readonly globalWorkspaceOrmManager: GlobalWorkspaceOrmManager,
+    @InjectDataSource() private readonly dataSource: DataSource,
   ) {}
 
   async searchPeopleByPhone({
@@ -97,7 +100,7 @@ export class PhoneSearchService {
         // State is read before the Person query so an empty lookup result is only
         // definitive when every readable phone field has a verified generation.
         // This is also what keeps an old generation serving during a repair.
-        const fieldStates = await repository.query<
+        const fieldStates = await this.dataSource.query<
           Array<{
             fieldMetadataId: string;
             isQueryEnabled: boolean;

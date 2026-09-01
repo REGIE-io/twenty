@@ -12,9 +12,12 @@ import { createOneFieldMetadata } from 'test/integration/metadata/suites/field-m
 import { deleteOneFieldMetadata } from 'test/integration/metadata/suites/field-metadata/utils/delete-one-field-metadata.util';
 import { updateOneFieldMetadata } from 'test/integration/metadata/suites/field-metadata/utils/update-one-field-metadata.util';
 import { makeMetadataAPIRequest } from 'test/integration/metadata/suites/utils/make-metadata-api-request.util';
+import { getAppProviderByClassName } from 'test/integration/utils/get-app-provider-by-class-name.util';
 import gql from 'graphql-tag';
 import { FieldMetadataType } from 'twenty-shared/types';
 
+import { InitializePersonPhoneSearchLookupCommand } from 'src/database/commands/upgrade-version-command/2-32/2-32-workspace-command-1786800001000-initialize-person-phone-search-lookup.command';
+import { SEED_APPLE_WORKSPACE_ID } from 'src/engine/workspace-manager/dev-seeder/core/constants/seeder-workspaces.constant';
 import { WORKSPACE_MEMBER_DATA_SEED_IDS } from 'src/engine/workspace-manager/dev-seeder/data/constants/workspace-member-data-seeds.constant';
 
 jest.setTimeout(120000);
@@ -41,6 +44,15 @@ describe('searchPeopleByPhone field permissions', () => {
   const createdPersonIds: string[] = [];
 
   beforeAll(async () => {
+    await getAppProviderByClassName<InitializePersonPhoneSearchLookupCommand>(
+      InitializePersonPhoneSearchLookupCommand.name,
+    ).runOnWorkspace({
+      workspaceId: SEED_APPLE_WORKSPACE_ID,
+      options: {},
+      index: 0,
+      total: 1,
+    });
+
     const rolesResponse = await client
       .post('/metadata')
       .set('Authorization', `Bearer ${APPLE_JANE_ADMIN_ACCESS_TOKEN}`)
@@ -85,10 +97,11 @@ describe('searchPeopleByPhone field permissions', () => {
         const id = response.data?.createOneField?.id;
 
         if (id) return id;
+        const serializedErrors = JSON.stringify(response.errors);
+
         if (
-          !JSON.stringify(response.errors).includes(
-            'PHONE_SEARCH_METADATA_BUSY',
-          )
+          !serializedErrors.includes('PHONE_SEARCH_METADATA_BUSY') &&
+          !serializedErrors.includes('"code":"503"')
         )
           throw new Error(
             `Field creation failed: ${JSON.stringify(response.errors)}`,
@@ -148,6 +161,10 @@ describe('searchPeopleByPhone field permissions', () => {
         phoneNumber: '+14155551400',
         limit: 10,
       });
+      const serializedErrors = JSON.stringify(response.errors);
+
+      if (response.errors && !serializedErrors.includes('"code":"503"'))
+        throw new Error(`Phone search failed: ${serializedErrors}`);
 
       if (
         response.data?.searchPeopleByPhone.edges.some(

@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 
 import { STANDARD_OBJECTS } from 'twenty-shared/metadata';
+import { FieldMetadataType } from 'twenty-shared/types';
 import { isDefined } from 'twenty-shared/utils';
 import { type FindOneOptions, type Repository } from 'typeorm';
 
@@ -438,8 +439,9 @@ export class FieldMetadataService {
       person &&
       flatFieldMetadatasToCreate.some(
         (field) =>
+          field.type === FieldMetadataType.PHONES &&
           field.objectMetadataUniversalIdentifier ===
-          person.universalIdentifier,
+            person.universalIdentifier,
       )
     ) {
       await this.phoneSearchMetadataGateService?.assertAvailable({

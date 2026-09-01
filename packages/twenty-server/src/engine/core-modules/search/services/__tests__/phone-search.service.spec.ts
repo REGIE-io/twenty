@@ -40,6 +40,9 @@ describe('PhoneSearchService indexed query contract', () => {
           },
         },
       },
+      createQueryBuilder: jest.fn().mockReturnValue(queryBuilder),
+    };
+    const dataSource = {
       query: jest.fn().mockResolvedValue([
         {
           fieldMetadataId: 'readable',
@@ -54,7 +57,6 @@ describe('PhoneSearchService indexed query contract', () => {
           syncStatus: 'INDEXING',
         },
       ]),
-      createQueryBuilder: jest.fn().mockReturnValue(queryBuilder),
     };
     const manager = {
       executeInWorkspaceContext: jest
@@ -64,6 +66,7 @@ describe('PhoneSearchService indexed query contract', () => {
     };
     const service = new PhoneSearchService(
       manager as unknown as GlobalWorkspaceOrmManager,
+      dataSource as never,
     );
     const readableUniversalIdentifier = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
     const restrictedUniversalIdentifier =
