@@ -28,6 +28,7 @@ import {
   enrichCreateWorkspaceMigrationActionsWithIds,
   IdByUniversalIdentifierByMetadataName,
 } from 'src/engine/workspace-manager/workspace-migration/services/utils/enrich-create-workspace-migration-action-with-ids.util';
+import { getCreatedFieldIdByUniversalIdentifier } from 'src/engine/workspace-manager/workspace-migration/services/utils/get-created-field-id-by-universal-identifier.util';
 import { WorkspaceMigrationBuildOrchestratorService } from 'src/engine/workspace-manager/workspace-migration/services/workspace-migration-build-orchestrator.service';
 import {
   FlatEntityMapsBundle,
@@ -167,14 +168,8 @@ export class WorkspaceMigrationValidateBuildAndRunService {
         idByUniversalIdentifierByMetadataName ?? {},
       workspaceMigration: validateAndBuildResult.workspaceMigration,
     });
-    const createdFieldIdByUniversalIdentifier = new Map(
-      workspaceMigration.actions
-        .filter(
-          (action) =>
-            action.type === 'create' && action.metadataName === 'fieldMetadata',
-        )
-        .map((action) => [action.flatEntity.universalIdentifier, action.id]),
-    );
+    const createdFieldIdByUniversalIdentifier =
+      getCreatedFieldIdByUniversalIdentifier(workspaceMigration);
     const resolvedPhoneLifecycleDelta = phoneLifecycleDelta
       ? {
           ...phoneLifecycleDelta,
