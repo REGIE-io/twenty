@@ -47,7 +47,6 @@ export class InternalConnectedAccountProvisioningController {
         provider: body.provider,
         handle: body.handle,
         memberEmail: body.memberEmail,
-        regieMailboxId: body.regieMailboxId,
         accessToken: body.accessToken,
         refreshToken: body.refreshToken,
         calendarVisibility: body.calendarVisibility,

@@ -21,10 +21,7 @@ import {
   type AttachConnectedAccountResult,
   type DetachConnectedAccountResult,
 } from 'src/engine/core-modules/workspace/internal/types/internal-connected-account-provisioning.type';
-import {
-  ACQUIRE_ATTACH_CONNECTED_ACCOUNT_LOCK_STATEMENT,
-  REGIE_MAILBOX_ID_PARAMETER_KEY,
-} from 'src/engine/core-modules/workspace/internal/constants/internal-connected-account-provisioning.constants';
+import { ACQUIRE_ATTACH_CONNECTED_ACCOUNT_LOCK_STATEMENT } from 'src/engine/core-modules/workspace/internal/constants/internal-connected-account-provisioning.constants';
 import { buildAttachConnectedAccountLockName } from 'src/engine/core-modules/workspace/internal/utils/build-attach-connected-account-lock-name.util';
 import { WorkspaceEntity } from 'src/engine/core-modules/workspace/workspace.entity';
 import { CalendarChannelEntity } from 'src/engine/metadata-modules/calendar-channel/entities/calendar-channel.entity';
@@ -229,10 +226,6 @@ export class InternalConnectedAccountProvisioningService {
       await connectedAccountRepository.update(
         { id: existing.id, workspaceId: input.workspaceId },
         {
-          connectionParameters: {
-            ...(existing.connectionParameters ?? {}),
-            [REGIE_MAILBOX_ID_PARAMETER_KEY]: input.regieMailboxId,
-          },
           accessToken: encryptedAccessToken,
           refreshToken: encryptedRefreshToken,
           // Cleared so the next sync refreshes rather than trusting an anchor that
@@ -260,9 +253,6 @@ export class InternalConnectedAccountProvisioningService {
         handle: input.handle,
         accessToken: encryptedAccessToken,
         refreshToken: encryptedRefreshToken,
-        connectionParameters: {
-          [REGIE_MAILBOX_ID_PARAMETER_KEY]: input.regieMailboxId,
-        },
       }),
     );
 

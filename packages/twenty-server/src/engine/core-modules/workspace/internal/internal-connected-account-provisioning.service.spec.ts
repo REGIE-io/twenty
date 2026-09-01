@@ -19,7 +19,6 @@ const ATTACH_INPUT = {
   provider: ConnectedAccountProvider.GOOGLE,
   handle: HANDLE,
   memberEmail: MEMBER_EMAIL,
-  regieMailboxId: '42',
   accessToken: 'access-token',
   refreshToken: 'refresh-token',
 };
@@ -34,7 +33,6 @@ type StoredConnectedAccount = {
   refreshToken: string | null;
   lastCredentialsRefreshedAt: Date | null;
   authFailedAt: Date | null;
-  connectionParameters: Record<string, unknown> | null;
 };
 
 type StoredCalendarChannel = {
@@ -315,7 +313,6 @@ describe('InternalConnectedAccountProvisioningService', () => {
           handle: HANDLE,
           accessToken: 'enc:v2:access-token',
           refreshToken: 'enc:v2:refresh-token',
-          connectionParameters: { regieMailboxId: '42' },
         }),
       ]);
     });

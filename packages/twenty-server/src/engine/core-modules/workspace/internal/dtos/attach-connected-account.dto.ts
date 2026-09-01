@@ -34,10 +34,6 @@ export class AttachConnectedAccountDto {
   @IsEmail()
   memberEmail: string;
 
-  @IsString()
-  @IsNotEmpty()
-  regieMailboxId: string;
-
   // Regie owns the OAuth grant; Twenty stores these and refreshes them itself. Required,
   // because an account saved without them cannot sync and fails only at the next cron.
   @IsString()
