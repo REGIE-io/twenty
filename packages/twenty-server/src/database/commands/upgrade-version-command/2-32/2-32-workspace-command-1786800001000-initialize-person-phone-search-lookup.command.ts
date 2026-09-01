@@ -72,10 +72,10 @@ export class InitializePersonPhoneSearchLookupCommand extends ProvisionedWorkspa
       await runner.query(
         `CREATE TRIGGER "TRG_PERSON_PHONE_LOOKUP_SYNC" AFTER INSERT OR UPDATE OR DELETE ON "${schema}"."person" FOR EACH ROW EXECUTE FUNCTION public.sync_person_phone_lookup('${workspaceId}', '${person.id}')`,
       );
-      const existing = await runner.query<{ id: string }[]>(
+      const existing = (await runner.query(
         `SELECT id FROM core."phoneSearchIndexOperation" WHERE "workspaceId" = $1 AND "objectMetadataId" = $2 AND status IN ('PENDING','RUNNING','RETRYABLE')`,
         [workspaceId, person.id],
-      );
+      )) as Array<{ id: string }>;
       if (!existing.length) {
         for (const field of fields) {
           await runner.query(
@@ -90,14 +90,14 @@ export class InitializePersonPhoneSearchLookupCommand extends ProvisionedWorkspa
             ],
           );
         }
-        const [operation] = await runner.query<Array<{ id: string }>>(
+        const [operation] = (await runner.query(
           `INSERT INTO core."phoneSearchIndexOperation" ("workspaceId", "objectMetadataId", kind, status, generation, "fieldMetadataIds") VALUES ($1, $2, 'INITIALIZE', 'PENDING', 1, $3::jsonb) RETURNING id`,
           [
             workspaceId,
             person.id,
             JSON.stringify(fields.map((field) => field.id)),
           ],
-        );
+        )) as Array<{ id: string }>;
         operationId = operation?.id;
       }
       await runner.commitTransaction();

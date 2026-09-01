@@ -192,7 +192,7 @@ export class PhoneSearchService {
           })),
           pageInfo: {
             endCursor: page.length
-              ? encodeCursorData({ id: page.at(-1)?.id })
+              ? encodeCursorData({ id: page[page.length - 1]?.id })
               : null,
             hasNextPage,
           },

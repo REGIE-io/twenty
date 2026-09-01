@@ -65,6 +65,10 @@ const findDataMutationKeyword = (sql: string): string | null => {
   const normalized = sql
     .replace(/--[^\n]*/g, '')
     .replace(/\/\*[\s\S]*?\*\//g, '')
+    // Function bodies describe DML that runs later from a trigger or call;
+    // CREATE FUNCTION itself remains schema-only migration work.
+    .replace(/\$\$[\s\S]*?\$\$/g, "''")
+    .replace(/\$([A-Za-z_][A-Za-z0-9_]*)\$[\s\S]*?\$\1\$/g, "''")
     .replace(/'(?:[^']|'')*'/g, "''")
     .replace(/"(?:[^"]|"")*"/g, '""');
 

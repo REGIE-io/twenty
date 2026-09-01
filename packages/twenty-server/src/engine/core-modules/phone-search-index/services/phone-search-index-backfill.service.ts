@@ -25,21 +25,19 @@ export class PhoneSearchIndexBackfillService {
       await runner.connect();
       await runner.startTransaction();
       await runner.query("SET LOCAL lock_timeout = '2s'");
-      const [operation] = await runner.query<
-        Array<{
-          workspaceId: string;
-          objectMetadataId: string;
-          generation: string;
-          lastRecordId: string | null;
-          status: string;
-          kind: string;
-          fieldMetadataIds: string[];
-          leaseExpiresAt: Date | null;
-        }>
-      >(
+      const [operation] = (await runner.query(
         `SELECT * FROM core."phoneSearchIndexOperation" WHERE id = $1 FOR UPDATE`,
         [operationId],
-      );
+      )) as Array<{
+        workspaceId: string;
+        objectMetadataId: string;
+        generation: string;
+        lastRecordId: string | null;
+        status: string;
+        kind: string;
+        fieldMetadataIds: string[];
+        leaseExpiresAt: Date | null;
+      }>;
       if (
         !operation ||
         !['PENDING', 'RUNNING', 'RETRYABLE'].includes(operation.status)
@@ -78,7 +76,7 @@ export class PhoneSearchIndexBackfillService {
             : []),
         ];
 
-        await runner.query<Array<{ id: string }>>(
+        await runner.query(
           `WITH batch AS (
              SELECT lookup.id
                FROM core."personPhoneLookup" lookup
@@ -94,7 +92,7 @@ export class PhoneSearchIndexBackfillService {
            RETURNING lookup.id`,
           purgeParameters,
         );
-        const [remaining] = await runner.query<Array<{ exists: boolean }>>(
+        const [remaining] = (await runner.query(
           `SELECT EXISTS (
              SELECT 1 FROM core."personPhoneLookup" lookup
               WHERE lookup."workspaceId" = $1
@@ -102,7 +100,7 @@ export class PhoneSearchIndexBackfillService {
                 ${purgePredicate}
            ) AS exists`,
           purgeParameters,
-        );
+        )) as Array<{ exists: boolean }>;
         if (!remaining?.exists) {
           if (operation.kind === 'PURGE_FIELD')
             await runner.query(
@@ -130,26 +128,22 @@ export class PhoneSearchIndexBackfillService {
         return !remaining?.exists;
       }
       const schema = getWorkspaceSchemaName(operation.workspaceId);
-      const records = await runner.query<
-        Array<{ id: string; row: Record<string, unknown> }>
-      >(
+      const records = (await runner.query(
         `SELECT p.id, to_jsonb(p) AS row FROM "${schema}"."person" p WHERE p.id > COALESCE($1::uuid, '00000000-0000-0000-0000-000000000000'::uuid) ORDER BY p.id LIMIT ${BATCH_SIZE} FOR UPDATE`,
         [operation.lastRecordId],
-      );
-      const states = await runner.query<
-        Array<{
-          fieldMetadataId: string;
-          physicalFieldName: string;
-          buildingProjectionGeneration: string | null;
-        }>
-      >(
+      )) as Array<{ id: string; row: Record<string, unknown> }>;
+      const states = (await runner.query(
         `SELECT "fieldMetadataId", "physicalFieldName", "buildingProjectionGeneration" FROM core."phoneSearchFieldState" WHERE "workspaceId" = $1 AND "objectMetadataId" = $2 AND "buildingProjectionGeneration" = $3`,
         [
           operation.workspaceId,
           operation.objectMetadataId,
           operation.generation,
         ],
-      );
+      )) as Array<{
+        fieldMetadataId: string;
+        physicalFieldName: string;
+        buildingProjectionGeneration: string | null;
+      }>;
       for (const record of records)
         for (const state of states) {
           await runner.query(
@@ -175,7 +169,7 @@ export class PhoneSearchIndexBackfillService {
             ],
           );
         }
-      const lastId = records.at(-1)?.id;
+      const lastId = records[records.length - 1]?.id;
       if (lastId)
         await runner.query(
           // The next delivery is deliberately queued only after this commit.
@@ -198,7 +192,7 @@ export class PhoneSearchIndexBackfillService {
           `UPDATE core."phoneSearchIndexOperation" SET status = 'COMPLETED', "completedAt" = now(), "updatedAt" = now() WHERE id = $1`,
           [operationId],
         );
-        const [purgeOperation] = await runner.query<Array<{ id: string }>>(
+        const [purgeOperation] = (await runner.query(
           `INSERT INTO core."phoneSearchIndexOperation" ("workspaceId","objectMetadataId",kind,status,generation,"fieldMetadataIds")
            VALUES ($1,$2,'PURGE_GENERATION','PENDING',$3,$4::jsonb)
            ON CONFLICT DO NOTHING RETURNING id`,
@@ -208,7 +202,7 @@ export class PhoneSearchIndexBackfillService {
             operation.generation,
             JSON.stringify(operation.fieldMetadataIds),
           ],
-        );
+        )) as Array<{ id: string }>;
         purgeOperationId = purgeOperation?.id;
       }
       await runner.commitTransaction();

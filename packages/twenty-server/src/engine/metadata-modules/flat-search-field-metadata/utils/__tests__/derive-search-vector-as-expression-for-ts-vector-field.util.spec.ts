@@ -35,7 +35,9 @@ describe('deriveSearchVectorAsExpressionForTsVectorField', () => {
         },
       ],
     ]),
-  };
+  } as unknown as Parameters<
+    typeof deriveSearchVectorAsExpressionForTsVectorField
+  >[0];
 
   afterEach(() => jest.resetAllMocks());
 
