@@ -1,5 +1,6 @@
 import { Transform } from 'class-transformer';
 import {
+  IsBoolean,
   IsEmail,
   IsIn,
   IsNotEmpty,
@@ -47,4 +48,9 @@ export class AttachConnectedAccountDto {
   @IsOptional()
   @IsIn(Object.values(CalendarChannelVisibility))
   calendarVisibility?: CalendarChannelVisibility;
+
+  // Absent or true creates the calendar channel. False records the account only.
+  @IsOptional()
+  @IsBoolean()
+  withCalendarChannel?: boolean;
 }

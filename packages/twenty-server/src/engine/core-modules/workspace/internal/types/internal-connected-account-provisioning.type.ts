@@ -15,11 +15,14 @@ export type AttachConnectedAccountInput = {
   accessToken: string;
   refreshToken: string;
   calendarVisibility?: CalendarChannelVisibility;
+  // Omitted or true creates the calendar channel. False records the account only.
+  withCalendarChannel?: boolean;
 };
 
 export type AttachConnectedAccountResult = {
   connectedAccountId: string;
-  calendarChannelId: string;
+  // Absent when the attach asked for no calendar channel.
+  calendarChannelId?: string;
   created: boolean;
 };
 

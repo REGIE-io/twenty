@@ -51,17 +51,11 @@ export class InternalConnectedAccountProvisioningService {
   ) {}
 
   /**
-   * Records a Regie-provisioned mailbox here, with its tokens, and gives it a calendar
-   * channel.
+   * Serialized per mailbox by an advisory lock: attach is driven by a user toggle, so a
+   * double-click can arrive twice at once and neither table has a unique constraint.
    *
-   * Both writes run in one transaction, serialized per mailbox by an advisory lock. Attach
-   * is driven by a user toggle, so a double-click or a retried call can arrive twice at
-   * once, and neither table has a unique constraint to fall back on. Keyed lookups make a
-   * sequential retry idempotent; the lock is what makes a concurrent one safe.
-   *
-   * The transaction is taken from the repository's own manager: calendarChannel is a core
-   * entity, and the global workspace datasource resolves workspace entities by string name,
-   * so handing it a class throws "Entity target must be a string".
+   * The transaction comes from the repository's own manager — the global workspace
+   * datasource resolves entities by string name and throws on a class.
    */
   async attachConnectedAccount(
     input: AttachConnectedAccountInput,
@@ -99,6 +93,15 @@ export class InternalConnectedAccountProvisioningService {
             transactionManager,
           );
 
+        // A plain mailbox connect. Nothing syncs from an account alone: every calendar
+        // and messaging job selects on channels.
+        if (input.withCalendarChannel === false) {
+          return {
+            connectedAccountId: connectedAccount.id,
+            created: accountCreated,
+          };
+        }
+
         const { calendarChannelId, created: channelCreated } =
           await this.findOrCreateCalendarChannel(
             input,
@@ -115,13 +118,7 @@ export class InternalConnectedAccountProvisioningService {
     );
   }
 
-  /**
-   * Stops Twenty syncing an account's calendars.
-   *
-   * Channels are disabled, never deleted: the sync cursor survives so re-enabling is
-   * incremental rather than a full recrawl, and already-synced meetings stay attributable
-   * to the channel they came from.
-   */
+  /** Disabled, never deleted: the sync cursor survives so re-enabling is incremental. */
   async detachConnectedAccount({
     workspaceId,
     connectedAccountId,
@@ -231,8 +228,7 @@ export class InternalConnectedAccountProvisioningService {
           // Cleared so the next sync refreshes rather than trusting an anchor that
           // belongs to the tokens just replaced.
           lastCredentialsRefreshedAt: null,
-          // A past auth failure describes the grant we just replaced, exactly as
-          // Twenty's own reconnect path clears it.
+          // The failure describes the grant just replaced, as upstream's reconnect does.
           authFailedAt: null,
         },
       );
@@ -278,25 +274,18 @@ export class InternalConnectedAccountProvisioningService {
     });
 
     if (isDefined(existing)) {
-      // A failed channel is additionally moved back to fetch-pending, because attach is
-      // where a fresh grant arrives and nothing else will revive it: the list-fetch cron
-      // selects on the pending stage, and the relaunch cron takes FAILED_UNKNOWN only.
-      //
-      // Gated on FAILED rather than applied always. Twenty's own reconnect resets
-      // unconditionally, but it runs only on a real re-consent, whereas attach runs on
-      // every enable — resetting here would wipe the cursor on each toggle and could
-      // rewrite the stage under a job that is still running.
+      // Nothing else revives a FAILED channel: the list-fetch cron wants the pending
+      // stage and the relaunch cron takes FAILED_UNKNOWN only. Gated rather than always,
+      // because attach runs on every enable and would otherwise wipe the cursor.
       const isFailed = existing.syncStage === CalendarChannelSyncStage.FAILED;
 
-      // Re-enabled rather than replaced, so the stored sync cursor survives and turning
-      // sync back on does not force a full resync.
+      // Re-enabled, not replaced, so the cursor survives.
       if (!existing.isSyncEnabled || isFailed) {
         await calendarChannelRepository.update(
           { id: existing.id, workspaceId: input.workspaceId },
           {
             isSyncEnabled: true,
-            // syncStatus is left alone deliberately: the stock transitions overwrite it
-            // on the next fetch, and upstream's reset leaves it untouched too.
+            // syncStatus left alone: the next fetch overwrites it, as upstream does.
             ...(isFailed
               ? {
                   syncStage:
@@ -317,14 +306,12 @@ export class InternalConnectedAccountProvisioningService {
         workspaceId: input.workspaceId,
         connectedAccountId,
         handle: input.handle,
-        // Twenty's visibility model assumes Twenty is the frontend: under METADATA
-        // plus an API key, a user's own meeting titles come back redacted. Regie is
+        // Under METADATA plus an API key, meeting titles come back redacted. Regie is
         // the only frontend and enforces privacy itself.
         calendarVisibility:
           input.calendarVisibility ??
           CalendarChannelVisibility.SHARE_EVERYTHING,
-        // Regie owns email, so no message channel is configured. That also starts the
-        // channel ready to fetch rather than pending configuration.
+        // Regie owns email. Also starts the channel ready to fetch, not pending config.
         skipMessageChannelConfiguration: true,
         transactionManager,
       });
