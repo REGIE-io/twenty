@@ -50,8 +50,11 @@ only; it is not a generic search endpoint with an optional object or field hint.
    phone field the caller cannot read must not reveal or return the record.
 12. Result limits and pagination are deterministic and cannot be consumed by
     matches from non-phone fields.
-13. Creating, renaming, deleting, activating, deactivating, or changing the type
-    of a custom field updates its participation without manual database work.
+13. Creating, renaming, deleting, activating, or deactivating a custom field
+    updates its participation without manual database work. Twenty does not
+    support mutating an existing field's type; changing between `PHONES` and
+    another type is represented by deactivating/deleting the old field and
+    creating a new field.
 14. Updating a record's primary or additional phone values updates the searchable
     index as part of the same database write semantics.
 
@@ -72,8 +75,9 @@ only; it is not a generic search endpoint with an optional object or field hint.
   is found after that field is created.
 - An E.164 lookup matches the equivalent calling-code and national-number parts
   produced by Twenty's phone write transformer.
-- Removing or changing the type of that custom field removes its values from the
-  lookup surface.
+- Deactivating or deleting that custom field removes its values from the lookup
+  surface. Recreating the logical field with a non-`PHONES` type does not add
+  those values back.
 - The same digits in a non-phone field do not return the record.
 - A caller lacking read access to the matching phone field receives no result
   from that field.
