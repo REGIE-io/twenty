@@ -113,15 +113,15 @@ Indexes and constraints:
 - primary key `(workspaceId, id)`; PostgreSQL requires every unique constraint
   on this hash-partitioned table to include its partition key;
 - unique `(workspaceId, objectMetadataId, fieldMetadataId,
-  projectionGeneration, recordId, canonicalPhone)` so retries and duplicate
+projectionGeneration, recordId, canonicalPhone)` so retries and duplicate
   primary/additional values are idempotent within a generation;
 - lookup B-tree `(workspaceId, objectMetadataId, canonicalPhone,
-  fieldMetadataId, projectionGeneration, recordId)` for the API's equality
+fieldMetadataId, projectionGeneration, recordId)` for the API's equality
   predicate;
 - cleanup index `(workspaceId, objectMetadataId, recordId,
-  projectionGeneration)` for trigger refresh and record deletion;
+projectionGeneration)` for trigger refresh and record deletion;
 - cleanup index `(workspaceId, objectMetadataId, fieldMetadataId,
-  projectionGeneration)` for field removal and retiring old generations.
+projectionGeneration)` for field removal and retiring old generations.
 
 Create these indexes before enabling writes to a newly installed lookup table,
 then let backfill maintain them incrementally. There is no second index-build
@@ -294,6 +294,15 @@ Retain the dedicated GraphQL operation in the existing search module:
 - `dtos/phone-search-result.dto.ts`;
 - `services/phone-search.service.ts`;
 - `search.resolver.ts` and `search.module.ts`.
+
+The first-version resolver accepts only `phoneNumber` (strict E.164), required
+`limit` in `[1,100]`, and optional opaque `after`. It has no country, object, or
+field selector. TypeScript parses untrusted E.164 input with libphonenumber;
+`phone_search_values` only projects stored `+callingCode` plus national digits.
+Both roles share an executable fixture corpus for their canonical key contract.
+The response exposes only deduplicated Person `recordId` edges and cursors;
+matching field/value provenance and national-format input are future versioned
+additions.
 
 Remove all `phoneSearchVector` and `to_tsquery` construction. After normalizing
 the request, resolve Person permissions exactly as the existing service does.
@@ -616,10 +625,13 @@ objects only through the instance rollback after lookup data is empty.
 
 ### Workspace deletion
 
-Workspace deletion must disable/drop its trigger and enqueue or directly batch
-delete lookup, state, and operation rows. Add cleanup hooks to the existing
-workspace deletion flow. The cleanup path is idempotent and must tolerate the
-physical workspace schema already being absent.
+Workspace deletion drops the tenant schema first, then directly deletes lookup
+rows in bounded batches and deletes field-state and operation rows before the
+core workspace row is removed. The three core tables are owned derived
+infrastructure, not metadata. Each has a workspace foreign key with `ON DELETE
+CASCADE` as the final hard guarantee if deletion is interrupted or a concurrent
+path reaches the core-row delete. The cleanup path is idempotent and tolerates
+the physical workspace schema already being absent.
 
 ## Concrete code change map
 

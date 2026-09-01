@@ -48,17 +48,14 @@ last ready projection, or unrelated metadata operations.
 3. Every eligible `PHONES` field contributes both its primary phone and all
    additional phones.
 4. Standard and custom `PHONES` fields behave identically.
-5. The lookup uses the same phone parsing rules as Twenty's `PHONES` write path.
-   Twenty parses valid input with `libphonenumber-js`, stores the national number
-   in the number subfield, and stores or infers the `+` country calling code and
-   ISO country code separately. The canonical lookup key is the E.164-equivalent
-   concatenation of calling code and national number.
-6. The API accepts a valid E.164 number. Supporting a national number requires an
-   explicit ISO country code in the request; the API must not silently guess a
-   country.
-7. Display variants are not stored in the lookup index. The incoming value and
-   stored phone components are independently normalized to the same canonical
-   E.164-equivalent key.
+5. The API accepts only valid E.164 international input: `+` followed by a valid
+   `libphonenumber-js` number. It does not infer locale or accept national-format
+   input. The canonical lookup key is calling-code digits followed by
+   national-number digits, with no `+` or formatting.
+6. SQL does not parse phone input. It projects Twenty's already-structured
+   `PHONES` storage (`+callingCode` and national-number digits) to the same key
+   and ignores malformed stored components.
+7. Display variants are not stored in the lookup index.
 8. A returned record must have matched an eligible phone value. A value in a
    name, email, title, postal code, note, or any other non-phone field must never
    produce a result.
@@ -66,7 +63,7 @@ last ready projection, or unrelated metadata operations.
    the generic search service's `ILIKE` fallback.
 10. An empty indexed result is definitive and returns immediately.
 11. Object-, record-, and field-level read permissions are enforced. A match in a
-   phone field the caller cannot read must not reveal or return the record.
+    phone field the caller cannot read must not reveal or return the record.
 12. Result limits and pagination are deterministic and cannot be consumed by
     matches from non-phone fields.
 13. Creating, renaming, deleting, activating, or deactivating a custom field
@@ -130,13 +127,26 @@ last ready projection, or unrelated metadata operations.
   Person CRUD continue successfully against a complete generation; cutover does
   not require a table swap or row-count-proportional lock.
 
-## Open product decisions
+## API contract
 
-- Final GraphQL naming and response shape: for example,
-  `searchPeopleByPhone(phoneNumber, countryCode, ...)` versus
-  `findPeopleByPhone(...)`.
-- Whether results should identify the matching field in addition to the record.
-- Whether national-format input is needed in the first version; if it is, the
-  request must carry its ISO country context.
-- Whether inactive phone fields should remain searchable for administrative
-  workflows; the default requirement is no.
+`searchPeopleByPhone(phoneNumber: String!, limit: Int!, after: String)` is a
+Person-only exact-phone collection query. `limit` is required and must be in
+`[1,100]`; `after` is an opaque cursor. Results are deduplicated, ID-ascending
+edges of `{ node: { recordId }, cursor }` with `{ endCursor, hasNextPage }`.
+
+It searches only active, readable Person `PHONES` fields. No object selector,
+field selector, generic search term, fuzzy/suffix/substring option, or
+administrative inactive-field exception is supported. A person matching more
+than one field appears once; matching field identity and phone value are not
+returned, minimizing ACL surface.
+
+Invalid or non-E.164 input returns Twenty's normal GraphQL client validation
+error (`BAD_USER_INPUT`) with the stable message
+`phoneNumber must be a valid E.164 international phone number`. When no complete
+readable projection is ready, it returns the typed retryable
+`PHONE_SEARCH_INDEXING` error with `retryAfter: 5`; clients should retry after
+that delay. No object read permission, or no readable phone fields, returns an
+empty connection without disclosing data.
+
+National-format input and match provenance are future versioned changes, not
+first-version options.

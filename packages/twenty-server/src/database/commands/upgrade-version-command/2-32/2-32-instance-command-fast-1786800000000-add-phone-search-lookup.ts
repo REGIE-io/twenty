@@ -42,7 +42,8 @@ export class AddPhoneSearchLookupFastInstanceCommand implements FastInstanceComm
         "isQueryEnabled" boolean NOT NULL DEFAULT false, "configurationGeneration" bigint NOT NULL DEFAULT 1,
         "activeProjectionGeneration" bigint, "buildingProjectionGeneration" bigint,
         "lastError" text, "lastErrorAt" timestamptz, "createdAt" timestamptz NOT NULL DEFAULT now(), "updatedAt" timestamptz NOT NULL DEFAULT now(),
-        PRIMARY KEY ("workspaceId", "objectMetadataId", "fieldMetadataId")
+        PRIMARY KEY ("workspaceId", "objectMetadataId", "fieldMetadataId"),
+        CONSTRAINT "FK_PHONE_SEARCH_FIELD_STATE_WORKSPACE" FOREIGN KEY ("workspaceId") REFERENCES core."workspace"(id) ON DELETE CASCADE
       );
       CREATE INDEX IF NOT EXISTS "IDX_PHONE_SEARCH_FIELD_STATE_QUERY" ON core."phoneSearchFieldState" ("workspaceId", "objectMetadataId", "syncStatus", "isQueryEnabled");
       CREATE TABLE IF NOT EXISTS core."phoneSearchIndexOperation" (
@@ -51,9 +52,29 @@ export class AddPhoneSearchLookupFastInstanceCommand implements FastInstanceComm
         "lastRecordId" uuid, "processedRecordCount" bigint NOT NULL DEFAULT 0, "estimatedRecordCount" bigint,
         "attemptCount" integer NOT NULL DEFAULT 0, "lastError" text, "lastErrorAt" timestamptz,
         "leaseOwner" varchar, "leaseExpiresAt" timestamptz, "heartbeatAt" timestamptz,
-        "createdAt" timestamptz NOT NULL DEFAULT now(), "startedAt" timestamptz, "completedAt" timestamptz, "updatedAt" timestamptz NOT NULL DEFAULT now()
+        "createdAt" timestamptz NOT NULL DEFAULT now(), "startedAt" timestamptz, "completedAt" timestamptz, "updatedAt" timestamptz NOT NULL DEFAULT now(),
+        CONSTRAINT "FK_PHONE_SEARCH_INDEX_OPERATION_WORKSPACE" FOREIGN KEY ("workspaceId") REFERENCES core."workspace"(id) ON DELETE CASCADE
       );
       CREATE UNIQUE INDEX IF NOT EXISTS "IDX_PHONE_SEARCH_OPERATION_ACTIVE" ON core."phoneSearchIndexOperation" ("workspaceId", "objectMetadataId") WHERE status IN ('PENDING','RUNNING','RETRYABLE');
+    `);
+    // `CREATE TABLE IF NOT EXISTS` leaves an early/partial installation in
+    // place. Add the ownership FKs separately so rerunning this command also
+    // upgrades those tables, without failing when a named constraint exists.
+    await queryRunner.query(`
+      DO $$
+      BEGIN
+        FOR partition IN 0..31 LOOP
+          IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = format('FK_PERSON_PHONE_LOOKUP_WORKSPACE_P%s', partition) AND conrelid = format('core."personPhoneLookup_p%s"', partition)::regclass) THEN
+            EXECUTE format('ALTER TABLE core."personPhoneLookup_p%s" ADD CONSTRAINT "FK_PERSON_PHONE_LOOKUP_WORKSPACE_P%s" FOREIGN KEY ("workspaceId") REFERENCES core."workspace"(id) ON DELETE CASCADE NOT VALID', partition, partition);
+          END IF;
+        END LOOP;
+        IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'FK_PHONE_SEARCH_FIELD_STATE_WORKSPACE' AND conrelid = 'core."phoneSearchFieldState"'::regclass) THEN
+          ALTER TABLE core."phoneSearchFieldState" ADD CONSTRAINT "FK_PHONE_SEARCH_FIELD_STATE_WORKSPACE" FOREIGN KEY ("workspaceId") REFERENCES core."workspace"(id) ON DELETE CASCADE NOT VALID;
+        END IF;
+        IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'FK_PHONE_SEARCH_INDEX_OPERATION_WORKSPACE' AND conrelid = 'core."phoneSearchIndexOperation"'::regclass) THEN
+          ALTER TABLE core."phoneSearchIndexOperation" ADD CONSTRAINT "FK_PHONE_SEARCH_INDEX_OPERATION_WORKSPACE" FOREIGN KEY ("workspaceId") REFERENCES core."workspace"(id) ON DELETE CASCADE NOT VALID;
+        END IF;
+      END $$;
     `);
     await queryRunner.query(`
       CREATE OR REPLACE FUNCTION public.phone_search_values(row_value jsonb, physical_field_name text)

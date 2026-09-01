@@ -22,6 +22,28 @@ jest.mock(
 );
 
 describe('PhoneSearchService indexed query contract', () => {
+  it('rejects non-E.164 input before querying permissions or the lookup index', async () => {
+    const dataSource = { query: jest.fn() };
+    const manager = { executeInWorkspaceContext: jest.fn() };
+    const service = new PhoneSearchService(
+      manager as unknown as GlobalWorkspaceOrmManager,
+      dataSource as never,
+    );
+
+    await expect(
+      service.searchPeopleByPhone({
+        workspace: { id: 'workspace' } as never,
+        args: { phoneNumber: '4155550100', limit: 10 },
+        flatObjectMetadataMaps: {} as never,
+        flatFieldMetadataMaps: {} as never,
+      }),
+    ).rejects.toThrow(
+      'phoneNumber must be a valid E.164 international phone number',
+    );
+    expect(manager.executeInWorkspaceContext).not.toHaveBeenCalled();
+    expect(dataSource.query).not.toHaveBeenCalled();
+  });
+
   it('queries only ready readable phone projections and never builds LIKE/ILIKE fallback SQL', async () => {
     const andWhere = jest.fn().mockReturnThis();
     const queryBuilder = {

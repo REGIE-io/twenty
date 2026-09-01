@@ -17,6 +17,7 @@ import { FeatureFlagModule } from 'src/engine/core-modules/feature-flag/feature-
 import { FileModule } from 'src/engine/core-modules/file/file.module';
 import { MetricsModule } from 'src/engine/core-modules/metrics/metrics.module';
 import { OnboardingModule } from 'src/engine/core-modules/onboarding/onboarding.module';
+import { PhoneSearchIndexModule } from 'src/engine/core-modules/phone-search-index/phone-search-index.module';
 import { SdkClientModule } from 'src/engine/core-modules/sdk-client/sdk-client.module';
 import { UserWorkspaceEntity } from 'src/engine/core-modules/user-workspace/user-workspace.entity';
 import { UserWorkspaceModule } from 'src/engine/core-modules/user-workspace/user-workspace.module';
@@ -82,6 +83,7 @@ import { WorkspaceMigrationModule } from 'src/engine/workspace-manager/workspace
     UpgradeModule,
     SdkClientModule,
     CompanyEnrichmentModule,
+    PhoneSearchIndexModule,
   ],
   controllers: [InternalWorkspaceMemberProvisioningController],
   exports: [WorkspaceService, CheckCustomDomainValidRecordsCronCommand],

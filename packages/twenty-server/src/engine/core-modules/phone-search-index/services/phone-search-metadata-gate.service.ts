@@ -20,6 +20,11 @@ export class PhoneSearchMetadataGateService {
     manager?: EntityManager;
   }): Promise<void> {
     const queryable = manager ?? this.dataSource;
+    // Cross-version upgrades instantiate current modules while replaying older
+    // workspace commands. Until the 2.32 instance command owns these tables,
+    // phone-search lifecycle gating is intentionally unavailable (and must not
+    // block an unrelated historical migration).
+    if (!(await this.isInfrastructureAvailable(manager))) return;
     // This lock is scoped to the caller's migration transaction. It serializes
     // the check with the later state/DDL writes and is released at commit or
     // rollback, never while a background index job is running.
@@ -54,5 +59,16 @@ export class PhoneSearchMetadataGateService {
       processedRecordCount: Number(operation.processedRecordCount),
       retryAfter: 5,
     });
+  }
+
+  async isInfrastructureAvailable(manager?: EntityManager): Promise<boolean> {
+    const queryable = manager ?? this.dataSource;
+    const [{ isAvailable }] = await queryable.query<
+      Array<{ isAvailable: boolean }>
+    >(
+      `SELECT to_regclass('core."phoneSearchIndexOperation"') IS NOT NULL AS "isAvailable"`,
+    );
+
+    return isAvailable;
   }
 }

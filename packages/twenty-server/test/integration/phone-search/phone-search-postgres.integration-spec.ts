@@ -1,5 +1,10 @@
 import crypto from 'crypto';
 
+import {
+  malformedPhoneSearchInputs,
+  phoneSearchCanonicalizationFixtures,
+} from 'twenty-shared/testing';
+import { canonicalizeE164PhoneSearchInput } from 'twenty-shared/utils';
 import { DataSource } from 'typeorm';
 
 import { AddPhoneSearchLookupFastInstanceCommand } from 'src/database/commands/upgrade-version-command/2-32/2-32-instance-command-fast-1786800000000-add-phone-search-lookup';
@@ -110,6 +115,11 @@ describe('person phone lookup PostgreSQL contracts', () => {
     standardFieldId = id();
     customFieldId = id();
     schema = getWorkspaceSchemaName(workspaceId);
+    await dataSource.query(
+      `INSERT INTO core.workspace (id, subdomain, "activationStatus", "workspaceCustomApplicationId")
+       VALUES ($1, $2, 'PENDING_CREATION', (SELECT id FROM core.application LIMIT 1))`,
+      [workspaceId, `phone-search-${workspaceId}`],
+    );
     await dataSource.query(`CREATE SCHEMA "${schema}"`);
     await dataSource.query(`
       CREATE TABLE "${schema}".person (
@@ -139,21 +149,129 @@ describe('person phone lookup PostgreSQL contracts', () => {
 
   afterEach(async () => {
     await dataSource.query(`DROP SCHEMA IF EXISTS "${schema}" CASCADE`);
-    await dataSource.query(
-      'DELETE FROM core."phoneSearchIndexOperation" WHERE "workspaceId" = $1',
-      [workspaceId],
-    );
-    await dataSource.query(
-      'DELETE FROM core."phoneSearchFieldState" WHERE "workspaceId" = $1',
-      [workspaceId],
-    );
-    await dataSource.query(
-      'DELETE FROM core."personPhoneLookup" WHERE "workspaceId" = $1',
-      [workspaceId],
-    );
+    await dataSource.query('DELETE FROM core.workspace WHERE id = $1', [
+      workspaceId,
+    ]);
   });
 
   afterAll(async () => dataSource.destroy());
+
+  it('installs workspace ownership foreign keys with cascade deletion', async () => {
+    const constraints = await dataSource.query<
+      Array<{ conname: string; confdeltype: string }>
+    >(
+      `SELECT conname, confdeltype FROM pg_constraint
+        WHERE conname IN ('FK_PHONE_SEARCH_FIELD_STATE_WORKSPACE', 'FK_PHONE_SEARCH_INDEX_OPERATION_WORKSPACE')
+           OR conname LIKE 'FK_PERSON_PHONE_LOOKUP_WORKSPACE_P%'
+        ORDER BY conname`,
+    );
+
+    expect(constraints).toEqual(
+      expect.arrayContaining([
+        { conname: 'FK_PHONE_SEARCH_FIELD_STATE_WORKSPACE', confdeltype: 'c' },
+        {
+          conname: 'FK_PHONE_SEARCH_INDEX_OPERATION_WORKSPACE',
+          confdeltype: 'c',
+        },
+      ]),
+    );
+    expect(
+      constraints.filter(({ conname }) =>
+        conname.startsWith('FK_PERSON_PHONE_LOOKUP_WORKSPACE_P'),
+      ),
+    ).toHaveLength(32);
+    expect(constraints.every(({ confdeltype }) => confdeltype === 'c')).toBe(
+      true,
+    );
+  });
+
+  it('keeps E.164 request canonicalization equivalent to structured SQL projection', async () => {
+    for (const fixture of phoneSearchCanonicalizationFixtures) {
+      expect(canonicalizeE164PhoneSearchInput(fixture.e164)).toBe(
+        fixture.canonicalKey,
+      );
+      const rows = await dataSource.query<{ canonicalPhone: string }[]>(
+        `SELECT "canonicalPhone" FROM public.phone_search_values($1::jsonb, 'phones')`,
+        [
+          JSON.stringify({
+            phonesPrimaryPhoneCallingCode:
+              fixture.stored.primaryPhoneCallingCode,
+            phonesPrimaryPhoneNumber: fixture.stored.primaryPhoneNumber,
+            phonesAdditionalPhones: fixture.stored.additionalPhones,
+          }),
+        ],
+      );
+
+      expect(rows).toContainEqual({ canonicalPhone: fixture.canonicalKey });
+    }
+  });
+
+  it('query-disables deactivation immediately, retains trigger maintenance, and tombstones deletion before purge', async () => {
+    const lifecycle = new PhoneSearchFieldLifecycleService(dataSource);
+    await lifecycle.setActive({
+      workspaceId,
+      objectMetadataId,
+      fieldMetadataId: standardFieldId,
+      isActive: false,
+    });
+    expect(
+      await dataSource.query(
+        `SELECT "isQueryEnabled" FROM core."phoneSearchFieldState" WHERE "workspaceId" = $1 AND "fieldMetadataId" = $2`,
+        [workspaceId, standardFieldId],
+      ),
+    ).toEqual([{ isQueryEnabled: false }]);
+    const recordId = id();
+    await dataSource.query(
+      `INSERT INTO "${schema}".person (id, "phonesPrimaryPhoneCallingCode", "phonesPrimaryPhoneNumber") VALUES ($1, '+1', '4155557777')`,
+      [recordId],
+    );
+    expect(
+      (await lookupRows()).some(
+        (row: { recordId: string }) => row.recordId === recordId,
+      ),
+    ).toBe(true);
+    await lifecycle.setActive({
+      workspaceId,
+      objectMetadataId,
+      fieldMetadataId: standardFieldId,
+      isActive: true,
+    });
+    expect(
+      await dataSource.query(
+        `SELECT "isQueryEnabled" FROM core."phoneSearchFieldState" WHERE "workspaceId" = $1 AND "fieldMetadataId" = $2`,
+        [workspaceId, standardFieldId],
+      ),
+    ).toEqual([{ isQueryEnabled: true }]);
+    await lifecycle.markDeleting({
+      workspaceId,
+      objectMetadataId,
+      fieldMetadataId: standardFieldId,
+    });
+    expect(
+      await dataSource.query(
+        `SELECT "syncStatus", "isQueryEnabled" FROM core."phoneSearchFieldState" WHERE "workspaceId" = $1 AND "fieldMetadataId" = $2`,
+        [workspaceId, standardFieldId],
+      ),
+    ).toEqual([{ syncStatus: 'DELETING', isQueryEnabled: false }]);
+  });
+
+  it('rejects malformed request input and ignores malformed structured values', async () => {
+    for (const input of malformedPhoneSearchInputs) {
+      expect(canonicalizeE164PhoneSearchInput(input)).toBeUndefined();
+    }
+    await expect(
+      dataSource.query(
+        `SELECT * FROM public.phone_search_values($1::jsonb, 'phones')`,
+        [
+          JSON.stringify({
+            phonesPrimaryPhoneCallingCode: '+x',
+            phonesPrimaryPhoneNumber: '4155550100',
+            phonesAdditionalPhones: { callingCode: '+1', number: '4155550100' },
+          }),
+        ],
+      ),
+    ).resolves.toEqual([]);
+  });
 
   it('extracts standard and custom primary/additional values and maintains them transactionally', async () => {
     const recordId = id();
@@ -257,6 +375,17 @@ describe('person phone lookup PostgreSQL contracts', () => {
     expect(await backfill.runBatch(operationId)).toBe(false);
 
     const changedId = recordIds[0];
+    const insertedBehindCursorId = '00000000-0000-0000-0000-000000000001';
+    const deletedId = recordIds[250];
+    await dataSource.query(
+      `INSERT INTO "${schema}".person
+        (id, "phonesPrimaryPhoneCallingCode", "phonesPrimaryPhoneNumber")
+       VALUES ($1, '+1', '4155558888')`,
+      [insertedBehindCursorId],
+    );
+    await dataSource.query(`DELETE FROM "${schema}".person WHERE id = $1`, [
+      deletedId,
+    ]);
     await dataSource.query(
       `UPDATE "${schema}".person SET "phonesPrimaryPhoneNumber" = '4155559999' WHERE id = $1`,
       [changedId],
@@ -270,6 +399,23 @@ describe('person phone lookup PostgreSQL contracts', () => {
       { projectionGeneration: '1', canonicalPhone: '14155559999' },
       { projectionGeneration: '2', canonicalPhone: '14155559999' },
     ]);
+    expect(
+      await dataSource.query(
+        `SELECT "projectionGeneration", "canonicalPhone" FROM core."personPhoneLookup"
+          WHERE "workspaceId" = $1 AND "recordId" = $2 ORDER BY "projectionGeneration"`,
+        [workspaceId, insertedBehindCursorId],
+      ),
+    ).toEqual([
+      { projectionGeneration: '1', canonicalPhone: '14155558888' },
+      { projectionGeneration: '2', canonicalPhone: '14155558888' },
+    ]);
+    expect(
+      await dataSource.query(
+        `SELECT * FROM core."personPhoneLookup" WHERE "workspaceId" = $1 AND "recordId" = $2`,
+        [workspaceId, deletedId],
+      ),
+    ).toEqual([]);
+    expect(await backfill.runBatch(operationId)).toBe(true);
     expect(await backfill.runBatch(operationId)).toBe(true);
 
     const [state] = await dataSource.query(

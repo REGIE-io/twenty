@@ -7,6 +7,7 @@ import { deleteRole } from 'test/integration/graphql/utils/delete-one-role.util'
 import { searchPeopleByPhone } from 'test/integration/graphql/utils/search-people-by-phone.util';
 import { updateWorkspaceMemberRole } from 'test/integration/graphql/utils/update-workspace-member-role.util';
 import { upsertFieldPermissions } from 'test/integration/graphql/utils/upsert-field-permissions.util';
+import { upsertContainsRlsPredicate } from 'test/integration/graphql/utils/upsert-contains-rls-predicate.util';
 import { deleteRecordsByIds } from 'test/integration/utils/delete-records-by-ids';
 import { createOneFieldMetadata } from 'test/integration/metadata/suites/field-metadata/utils/create-one-field-metadata.util';
 import { deleteOneFieldMetadata } from 'test/integration/metadata/suites/field-metadata/utils/delete-one-field-metadata.util';
@@ -25,6 +26,7 @@ jest.setTimeout(120000);
 const suffix = `${Date.now()}${Math.floor(Math.random() * 10000)}`;
 const readableFieldName = `phoneSearchReadable${suffix}`;
 const restrictedFieldName = `phoneSearchRestricted${suffix}`;
+const rlsVisibleJobTitle = `Phone Search Visible ${suffix}`;
 const client = request(`http://localhost:${APP_PORT}`);
 const wait = (milliseconds: number) =>
   new Promise((resolve) => setTimeout(resolve, milliseconds));
@@ -131,6 +133,12 @@ describe('searchPeopleByPhone field permissions', () => {
         },
       ],
     });
+    await upsertContainsRlsPredicate({
+      roleId: customRoleId,
+      objectNameSingular: 'person',
+      fieldName: 'jobTitle',
+      value: rlsVisibleJobTitle,
+    });
     await updateWorkspaceMemberRole({
       client,
       roleId: customRoleId,
@@ -138,11 +146,26 @@ describe('searchPeopleByPhone field permissions', () => {
     });
 
     for (const data of [
-      { [readableFieldName]: phoneValue('4155551400') },
-      { [restrictedFieldName]: phoneValue('4155551401') },
       {
+        jobTitle: rlsVisibleJobTitle,
+        [readableFieldName]: phoneValue('4155551400'),
+      },
+      {
+        jobTitle: rlsVisibleJobTitle,
+        [restrictedFieldName]: phoneValue('4155551401'),
+      },
+      {
+        jobTitle: rlsVisibleJobTitle,
         [readableFieldName]: phoneValue('4155551402'),
         [restrictedFieldName]: phoneValue('4155551402'),
+      },
+      {
+        jobTitle: rlsVisibleJobTitle,
+        [readableFieldName]: phoneValue('4155551403'),
+      },
+      {
+        jobTitle: `Phone Search Hidden ${suffix}`,
+        [readableFieldName]: phoneValue('4155551403'),
       },
     ]) {
       const id = randomUUID();
@@ -231,5 +254,18 @@ describe('searchPeopleByPhone field permissions', () => {
     expect(
       response.data?.searchPeopleByPhone.edges.map(({ node }) => node.recordId),
     ).toEqual(matchingIndexes.map((index) => createdPersonIds[index]));
+  });
+
+  it('keeps the Person permission query outermost for row-level predicates', async () => {
+    const response = await searchPeopleByPhone({
+      phoneNumber: '+14155551403',
+      limit: 10,
+      accessToken: APPLE_JONY_MEMBER_ACCESS_TOKEN,
+    });
+
+    expect(response.errors).toBeUndefined();
+    expect(
+      response.data?.searchPeopleByPhone.edges.map(({ node }) => node.recordId),
+    ).toEqual([createdPersonIds[3]]);
   });
 });

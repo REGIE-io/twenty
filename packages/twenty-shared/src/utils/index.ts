@@ -54,6 +54,8 @@ export { deepMerge } from './deepMerge';
 export { formatEmailAddress } from './email/formatEmailAddress';
 export type { ParsedEmailAddress } from './email/parseEmailAddressList';
 export { parseEmailAddressList } from './email/parseEmailAddressList';
+export { canonicalizeE164PhoneSearchInput } from './phones/canonicalize-e164-phone-search-input.util';
+export { isFieldReadable } from './permissions/is-field-readable.util';
 export { CustomError } from './errors/CustomError';
 export { evalFromContext } from './evalFromContext';
 export { extractAndSanitizeObjectStringFields } from './extractAndSanitizeObjectStringFields';

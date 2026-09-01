@@ -7,11 +7,6 @@ export class SearchPeopleByPhoneArgs {
   @IsString()
   phoneNumber: string;
 
-  @Field(() => String, { nullable: true })
-  @IsOptional()
-  @IsString()
-  countryCode?: string;
-
   @Field(() => Int)
   @IsInt()
   @Min(1)

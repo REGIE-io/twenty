@@ -5,9 +5,12 @@ import {
 } from '@nestjs/common';
 import { InjectDataSource } from '@nestjs/typeorm';
 
-import { parsePhoneNumberWithError } from 'libphonenumber-js';
 import { FieldMetadataType, type ObjectRecord } from 'twenty-shared/types';
-import { isDefined } from 'twenty-shared/utils';
+import {
+  canonicalizeE164PhoneSearchInput,
+  isDefined,
+  isFieldReadable,
+} from 'twenty-shared/utils';
 import { type DataSource } from 'typeorm';
 
 import {
@@ -24,22 +27,6 @@ import { type FlatObjectMetadata } from 'src/engine/metadata-modules/flat-object
 import { GlobalWorkspaceOrmManager } from 'src/engine/twenty-orm/global-workspace-datasource/global-workspace-orm.manager';
 import { getWorkspaceContext } from 'src/engine/twenty-orm/storage/orm-workspace-context.storage';
 import { resolveRolePermissionConfig } from 'src/engine/twenty-orm/utils/resolve-role-permission-config.util';
-
-const canonicalizePhoneNumber = ({
-  phoneNumber,
-  countryCode,
-}: Pick<SearchPeopleByPhoneArgs, 'phoneNumber' | 'countryCode'>): string => {
-  try {
-    if (!phoneNumber.trim().startsWith('+') && !countryCode) throw new Error();
-    const parsed = parsePhoneNumberWithError(phoneNumber, {
-      defaultCountry: countryCode as never,
-    });
-    if (!parsed.isValid()) throw new Error();
-    return `${parsed.countryCallingCode}${parsed.nationalNumber}`;
-  } catch {
-    throw new BadRequestException('phoneNumber must be a valid phone number');
-  }
-};
 
 @Injectable()
 export class PhoneSearchService {
@@ -59,7 +46,11 @@ export class PhoneSearchService {
     flatObjectMetadataMaps: FlatEntityMaps<FlatObjectMetadata>;
     flatFieldMetadataMaps: FlatEntityMaps<FlatFieldMetadata>;
   }): Promise<PhoneSearchResultConnectionDTO> {
-    const phoneDigits = canonicalizePhoneNumber(args);
+    const phoneDigits = canonicalizeE164PhoneSearchInput(args.phoneNumber);
+    if (!phoneDigits)
+      throw new BadRequestException(
+        'phoneNumber must be a valid E.164 international phone number',
+      );
     const person = Object.values(
       flatObjectMetadataMaps.byUniversalIdentifier,
     ).find(
@@ -93,7 +84,7 @@ export class PhoneSearchService {
           (field) =>
             field.type === FieldMetadataType.PHONES &&
             field.isActive &&
-            permissions?.restrictedFields?.[field.id]?.canRead !== false,
+            isFieldReadable(permissions?.restrictedFields, field.id),
         );
         if (!phoneFields.length) return this.emptyConnection();
 
@@ -150,6 +141,9 @@ export class PhoneSearchService {
         const afterId = args.after
           ? decodeCursor<{ id: string }>(args.after).id
           : undefined;
+        // Person remains the outer, permission-aware relation. Starting with
+        // lookup candidate IDs and fetching Persons in a second query could
+        // bypass row-level predicates or make pagination permission-unstable.
         const queryBuilder = repository
           .createQueryBuilder('person')
           .select('"person"."id"', 'id')

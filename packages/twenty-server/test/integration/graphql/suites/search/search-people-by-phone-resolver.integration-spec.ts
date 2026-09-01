@@ -4,6 +4,7 @@ import { updateOneOperationFactory } from 'test/integration/graphql/utils/update
 import { makeGraphqlAPIRequest } from 'test/integration/graphql/utils/make-graphql-api-request.util';
 import { search } from 'test/integration/graphql/utils/search.util';
 import { createOneOperation } from 'test/integration/graphql/utils/create-one-operation.util';
+import { deleteOneOperationFactory } from 'test/integration/graphql/utils/delete-one-operation-factory.util';
 import { deleteRecordsByIds } from 'test/integration/utils/delete-records-by-ids';
 import { createOneFieldMetadata } from 'test/integration/metadata/suites/field-metadata/utils/create-one-field-metadata.util';
 import { deleteOneFieldMetadata } from 'test/integration/metadata/suites/field-metadata/utils/delete-one-field-metadata.util';
@@ -51,14 +52,9 @@ const toE164 = (number: string) => `+1${number}`;
 const wait = (milliseconds: number) =>
   new Promise((resolve) => setTimeout(resolve, milliseconds));
 
-const expectSearchIds = async (
-  phoneNumber: string,
-  expectedIds: string[],
-  countryCode?: string,
-) => {
+const expectSearchIds = async (phoneNumber: string, expectedIds: string[]) => {
   const response = await searchPeopleByPhone({
     phoneNumber,
-    countryCode,
     limit: 50,
   });
 
@@ -374,11 +370,12 @@ describe('SearchPeopleByPhone resolver', () => {
     await expectSearchIds(toE164('4155550199'), []);
   });
 
-  it('normalizes formatted and country-qualified national input, and rejects invalid/ambiguous input', async () => {
-    await expectSearchIds('+1 (415) 555-0101', [personByCase.standardPrimary]);
-    await expectSearchIds('4155550101', [personByCase.standardPrimary], 'US');
-
-    const ambiguous = await searchPeopleByPhone({
+  it('rejects formatted and national-format input', async () => {
+    const formatted = await searchPeopleByPhone({
+      phoneNumber: '+1 (415) 555-0101',
+      limit: 10,
+    });
+    const national = await searchPeopleByPhone({
       phoneNumber: '4155550101',
       limit: 10,
     });
@@ -387,7 +384,8 @@ describe('SearchPeopleByPhone resolver', () => {
       limit: 10,
     });
 
-    expect(ambiguous.errors).toBeDefined();
+    expect(formatted.errors).toBeDefined();
+    expect(national.errors).toBeDefined();
     expect(invalid.errors).toBeDefined();
   });
 
@@ -418,6 +416,21 @@ describe('SearchPeopleByPhone resolver', () => {
       second.data?.searchPeopleByPhone.edges.map(({ node }) => node.recordId),
     ).toEqual([expectedIds[1]]);
     expect(second.data?.searchPeopleByPhone.pageInfo.hasNextPage).toBe(false);
+  });
+
+  it('excludes a matching soft-deleted Person even while trigger cleanup is not required', async () => {
+    const recordId = personByCase.standardAdditional;
+    const deleted = await makeGraphqlAPIRequest(
+      deleteOneOperationFactory({
+        objectMetadataSingularName: 'person',
+        gqlFields: 'id deletedAt',
+        recordId,
+      }),
+    );
+
+    expect(deleted.body.errors).toBeUndefined();
+    expect(deleted.body.data.deletePerson.deletedAt).toBeTruthy();
+    await expectSearchIds(toE164('4155550102'), []);
   });
 
   it('updates primary/additional values and leaves generic search behavior unchanged', async () => {

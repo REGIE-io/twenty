@@ -3,6 +3,36 @@ import { STANDARD_OBJECTS } from 'twenty-shared/metadata';
 import { FieldMetadataType } from 'twenty-shared/types';
 
 describe('PhoneSearchFieldLifecycleCoordinatorService', () => {
+  it('does not query lifecycle tables for a pre-2.32 PHONES metadata delta', async () => {
+    const lifecycle = { create: jest.fn() };
+    const gate = {
+      isInfrastructureAvailable: jest.fn().mockResolvedValue(false),
+    };
+    const coordinator = new PhoneSearchFieldLifecycleCoordinatorService(
+      lifecycle as never,
+      { add: jest.fn() } as never,
+      gate as never,
+    );
+
+    await expect(
+      coordinator.afterMigration({
+        workspaceId: 'w',
+        objectMetadataId: 'p',
+        updated: [],
+        deleted: [],
+        created: [
+          {
+            id: 'f',
+            type: FieldMetadataType.PHONES,
+            objectMetadataUniversalIdentifier:
+              STANDARD_OBJECTS.person.universalIdentifier,
+          },
+        ],
+      }),
+    ).resolves.toEqual([]);
+    expect(lifecycle.create).not.toHaveBeenCalled();
+  });
+
   it('enqueues a purge only after its deleting transition commits', async () => {
     const lifecycle = {
       create: jest.fn(),

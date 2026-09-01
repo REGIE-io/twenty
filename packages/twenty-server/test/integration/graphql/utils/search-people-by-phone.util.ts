@@ -4,7 +4,6 @@ import { makeGraphqlAPIRequest } from 'test/integration/graphql/utils/make-graph
 
 type SearchPeopleByPhoneArgs = {
   phoneNumber: string;
-  countryCode?: string;
   limit: number;
   after?: string;
   accessToken?: string;
@@ -26,7 +25,6 @@ export type SearchPeopleByPhoneResponse = {
 // This intentionally uses the proposed raw operation until schema/client artifacts exist.
 export const searchPeopleByPhone = async ({
   phoneNumber,
-  countryCode,
   limit,
   after,
   accessToken,
@@ -36,13 +34,11 @@ export const searchPeopleByPhone = async ({
       query: gql`
         query SearchPeopleByPhone(
           $phoneNumber: String!
-          $countryCode: String
           $limit: Int!
           $after: String
         ) {
           searchPeopleByPhone(
             phoneNumber: $phoneNumber
-            countryCode: $countryCode
             limit: $limit
             after: $after
           ) {
@@ -59,7 +55,7 @@ export const searchPeopleByPhone = async ({
           }
         }
       `,
-      variables: { phoneNumber, countryCode, limit, after },
+      variables: { phoneNumber, limit, after },
     },
     accessToken,
   );

@@ -3,6 +3,7 @@ import { STANDARD_OBJECTS } from 'twenty-shared/metadata';
 import { FieldMetadataType } from 'twenty-shared/types';
 
 import { PhoneSearchFieldLifecycleService } from 'src/engine/core-modules/phone-search-index/services/phone-search-field-lifecycle.service';
+import { PhoneSearchMetadataGateService } from 'src/engine/core-modules/phone-search-index/services/phone-search-metadata-gate.service';
 import { InjectMessageQueue } from 'src/engine/core-modules/message-queue/decorators/message-queue.decorator';
 import { MessageQueue } from 'src/engine/core-modules/message-queue/message-queue.constants';
 import { MessageQueueService } from 'src/engine/core-modules/message-queue/services/message-queue.service';
@@ -15,6 +16,7 @@ export class PhoneSearchFieldLifecycleCoordinatorService {
     private readonly lifecycle: PhoneSearchFieldLifecycleService,
     @InjectMessageQueue(MessageQueue.phoneSearchIndexQueue)
     private readonly queue: MessageQueueService,
+    private readonly metadataGate?: PhoneSearchMetadataGateService,
   ) {}
 
   async enqueue(operationIds: string[]): Promise<void> {
@@ -42,6 +44,13 @@ export class PhoneSearchFieldLifecycleCoordinatorService {
     manager?: EntityManager;
     enqueue?: boolean;
   }): Promise<string[]> {
+    // Current services are present while historical workspace commands replay.
+    // Do not let a historical PHONES metadata delta query 2.32 core tables.
+    if (
+      this.metadataGate &&
+      !(await this.metadataGate.isInfrastructureAvailable(manager))
+    )
+      return [];
     const operationIds: string[] = [];
     for (const field of created) {
       if (
