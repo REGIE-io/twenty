@@ -1,23 +1,83 @@
-import { config } from 'dotenv';
-import { DataSource, type QueryRunner } from 'typeorm';
+import crypto from 'crypto';
 
-import { AddPhoneSearchTokensFastInstanceCommand } from 'src/database/commands/upgrade-version-command/2-32/2-32-instance-command-fast-1786800000000-add-phone-search-tokens';
+import { DataSource } from 'typeorm';
+
+import { AddPhoneSearchLookupFastInstanceCommand } from 'src/database/commands/upgrade-version-command/2-32/2-32-instance-command-fast-1786800000000-add-phone-search-lookup';
+import { PhoneSearchFieldLifecycleService } from 'src/engine/core-modules/phone-search-index/services/phone-search-field-lifecycle.service';
+import { PhoneSearchIndexBackfillService } from 'src/engine/core-modules/phone-search-index/services/phone-search-index-backfill.service';
+import { PhoneSearchMetadataGateService } from 'src/engine/core-modules/phone-search-index/services/phone-search-metadata-gate.service';
+import { PhoneSearchTriggerManagerService } from 'src/engine/core-modules/phone-search-index/services/phone-search-trigger-manager.service';
+import { getWorkspaceSchemaName } from 'src/engine/workspace-datasource/utils/get-workspace-schema-name.util';
 
 jest.useRealTimers();
 
-config({
-  path: process.env.NODE_ENV === 'test' ? '.env.test' : '.env',
-  override: true,
-});
+const id = () => crypto.randomUUID();
 
-const FIELD_ONE = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
-const FIELD_TWO = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
-const FIELD_THREE = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc';
-const fieldToken = (field: string, digits: string) =>
-  `f${field.replace(/-/g, '')}p${digits}`;
-
-describe('phone search PostgreSQL contracts', () => {
+describe('person phone lookup PostgreSQL contracts', () => {
   let dataSource: DataSource;
+  let workspaceId: string;
+  let objectMetadataId: string;
+  let standardFieldId: string;
+  let customFieldId: string;
+  let schema: string;
+  let backfill: PhoneSearchIndexBackfillService;
+  const queuedOperationIds: string[] = [];
+
+  const lookupRows = async () =>
+    dataSource.query(
+      `SELECT "fieldMetadataId", "recordId", "projectionGeneration", "canonicalPhone"
+         FROM core."personPhoneLookup"
+        WHERE "workspaceId" = $1 AND "objectMetadataId" = $2
+        ORDER BY "recordId", "fieldMetadataId", "projectionGeneration", "canonicalPhone"`,
+      [workspaceId, objectMetadataId],
+    );
+
+  const addState = async ({
+    fieldMetadataId,
+    physicalFieldName,
+    active = 1,
+    building = null,
+  }: {
+    fieldMetadataId: string;
+    physicalFieldName: string;
+    active?: number | null;
+    building?: number | null;
+  }) =>
+    dataSource.query(
+      `INSERT INTO core."phoneSearchFieldState"
+        ("workspaceId", "objectMetadataId", "fieldMetadataId", "fieldUniversalIdentifier",
+         "physicalFieldName", "syncStatus", "isQueryEnabled",
+         "activeProjectionGeneration", "buildingProjectionGeneration")
+       VALUES ($1, $2, $3, $4, $5, 'READY', true, $6, $7)`,
+      [
+        workspaceId,
+        objectMetadataId,
+        fieldMetadataId,
+        id(),
+        physicalFieldName,
+        active,
+        building,
+      ],
+    );
+
+  const createBackfillOperation = async (generation: number) => {
+    const operationId = id();
+
+    await dataSource.query(
+      `INSERT INTO core."phoneSearchIndexOperation"
+        (id, "workspaceId", "objectMetadataId", kind, status, generation, "fieldMetadataIds")
+       VALUES ($1, $2, $3, 'REPAIR', 'PENDING', $4, $5::jsonb)`,
+      [
+        operationId,
+        workspaceId,
+        objectMetadataId,
+        generation,
+        JSON.stringify([standardFieldId, customFieldId]),
+      ],
+    );
+
+    return operationId;
+  };
 
   beforeAll(async () => {
     dataSource = new DataSource({
@@ -26,310 +86,374 @@ describe('phone search PostgreSQL contracts', () => {
       synchronize: false,
     });
     await dataSource.initialize();
-
-    const queryRunner = dataSource.createQueryRunner();
-
+    await dataSource.query('CREATE EXTENSION IF NOT EXISTS pgcrypto');
+    const runner = dataSource.createQueryRunner();
+    await runner.connect();
     try {
-      await new AddPhoneSearchTokensFastInstanceCommand().up(queryRunner);
+      await new AddPhoneSearchLookupFastInstanceCommand().up(runner);
     } finally {
-      await queryRunner.release();
+      await runner.release();
     }
-  });
 
-  afterAll(async () => {
-    await dataSource?.destroy();
-  });
-
-  describe('public.phone_search_tokens', () => {
-    const callHelper = async ({
-      field = FIELD_ONE,
-      callingCode = null,
-      number = null,
-      additional = null,
-    }: {
-      field?: string;
-      callingCode?: string | null;
-      number?: string | null;
-      additional?: unknown;
-    }) => {
-      const [{ tokens }] = await dataSource.query(
-        'SELECT public.phone_search_tokens($1, $2, $3, $4::jsonb) AS tokens',
-        [
-          field,
-          callingCode,
-          number,
-          additional === null ? null : JSON.stringify(additional),
-        ],
-      );
-
-      return tokens as string | null;
+    const queue = {
+      add: jest.fn(async (_name: string, data: { operationId: string }) => {
+        queuedOperationIds.push(data.operationId);
+      }),
     };
+    backfill = new PhoneSearchIndexBackfillService(dataSource, queue as never);
+  });
 
-    it.each([
-      ['all null', {}, null],
-      ['primary calling code only', { callingCode: '+1' }, null],
-      ['primary number only', { number: '4155551000' }, null],
-      ['empty additional array', { additional: [] }, null],
-      ['malformed additional object', { additional: {} }, null],
-      [
-        'malformed additional entries',
-        {
-          additional: [
-            null,
-            {},
-            { callingCode: '+1' },
-            { number: '4155551001' },
-            { callingCode: '+x', number: '4155551001' },
-          ],
-        },
-        null,
-      ],
-      [
-        'malformed primary calling code',
-        { callingCode: '1', number: '4155551000' },
-        null,
-      ],
-      [
-        'malformed primary number',
-        { callingCode: '+1', number: '415 555 1000' },
-        null,
-      ],
-    ])('returns null for %s', async (_name, input, expected) => {
-      await expect(callHelper(input)).resolves.toBe(expected);
+  beforeEach(async () => {
+    queuedOperationIds.length = 0;
+    workspaceId = id();
+    objectMetadataId = id();
+    standardFieldId = id();
+    customFieldId = id();
+    schema = getWorkspaceSchemaName(workspaceId);
+    await dataSource.query(`CREATE SCHEMA "${schema}"`);
+    await dataSource.query(`
+      CREATE TABLE "${schema}".person (
+        id uuid PRIMARY KEY,
+        "phonesPrimaryPhoneCallingCode" text,
+        "phonesPrimaryPhoneNumber" text,
+        "phonesAdditionalPhones" jsonb,
+        "workPhonePrimaryPhoneCallingCode" text,
+        "workPhonePrimaryPhoneNumber" text,
+        "workPhoneAdditionalPhones" jsonb,
+        note text
+      )
+    `);
+    await addState({
+      fieldMetadataId: standardFieldId,
+      physicalFieldName: 'phones',
     });
-
-    it('emits a field-qualified canonical primary token', async () => {
-      await expect(
-        callHelper({ callingCode: '+1', number: '4155551000' }),
-      ).resolves.toBe(fieldToken(FIELD_ONE, '14155551000'));
+    await addState({
+      fieldMetadataId: customFieldId,
+      physicalFieldName: 'workPhone',
     });
-
-    it('emits multiple additional phones with different calling codes and skips malformed residual data', async () => {
-      await expect(
-        callHelper({
-          additional: [
-            { callingCode: '+44', number: '2071838750' },
-            { callingCode: '+33', number: '145555501' },
-            { callingCode: '+44x', number: '2071838750' },
-            { callingCode: '+44', number: '20-7183-8750' },
-          ],
-        }),
-      ).resolves.toBe(
-        `${fieldToken(FIELD_ONE, '442071838750')} ${fieldToken(FIELD_ONE, '33145555501')}`,
-      );
-    });
-
-    it('allows harmless duplicate lexemes for duplicate phone values', async () => {
-      const token = fieldToken(FIELD_ONE, '14155551002');
-
-      await expect(
-        callHelper({
-          callingCode: '+1',
-          number: '4155551002',
-          additional: [{ callingCode: '+1', number: '4155551002' }],
-        }),
-      ).resolves.toBe(`${token} ${token}`);
-    });
-
-    it('keeps equal digits under distinct immutable field keys distinct', async () => {
-      const first = await callHelper({
-        field: FIELD_ONE,
-        callingCode: '+1',
-        number: '4155551003',
-      });
-      const second = await callHelper({
-        field: FIELD_TWO,
-        callingCode: '+1',
-        number: '4155551003',
-      });
-
-      expect(first).toBe(fieldToken(FIELD_ONE, '14155551003'));
-      expect(second).toBe(fieldToken(FIELD_TWO, '14155551003'));
-      expect(first).not.toBe(second);
+    await new PhoneSearchTriggerManagerService(dataSource).install({
+      workspaceId,
+      objectMetadataId,
     });
   });
 
-  describe('stored generated vector and GIN index', () => {
-    let tempTableRunner: QueryRunner;
+  afterEach(async () => {
+    await dataSource.query(`DROP SCHEMA IF EXISTS "${schema}" CASCADE`);
+    await dataSource.query(
+      'DELETE FROM core."phoneSearchIndexOperation" WHERE "workspaceId" = $1',
+      [workspaceId],
+    );
+    await dataSource.query(
+      'DELETE FROM core."phoneSearchFieldState" WHERE "workspaceId" = $1',
+      [workspaceId],
+    );
+    await dataSource.query(
+      'DELETE FROM core."personPhoneLookup" WHERE "workspaceId" = $1',
+      [workspaceId],
+    );
+  });
 
-    beforeEach(async () => {
-      tempTableRunner = dataSource.createQueryRunner();
-      await tempTableRunner.connect();
-      await tempTableRunner.query(`
-        CREATE TEMPORARY TABLE phone_search_person (
-          id integer GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-          "phonesPrimaryPhoneCallingCode" text,
-          "phonesPrimaryPhoneNumber" text,
-          "phonesAdditionalPhones" jsonb,
-          "customOnePrimaryPhoneCallingCode" text,
-          "customOnePrimaryPhoneNumber" text,
-          "customOneAdditionalPhones" jsonb,
-          "customTwoPrimaryPhoneCallingCode" text,
-          "customTwoPrimaryPhoneNumber" text,
-          "customTwoAdditionalPhones" jsonb,
-          "phoneSearchVector" tsvector GENERATED ALWAYS AS (
-            to_tsvector('simple',
-              COALESCE(public.phone_search_tokens('${FIELD_ONE}', "phonesPrimaryPhoneCallingCode", "phonesPrimaryPhoneNumber", "phonesAdditionalPhones"), '') || ' ' ||
-              COALESCE(public.phone_search_tokens('${FIELD_TWO}', "customOnePrimaryPhoneCallingCode", "customOnePrimaryPhoneNumber", "customOneAdditionalPhones"), '') || ' ' ||
-              COALESCE(public.phone_search_tokens('${FIELD_THREE}', "customTwoPrimaryPhoneCallingCode", "customTwoPrimaryPhoneNumber", "customTwoAdditionalPhones"), '')
-            )
-          ) STORED
-        )
-      `);
-      await tempTableRunner.query(
-        'CREATE INDEX phone_search_person_vector_gin ON phone_search_person USING GIN ("phoneSearchVector")',
+  afterAll(async () => dataSource.destroy());
+
+  it('extracts standard and custom primary/additional values and maintains them transactionally', async () => {
+    const recordId = id();
+    await dataSource.query(
+      `INSERT INTO "${schema}".person VALUES
+       ($1, '+1', '4155551000', $2::jsonb, '+44', '2071838750', $3::jsonb, '14155551000')`,
+      [
+        recordId,
+        JSON.stringify([
+          { callingCode: '+1', number: '4155551000' },
+          { callingCode: '+33', number: '145555501' },
+          { callingCode: '+x', number: 'ignored' },
+          { callingCode: '+1' },
+        ]),
+        JSON.stringify([{ callingCode: '+44', number: '2071838751' }]),
+      ],
+    );
+    expect(await lookupRows()).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          fieldMetadataId: standardFieldId,
+          recordId,
+          projectionGeneration: '1',
+          canonicalPhone: '14155551000',
+        }),
+        expect.objectContaining({
+          fieldMetadataId: standardFieldId,
+          recordId,
+          projectionGeneration: '1',
+          canonicalPhone: '33145555501',
+        }),
+        expect.objectContaining({
+          fieldMetadataId: customFieldId,
+          recordId,
+          projectionGeneration: '1',
+          canonicalPhone: '442071838750',
+        }),
+        expect.objectContaining({
+          fieldMetadataId: customFieldId,
+          recordId,
+          projectionGeneration: '1',
+          canonicalPhone: '442071838751',
+        }),
+      ]),
+    );
+    const beforeUnrelatedUpdate = await lookupRows();
+    await dataSource.query(
+      `UPDATE "${schema}".person SET note = 'unrelated' WHERE id = $1`,
+      [recordId],
+    );
+    expect(await lookupRows()).toEqual(beforeUnrelatedUpdate);
+
+    await dataSource
+      .transaction(async (manager) => {
+        await manager.query(
+          `UPDATE "${schema}".person SET "phonesPrimaryPhoneNumber" = '4155551002' WHERE id = $1`,
+          [recordId],
+        );
+        const uncommittedRows = await manager.query(
+          `SELECT "canonicalPhone" FROM core."personPhoneLookup"
+          WHERE "workspaceId" = $1 AND "recordId" = $2`,
+          [workspaceId, recordId],
+        );
+        expect(uncommittedRows).toEqual(
+          expect.arrayContaining([{ canonicalPhone: '14155551002' }]),
+        );
+        throw new Error('roll back phone update');
+      })
+      .catch((error) => expect(error.message).toBe('roll back phone update'));
+    expect(
+      (await lookupRows()).some(
+        (row: { canonicalPhone: string }) =>
+          row.canonicalPhone === '14155551002',
+      ),
+    ).toBe(false);
+
+    await dataSource.query(`DELETE FROM "${schema}".person WHERE id = $1`, [
+      recordId,
+    ]);
+    expect(await lookupRows()).toEqual([]);
+  });
+
+  it('keeps both generations correct across a multi-batch repair and atomically purges the retired generation', async () => {
+    await dataSource.query(
+      `UPDATE core."phoneSearchFieldState"
+          SET "buildingProjectionGeneration" = 2, "syncStatus" = 'INDEXING'
+        WHERE "workspaceId" = $1`,
+      [workspaceId],
+    );
+    const recordIds: string[] = [];
+    for (let index = 0; index < 251; index++) recordIds.push(id());
+    recordIds.sort();
+    for (const [index, recordId] of recordIds.entries())
+      await dataSource.query(
+        `INSERT INTO "${schema}".person
+          (id, "phonesPrimaryPhoneCallingCode", "phonesPrimaryPhoneNumber")
+         VALUES ($1, '+1', $2)`,
+        [recordId, `41555${String(51000 + index).padStart(5, '0')}`],
       );
+    const operationId = await createBackfillOperation(2);
+    expect(await backfill.runBatch(operationId)).toBe(false);
+
+    const changedId = recordIds[0];
+    await dataSource.query(
+      `UPDATE "${schema}".person SET "phonesPrimaryPhoneNumber" = '4155559999' WHERE id = $1`,
+      [changedId],
+    );
+    const bothGenerations = await dataSource.query(
+      `SELECT "projectionGeneration", "canonicalPhone" FROM core."personPhoneLookup"
+        WHERE "workspaceId" = $1 AND "recordId" = $2 ORDER BY "projectionGeneration"`,
+      [workspaceId, changedId],
+    );
+    expect(bothGenerations).toEqual([
+      { projectionGeneration: '1', canonicalPhone: '14155559999' },
+      { projectionGeneration: '2', canonicalPhone: '14155559999' },
+    ]);
+    expect(await backfill.runBatch(operationId)).toBe(true);
+
+    const [state] = await dataSource.query(
+      `SELECT "activeProjectionGeneration", "buildingProjectionGeneration", "syncStatus"
+         FROM core."phoneSearchFieldState" WHERE "workspaceId" = $1 AND "fieldMetadataId" = $2`,
+      [workspaceId, standardFieldId],
+    );
+    expect(state).toEqual({
+      activeProjectionGeneration: '2',
+      buildingProjectionGeneration: null,
+      syncStatus: 'READY',
     });
+    expect(queuedOperationIds).toHaveLength(1);
+    const currentRows = await dataSource.query(
+      `SELECT "canonicalPhone" FROM core."personPhoneLookup"
+        WHERE "workspaceId" = $1 AND "recordId" = $2 AND "projectionGeneration" = 2`,
+      [workspaceId, changedId],
+    );
+    expect(currentRows).toEqual([{ canonicalPhone: '14155559999' }]);
+    while (!(await backfill.runBatch(queuedOperationIds[0]))) {
+      // The production purge uses bounded ID batches, so a large tenant may
+      // require more than one delivery before retired rows disappear.
+    }
+    const purgeState = await dataSource.query(
+      'SELECT id, status, "leaseExpiresAt" FROM core."phoneSearchIndexOperation" WHERE id = $1',
+      [queuedOperationIds[0]],
+    );
+    if (purgeState[0]?.status !== 'COMPLETED')
+      throw new Error(JSON.stringify(purgeState));
+    expect(
+      await dataSource.query(
+        `SELECT "fieldMetadataId", "recordId", "canonicalPhone" FROM core."personPhoneLookup" WHERE "workspaceId" = $1 AND "projectionGeneration" = 1`,
+        [workspaceId],
+      ),
+    ).toEqual([]);
+  });
 
-    afterEach(async () => {
-      if (!tempTableRunner) return;
-      await tempTableRunner.query('DROP TABLE IF EXISTS phone_search_person');
-      await tempTableRunner.release();
-    });
-
-    const findIds = async (query: string) => {
-      const rows = await tempTableRunner.query(
-        `SELECT id FROM phone_search_person
-          WHERE "phoneSearchVector" @@ to_tsquery('simple', $1)
-          ORDER BY id`,
-        [query],
+  it.each(['14155551000', '19999999999'])(
+    'uses the production B-tree equality index for a %s lookup without text search',
+    async (canonicalPhone) => {
+      await dataSource.query(
+        `INSERT INTO core."personPhoneLookup"
+        (id, "workspaceId", "objectMetadataId", "fieldMetadataId", "recordId", "projectionGeneration", "canonicalPhone")
+       SELECT gen_random_uuid(), $1, $2, $3, gen_random_uuid(), 2, ('1' || value::text)
+         FROM generate_series(1000000000, 1000000299) AS value`,
+        [workspaceId, objectMetadataId, standardFieldId],
       );
-
-      return rows.map(({ id }: { id: number }) => id);
-    };
-
-    it('indexes sparse standard/custom combinations and multiple custom fields', async () => {
-      const [{ id: customOnlyId }] = await tempTableRunner.query(
-        `INSERT INTO phone_search_person
-          ("customOnePrimaryPhoneCallingCode", "customOnePrimaryPhoneNumber")
-         VALUES ('+1', '4155551100') RETURNING id`,
-      );
-      const [{ id: standardOnlyId }] = await tempTableRunner.query(
-        `INSERT INTO phone_search_person
-          ("phonesPrimaryPhoneCallingCode", "phonesPrimaryPhoneNumber")
-         VALUES ('+44', '2071838750') RETURNING id`,
-      );
-      const [{ id: twoCustomId }] = await tempTableRunner.query(
-        `INSERT INTO phone_search_person
-          ("customOneAdditionalPhones", "customTwoPrimaryPhoneCallingCode", "customTwoPrimaryPhoneNumber")
-         VALUES ($1::jsonb, '+33', '145555501') RETURNING id`,
-        [JSON.stringify([{ callingCode: '+1', number: '4155551101' }])],
-      );
-
-      await expect(
-        findIds(fieldToken(FIELD_TWO, '14155551100')),
-      ).resolves.toEqual([customOnlyId]);
-      await expect(
-        findIds(fieldToken(FIELD_ONE, '442071838750')),
-      ).resolves.toEqual([standardOnlyId]);
-      await expect(
-        findIds(fieldToken(FIELD_TWO, '14155551101')),
-      ).resolves.toEqual([twoCustomId]);
-      await expect(
-        findIds(fieldToken(FIELD_THREE, '33145555501')),
-      ).resolves.toEqual([twoCustomId]);
-    });
-
-    it('updates primary and additional matches inside the writing transaction', async () => {
-      const [{ id }] = await tempTableRunner.query(
-        `INSERT INTO phone_search_person
-          ("phonesPrimaryPhoneCallingCode", "phonesPrimaryPhoneNumber", "phonesAdditionalPhones")
-         VALUES ('+1', '4155551200', $1::jsonb) RETURNING id`,
-        [JSON.stringify([{ callingCode: '+1', number: '4155551201' }])],
-      );
-      await tempTableRunner.startTransaction();
+      await dataSource.query('ANALYZE core."personPhoneLookup"');
+      await dataSource.query('SET enable_seqscan = off');
       try {
-        await expect(
-          tempTableRunner.query(
-            `SELECT id FROM phone_search_person WHERE "phoneSearchVector" @@ to_tsquery('simple', $1)`,
-            [fieldToken(FIELD_ONE, '14155551200')],
-          ),
-        ).resolves.toEqual([{ id }]);
-        await tempTableRunner.query(
-          `UPDATE phone_search_person SET
-            "phonesPrimaryPhoneNumber" = '4155551202',
-            "phonesAdditionalPhones" = $1::jsonb
-           WHERE id = $2`,
-          [JSON.stringify([{ callingCode: '+1', number: '4155551203' }]), id],
+        const [{ 'QUERY PLAN': plan }] = await dataSource.query(
+          `EXPLAIN (FORMAT JSON) SELECT "recordId" FROM core."personPhoneLookup"
+          WHERE "workspaceId" = $1 AND "objectMetadataId" = $2
+            AND "canonicalPhone" = $3 AND "fieldMetadataId" = $4
+            AND "projectionGeneration" = 2`,
+          [workspaceId, objectMetadataId, canonicalPhone, standardFieldId],
         );
-        await expect(
-          tempTableRunner.query(
-            `SELECT id FROM phone_search_person WHERE "phoneSearchVector" @@ to_tsquery('simple', $1)`,
-            [fieldToken(FIELD_ONE, '14155551200')],
-          ),
-        ).resolves.toEqual([]);
-        await expect(
-          tempTableRunner.query(
-            `SELECT id FROM phone_search_person WHERE "phoneSearchVector" @@ to_tsquery('simple', $1)`,
-            [fieldToken(FIELD_ONE, '14155551202')],
-          ),
-        ).resolves.toEqual([{ id }]);
-        await expect(
-          tempTableRunner.query(
-            `SELECT id FROM phone_search_person WHERE "phoneSearchVector" @@ to_tsquery('simple', $1)`,
-            [fieldToken(FIELD_ONE, '14155551203')],
-          ),
-        ).resolves.toEqual([{ id }]);
+        const rendered = JSON.stringify(plan);
+        expect(rendered).toMatch(/Index(?: Only)? Scan|Bitmap Index Scan/);
+        expect(rendered).toMatch(
+          /workspaceId.*objectMetadataId.*canonicalPhone/,
+        );
+        expect(rendered).not.toMatch(/LIKE|ILIKE|to_tsquery/i);
       } finally {
-        await tempTableRunner.rollbackTransaction();
+        await dataSource.query('RESET enable_seqscan');
       }
-    });
+    },
+  );
 
-    it.each([
-      ['hit', fieldToken(FIELD_ONE, '14155551333')],
-      ['miss', fieldToken(FIELD_ONE, '14155559999')],
-    ])(
-      'uses the GIN index for an exact qualified %s query',
-      async (_case, token) => {
-        await tempTableRunner.query(
-          `INSERT INTO phone_search_person
-          ("phonesPrimaryPhoneCallingCode", "phonesPrimaryPhoneNumber")
-         SELECT '+1', (4155550000 + value)::text
-         FROM generate_series(1, 2500) AS value`,
-        );
-        await tempTableRunner.query('ANALYZE phone_search_person');
-        await tempTableRunner.query('SET enable_seqscan = off');
-
-        try {
-          const [{ 'QUERY PLAN': plan }] = await tempTableRunner.query(
-            `EXPLAIN (FORMAT JSON)
-           SELECT id FROM phone_search_person
-           WHERE "phoneSearchVector" @@ to_tsquery('simple', $1)`,
-            [token],
-          );
-          const serializedPlan = JSON.stringify(plan);
-
-          expect(serializedPlan).toContain('phone_search_person_vector_gin');
-          expect(serializedPlan).toMatch(/Bitmap Index Scan|Index Scan/);
-        } finally {
-          await tempTableRunner.query('RESET enable_seqscan');
-        }
-      },
+  it('executes the production metadata lock and purges only retired per-field generations', async () => {
+    await dataSource.transaction((manager) =>
+      new PhoneSearchMetadataGateService(dataSource).assertAvailable({
+        workspaceId,
+        objectMetadataId,
+        manager,
+      }),
     );
+
+    await dataSource.query(
+      `UPDATE core."phoneSearchFieldState"
+          SET "activeProjectionGeneration" = 2
+        WHERE "workspaceId" = $1 AND "fieldMetadataId" = $2`,
+      [workspaceId, customFieldId],
+    );
+    const standardRecordId = id();
+    const customRecordId = id();
+    await dataSource.query(
+      `INSERT INTO core."personPhoneLookup"
+        ("workspaceId", "objectMetadataId", "fieldMetadataId", "recordId", "projectionGeneration", "canonicalPhone")
+       VALUES
+        ($1, $2, $3, $4, 1, '14155550001'),
+        ($1, $2, $5, $6, 1, '14155550002'),
+        ($1, $2, $5, $6, 2, '14155550002')`,
+      [
+        workspaceId,
+        objectMetadataId,
+        standardFieldId,
+        standardRecordId,
+        customFieldId,
+        customRecordId,
+      ],
+    );
+    const purgeOperationId = id();
+    await dataSource.query(
+      `INSERT INTO core."phoneSearchIndexOperation"
+        (id, "workspaceId", "objectMetadataId", kind, status, generation, "fieldMetadataIds")
+       VALUES ($1, $2, $3, 'PURGE_GENERATION', 'PENDING', 2, $4::jsonb)`,
+      [
+        purgeOperationId,
+        workspaceId,
+        objectMetadataId,
+        JSON.stringify([customFieldId]),
+      ],
+    );
+
+    expect(await backfill.runBatch(purgeOperationId)).toBe(true);
+    expect(
+      await dataSource.query(
+        `SELECT "fieldMetadataId", "projectionGeneration"
+           FROM core."personPhoneLookup"
+          WHERE "workspaceId" = $1 AND "recordId" = ANY($2::uuid[])
+          ORDER BY "fieldMetadataId", "projectionGeneration"`,
+        [workspaceId, [standardRecordId, customRecordId]],
+      ),
+    ).toEqual(
+      expect.arrayContaining([
+        {
+          fieldMetadataId: standardFieldId,
+          projectionGeneration: '1',
+        },
+        { fieldMetadataId: customFieldId, projectionGeneration: '2' },
+      ]),
+    );
+    expect(
+      await dataSource.query(
+        `SELECT 1 FROM core."personPhoneLookup"
+          WHERE "workspaceId" = $1 AND "fieldMetadataId" = $2
+            AND "projectionGeneration" = 1`,
+        [workspaceId, customFieldId],
+      ),
+    ).toEqual([]);
   });
 
-  it('defines a reversible instance upgrade for the helper and three-column uniqueness constraint', async () => {
-    const up = jest.fn().mockResolvedValue(undefined);
-    const down = jest.fn().mockResolvedValue(undefined);
+  it('coalesces multiple fields created in one metadata transaction', async () => {
+    const lifecycle = new PhoneSearchFieldLifecycleService(dataSource);
+    const firstFieldId = id();
+    const secondFieldId = id();
+    const operationIds = await dataSource.transaction(async (manager) => [
+      await lifecycle.create({
+        workspaceId,
+        objectMetadataId,
+        fieldMetadataId: firstFieldId,
+        fieldUniversalIdentifier: id(),
+        physicalFieldName: 'firstCustomPhone',
+        isActive: true,
+        manager,
+      }),
+      await lifecycle.create({
+        workspaceId,
+        objectMetadataId,
+        fieldMetadataId: secondFieldId,
+        fieldUniversalIdentifier: id(),
+        physicalFieldName: 'secondCustomPhone',
+        isActive: true,
+        manager,
+      }),
+    ]);
 
-    await new AddPhoneSearchTokensFastInstanceCommand().up({
-      query: up,
-    } as unknown as QueryRunner);
-    await new AddPhoneSearchTokensFastInstanceCommand().down({
-      query: down,
-    } as unknown as QueryRunner);
-
-    expect(up.mock.calls.flat().join('\n')).toContain(
-      '"objectMetadataId", "fieldMetadataId", "tsVectorFieldMetadataId"',
+    expect(operationIds[0]).toBeDefined();
+    expect(operationIds[1]).toBe(operationIds[0]);
+    const [operation] = await dataSource.query(
+      `SELECT generation, "fieldMetadataIds"
+         FROM core."phoneSearchIndexOperation"
+        WHERE id = $1`,
+      [operationIds[0]],
     );
-    expect(up.mock.calls.flat().join('\n')).toContain(
-      'CREATE OR REPLACE FUNCTION public.phone_search_tokens',
-    );
-    expect(down.mock.calls.flat().join('\n')).toContain(
-      'DROP FUNCTION IF EXISTS public.phone_search_tokens',
-    );
-    expect(down.mock.calls.flat().join('\n')).toContain(
-      'UNIQUE ("objectMetadataId", "fieldMetadataId")',
-    );
+    expect(operation.fieldMetadataIds).toEqual([firstFieldId, secondFieldId]);
+    expect(
+      await dataSource.query(
+        `SELECT DISTINCT "buildingProjectionGeneration"
+           FROM core."phoneSearchFieldState"
+          WHERE "workspaceId" = $1 AND "fieldMetadataId" = ANY($2::uuid[])`,
+        [workspaceId, [firstFieldId, secondFieldId]],
+      ),
+    ).toEqual([{ buildingProjectionGeneration: operation.generation }]);
   });
 });

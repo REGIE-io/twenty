@@ -27,7 +27,6 @@ import { SyncableEntity } from 'src/engine/workspace-manager/types/syncable-enti
 @Unique('IDX_SEARCH_FIELD_METADATA_OBJECT_FIELD_UNIQUE', [
   'objectMetadataId',
   'fieldMetadataId',
-  'tsVectorFieldMetadataId',
 ])
 @Index('IDX_SEARCH_FIELD_METADATA_WORKSPACE_ID', ['workspaceId'])
 @Index('IDX_SEARCH_FIELD_METADATA_OBJECT_METADATA_ID', ['objectMetadataId'])

@@ -2,10 +2,14 @@ import { Injectable } from '@nestjs/common';
 
 import {
   AllMetadataName,
+  STANDARD_OBJECTS,
   WorkspaceMigrationV2ExceptionCode,
 } from 'twenty-shared/metadata';
+import { FieldMetadataType } from 'twenty-shared/types';
 
 import { LoggerService } from 'src/engine/core-modules/logger/logger.service';
+import { PhoneSearchMetadataGateService } from 'src/engine/core-modules/phone-search-index/services/phone-search-metadata-gate.service';
+import { PhoneSearchFieldLifecycleCoordinatorService } from 'src/engine/core-modules/phone-search-index/services/phone-search-field-lifecycle-coordinator.service';
 import { WORKSPACE_MIGRATION_ACTION_COUNT_BUCKET_BOUNDARIES } from 'src/engine/core-modules/metrics/constants/workspace-migration-action-count-bucket-boundaries.constant';
 import { WORKSPACE_MIGRATION_DURATION_MS_BUCKET_BOUNDARIES } from 'src/engine/core-modules/metrics/constants/workspace-migration-duration-ms-bucket-boundaries.constant';
 import { MetricsService } from 'src/engine/core-modules/metrics/metrics.service';
@@ -78,6 +82,8 @@ export class WorkspaceMigrationValidateBuildAndRunService {
     private readonly metricsService: MetricsService,
     private readonly logger: LoggerService,
     twentyConfigService: TwentyConfigService,
+    private readonly phoneSearchMetadataGateService?: PhoneSearchMetadataGateService,
+    private readonly phoneSearchFieldLifecycleCoordinatorService?: PhoneSearchFieldLifecycleCoordinatorService,
   ) {
     const logLevels = twentyConfigService.get('LOG_LEVELS');
 
@@ -88,6 +94,13 @@ export class WorkspaceMigrationValidateBuildAndRunService {
     args: WorkspaceMigrationOrchestratorBuildArgs & {
       idByUniversalIdentifierByMetadataName?: IdByUniversalIdentifierByMetadataName;
       dryRun?: boolean;
+      phoneLifecycleDelta?: {
+        objectMetadataId: string;
+        created: any[];
+        updated: any[];
+        deleted: any[];
+      };
+      phoneMetadataGate?: { objectMetadataId: string };
     },
   ): Promise<
     | WorkspaceMigrationOrchestratorFailedResult
@@ -95,8 +108,13 @@ export class WorkspaceMigrationValidateBuildAndRunService {
         hasSchemaMetadataChanged: boolean;
       })
   > {
-    const { idByUniversalIdentifierByMetadataName, dryRun, ...buildArgs } =
-      args;
+    const {
+      idByUniversalIdentifierByMetadataName,
+      dryRun,
+      phoneLifecycleDelta,
+      phoneMetadataGate,
+      ...buildArgs
+    } = args;
 
     const buildStart = performance.now();
     const validateAndBuildResult =
@@ -182,16 +200,44 @@ export class WorkspaceMigrationValidateBuildAndRunService {
     });
 
     const runStart = performance.now();
+    let phoneOperationIds: string[] = [];
     const { hasSchemaMetadataChanged, metadataEvents } =
       await this.workspaceMigrationRunnerService.run({
         workspaceId: args.workspaceId,
         workspaceMigration,
+        beforeActions: phoneMetadataGate
+          ? (queryRunner) =>
+              this.phoneSearchMetadataGateService?.assertAvailable({
+                workspaceId: args.workspaceId,
+                objectMetadataId: phoneMetadataGate.objectMetadataId,
+                manager: queryRunner.manager,
+              })
+          : undefined,
+        beforeCommit: phoneLifecycleDelta
+          ? async (queryRunner) => {
+              phoneOperationIds =
+                (await this.phoneSearchFieldLifecycleCoordinatorService?.afterMigration(
+                  {
+                    workspaceId: args.workspaceId,
+                    ...phoneLifecycleDelta,
+                    manager: queryRunner.manager,
+                    enqueue: false,
+                  },
+                )) ?? [];
+            }
+          : undefined,
       });
     const runMs = performance.now() - runStart;
 
     this.logger.perf(
       `[install-perf] workspaceMigrationRunnerService.run took ${runMs.toFixed(1)}ms for ${workspaceMigration.actions.length} actions`,
       WorkspaceMigrationValidateBuildAndRunService.name,
+    );
+
+    // Queue delivery happens only after the same transaction has committed.
+    // The reconciler is the durable fallback if Redis enqueue fails.
+    await this.phoneSearchFieldLifecycleCoordinatorService?.enqueue(
+      phoneOperationIds,
     );
 
     this.metadataEventEmitter.emitMetadataEvents({
@@ -354,6 +400,37 @@ export class WorkspaceMigrationValidateBuildAndRunService {
         hasSchemaMetadataChanged: boolean;
       })
   > {
+    const fieldOperations =
+      allFlatEntityOperationRecordByMetadataName.fieldMetadata;
+    const objectOperations =
+      allFlatEntityOperationRecordByMetadataName.objectMetadata;
+    const person =
+      allRelatedFlatEntityMaps.flatObjectMetadataMaps.byUniversalIdentifier[
+        STANDARD_OBJECTS.person.universalIdentifier
+      ];
+    const hasPhoneFieldOperation =
+      fieldOperations &&
+      [
+        ...fieldOperations.flatEntityToCreate,
+        ...fieldOperations.flatEntityToDelete,
+        ...fieldOperations.flatEntityToUpdate,
+      ].some(
+        (field) =>
+          field.objectMetadataUniversalIdentifier ===
+            person?.universalIdentifier &&
+          field.type === FieldMetadataType.PHONES,
+      );
+    const hasPersonObjectOperation =
+      objectOperations &&
+      [
+        ...objectOperations.flatEntityToCreate,
+        ...objectOperations.flatEntityToDelete,
+        ...objectOperations.flatEntityToUpdate,
+      ].some(
+        (object) =>
+          object.universalIdentifier ===
+          STANDARD_OBJECTS.person.universalIdentifier,
+      );
     const {
       fromToAllFlatEntityMaps,
       inferDeletionFromMissingEntities,
@@ -383,6 +460,25 @@ export class WorkspaceMigrationValidateBuildAndRunService {
       additionalCacheDataMaps,
       idByUniversalIdentifierByMetadataName,
       dryRun,
+      phoneMetadataGate:
+        person && (hasPhoneFieldOperation || hasPersonObjectOperation)
+          ? { objectMetadataId: person.id }
+          : undefined,
+      phoneLifecycleDelta: person
+        ? {
+            objectMetadataId: person.id,
+            created: fieldOperations?.flatEntityToCreate ?? [],
+            updated: (fieldOperations?.flatEntityToUpdate ?? []).map(
+              (field) => ({
+                ...field,
+                before:
+                  allRelatedFlatEntityMaps.flatFieldMetadataMaps
+                    .byUniversalIdentifier[field.universalIdentifier],
+              }),
+            ),
+            deleted: fieldOperations?.flatEntityToDelete ?? [],
+          }
+        : undefined,
     });
   }
 }

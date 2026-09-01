@@ -1,8 +1,6 @@
 import { Module } from '@nestjs/common';
 
 import { FieldSearchFieldMetadataOnDeleteSideEffectHandlerService } from 'src/engine/metadata-modules/metadata-side-effect/handlers/field-metadata/services/field-search-field-metadata-on-delete-side-effect-handler.service';
-import { FieldPhoneSearchOnCreateSideEffectHandlerService } from 'src/engine/metadata-modules/metadata-side-effect/handlers/field-metadata/services/field-phone-search-on-create-side-effect-handler.service';
-import { FieldPhoneSearchOnUpdateSideEffectHandlerService } from 'src/engine/metadata-modules/metadata-side-effect/handlers/field-metadata/services/field-phone-search-on-update-side-effect-handler.service';
 import { FieldIndexViewFieldOnCreateSideEffectHandlerService } from 'src/engine/metadata-modules/metadata-side-effect/handlers/field-metadata/services/field-index-view-field-on-create-side-effect-handler.service';
 import { FieldRecordPageViewFieldOnCreateSideEffectHandlerService } from 'src/engine/metadata-modules/metadata-side-effect/handlers/field-metadata/services/field-record-page-view-field-on-create-side-effect-handler.service';
 import { FieldSystemViewFieldsOnDeleteSideEffectHandlerService } from 'src/engine/metadata-modules/metadata-side-effect/handlers/field-metadata/services/field-system-view-fields-on-delete-side-effect-handler.service';
@@ -26,8 +24,6 @@ import { ObjectSystemSideEffectsOnDeleteSideEffectHandlerService } from 'src/eng
     FieldUniqueBackingIndexOnUpdateSideEffectHandlerService,
     FieldUniqueBackingIndexOnDeleteSideEffectHandlerService,
     FieldSearchFieldMetadataOnDeleteSideEffectHandlerService,
-    FieldPhoneSearchOnCreateSideEffectHandlerService,
-    FieldPhoneSearchOnUpdateSideEffectHandlerService,
     FieldIndexViewFieldOnCreateSideEffectHandlerService,
     FieldRecordPageViewFieldOnCreateSideEffectHandlerService,
     FieldSystemViewFieldsOnDeleteSideEffectHandlerService,

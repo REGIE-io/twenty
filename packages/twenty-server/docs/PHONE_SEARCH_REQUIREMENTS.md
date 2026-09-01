@@ -20,6 +20,25 @@ readable `PHONES` fields on the `person` object, including custom phone fields
 added after the object was created. The operation accepts phone lookup input
 only; it is not a generic search endpoint with an optional object or field hint.
 
+## Availability constraint
+
+This feature must be deployable and maintainable without an outage for normal
+workspace use. Person reads, inserts, updates, and deletes—including phone
+updates—must remain available while initial population, repair, cleanup, or a
+phone-field metadata operation is in progress. Existing ready phone-search data
+must remain queryable until its replacement is complete and atomically made
+ready; an incomplete replacement must never be exposed.
+
+Brief, bounded locks needed to install a trigger or commit metadata are allowed,
+but their duration must not grow with the number of Person records. If such a
+lock cannot be acquired within the configured short timeout, the operation must
+retry asynchronously. No generated-column rewrite, blocking index build, table
+copy/swap, or other row-count-proportional exclusive lock is permitted in the
+live metadata path. It is acceptable to reject subsequent conflicting Person
+schema-metadata changes with a typed retryable error while background work is
+active. That gate must not block record CRUD, phone-search reads against the
+last ready projection, or unrelated metadata operations.
+
 ## Functional requirements
 
 1. The API searches the `person` object for one phone number. It does not accept
@@ -57,6 +76,24 @@ only; it is not a generic search endpoint with an optional object or field hint.
     creating a new field.
 14. Updating a record's primary or additional phone values updates the searchable
     index as part of the same database write semantics.
+15. Adding, renaming, activating, deactivating, or deleting a custom `PHONES`
+    field must not rewrite the Person table or require rebuilding a shared
+    Person index.
+16. Initial population, repair, and field cleanup may run asynchronously, but
+    ordinary Person reads and writes must remain available. Work must be
+    resumable, observable, idempotent, and safe under concurrent record writes.
+17. During first-time initialization, when no complete readable phone
+    projection exists, the API returns a typed retryable readiness error rather
+    than a false-negative empty result. A newly added field or replacement
+    generation is staged outside the current ready projection until its atomic
+    cutover, so an existing complete projection remains queryable.
+18. Conflicting Person field-metadata changes may be temporarily rejected while
+    an indexing operation is active. Record CRUD and unrelated object/metadata
+    operations must continue.
+19. When a ready phone projection already exists, repair or replacement work
+    must build a new generation while queries continue using the ready
+    generation, then switch generations atomically. Initial enablement may
+    return the typed readiness error until its first generation is complete.
 
 ## Non-goals
 
@@ -83,6 +120,15 @@ only; it is not a generic search endpoint with an optional object or field hint.
   from that field.
 - A no-match query uses the phone index and does not contain `LIKE` or `ILIKE`.
 - Existing generic-search behavior and results remain unchanged.
+- A multi-batch backfill can run while Person records are read, inserted,
+  updated, and deleted without missing or retaining stale phone lookup rows.
+- Two concurrent Person field-metadata changes cannot create overlapping phone
+  indexing operations; the losing request receives a retryable busy response.
+- A Redis flush, duplicate queue delivery, worker crash, or server restart does
+  not lose progress or expose incomplete lookup data as ready.
+- During repair of an already-ready projection, concurrent phone queries and
+  Person CRUD continue successfully against a complete generation; cutover does
+  not require a table swap or row-count-proportional lock.
 
 ## Open product decisions
 

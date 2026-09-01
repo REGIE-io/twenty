@@ -363,7 +363,6 @@ export class UpdateFieldActionHandlerService extends WorkspaceMigrationRunnerAct
           {
             name: indexedFlatFieldMetadata.name,
             type: indexedFlatFieldMetadata.type,
-            universalIdentifier: indexedFlatFieldMetadata.universalIdentifier,
           },
         ]),
       );
@@ -379,7 +378,6 @@ export class UpdateFieldActionHandlerService extends WorkspaceMigrationRunnerAct
               flatSearchFieldMetadataMaps,
             }),
           indexedFieldById,
-          tsVectorField: optimisticFlatFieldMetadata,
         });
 
       const columnDefinitions = generateColumnDefinitions({

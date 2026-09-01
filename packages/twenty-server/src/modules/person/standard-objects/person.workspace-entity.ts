@@ -46,5 +46,4 @@ export class PersonWorkspaceEntity extends BaseWorkspaceEntity {
   timelineActivities: EntityRelation<TimelineActivityWorkspaceEntity[]>;
   listMemberships: EntityRelation<MessageListMemberWorkspaceEntity[]>;
   searchVector: string;
-  phoneSearchVector: string;
 }

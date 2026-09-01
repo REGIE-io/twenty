@@ -44,6 +44,8 @@ const additionalUsPhone = (number: string) => ({
 });
 
 const toE164 = (number: string) => `+1${number}`;
+const wait = (milliseconds: number) =>
+  new Promise((resolve) => setTimeout(resolve, milliseconds));
 
 const expectSearchIds = async (
   phoneNumber: string,
@@ -64,22 +66,46 @@ const expectSearchIds = async (
 };
 
 const createField = async (name: string, objectMetadataId: string) => {
-  const response = await createOneFieldMetadata({
-    input: {
-      name,
-      label: name,
-      type: FieldMetadataType.PHONES,
-      objectMetadataId,
-      isLabelSyncedWithName: false,
-    },
-    gqlFields: 'id',
-    expectToFail: false,
-  });
+  for (let attempt = 0; attempt < 600; attempt++) {
+    const response = await createOneFieldMetadata({
+      input: {
+        name,
+        label: name,
+        type: FieldMetadataType.PHONES,
+        objectMetadataId,
+        isLabelSyncedWithName: false,
+      },
+      gqlFields: 'id',
+      expectToFail: undefined,
+    });
+    const id = response.data?.createOneField?.id;
 
-  const id = response.data.createOneField.id;
+    if (id) {
+      createdFieldIds.push(id);
+      return id;
+    }
+    if (!JSON.stringify(response.errors).includes('PHONE_SEARCH_METADATA_BUSY'))
+      throw new Error(
+        `Field creation failed: ${JSON.stringify(response.errors)}`,
+      );
+    await wait(100);
+  }
 
-  createdFieldIds.push(id);
-  return id;
+  throw new Error('Timed out waiting for phone-search metadata gate');
+};
+
+const waitForPhoneMatch = async (phoneNumber: string, recordId: string) => {
+  for (let attempt = 0; attempt < 600; attempt++) {
+    const response = await searchPeopleByPhone({ phoneNumber, limit: 10 });
+    const ids = response.data?.searchPeopleByPhone.edges.map(
+      ({ node }) => node.recordId,
+    );
+
+    if (ids?.includes(recordId)) return;
+    await wait(100);
+  }
+
+  throw new Error(`Timed out waiting for phone projection of ${recordId}`);
 };
 
 describe('SearchPeopleByPhone resolver', () => {
@@ -238,6 +264,11 @@ describe('SearchPeopleByPhone resolver', () => {
       expect(response.errors).toBeUndefined();
       createdCompanyIds.push(id);
     }
+
+    await waitForPhoneMatch(
+      toE164('4155550106'),
+      personByCase.customOnePrimary,
+    );
   }, 120000);
 
   afterAll(async () => {

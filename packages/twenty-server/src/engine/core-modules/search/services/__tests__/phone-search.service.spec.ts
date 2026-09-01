@@ -22,7 +22,7 @@ jest.mock(
 );
 
 describe('PhoneSearchService indexed query contract', () => {
-  it('queries only exact readable field-qualified lexemes and never builds LIKE/ILIKE fallback SQL', async () => {
+  it('queries only ready readable phone projections and never builds LIKE/ILIKE fallback SQL', async () => {
     const andWhere = jest.fn().mockReturnThis();
     const queryBuilder = {
       select: jest.fn().mockReturnThis(),
@@ -40,6 +40,20 @@ describe('PhoneSearchService indexed query contract', () => {
           },
         },
       },
+      query: jest.fn().mockResolvedValue([
+        {
+          fieldMetadataId: 'readable',
+          isQueryEnabled: true,
+          activeProjectionGeneration: '1',
+          syncStatus: 'READY',
+        },
+        {
+          fieldMetadataId: 'building',
+          isQueryEnabled: true,
+          activeProjectionGeneration: null,
+          syncStatus: 'INDEXING',
+        },
+      ]),
       createQueryBuilder: jest.fn().mockReturnValue(queryBuilder),
     };
     const manager = {
@@ -54,6 +68,7 @@ describe('PhoneSearchService indexed query contract', () => {
     const readableUniversalIdentifier = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
     const restrictedUniversalIdentifier =
       'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
+    const buildingUniversalIdentifier = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc';
 
     await service.searchPeopleByPhone({
       workspace: { id: 'workspace' } as never,
@@ -63,10 +78,11 @@ describe('PhoneSearchService indexed query contract', () => {
           person: {
             id: 'person-object',
             nameSingular: 'person',
-            fieldIds: ['readable', 'restricted'],
+            fieldIds: ['readable', 'restricted', 'building'],
             fieldUniversalIdentifiers: [
               readableUniversalIdentifier,
               restrictedUniversalIdentifier,
+              buildingUniversalIdentifier,
             ],
           },
         },
@@ -85,10 +101,17 @@ describe('PhoneSearchService indexed query contract', () => {
             type: FieldMetadataType.PHONES,
             isActive: true,
           },
+          [buildingUniversalIdentifier]: {
+            id: 'building',
+            universalIdentifier: buildingUniversalIdentifier,
+            type: FieldMetadataType.PHONES,
+            isActive: true,
+          },
         },
         universalIdentifierById: {
           readable: readableUniversalIdentifier,
           restricted: restrictedUniversalIdentifier,
+          building: buildingUniversalIdentifier,
         },
       } as never,
     });
@@ -98,15 +121,16 @@ describe('PhoneSearchService indexed query contract', () => {
       .map(([, parameters]) => parameters)
       .filter(Boolean);
 
-    expect(whereSql).toContain(
-      '"phoneSearchVector" @@ to_tsquery(\'simple\', :qualifiedPhoneQuery)',
-    );
+    expect(whereSql).toContain('core."personPhoneLookup" lookup');
+    expect(whereSql).toContain('"canonicalPhone" = :canonicalPhone');
+    expect(whereSql).toContain('"activeProjectionGeneration"');
     expect(whereSql).not.toMatch(/\bI?LIKE\b/i);
-    expect(queryParameters).toContainEqual({
-      qualifiedPhoneQuery: `f${readableUniversalIdentifier.replace(/-/g, '')}p14155551500`,
-    });
-    expect(JSON.stringify(queryParameters)).not.toContain(
-      restrictedUniversalIdentifier.replace(/-/g, ''),
+    expect(whereSql).not.toMatch(/to_tsquery|tsvector/);
+    expect(queryParameters).toContainEqual(
+      expect.objectContaining({
+        canonicalPhone: '14155551500',
+        readyFieldIds: ['readable'],
+      }),
     );
     expect(queryBuilder.getRawMany).toHaveBeenCalledTimes(1);
   });

@@ -1,7 +1,4 @@
-import {
-  getSearchFieldUniversalIdentifier,
-  getTargetedSearchFieldUniversalIdentifier,
-} from 'twenty-shared/application';
+import { getSearchFieldUniversalIdentifier } from 'twenty-shared/application';
 import { STANDARD_OBJECTS } from 'twenty-shared/metadata';
 import { v4 } from 'uuid';
 
@@ -18,8 +15,6 @@ export type CreateStandardSearchFieldOptions<O extends AllStandardObjectName> =
   {
     fieldName: AllStandardObjectFieldName<O>;
     position: number;
-    tsVectorFieldName?: AllStandardObjectFieldName<O>;
-    useTargetAwareIdentifier?: boolean;
   };
 
 export type CreateStandardSearchFieldArgs<
@@ -34,12 +29,7 @@ export const createStandardSearchFieldFlatMetadata = <
 >({
   workspaceId,
   objectName,
-  context: {
-    fieldName,
-    position,
-    tsVectorFieldName = SEARCH_VECTOR_FIELD.name as AllStandardObjectFieldName<O>,
-    useTargetAwareIdentifier = false,
-  },
+  context: { fieldName, position },
   standardObjectMetadataRelatedEntityIds,
   dependencyFlatEntityMaps: { flatFieldMetadataMaps, flatObjectMetadataMaps },
   twentyStandardApplicationId,
@@ -69,28 +59,20 @@ export const createStandardSearchFieldFlatMetadata = <
     });
 
   const tsVectorFieldMetadataId =
-    standardObjectMetadataRelatedEntityIds[objectName].fields[tsVectorFieldName]
-      .id;
+    standardObjectMetadataRelatedEntityIds[objectName].fields[
+      SEARCH_VECTOR_FIELD.name as AllStandardObjectFieldName<O>
+    ].id;
   const tsVectorFieldMetadataUniversalIdentifier =
-    objectFields[tsVectorFieldName as keyof typeof objectFields]
+    objectFields[SEARCH_VECTOR_FIELD.name as keyof typeof objectFields]
       .universalIdentifier;
 
   return {
     id: v4(),
-    universalIdentifier: useTargetAwareIdentifier
-      ? getTargetedSearchFieldUniversalIdentifier({
-          applicationUniversalIdentifier:
-            flatObjectMetadata.applicationUniversalIdentifier,
-          fieldMetadataUniversalIdentifier:
-            flatFieldMetadata.universalIdentifier,
-          tsVectorFieldMetadataUniversalIdentifier,
-        })
-      : getSearchFieldUniversalIdentifier({
-          applicationUniversalIdentifier:
-            flatObjectMetadata.applicationUniversalIdentifier,
-          fieldMetadataUniversalIdentifier:
-            flatFieldMetadata.universalIdentifier,
-        }),
+    universalIdentifier: getSearchFieldUniversalIdentifier({
+      applicationUniversalIdentifier:
+        flatObjectMetadata.applicationUniversalIdentifier,
+      fieldMetadataUniversalIdentifier: flatFieldMetadata.universalIdentifier,
+    }),
     applicationId: twentyStandardApplicationId,
     applicationUniversalIdentifier:
       flatObjectMetadata.applicationUniversalIdentifier,

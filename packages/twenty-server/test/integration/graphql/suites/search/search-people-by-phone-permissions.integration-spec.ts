@@ -23,6 +23,8 @@ const suffix = `${Date.now()}${Math.floor(Math.random() * 10000)}`;
 const readableFieldName = `phoneSearchReadable${suffix}`;
 const restrictedFieldName = `phoneSearchRestricted${suffix}`;
 const client = request(`http://localhost:${APP_PORT}`);
+const wait = (milliseconds: number) =>
+  new Promise((resolve) => setTimeout(resolve, milliseconds));
 
 const phoneValue = (number: string) => ({
   primaryPhoneNumber: number,
@@ -68,19 +70,33 @@ describe('searchPeopleByPhone field permissions', () => {
     ).node.id;
 
     const createField = async (name: string) => {
-      const response = await createOneFieldMetadata({
-        input: {
-          name,
-          label: name,
-          type: FieldMetadataType.PHONES,
-          objectMetadataId: personObjectMetadataId,
-          isLabelSyncedWithName: false,
-        },
-        gqlFields: 'id',
-        expectToFail: false,
-      });
+      for (let attempt = 0; attempt < 600; attempt++) {
+        const response = await createOneFieldMetadata({
+          input: {
+            name,
+            label: name,
+            type: FieldMetadataType.PHONES,
+            objectMetadataId: personObjectMetadataId,
+            isLabelSyncedWithName: false,
+          },
+          gqlFields: 'id',
+          expectToFail: undefined,
+        });
+        const id = response.data?.createOneField?.id;
 
-      return response.data.createOneField.id;
+        if (id) return id;
+        if (
+          !JSON.stringify(response.errors).includes(
+            'PHONE_SEARCH_METADATA_BUSY',
+          )
+        )
+          throw new Error(
+            `Field creation failed: ${JSON.stringify(response.errors)}`,
+          );
+        await wait(100);
+      }
+
+      throw new Error('Timed out waiting for phone-search metadata gate');
     };
 
     readableFieldId = await createField(readableFieldName);
@@ -125,6 +141,25 @@ describe('searchPeopleByPhone field permissions', () => {
 
       expect(response.errors).toBeUndefined();
       createdPersonIds.push(id);
+    }
+
+    for (let attempt = 0; attempt < 600; attempt++) {
+      const response = await searchPeopleByPhone({
+        phoneNumber: '+14155551400',
+        limit: 10,
+      });
+
+      if (
+        response.data?.searchPeopleByPhone.edges.some(
+          ({ node }) => node.recordId === createdPersonIds[0],
+        )
+      )
+        break;
+      if (attempt === 599)
+        throw new Error(
+          'Timed out waiting for permission-test phone projection',
+        );
+      await wait(100);
     }
   });
 

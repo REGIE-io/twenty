@@ -1,536 +1,777 @@
-# Phone-Scoped Record Search Technical Outline
+# Phone-Scoped Record Search Technical Plan
 
-This document describes the proposed structure, the concrete Twenty integration
-points, and implementation sequencing. Exact GraphQL names and rollout timing
-remain product/release decisions.
+This document is the implementation plan for an exact, phone-only Person lookup.
+It supersedes the earlier `phoneSearchVector`/stored-generated-column design.
+That design was functionally correct but changed the generated expression every
+time a custom `PHONES` field participated. Twenty implements such a change by
+dropping and recreating the stored column and its GIN index, which rewrites the
+Person table and can block ordinary reads and writes. A live metadata operation
+must not create an outage-shaped Person migration.
 
-## Proposed shape
+The public API and normalization requirements in
+`PHONE_SEARCH_REQUIREMENTS.md` remain unchanged. The storage implementation is
+replaced by a stable relational lookup projection maintained transactionally.
 
-Add a second internal generated `TS_VECTOR` field, tentatively named
-`phoneSearchVector`, to the `person` object. Back it with a single-column GIN
-index. Build the field/index machinery from object metadata so it can be reused
-for another object later without making the first public API generic.
+## Required outcome
 
-The two vectors have separate contracts:
-
-- `searchVector` remains the combined vector used by existing generic search.
-- `phoneSearchVector` contains only phone lookup tokens and is queried only by
-  the new phone-scoped API.
-
-The existing `SearchService` continues to reference `searchVector` by its current
-constant and is not changed to discover or query the new vector.
-
-## Why a separate vector
-
-The existing combined vector does not retain enough provenance to guarantee
-that a token matched a phone field. Disabling its `ILIKE` fallback changes cost,
-not search semantics. A separate vector gives PostgreSQL an independent inverted
-index whose contents are constrained to phone data.
-
-Multiple `tsvector` columns on one PostgreSQL table are supported. Clear system
-field names, deterministic universal identifiers, and separate metadata
-ownership keep their responsibilities unambiguous.
-
-## Concrete change map
-
-### 1. Allow one source field to feed more than one vector
-
-This is the one metadata-model change required before adding the phone vector.
-Although `SearchFieldMetadata` already has `tsVectorFieldMetadataId`, today it is
-still unique on `(objectMetadataId, fieldMetadataId)`, and its deterministic
-universal identifier is derived only from the source field. The standard
-`person.phones` field therefore cannot currently contribute to both
-`searchVector` and `phoneSearchVector`.
-
-Change these locations:
-
-- `packages/twenty-server/src/engine/metadata-modules/search-field-metadata/search-field-metadata.entity.ts`
-  changes the unique constraint to `(objectMetadataId, fieldMetadataId,
-  tsVectorFieldMetadataId)`.
-- Add a target-aware deterministic identifier helper beside
-  `packages/twenty-shared/src/application/deterministic-identifier/get-search-field-universal-identifier.util.ts`.
-  Its identity input is the source field universal identifier plus the target
-  vector universal identifier.
-- Keep `getSearchFieldUniversalIdentifier` and all existing generic-search row
-  identifiers unchanged. Use the new helper only for secondary-vector
-  contributions. This avoids rewriting every installed application's current
-  search metadata.
-- Add a fast instance upgrade in the next version directory under
-  `packages/twenty-server/src/database/commands/upgrade-version-command/` to
-  replace the old unique constraint. Register it through the generated
-  `instance-commands.constant.ts` flow.
-- In
-  `workspace-migration-builder/validators/services/flat-search-field-metadata-validator.service.ts`,
-  change the equivalent-row check from source field alone to source field plus
-  target vector.
-
-Update the entity and deterministic-identifier tests. Also add a validator test
-showing that the same source field may target two vectors, while a duplicate
-source/target pair is still rejected.
-
-### 2. Define the phone-vector field, index, and contribution builders
-
-Add a phone-specific constant next to
-`search-vector-field.constants.ts`, with the fixed name
-`phoneSearchVector`, labels, and deterministic naming inputs. Do not add it to
-`SEARCH_VECTOR_FIELD`; generic search must continue resolving only
-`searchVector`.
-
-Leave
-`flat-search-field-metadata/utils/find-ts-vector-flat-field-metadata-for-object.util.ts`
-scoped to the field named by `SEARCH_VECTOR_FIELD`. Despite its broad filename,
-that helper is how generic label/search behavior deliberately finds the original
-vector and must not start discovering the phone vector.
-
-Add builders parallel to:
-
-- `build-search-vector-flat-field-metadata-for-custom-object.util.ts` for the
-  engine-owned `TS_VECTOR` field;
-- `build-search-vector-gin-index-for-custom-object.util.ts` for its GIN index;
-  and
-- `build-flat-search-field-metadata-for-field.util.ts` for a phone contribution
-  using the target-aware identifier.
-
-The builders should be parameterized by the parent object and source field so
-the metadata machinery is reusable, but the first API and standard metadata
-use them only for `STANDARD_OBJECTS.person`.
-
-### 3. Add `phoneSearchVector` to standard Person metadata
-
-The Twenty standard application is assembled directly; its synchronization path
-does not run metadata side-effect handlers. Consequently the standard Person
-surface must be declared explicitly in all three places:
-
-- `packages/twenty-shared/src/metadata/constants/standard-object-fields.constant.ts`
-  adds the deterministic `phoneSearchVector` field universal identifier, and
-  `standard-object.constant.ts` adds `phoneSearchVectorGinIndex`.
-- `packages/twenty-server/src/engine/workspace-manager/twenty-standard-application/utils/field-metadata/compute-person-standard-flat-field-metadata.util.ts`
-  creates the hidden system `TS_VECTOR` field.
-- `packages/twenty-server/src/engine/workspace-manager/twenty-standard-application/utils/index/compute-person-standard-flat-index-metadata.util.ts`
-  creates its GIN index.
-
-Do not add the second contribution to
-`SEARCH_FIELDS_BY_STANDARD_OBJECT_NAME`: that constant and
-`create-standard-search-field-flat-metadata.util.ts` intentionally target the
-generic `searchVector`. Instead add a small phone-specific standard search-field
-builder and merge its Person rows in
-`build-standard-flat-search-field-metadata-maps.util.ts`. Initially it emits the
-standard `person.phones` contribution targeting `phoneSearchVector`.
-
-Update `compute-person-standard-metadata.spec.ts`, standard universal-identifier
-snapshots, and related-entity-ID snapshots.
-
-### 4. Produce exact, field-qualified phone lexemes
-
-Do not reuse the current generic `PHONES` expression unchanged. In
-`get-ts-vector-column-expression.util.ts` it intentionally emits several loose
-representations and flattens additional-phone JSON for generic text search. The
-phone vector needs one canonical token per phone value and field provenance.
-
-Add a dedicated expression utility under
-`engine/metadata-modules/flat-search-field-metadata/utils/`. For each active
-`PHONES` field it emits tokens of this shape:
+Add a dedicated lookup table with one row per distinct canonical phone value,
+record, and source field:
 
 ```text
-f<field-universal-id-without-hyphens>p<calling-code-and-national-number-digits>
+personPhoneLookup
+  workspaceId
+  objectMetadataId
+  fieldMetadataId
+  recordId
+  canonicalPhone
 ```
 
-The fixed letter separators make the value one `simple`-dictionary lexeme and
-avoid a leading numeric token. The API constructs the same token; field names
-are not part of it, so renaming a field does not change permission provenance.
+The API searches this table by exact canonical phone and the caller's readable,
+active `PHONES` field IDs, then applies Person record permissions in the same SQL
+query. A PostgreSQL trigger maintains lookup rows in the same transaction as
+Person writes. Existing values are populated by resumable BullMQ jobs.
 
-Pairing `callingCode` and `number` in the additional-phone JSON is awkward in a
-generated-column expression because PostgreSQL disallows subqueries and
-set-returning expressions there. Add an immutable database helper, for example
-`public.phone_search_tokens(field_key text, primary_calling_code text,
-primary_number text, additional_phones jsonb) returns text`. It should:
+The design must satisfy all of these constraints:
 
-- emit the primary token only when both canonical components are present;
-- iterate additional phones and emit one token per complete pair;
-- strip the calling-code `+` and reject/skip non-digit residual data; and
-- return a space-delimited string consumed by `to_tsvector('simple', ...)`.
+- no generated phone vector and no phone-specific column on Person;
+- no Person-table rewrite when phone-field participation changes;
+- no `LIKE`, `ILIKE`, generic-search fallback, or post-pagination filtering;
+- exact E.164-equivalent lookup through a B-tree index;
+- direct SQL, bulk import, and application writes remain transactionally
+  consistent because maintenance happens in PostgreSQL;
+- ordinary Person reads and writes continue during backfill;
+- conflicting Person field-metadata operations may be rejected temporarily;
+- queue retries, duplicate deliveries, crashes, and restarts are safe;
+- an empty API result is not reported as definitive while any readable active
+  phone field is incompletely indexed.
 
-Install that function in the same fast instance upgrade that changes the
-constraint, with a `down` implementation. Extend
-`assertSafeTsVectorExpression` tests if the new generated expression introduces
-syntax not exercised by the existing validator; do not weaken its forbidden
-token checks.
+## Why a lookup table
 
-`derive-search-vector-as-expression-for-ts-vector-field.util.ts` currently
-passes only source field name and type. Extend its indexed-field description to
-include field universal identifier, and dispatch by the target vector's stable
-identifier/name:
+Phone lookup is exact equality, not full-text search. A relational projection
+stores provenance directly as `fieldMetadataId`, which makes field permissions
+explicit and avoids encoding field IDs into text-search lexemes.
 
-- generic `searchVector` continues through
-  `computeSearchVectorAsExpressionFromSearchFieldMetadatas`; and
-- `phoneSearchVector` goes through the new phone-only expression builder and
-  ignores any non-`PHONES` contribution defensively.
+The table and its indexes are stable. Adding or toggling a field changes a small
+configuration row and, when necessary, lookup rows for that field. It never
+changes the Person table's generated expression or rebuilds a shared index.
 
-Both callers must pass the target vector to that dispatch:
+The existing generic `searchVector`, its CJK fallback, and all
+`SearchFieldMetadata` behavior remain untouched.
 
-- `workspace-migration-runner/action-handlers/object/services/create-object-action-handler.service.ts`;
-  and
-- `workspace-migration-runner/action-handlers/field/services/update-field-action-handler.service.ts`.
+## Availability contract
 
-The expression and database helper need integration tests covering nulls,
-primary values, multiple additional values, multiple custom fields, and values
-with the same digits in different fields.
+During initial population or repair:
 
-### 5. Maintain custom Person phone fields through metadata side effects
+- Person `SELECT`, `INSERT`, `UPDATE`, and `DELETE` remain available;
+- updates to phone fields synchronously update the lookup projection;
+- non-phone record updates pay only the trigger's change-detection cost;
+- when a ready generation exists, phone lookup continues using it while a
+  replacement generation is populated and verified;
+- only initial enablement, where no complete readable projection exists,
+  returns `PHONE_SEARCH_INDEXING`; a newly added field remains outside the
+  current projection until its generation cuts over;
+- field-metadata mutations affecting the standard Person object are rejected
+  with a typed retryable error while the object has an active indexing
+  operation;
+- metadata operations for other objects and non-schema metadata such as views
+  or layouts continue normally.
 
-Add field-create and field-update handlers under
-`metadata-side-effect/handlers/field-metadata/services/`, then register them in
-`metadata-side-effect-handlers.module.ts`.
+Backfill consumes database resources and can increase latency, but it must use
+bounded transactions, configurable pauses, statement/lock timeouts, and a
+single worker per workspace Person object. It must be safe to pause and resume.
 
-The create handler should add a phone contribution only when all of these are
-true:
+## Persistence model
 
-- the parent object is standard `person` (compare its universal identifier);
-- the new field type is `PHONES`; and
-- the field is active.
+Create three core entities under a new module, tentatively
+`engine/core-modules/phone-search-index/`.
 
-The update handler compares the existing and optimistic post-change field. It
-creates the contribution on inactive-to-active, deletes it on
-active-to-inactive, and lets a rename retain the same contribution row while
-triggering expression regeneration. Follow the optimistic-parent resolution
-pattern used by `field-unique-backing-index-on-update-side-effect-handler.service.ts`
-so multiple metadata operations in one request see the same after-state.
+### `PersonPhoneLookupEntity`
 
-Field type is not currently an editable field-metadata property:
-`UpdateFieldInput` omits `type`, and
-`FLAT_FIELD_METADATA_EDITABLE_PROPERTIES` excludes it. The supported transition
-is deactivate, delete, and recreate. If type mutation is enabled later, the same
-update handler should treat it as contribution create/delete, but this feature
-does not need to add a new field-type migration mechanism.
+Table: `core.personPhoneLookup`.
 
-Deletion does not need a second custom cascade:
-`field-search-field-metadata-on-delete-side-effect-handler.service.ts` already
-deletes every contribution attached to the field. Object deletion likewise
-collects every engine-owned field, index, and search contribution in
-`object-system-side-effects-on-delete-side-effect-handler.service.ts`; add tests
-that the new entities are included.
+Create it as a fixed-count PostgreSQL hash-partitioned table on `workspaceId`
+(start with 32 partitions, configurable only at instance migration time). Every
+phone lookup and cleanup predicate contains `workspaceId`, so partition pruning
+keeps one large tenant from turning the global lookup table and its indexes into
+a single hot structure. The parent table remains the TypeORM entity target;
+the instance migration owns creation of the partitions and their indexes.
 
-Creating/deleting a `SearchFieldMetadata` row already feeds its target vector
-into
-`compute-search-vector-rebuild-target-universal-identifiers.util.ts`. However,
-`aggregate-orchestrator-actions-report-deprioritize-search-vector-update-field-actions.util.ts`
-still recognizes rebuild actions by the literal field name `searchVector`.
-Change that classification to use `FieldMetadataType.TS_VECTOR` or membership in
-the computed target set, otherwise a simultaneous phone-vector metadata update
-can create duplicate/out-of-order update actions.
+Columns:
 
-Keep the phone vector present when the last phone field becomes inactive. Its
-expression becomes `to_tsvector('simple', NULL)` and the stable empty index
-avoids repeated field/index DDL as custom fields are toggled.
+- `id uuid not null`;
+- `workspaceId uuid not null`;
+- `objectMetadataId uuid not null`;
+- `fieldMetadataId uuid not null`;
+- `recordId uuid not null`;
+- `projectionGeneration bigint not null`;
+- `canonicalPhone varchar(32) not null`;
+- `createdAt timestamptz not null`;
+- `updatedAt timestamptz not null`.
 
-### 6. Add the dedicated GraphQL operation
+Indexes and constraints:
 
-Add the operation inside the existing search module without changing
-`SearchService`:
+- primary key `(workspaceId, id)`; PostgreSQL requires every unique constraint
+  on this hash-partitioned table to include its partition key;
+- unique `(workspaceId, objectMetadataId, fieldMetadataId,
+  projectionGeneration, recordId, canonicalPhone)` so retries and duplicate
+  primary/additional values are idempotent within a generation;
+- lookup B-tree `(workspaceId, objectMetadataId, canonicalPhone,
+  fieldMetadataId, projectionGeneration, recordId)` for the API's equality
+  predicate;
+- cleanup index `(workspaceId, objectMetadataId, recordId,
+  projectionGeneration)` for trigger refresh and record deletion;
+- cleanup index `(workspaceId, objectMetadataId, fieldMetadataId,
+  projectionGeneration)` for field removal and retiring old generations.
 
-- `dtos/search-people-by-phone.args.ts` validates `phoneNumber`, optional
-  `countryCode`, `limit`, and `after`;
-- `services/phone-search.service.ts` contains normalization, permission-aware
-  query construction, and pagination; and
-- either a focused `phone-search.resolver.ts` or a new query method on
-  `search.resolver.ts` exposes `searchPeopleByPhone`.
+Create these indexes before enabling writes to a newly installed lookup table,
+then let backfill maintain them incrementally. There is no second index-build
+cutover after backfill. If an index must later be added to a populated
+installation, the instance upgrade must use PostgreSQL's online index-build
+path per partition and be resumable; it must not use a transaction-wrapped
+blocking `CREATE INDEX` against the populated parent.
 
-Register the service/resolver in `search.module.ts`. Reuse the existing
-`WorkspaceAuthGuard`, `CustomPermissionGuard`, validation pipe, and permission
-exception filter. A small phone result connection should contain Person record
-IDs and cursors; reuse the generic result DTO only if the client actually needs
-its label/image fields. Do not expose rank fields because exact lookup has no
-meaningful rank.
+Do not add a foreign key from lookup rows to workspace record tables: those
+tables are dynamically schema-scoped. Avoid a synchronous cascading foreign key
+to `FieldMetadata`; deleting a field could otherwise delete millions of rows in
+the metadata request. Workspace and field cleanup are explicit operations.
 
-The resolver/service flow is:
+### `PhoneSearchFieldStateEntity`
 
-1. Enter `GlobalWorkspaceOrmManager.executeInWorkspaceContext`, resolve the role
-   permission config exactly as `SearchService` does, and obtain the `person`
-   `WorkspaceRepository` with that config.
-2. Load Person object/field metadata. Read the effective object/field permission
-   map already exposed by `WorkspaceRepository.objectRecordsPermissions`; for a
-   bypass configuration, treat all active phone fields as readable. This keeps
-   the field-token query in lockstep with the same union/intersection role
-   calculation used by the repository.
-3. Return/throw the normal permission result if Person records are not readable.
-4. Select active Person `PHONES` fields whose
-   `restrictedFields[field.id].canRead !== false`.
-5. Parse input with `libphonenumber-js` using the same validation rules as
-   `transform-phones-value.util.ts`, producing calling-code plus national-number
-   digits. Extract a shared pure normalization helper rather than calling the
-   record transformer with a fabricated field value.
-6. Build an OR `tsquery` containing one exact qualified lexeme for every
-   readable phone field. If there are no readable phone fields, return an empty
-   connection without issuing SQL.
-7. Select only permitted response columns from the repository, apply
-   deleted-record and cursor predicates, and query:
+Table: `core.phoneSearchFieldState`. One row exists for every standard or custom
+Person `PHONES` field known to the projection.
+
+Columns:
+
+- `workspaceId`, `objectMetadataId`, `fieldMetadataId`;
+- `fieldUniversalIdentifier` so a field can be identified across metadata-map
+  rebuilds;
+- `physicalFieldName`, used to derive the three PHONES composite column names;
+- `syncStatus`: `INDEXING | READY | FAILED | DELETING`;
+- `isQueryEnabled`: mirrors whether the field is active and permitted to
+  participate; this is separate from synchronization readiness;
+- `configurationGeneration bigint`, incremented whenever field configuration
+  changes;
+- `activeProjectionGeneration bigint null`, the only complete generation the
+  query path may use;
+- `buildingProjectionGeneration bigint null`, populated alongside the active
+  generation during initialization or repair;
+- `lastError`, `lastErrorAt`, `createdAt`, `updatedAt`.
+
+Unique key: `(workspaceId, objectMetadataId, fieldMetadataId)`.
+
+Add a covering lookup index beginning with `(workspaceId, objectMetadataId)`
+and including `syncStatus` and `isQueryEnabled`; the Person trigger consults
+this table on every write and must not scan field-state rows.
+
+Inactive fields remain transactionally synchronized after their first complete
+population, but `isQueryEnabled` is false. This makes later reactivation an
+instant metadata transition rather than another table scan. The inactive values
+are storage-internal and are never queried unless the field is both active,
+readable, and `READY`.
+
+At most two projection generations exist for a field during normal operation.
+The trigger maintains both `activeProjectionGeneration` and
+`buildingProjectionGeneration` when they differ. Backfill writes only the
+building generation. After verification, one short transaction changes the
+active pointer to the building generation, clears the building pointer, and
+marks the field `READY`; queries therefore see either the entire old generation
+or the entire new generation. Retire the old rows asynchronously afterward.
+
+### `PhoneSearchIndexOperationEntity`
+
+Table: `core.phoneSearchIndexOperation`. This is the durable source of truth for
+queue work and the Person metadata gate.
+
+Columns:
+
+- `id uuid primary key`;
+- `workspaceId`, `objectMetadataId`;
+- `kind`: `INITIALIZE | BACKFILL | PURGE_FIELD | REPAIR | DROP_WORKSPACE`;
+- `status`: `PENDING | RUNNING | RETRYABLE | FAILED | COMPLETED | CANCELLED`;
+- `generation bigint`;
+- `fieldMetadataIds jsonb`, containing the immutable field set for this
+  operation;
+- `lastRecordId uuid null`, the committed keyset cursor;
+- `processedRecordCount bigint`, `estimatedRecordCount bigint null`;
+- `attemptCount`, `lastError`, `lastErrorAt`;
+- `leaseOwner`, `leaseExpiresAt`, `heartbeatAt`;
+- `createdAt`, `startedAt`, `completedAt`, `updatedAt`.
+
+Add a partial unique index allowing at most one active operation per
+`(workspaceId, objectMetadataId)` where status is `PENDING`, `RUNNING`, or
+`RETRYABLE`. This database constraint, not Redis job identity, is the final
+concurrency guard.
+
+Do not treat BullMQ as the source of truth. Redis can be flushed and BullMQ can
+deliver a job twice. Database state, generation checks, and leases provide
+correctness.
+
+## PostgreSQL extraction and trigger plumbing
+
+### Canonical extraction helper
+
+Install a SQL helper in the fast instance upgrade, for example:
 
 ```sql
-"phoneSearchVector" @@ to_tsquery('simple', :qualifiedPhoneQuery)
+public.phone_search_values(
+  row_value jsonb,
+  physical_field_name text
+) returns table(canonical_phone text)
 ```
 
-The workspace query builder continues to enforce object and row-level
-permissions. Field qualification is additionally required because the hidden
-vector contains values from fields that may be restricted. Never select the
-vector itself and never post-filter matches after pagination.
+It reads these dynamic keys from `row_value`:
 
-Use deterministic `(id)` ordering for the first version. Encode the last ID in
-the cursor and request `limit + 1`, matching the connection behavior used by
-other core APIs. There is exactly one indexed query and no call to
-`buildSearchQueryAndGetRecordsWithFallback`, `LIKE`, or `ILIKE`.
+- `<name>PrimaryPhoneCallingCode`;
+- `<name>PrimaryPhoneNumber`;
+- `<name>AdditionalPhones`.
 
-GraphQL schema/client artifacts should be regenerated by the repository's
-normal generation commands after the resolver DTOs land.
+It emits calling-code digits plus national-number digits only when both parts
+are complete and canonical. It iterates additional phones, rejects malformed
+entries, and returns distinct values. The SQL helper and the API input parser
+must share fixtures proving equivalent normalization.
 
-### 7. Upgrade existing workspaces
+### Stable Person trigger
 
-Add an idempotent workspace command in the next release directory and register
-it in that version's module. Follow the standard-metadata reconciliation pattern
-used by
-`2-25-workspace-command-1785229970000-add-message-campaign-name-field.command.ts`:
+Install one stable row-level trigger on each workspace's physical Person table,
+not one generated expression or index per field. Tentative names:
 
-1. Load Person and current field/index/search metadata maps.
-2. Compute the current Twenty standard application maps.
-3. Copy in any missing standard `phoneSearchVector` field, GIN index, and
-   standard-phone contribution.
-4. Add target-aware contributions for every active custom Person `PHONES`
-   field; derive each from the shared builders rather than hand-assembling rows.
-5. Submit the merged maps through
-   `WorkspaceMigrationValidateBuildAndRunService` so normal validation,
-   ordering, cache invalidation, and schema DDL apply.
-6. On rerun, identify every entity by deterministic universal identifier and do
-   nothing when the desired state already exists.
+```text
+public.sync_person_phone_lookup()
+TRG_PERSON_PHONE_LOOKUP_SYNC
+```
 
-The instance upgrade (constraint plus immutable helper) must complete before
-this workspace command. The workspace operation should be classified as slow:
-the current update-field action handler drops and re-adds a stored generated
-column, then recreates its GIN index. On a large Person table that rewrites data
-and takes locks. Rollout should use normal slow-upgrade observability and be
-benchmarked on a representative large workspace before enabling broadly.
+The trigger receives `workspaceId` and `objectMetadataId` as `TG_ARGV`. It uses
+`to_jsonb(NEW)` and `to_jsonb(OLD)` so custom physical field names can be read
+from `PhoneSearchFieldStateEntity` without recompiling a function for every
+field.
 
-#### When current values are indexed
+Behavior:
 
-There are two upgrade artifacts with different responsibilities:
+- `INSERT`: refresh lookup rows for every active and building projection
+  generation of every configured field;
+- `UPDATE`: compare the primary calling-code, primary number, and additional
+  phone JSON keys for each configured field; refresh only changed fields;
+- `DELETE`: delete every lookup row for the Person record;
+- refresh means delete the record/field/generation's old lookup rows and insert
+  the distinct current values for every maintained generation in the same
+  transaction;
+- fields remain maintained while inactive, provided `syncStatus = READY`;
+- `DELETING` fields are ignored by extraction after being made query-ineligible.
 
-- The fast instance upgrade changes the core `SearchFieldMetadata` constraint
-  and installs the immutable phone-token SQL helper. It does not scan workspace
-  Person records or build their indexes.
-- The idempotent slow workspace command adds the desired metadata to each
-  workspace and passes it to the normal workspace migration runner. That schema
-  migration is what indexes current record values.
+The trigger is the consistency boundary. Do not implement application-only
+dual writes: they miss direct SQL, imports, and future write paths.
 
-For an existing workspace, the runner first adds/rebuilds the stored generated
-`phoneSearchVector` column. PostgreSQL evaluates its expression for every
-existing Person row, including values in every active standard or custom
-`PHONES` field. The runner then creates/recreates the GIN index over those
-computed vectors. Thus existing primary and additional phone values are indexed
-during the workspace upgrade itself.
+Treat the trigger function as privileged database code. Fully qualify every
+core relation and helper reference, pin a safe `search_path`, validate and cast
+`TG_ARGV` values, and never interpolate a metadata-provided identifier into
+SQL. If `SECURITY DEFINER` is required for workspace-table roles to write the
+core lookup table, give the function owner only the required lookup-table
+permissions and revoke public execution; otherwise prefer the invoker's
+permissions. Add an integration test using the same database role as normal
+workspace record writes.
 
-This does not require a separate application data-copy or row-by-row backfill
-script. The generated-column creation is the backfill, and GIN construction is
-the indexing pass. Both are table-wide operations, which is why the workspace
-command belongs in the slow phase.
+Creating the trigger takes a short table lock but does not rewrite Person. Set a
+short `lock_timeout`; on rollout, a failure to acquire the lock leaves the
+operation pending for retry. For a newly created workspace, install the trigger
+before user data exists.
 
-The other lifecycle cases behave as follows:
+The implementation must benchmark the trigger's overhead for:
 
-- A fresh workspace creates Person with the generated column and GIN index as
-  part of its initial schema, before it has user records.
-- A newly created custom `PHONES` field starts with null columns on existing
-  records. Adding its contribution still rebuilds the generated column/index
-  across the Person table, but there are no historical values for that new
-  field to migrate. Values written later are maintained automatically.
-- An active custom `PHONES` field that predates this feature can already contain
-  values. The workspace upgrade discovers it, adds its contribution, and the
-  same generated-column/index pass includes its current values.
-- Renaming, deactivating, reactivating, deleting, or adding a contributing field
-  changes the generated expression and therefore triggers the current
-  drop/re-add/reindex path. Reactivation indexes values that remained stored
-  while the field was inactive.
-- Ordinary record writes after provisioning do not rebuild the whole index.
-  PostgreSQL recomputes the generated value for the affected row and updates the
-  GIN index transactionally.
-- Deleting and recreating a field does not migrate its old values. Field deletion
-  drops the old physical columns; the newly created field begins empty and must
-  be populated normally.
+- an update to an unrelated Person field;
+- one primary phone update;
+- replacement of multiple additional phones;
+- bulk Person insert/update.
 
-A preflight/report should count legacy phone values missing either calling code
-or normalized national number. Those values cannot produce the canonical token.
-If supporting them is required, use a separate, explicit normalization data
-command; once it updates a row, PostgreSQL updates the generated vector and GIN
-entry automatically. Do not add a general display-format backfill to the phone
-index.
+If generic `to_jsonb(NEW)` change detection is too expensive, optimize only
+after measuring. A per-field trigger is an allowed fallback, but it must retain
+the same state model and short-lock behavior.
 
-### 8. Suggested implementation order
+## Query path
 
-1. Core constraint and immutable SQL helper.
-2. Target-aware identity plus phone field/index/contribution builders.
-3. Expression dispatch and multi-vector migration-runner fixes.
-4. Standard Person metadata and existing-workspace upgrade.
-5. Custom-field lifecycle side effects.
-6. Dedicated permission-aware GraphQL service/resolver.
-7. End-to-end query-plan and regression tests.
+Retain the dedicated GraphQL operation in the existing search module:
 
-## Record updates
+- `dtos/search-people-by-phone.args.ts`;
+- `dtos/phone-search-result.dto.ts`;
+- `services/phone-search.service.ts`;
+- `search.resolver.ts` and `search.module.ts`.
 
-Because `phoneSearchVector` is a stored generated column, PostgreSQL recalculates
-it and maintains the GIN index when any referenced primary or additional phone
-column changes. No application-level record-write hook should be required.
+Remove all `phoneSearchVector` and `to_tsquery` construction. After normalizing
+the request, resolve Person permissions exactly as the existing service does.
+Build the set of field IDs that are all of:
 
-Metadata changes still require rebuilding the generated expression because the
-set of referenced physical columns has changed. In the current migration
-runner, that rebuild is table-wide; record-value changes are row-local.
+- metadata type `PHONES`;
+- active;
+- readable by the effective role;
+- represented by a field-state row with `isQueryEnabled = true` and a non-null
+  `activeProjectionGeneration` that was previously verified.
 
-## Detailed test model
+Pair each readable, query-enabled field ID with its non-null
+`activeProjectionGeneration`. An `INDEXING` field may still be queried when
+that pointer names a previously verified generation. A newly added field with
+only a building generation is not part of the current projection until atomic
+cutover. Return a typed retryable readiness error when no complete readable
+projection exists, or when projection state is missing/corrupt. This preserves
+the definitive semantics of the currently active projection without
+interrupting searches during replacement work.
 
-### Unit contracts
+Use one Person repository query with an indexed correlated `EXISTS` predicate:
 
-Add focused unit suites beside the implementation utilities:
+```sql
+WHERE EXISTS (
+  SELECT 1
+  FROM core."personPhoneLookup" lookup
+  WHERE lookup."workspaceId" = :workspaceId
+    AND lookup."objectMetadataId" = :personObjectMetadataId
+    AND lookup."recordId" = person.id
+    AND lookup."canonicalPhone" = :canonicalPhone
+    AND (lookup."fieldMetadataId", lookup."projectionGeneration") IN
+        (:readableFieldGenerationPairs)
+)
+```
 
-- The target-aware search-field identifier is stable, differs for two target
-  vectors, and leaves the existing generic identifier unchanged.
-- Search-field validation accepts one source field targeting `searchVector` and
-  `phoneSearchVector`, but rejects a duplicate source/target pair.
-- Input normalization maps formatted E.164 and stored calling-code/national
-  parts to the same digits and rejects invalid or country-ambiguous input.
-- Field-token construction produces one parser-safe lexeme from the immutable
-  field universal identifier and canonical digits.
-- The phone expression includes only active `PHONES` fields, produces primary
-  and additional tokens, escapes physical column names, and yields an empty
-  vector for no contributions.
-- The existing generic expression output remains byte-for-byte unchanged for
-  the same metadata fixture.
+Apply deleted-record, row-level permission, cursor, and ordering predicates
+before `limit + 1`. `EXISTS` deduplicates a Person matching multiple fields
+without `DISTINCT` or post-filtering. Never select lookup values or field IDs in
+the response.
 
-Extend
-`aggregate-orchestrator-actions-report-deprioritize-search-vector-update-field-actions.util.spec.ts`
-with two vectors in one action report. Assert one rebuild action per affected
-vector and that source-field DDL precedes the phone-vector rebuild.
+Add `EXPLAIN` integration tests with sequential scans disabled proving that hit
+and miss queries use the lookup B-tree. Keep tests that assert no `LIKE`,
+`ILIKE`, generic fallback, `phoneSearchVector`, or `to_tsquery` appears.
 
-### Database expression and index tests
+## Metadata lifecycle
 
-Run the immutable SQL helper against real PostgreSQL values, not only string
-snapshots. Cover:
+Phone search state must be driven from field metadata, but it must not use
+`SearchFieldMetadata` or TS-vector rebuild side effects.
 
-- null/partial primary values;
-- a valid primary value;
-- empty, null, malformed, and multi-entry additional-phone JSON;
-- two additional phones with different calling codes;
-- duplicate values, with an explicit decision whether duplicate lexemes are
-  harmless or deduplicated; and
-- the same number under two field keys, producing two distinct lexemes.
+### New active custom `PHONES` field
 
-Create a temporary Person-like table with the generated vector and GIN index.
-Insert rows, update primary and additional values, and assert that lookup changes
-in the same transaction semantics without an application hook. Use `EXPLAIN`
-with sequential scans disabled to prove both hit and miss forms can use the GIN
-index. Also sample a production-sized fixture because PostgreSQL can reasonably
-choose a sequential scan for tiny tables.
+The normal field migration creates empty nullable physical columns. In the same
+metadata transaction:
 
-### Metadata lifecycle integration test
+1. obtain the short object-scoped metadata guard;
+2. create a `PhoneSearchFieldState` row as `READY` and query-enabled with
+   `activeProjectionGeneration = 1`;
+3. commit the field and state together.
 
-Add a Person-specific suite alongside the existing tests in
-`test/integration/metadata/suites/field-metadata/`. Use the real metadata
-GraphQL helpers and the following ordered scenario so it exercises schema DDL,
-metadata side effects, and retained records together:
+No backfill is needed because a new field has no historical values. The stable
+trigger discovers the configuration row and indexes subsequent writes.
 
-1. Confirm Person initially has `phoneSearchVector`, its GIN index, and one
-   phone contribution for the standard `phones` field.
-2. Create an active custom `PHONES` field named `alternatePhones`. Assert a
-   second targeted contribution exists and the phone-vector expression names
-   both composite fields.
-3. Write one Person with a custom primary number and two custom additional
-   numbers. Assert all three are found by the dedicated API.
-4. Deactivate `alternatePhones`. Assert its contribution disappears, its three
-   numbers stop matching, the standard phone still matches, and the vector/index
-   metadata remain.
-5. Reactivate it. Assert the contribution and all existing custom values become
-   searchable again after the generated expression rebuild.
-6. Rename it to `renamedAlternatePhones`. Assert the contribution keeps the
-   same universal identifier/field key, the generated expression switches to
-   the renamed physical columns, the GIN index still exists, and all values
-   still match.
-7. Deactivate and delete it, as required by the current field deletion API.
-   Assert the contribution and physical columns are gone and its numbers no
-   longer match while standard-phone lookup still works.
-8. Recreate the same logical field name as `TEXT`, store the same digits, and
-   assert no phone contribution is created and no phone lookup matches it.
-9. Delete that field and recreate it as `PHONES`, write a fresh value, and
-   assert participation resumes. This is the supported test for a logical
-   non-phone-to-phone transition.
+### New inactive custom `PHONES` field
 
-Also run the reverse logical transition (`PHONES` deleted, same name recreated
-as `TEXT`) as the phone-to-non-phone case. Do not attempt `updateOneField` with a
-new `type`: `UpdateFieldInput` explicitly omits `type` and the editable-property
-allowlist excludes it. A small API contract test may assert that GraphQL rejects
-such an update, but it is not a lifecycle path the phone feature must support.
+Create its state as `READY`, query-disabled with
+`activeProjectionGeneration = 1`. Continue maintaining it when values are
+written through administrative paths so activation can be immediate.
 
-Follow the cleanup pattern in
-`create-and-delete-field-metadata-search-vector-side-effect.integration-spec.ts`:
-deactivate every custom field before deleting it, and use `try/finally` or
-`afterAll` guards so a failed assertion does not leave custom Person schema
-behind for later suites.
+### Rename
 
-### Resolver integration test
+Update `physicalFieldName` in the same transaction as the physical column
+rename. Lookup rows are keyed by immutable field ID and remain valid. No purge,
+backfill, or lookup-index change is required.
 
-Add a new suite beside
-`test/integration/graphql/suites/search/search-resolver.integration-spec.ts`
-and a focused GraphQL factory beside `test/integration/graphql/utils/search.util.ts`.
-The fixture should include separate people whose match exists in:
+### Deactivate and reactivate
 
-- the standard primary phone;
-- a standard additional phone;
-- a custom primary phone;
-- a custom additional phone;
-- two different readable phone fields on the same Person;
-- only a non-phone field containing identical digits; and
-- no field.
+Deactivation sets `isQueryEnabled = false` atomically with field deactivation.
+The trigger continues maintaining stored values. Reactivation sets it true only
+when an active projection generation exists; otherwise it schedules/resumes a
+backfill and the lookup API returns readiness until the first generation is
+complete.
 
-For each valid E.164 request assert exact record IDs, stable ID pagination, and
-an empty definitive miss. Add invalid input, empty input, and national input
-with/without explicit country tests according to the final API contract. Spy on
-or instrument the query path to assert it never invokes `SearchService`,
-`buildSearchQueryAndGetRecordsWithFallback`, `LIKE`, or `ILIKE`.
+### Delete
 
-### Permission integration test
+Before physical source columns are dropped:
 
-Create two custom `PHONES` fields on Person, place the requested number only in
-one field at a time, and exercise a role that may read one but not the other.
-Assert:
+1. mark the state `DELETING` and query-disabled;
+2. create a `PURGE_FIELD` operation;
+3. allow the normal field deletion once the trigger will no longer reference
+   that field's keys;
+4. asynchronously delete lookup rows in bounded batches;
+5. delete the field-state tombstone after purge completion.
 
-- a value in the readable field returns the Person;
-- the same value only in the restricted field returns no result;
-- a Person with both fields still returns through the readable field;
-- the generated query contains qualified tokens only for readable field IDs;
-- lack of Person object-read permission is rejected; and
-- row-level predicates can remove an otherwise matching Person.
+The field-metadata ID is deliberately retained in the operation row without a
+cascading FK, so cleanup remains possible after metadata deletion.
 
-This suite is essential: selecting only `id` is not sufficient protection when
-the `WHERE` expression contains a generated vector built from restricted fields.
+### Non-`PHONES` fields and other objects
 
-### Upgrade and regression tests
+Do nothing. Company phone fields do not participate in the first API. Recreating
+a deleted logical name as `TEXT` creates no phone state. Recreating it as
+`PHONES` receives a new field ID and a new independent state row.
 
-The workspace command suite should start from four states: no phone metadata,
-field only, field plus index but missing contributions, and fully provisioned.
-After one run all should converge; after a second run metadata IDs, expressions,
-and operation counts should remain unchanged. Include pre-existing active and
-inactive custom `PHONES` fields and verify only the active field contributes.
+## Metadata operation gate
 
-Finally assert that:
+The gate prevents a sequence of Person schema changes from racing an incomplete
+backfill or purge. It does not block record CRUD.
 
-- existing generic Person search results and fallback behavior are unchanged;
-- the standard Person phone field's phone-vector contribution coexists with its
-  existing generic-vector contribution;
-- object deletion collects the new system field/index/contributions;
-- workspace export includes the second generated column and GIN index; and
-- generated schema/client artifacts expose only the dedicated person-phone
-  operation, not a generic object/field selector.
+Implement `PhoneSearchMetadataGateService` and invoke it at two levels:
 
-## Remaining decisions
+1. `FieldMetadataService` create/update/delete paths, to return a clear API
+   error before expensive migration planning;
+2. `WorkspaceMigrationValidateBuildAndRunService`, to cover REST, GraphQL,
+   tools, application manifests, and any caller bypassing `FieldMetadataService`.
 
-- Final person-phone API name and response DTO.
-- E.164-only input versus national input with an explicit ISO country code.
-- Upgrade normalization strategy for legacy, non-canonical stored phones.
-- Whether the first response needs the matching field identifier; returning it
-  requires either a second permission-safe calculation or a richer indexed
-  representation and is not necessary to return matching Person IDs.
-- Operational batch/window policy for the slow workspace upgrade on the largest
-  Person tables.
+The second check is authoritative. It examines the final operation set and
+applies when a field mutation or Person object deletion targets the standard
+Person object. Internal phone-index operations carry an explicit operation ID
+and generation allowing only that worker to bypass its own gate.
+
+Gate acquisition uses a transaction-scoped PostgreSQL advisory lock derived
+from `(workspaceId, personObjectMetadataId)` only while checking/creating the
+operation row. Never hold an advisory lock for the duration of a BullMQ job.
+The partial unique active-operation constraint handles cross-process races.
+
+When blocked, return a typed retryable error containing:
+
+- operation ID and status;
+- operation kind;
+- processed and estimated counts when known;
+- `retryAfter` guidance;
+- the last error when the caller is an authorized administrator.
+
+Only Person field/object schema mutations are gated. Person record CRUD, other
+objects' field mutations, views, layouts, roles, and other metadata remain
+available.
+
+## Sequences of metadata changes
+
+Do not queue and replay arbitrary admin mutation payloads. A rename or delete
+request can become stale while waiting, and replaying it later is unsafe.
+Conflicting requests are rejected and must be resubmitted against current
+metadata after the active operation completes.
+
+Required cases:
+
+### Two admins race
+
+Both requests take the short advisory lock. The first request that creates an
+active operation/generation wins. The second sees the active database row and
+receives `PHONE_SEARCH_METADATA_BUSY`. Redis ordering is irrelevant.
+
+### Several changes in one API request
+
+`createManyFields` or an application manifest is validated as one final desired
+state. If it requires asynchronous work, create one object operation containing
+the union of affected field IDs. Apply no partial metadata changes before the
+operation and gate are durably recorded.
+
+### A second request arrives during backfill
+
+Reject it without changing metadata. Return current operation progress. The
+caller may retry after completion. Do not append it to a Redis queue.
+
+### Rename followed by deactivate
+
+When no long operation exists, each is a short synchronous state transition and
+may complete normally in order. If either encounters an active initialization,
+repair, or purge, reject it. After retry, resolve the field again by immutable
+ID rather than stale physical name.
+
+### Deactivate followed by reactivate
+
+Once a field has reached `READY`, both are synchronous toggles because inactive
+values remain maintained. During initial indexing, reject both until indexing
+completes; do not expose a partially indexed field.
+
+### Delete followed by recreation of the same logical name
+
+Hold the Person metadata gate until the old field's purge operation completes.
+The recreation then receives a new field ID. This prevents old lookup rows from
+being confused with the new field even if names are reused.
+
+### Worker fails permanently
+
+Set the operation and affected field states to `FAILED`; keep the metadata gate
+closed for Person field mutations, but leave CRM record CRUD available. Provide
+an operator/admin retry that resumes from the committed cursor and a cancel
+path that safely disables the affected field from phone lookup. Cancellation
+must never mark incomplete data `READY`.
+
+### Process crashes after database commit but before enqueue
+
+The operation remains `PENDING`. A periodic reconciler scans `PENDING`,
+`RETRYABLE`, and expired-lease `RUNNING` rows and enqueues work again. Duplicate
+jobs are harmless because the database lease and generation are checked before
+each batch.
+
+## BullMQ execution model
+
+Add `MessageQueue.phoneSearchIndexQueue` and a complete entry in
+`message-queue-worker-config.constant.ts`. Start with concurrency `1` per worker
+and enforce one active operation per workspace Person object in PostgreSQL.
+
+Create a module under `engine/core-modules/phone-search-index/` containing:
+
+- `jobs/phone-search-index.job.ts` with `@Processor` and `@Process`;
+- `services/phone-search-index-orchestrator.service.ts` for operation creation,
+  enqueue, retry, cancellation, and status;
+- `services/phone-search-index-backfill.service.ts` for one bounded batch;
+- `services/phone-search-trigger-manager.service.ts` for trigger installation
+  and verification;
+- `services/phone-search-metadata-gate.service.ts`;
+- `crons/phone-search-index-reconciler.cron.job.ts` or the repository's
+  equivalent recurring-job registration for orphaned operations;
+- DTOs/types for job data and statuses;
+- TypeORM entity registration and module exports needed by Search and Metadata.
+
+Job data contains only `operationId`. Never put cursors or desired field sets
+solely in Redis.
+
+For each delivery:
+
+1. lock the operation row `FOR UPDATE`;
+2. no-op if completed/cancelled, wrong generation, or another unexpired lease
+   owns it;
+3. claim/renew a bounded lease and commit;
+4. execute one batch;
+5. transactionally update the cursor/count/status;
+6. enqueue the next delivery after commit when work remains;
+7. after final verification, atomically point each field's
+   `activeProjectionGeneration` at its building generation, clear the building
+   pointer, mark states `READY`, and mark the operation `COMPLETED`;
+8. release the metadata gate by completing the active operation row.
+
+Use retries with exponential delay for lock timeouts, connection failures, and
+temporary load shedding. Validation/corruption errors become `FAILED` and
+require explicit repair.
+
+### Correct backfill transaction
+
+Install and enable the trigger before recording the operation as runnable. For
+each batch, select Person records in deterministic UUID order:
+
+```sql
+SELECT ...
+FROM workspace_x.person
+WHERE id > :lastRecordId
+ORDER BY id
+LIMIT :batchSize
+FOR UPDATE
+```
+
+Do not use `SKIP LOCKED` with a permanently advanced keyset cursor; that can
+skip a locked record forever. Keep transactions small. The selected row locks
+briefly serialize a concurrent update to those specific records. Refresh lookup
+rows for the operation's field set, commit, and only then persist/advance the
+cursor.
+
+The trigger covers inserts and changes after earlier batches commit and writes
+both the old active and new building generation during a replacement. Retrying
+a batch is safe because refresh is delete-plus-idempotent-insert. A final
+verification compares eligible source counts/sample hashes and checks that no
+operation field remains non-ready before the pointer cutover. Existing queries
+continue using the old active generation throughout; old-generation rows are
+purged asynchronously only after the new pointer commits.
+
+Configuration values for batch size, inter-batch delay, statement timeout,
+lock timeout, lease duration, and retry ceiling must be explicit Twenty config
+variables with conservative defaults. Emit progress metrics and structured logs
+tagged by workspace, operation, generation, cursor, and duration.
+
+## Fresh workspace and upgrade paths
+
+### Fast instance upgrade
+
+Replace the current phone-vector instance command with a command that:
+
+- creates the three core tables, enums/check constraints, and indexes;
+- installs `public.phone_search_values` and
+  `public.sync_person_phone_lookup`;
+- has a reversible `down()` for instance-owned objects, with an explicit guard
+  refusing to drop non-empty lookup tables accidentally.
+
+Register it through `instance-commands.constant.ts`.
+
+### Fresh workspace
+
+After standard Person physical metadata is created:
+
+1. install the stable trigger on the empty Person table;
+2. create a `READY`, query-enabled state for standard `person.phones` with
+   `activeProjectionGeneration = 1`;
+3. create no backfill operation because the table is empty.
+
+Hook this into workspace creation after Person DDL exists, not into standard
+`FieldMetadata` as a fake `TS_VECTOR` field.
+
+### Existing workspace
+
+The versioned workspace command must be quick:
+
+1. resolve the standard Person object, schema, and every standard/custom
+   `PHONES` field;
+2. acquire the short gate;
+3. install/verify the stable trigger with a lock timeout;
+4. create `INDEXING` field-state rows with no active generation and a new
+   building generation for active and inactive phone fields;
+5. create one `INITIALIZE` operation containing all fields;
+6. enqueue after commit and return without scanning Person.
+
+The operation marks each state `READY` after all current values are populated;
+only active fields become query-enabled. Rerunning the workspace command must
+find the existing state/operation and do nothing or re-enqueue a resumable
+operation. It must never create duplicate lookup rows.
+
+The workspace command has no `down()` in Twenty's current workspace-command
+contract. Document operational rollback: set every phone field state
+query-disabled, stop/reconcile jobs, drop workspace triggers, then remove core
+objects only through the instance rollback after lookup data is empty.
+
+### Workspace deletion
+
+Workspace deletion must disable/drop its trigger and enqueue or directly batch
+delete lookup, state, and operation rows. Add cleanup hooks to the existing
+workspace deletion flow. The cleanup path is idempotent and must tolerate the
+physical workspace schema already being absent.
+
+## Concrete code change map
+
+### Remove/supersede current vector implementation
+
+Remove the phone-only changes involving:
+
+- `phoneSearchVector` standard field/index constants and Person workspace
+  entity property;
+- phone-specific `SearchFieldMetadata` rows and target-aware identifiers that
+  exist only to support the second vector;
+- phone-vector expression builders and SQL token helper;
+- generic TS-vector migration-runner changes made solely for multiple vectors;
+- field side effects that rebuild `phoneSearchVector`;
+- the workspace upgrade that provisions/rebuilds the vector.
+
+Do not remove unrelated generic-search fixes. Re-evaluate the target-aware
+`SearchFieldMetadata` uniqueness change: if no other feature needs multiple
+vectors, revert it to minimize framework surface.
+
+### Add core persistence and SQL
+
+Add the three entities, enums, repositories, SQL helpers, trigger manager, and
+instance upgrade under:
+
+- `engine/core-modules/phone-search-index/`;
+- `database/commands/upgrade-version-command/<version>/`;
+- `database/commands/upgrade-version-command/instance-commands.constant.ts`.
+
+Register the module in `core-engine.module.ts`, queue worker discovery, command
+modules needed by upgrades, and TypeORM entity discovery following adjacent
+core modules.
+
+### Add queue plumbing
+
+Change:
+
+- `engine/core-modules/message-queue/message-queue.constants.ts`;
+- `engine/core-modules/message-queue/message-queue-worker-config.constant.ts`;
+- the new phone-index job/module and a reconciler registration.
+
+Use `MessageQueueService.add` with operation ID job data. The database operation
+row remains authoritative because the BullMQ driver intentionally does not
+provide exactly-once delivery.
+
+### Integrate metadata gating and lifecycle
+
+Change:
+
+- `engine/metadata-modules/field-metadata/services/field-metadata.service.ts`
+  for friendly early checks on create/update/delete;
+- `workspace-migration/services/workspace-migration-validate-build-and-run-service.ts`
+  for the authoritative operation-set check;
+- metadata side-effect handlers or an equivalent post-plan hook to create and
+  update field-state rows without TS-vector contributions;
+- object/workspace deletion handlers for cancellation and cleanup.
+
+All GraphQL, REST, and tool field mutations already funnel through
+`FieldMetadataService`; the migration-service check covers other builders and
+application synchronization.
+
+### Update the API service
+
+Keep the focused resolver/DTO surface but replace the vector predicate in
+`engine/core-modules/search/services/phone-search.service.ts` with the indexed
+`EXISTS` query and readiness validation. Keep permission-aware field selection,
+normalization, deterministic ID pagination, and generic-search isolation.
+
+## Testing plan
+
+### SQL and trigger integration
+
+Against real PostgreSQL, prove:
+
+- extraction of primary/additional values, malformed inputs, and duplicates;
+- direct SQL insert/update/delete changes lookup rows in the same transaction;
+- rollback rolls back both Person and lookup changes;
+- bulk writes are covered;
+- non-phone updates do not rewrite lookup rows;
+- inactive-but-ready fields remain synchronized but cannot be queried;
+- field rename/config update reads the new physical columns;
+- trigger installation retries cleanly on lock timeout.
+
+### Indexed query tests
+
+Use production-sized fixtures and `EXPLAIN` with sequential scans disabled to
+prove lookup-index use for hit and miss queries. Test multiple matching fields,
+record deduplication, pagination, object/row/field permissions, and readiness
+errors. Assert the query never references `LIKE`, `ILIKE`, `to_tsquery`, or a
+phone vector.
+
+### Backfill correctness
+
+Test:
+
+- empty, small, multi-batch, and large workspaces;
+- primary and additional phones across standard/custom fields;
+- update/delete/insert racing the current, earlier, and later batches;
+- crash before cursor commit and after cursor commit;
+- duplicate BullMQ delivery;
+- expired lease recovery;
+- Redis flush after database operation creation;
+- restart/resume from the last committed cursor;
+- final cutover only after complete verification;
+- retryable versus terminal errors;
+- cancellation never exposes incomplete results.
+
+### Metadata sequencing
+
+Test two concurrent admins and assert only one operation is created. Cover
+create-many coalescing, blocked rename/deactivate/delete during backfill,
+resubmission after completion, delete/recreate with a reused logical name,
+failed-operation retry, and operations on other objects proceeding while Person
+is gated.
+
+### Upgrade and cleanup
+
+Test fresh workspace readiness, existing workspace asynchronous initialization,
+idempotent command reruns, legacy active/inactive custom fields, malformed legacy
+values, workspace deletion during a job, and operator rollback steps.
+
+### Performance gates
+
+Before rollout, record representative benchmarks for 100k, 1m, and 10m Person
+rows:
+
+- trigger latency for phone and non-phone writes;
+- backfill rows/second, WAL volume, CPU, and replication lag;
+- lookup hit/miss latency and index size;
+- batch lock duration and observed Person write latency.
+
+Set rollout defaults from those results. The feature must support pausing by
+workspace and a global kill switch that disables scheduling while preserving
+transactional trigger maintenance.
+
+## Suggested implementation order for Terra
+
+1. Revert the unshipped phone-vector storage changes while retaining the API
+   contract and reusable normalization tests.
+2. Add core entities, constraints, status types, and the fast instance upgrade.
+3. Add SQL extraction/trigger functions and real-PostgreSQL transactional tests.
+4. Add trigger installation for fresh/existing workspaces.
+5. Implement durable operation creation, leases, one-batch processing, queue
+   registration, and the orphan reconciler.
+6. Implement the metadata gate at both service and migration boundaries.
+7. Implement lifecycle state transitions and sequence handling.
+8. Replace the API vector query with the indexed lookup-table `EXISTS` query.
+9. Implement the existing-workspace initializer, cleanup, retry, and cancel
+   commands.
+10. Port and expand acceptance tests, then run performance benchmarks.
+
+Do not declare completion based only on API behavior. Acceptance requires real
+PostgreSQL trigger tests, concurrent-write/backfill tests, metadata race tests,
+query-plan evidence, fresh and upgraded workspace tests, and proof that ordinary
+Person CRUD continues while a multi-batch backfill is running.

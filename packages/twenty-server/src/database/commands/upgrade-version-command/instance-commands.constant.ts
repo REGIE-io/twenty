@@ -149,7 +149,7 @@ import { AddPreviousPeriodStartToBillingSubscriptionFastInstanceCommand } from '
 import { AddIsDeprecatedToApplicationVariablesFastInstanceCommand } from 'src/database/commands/upgrade-version-command/2-31/2-31-instance-command-fast-1786533439000-add-is-deprecated-to-application-variables';
 import { EncryptEmptyApplicationVariablesSlowInstanceCommand } from 'src/database/commands/upgrade-version-command/2-31/2-31-instance-command-slow-1786533438000-encrypt-empty-application-variables';
 import { AddWritabilityToMetadataFastInstanceCommand } from 'src/database/commands/upgrade-version-command/2-32/2-32-instance-command-fast-1786713600000-add-writability-to-metadata';
-import { AddPhoneSearchTokensFastInstanceCommand } from 'src/database/commands/upgrade-version-command/2-32/2-32-instance-command-fast-1786800000000-add-phone-search-tokens';
+import { AddPhoneSearchLookupFastInstanceCommand } from 'src/database/commands/upgrade-version-command/2-32/2-32-instance-command-fast-1786800000000-add-phone-search-lookup';
 
 export const INSTANCE_COMMANDS = [
   AddViewFieldGroupIdIndexOnViewFieldFastInstanceCommand,
@@ -301,5 +301,5 @@ export const INSTANCE_COMMANDS = [
   AddIsDeprecatedToApplicationVariablesFastInstanceCommand,
   EncryptEmptyApplicationVariablesSlowInstanceCommand,
   AddWritabilityToMetadataFastInstanceCommand,
-  AddPhoneSearchTokensFastInstanceCommand,
+  AddPhoneSearchLookupFastInstanceCommand,
 ];

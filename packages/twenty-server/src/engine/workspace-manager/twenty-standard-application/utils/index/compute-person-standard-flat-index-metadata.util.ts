@@ -72,18 +72,4 @@ export const buildPersonStandardFlatIndexMetadatas = ({
     twentyStandardApplicationId,
     now,
   }),
-  phoneSearchVectorGinIndex: createStandardIndexFlatMetadata({
-    objectName,
-    workspaceId,
-    context: {
-      indexName: 'phoneSearchVectorGinIndex',
-      relatedFieldNames: ['phoneSearchVector'],
-      indexType: IndexType.GIN,
-      hasDeterministicUniversalIdentifier: true,
-    },
-    standardObjectMetadataRelatedEntityIds,
-    dependencyFlatEntityMaps,
-    twentyStandardApplicationId,
-    now,
-  }),
 });

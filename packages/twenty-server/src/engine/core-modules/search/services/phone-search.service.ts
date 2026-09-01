@@ -1,4 +1,8 @@
-import { BadRequestException, Injectable } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  ServiceUnavailableException,
+} from '@nestjs/common';
 
 import { parsePhoneNumberWithError } from 'libphonenumber-js';
 import { FieldMetadataType, type ObjectRecord } from 'twenty-shared/types';
@@ -90,22 +94,85 @@ export class PhoneSearchService {
         );
         if (!phoneFields.length) return this.emptyConnection();
 
+        // State is read before the Person query so an empty lookup result is only
+        // definitive when every readable phone field has a verified generation.
+        // This is also what keeps an old generation serving during a repair.
+        const fieldStates = await repository.query<
+          Array<{
+            fieldMetadataId: string;
+            isQueryEnabled: boolean;
+            activeProjectionGeneration: string | null;
+            syncStatus: string;
+          }>
+        >(
+          `SELECT "fieldMetadataId", "isQueryEnabled", "activeProjectionGeneration", "syncStatus"
+             FROM core."phoneSearchFieldState"
+            WHERE "workspaceId" = $1 AND "objectMetadataId" = $2
+              AND "fieldMetadataId" = ANY($3::uuid[])`,
+          [workspace.id, person.id, phoneFields.map((field) => field.id)],
+        );
+        const statesByFieldId = new Map(
+          fieldStates.map((state) => [state.fieldMetadataId, state]),
+        );
+        const hasMissingOrUnrecoverableState = phoneFields.some((field) => {
+          const state = statesByFieldId.get(field.id);
+
+          return (
+            !state ||
+            (state.syncStatus === 'FAILED' &&
+              state.activeProjectionGeneration === null)
+          );
+        });
+        const readyPhoneFields = phoneFields.filter((field) => {
+          const state = statesByFieldId.get(field.id);
+
+          return (
+            state?.isQueryEnabled === true &&
+            state.activeProjectionGeneration !== null
+          );
+        });
+
+        // A field being added is staged outside the last complete projection.
+        // Keep serving existing ready fields until its generation atomically
+        // cuts over. Only the first workspace build has no ready projection to
+        // serve and must return a readiness error.
+        if (hasMissingOrUnrecoverableState || readyPhoneFields.length === 0) {
+          throw new ServiceUnavailableException({
+            code: 'PHONE_SEARCH_INDEXING',
+            message: 'Phone search is still building for one or more fields',
+            retryAfter: 5,
+          });
+        }
+        const readyFieldIds = readyPhoneFields.map((field) => field.id);
         const afterId = args.after
           ? decodeCursor<{ id: string }>(args.after).id
           : undefined;
-        const qualifiedPhoneQuery = phoneFields
-          .map(
-            (field) =>
-              `f${field.universalIdentifier.replaceAll('-', '')}p${phoneDigits}`,
-          )
-          .join(' | ');
         const queryBuilder = repository
           .createQueryBuilder('person')
           .select('"person"."id"', 'id')
           .andWhere('"person"."deletedAt" IS NULL')
           .andWhere(
-            '"person"."phoneSearchVector" @@ to_tsquery(\'simple\', :qualifiedPhoneQuery)',
-            { qualifiedPhoneQuery },
+            `EXISTS (
+              SELECT 1
+              FROM core."personPhoneLookup" lookup
+              INNER JOIN core."phoneSearchFieldState" state
+                ON state."workspaceId" = lookup."workspaceId"
+               AND state."objectMetadataId" = lookup."objectMetadataId"
+               AND state."fieldMetadataId" = lookup."fieldMetadataId"
+               AND state."activeProjectionGeneration" = lookup."projectionGeneration"
+              WHERE lookup."workspaceId" = :workspaceId
+                AND lookup."objectMetadataId" = :objectMetadataId
+                AND lookup."recordId" = "person"."id"
+                AND lookup."canonicalPhone" = :canonicalPhone
+                AND lookup."fieldMetadataId" IN (:...readyFieldIds)
+                AND state."isQueryEnabled" = true
+            )`,
+            {
+              workspaceId: workspace.id,
+              objectMetadataId: person.id,
+              canonicalPhone: phoneDigits,
+              readyFieldIds,
+            },
           );
         if (afterId)
           queryBuilder.andWhere('"person"."id" > :afterId', { afterId });
