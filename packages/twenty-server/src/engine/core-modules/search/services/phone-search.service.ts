@@ -10,6 +10,7 @@ import {
   canonicalizeE164PhoneSearchInput,
   isDefined,
   isFieldReadable,
+  isValidUuid,
 } from 'twenty-shared/utils';
 import { type DataSource } from 'typeorm';
 
@@ -27,6 +28,23 @@ import { type FlatObjectMetadata } from 'src/engine/metadata-modules/flat-object
 import { GlobalWorkspaceOrmManager } from 'src/engine/twenty-orm/global-workspace-datasource/global-workspace-orm.manager';
 import { getWorkspaceContext } from 'src/engine/twenty-orm/storage/orm-workspace-context.storage';
 import { resolveRolePermissionConfig } from 'src/engine/twenty-orm/utils/resolve-role-permission-config.util';
+
+export const decodePhoneSearchCursor = (cursor: string): string => {
+  const cursorData = decodeCursor<unknown>(cursor);
+
+  if (
+    cursorData === null ||
+    typeof cursorData !== 'object' ||
+    Array.isArray(cursorData) ||
+    !('id' in cursorData) ||
+    typeof cursorData.id !== 'string' ||
+    !isValidUuid(cursorData.id)
+  ) {
+    throw new BadRequestException('Invalid phone search cursor');
+  }
+
+  return cursorData.id;
+};
 
 @Injectable()
 export class PhoneSearchService {
@@ -51,6 +69,9 @@ export class PhoneSearchService {
       throw new BadRequestException(
         'phoneNumber must be a valid E.164 international phone number',
       );
+    const afterId = args.after
+      ? decodePhoneSearchCursor(args.after)
+      : undefined;
     const person = Object.values(
       flatObjectMetadataMaps.byUniversalIdentifier,
     ).find(
@@ -138,9 +159,6 @@ export class PhoneSearchService {
           });
         }
         const readyFieldIds = readyPhoneFields.map((field) => field.id);
-        const afterId = args.after
-          ? decodeCursor<{ id: string }>(args.after).id
-          : undefined;
         // Person remains the outer, permission-aware relation. Starting with
         // lookup candidate IDs and fetching Persons in a second query could
         // bypass row-level predicates or make pagination permission-unstable.

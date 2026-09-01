@@ -5,6 +5,7 @@ import { AddCalendarEventSummaryTabCommand } from 'src/database/commands/upgrade
 import { AddWorkspaceMemberUiScaleFieldCommand } from 'src/database/commands/upgrade-version-command/2-32/2-32-workspace-command-1786700000000-add-workspace-member-ui-scale-field.command';
 import { InitializePersonPhoneSearchLookupCommand } from 'src/database/commands/upgrade-version-command/2-32/2-32-workspace-command-1786800001000-initialize-person-phone-search-lookup.command';
 import { ApplicationModule } from 'src/engine/core-modules/application/application.module';
+import { PhoneSearchIndexModule } from 'src/engine/core-modules/phone-search-index/phone-search-index.module';
 import { WorkspaceCacheModule } from 'src/engine/workspace-cache/workspace-cache.module';
 import { WorkspaceMigrationModule } from 'src/engine/workspace-manager/workspace-migration/workspace-migration.module';
 
@@ -14,6 +15,7 @@ import { WorkspaceMigrationModule } from 'src/engine/workspace-manager/workspace
     WorkspaceCacheModule,
     WorkspaceIteratorModule,
     WorkspaceMigrationModule,
+    PhoneSearchIndexModule,
   ],
   providers: [
     AddCalendarEventSummaryTabCommand,

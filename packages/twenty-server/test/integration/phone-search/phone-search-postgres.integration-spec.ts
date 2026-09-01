@@ -105,7 +105,11 @@ describe('person phone lookup PostgreSQL contracts', () => {
         queuedOperationIds.push(data.operationId);
       }),
     };
-    backfill = new PhoneSearchIndexBackfillService(dataSource, queue as never);
+    backfill = new PhoneSearchIndexBackfillService(
+      dataSource,
+      queue as never,
+      { get: jest.fn().mockReturnValue(30000) } as never,
+    );
   });
 
   beforeEach(async () => {
@@ -271,6 +275,30 @@ describe('person phone lookup PostgreSQL contracts', () => {
         ],
       ),
     ).resolves.toEqual([]);
+  });
+
+  it('enforces E.164 calling-code and total-length boundaries in SQL projection', async () => {
+    const project = (callingCode: string, number: string) =>
+      dataSource.query<{ canonicalPhone: string }[]>(
+        `SELECT * FROM public.phone_search_values($1::jsonb, 'phones')`,
+        [
+          JSON.stringify({
+            phonesPrimaryPhoneCallingCode: callingCode,
+            phonesPrimaryPhoneNumber: number,
+          }),
+        ],
+      );
+
+    await expect(project('+1', '12345678901234')).resolves.toEqual([
+      { canonicalPhone: '112345678901234' },
+    ]);
+    await expect(project('+123', '123456789012')).resolves.toEqual([
+      { canonicalPhone: '123123456789012' },
+    ]);
+    await expect(project('+012', '123456789')).resolves.toEqual([]);
+    await expect(project('+1234', '123456789')).resolves.toEqual([]);
+    await expect(project('+1', '123456789012345')).resolves.toEqual([]);
+    await expect(project('+123', '1234567890123')).resolves.toEqual([]);
   });
 
   it('extracts standard and custom primary/additional values and maintains them transactionally', async () => {

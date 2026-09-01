@@ -52,6 +52,10 @@ ruleTester.run(RULE_NAME, rule, {
       filename: FAST_FILE,
       code: `class C { async up(q) { await q.query(\`CREATE FUNCTION sync_x() RETURNS trigger LANGUAGE plpgsql AS \$body\$ BEGIN UPDATE core."x" SET value = NEW.value; RETURN NEW; END \$body\$\`); } }`,
     },
+    {
+      filename: FAST_FILE,
+      code: `class C { async up(q) { await q.query(\`CREATE PROCEDURE sync_x() LANGUAGE plpgsql AS \$body\$ BEGIN DELETE FROM core."x"; END \$body\$\`); } }`,
+    },
     // Rollback DML lives in down() and is allowed (incl. via a CTE).
     {
       filename: FAST_FILE,
@@ -106,6 +110,17 @@ ruleTester.run(RULE_NAME, rule, {
     {
       filename: FAST_FILE,
       code: `class C { async up(q) { await q.query(\`WITH ids AS (SELECT "id" FROM "core"."x") UPDATE "core"."x" SET "y" = false\`); } }`,
+      errors: [{ messageId: 'dataMutationInFastInstanceCommand' }],
+    },
+    // Anonymous blocks execute immediately and are not stored-routine DDL.
+    {
+      filename: FAST_FILE,
+      code: `class C { async up(q) { await q.query(\`DO \$\$ BEGIN DELETE FROM core."x"; END \$\$\`); } }`,
+      errors: [{ messageId: 'dataMutationInFastInstanceCommand' }],
+    },
+    {
+      filename: FAST_FILE,
+      code: `class C { async up(q) { await q.query(\`DO \$body\$ BEGIN UPDATE core."x" SET value = 1; END \$body\$\`); } }`,
       errors: [{ messageId: 'dataMutationInFastInstanceCommand' }],
     },
   ],

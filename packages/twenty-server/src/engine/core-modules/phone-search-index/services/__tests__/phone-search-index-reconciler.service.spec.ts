@@ -17,6 +17,7 @@ describe('PhoneSearchIndexReconcilerService', () => {
     expect(dataSource.query.mock.calls[0]?.[0]).toContain(
       '"leaseExpiresAt" IS NULL OR "leaseExpiresAt" < now()',
     );
+    expect(dataSource.query.mock.calls[0]?.[0]).not.toContain("'FAILED'");
     expect(queue.add).toHaveBeenCalledWith('PhoneSearchIndexJob', {
       operationId: 'pending',
     });

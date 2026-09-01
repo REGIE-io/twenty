@@ -11,6 +11,7 @@ import { isDefined } from 'twenty-shared/utils';
 import { LoggerService } from 'src/engine/core-modules/logger/logger.service';
 import { PhoneSearchMetadataGateService } from 'src/engine/core-modules/phone-search-index/services/phone-search-metadata-gate.service';
 import { PhoneSearchFieldLifecycleCoordinatorService } from 'src/engine/core-modules/phone-search-index/services/phone-search-field-lifecycle-coordinator.service';
+import { type PhoneSearchLifecycleDelta } from 'src/engine/core-modules/phone-search-index/types/phone-search-lifecycle-delta.type';
 import { WORKSPACE_MIGRATION_ACTION_COUNT_BUCKET_BOUNDARIES } from 'src/engine/core-modules/metrics/constants/workspace-migration-action-count-bucket-boundaries.constant';
 import { WORKSPACE_MIGRATION_DURATION_MS_BUCKET_BOUNDARIES } from 'src/engine/core-modules/metrics/constants/workspace-migration-duration-ms-bucket-boundaries.constant';
 import { MetricsService } from 'src/engine/core-modules/metrics/metrics.service';
@@ -95,12 +96,7 @@ export class WorkspaceMigrationValidateBuildAndRunService {
     args: WorkspaceMigrationOrchestratorBuildArgs & {
       idByUniversalIdentifierByMetadataName?: IdByUniversalIdentifierByMetadataName;
       dryRun?: boolean;
-      phoneLifecycleDelta?: {
-        objectMetadataId: string;
-        created: any[];
-        updated: any[];
-        deleted: any[];
-      };
+      phoneLifecycleDelta?: PhoneSearchLifecycleDelta;
       phoneMetadataGate?: { objectMetadataId: string };
     },
   ): Promise<
@@ -182,14 +178,26 @@ export class WorkspaceMigrationValidateBuildAndRunService {
     const resolvedPhoneLifecycleDelta = phoneLifecycleDelta
       ? {
           ...phoneLifecycleDelta,
-          created: phoneLifecycleDelta.created.map((field) => ({
-            ...field,
-            id:
+          created: phoneLifecycleDelta.created.map((field) => {
+            if (!field.universalIdentifier) {
+              throw new Error(
+                'Created phone field is missing its universal identifier',
+              );
+            }
+            const fieldMetadataId =
               field.id ??
               createdFieldIdByUniversalIdentifier.get(
                 field.universalIdentifier,
-              ),
-          })),
+              );
+
+            if (!isDefined(fieldMetadataId)) {
+              throw new Error(
+                `Unable to resolve created phone field ${field.universalIdentifier}`,
+              );
+            }
+
+            return { ...field, id: fieldMetadataId };
+          }),
         }
       : undefined;
 

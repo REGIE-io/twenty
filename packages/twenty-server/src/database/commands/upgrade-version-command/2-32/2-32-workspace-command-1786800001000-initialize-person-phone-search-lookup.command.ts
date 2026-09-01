@@ -9,13 +9,10 @@ import { ProvisionedWorkspaceCommandRunner } from 'src/database/commands/command
 import { WorkspaceIteratorService } from 'src/database/commands/command-runners/workspace-iterator.service';
 import { type RunOnWorkspaceArgs } from 'src/database/commands/command-runners/workspace.command-runner';
 import { RegisteredWorkspaceCommand } from 'src/engine/core-modules/upgrade/decorators/registered-workspace-command.decorator';
-import { InjectMessageQueue } from 'src/engine/core-modules/message-queue/decorators/message-queue.decorator';
-import { MessageQueue } from 'src/engine/core-modules/message-queue/message-queue.constants';
-import { MessageQueueService } from 'src/engine/core-modules/message-queue/services/message-queue.service';
-import { PhoneSearchIndexJob } from 'src/engine/core-modules/phone-search-index/jobs/phone-search-index.job';
+import { PhoneSearchFieldLifecycleCoordinatorService } from 'src/engine/core-modules/phone-search-index/services/phone-search-field-lifecycle-coordinator.service';
+import { PhoneSearchTriggerManagerService } from 'src/engine/core-modules/phone-search-index/services/phone-search-trigger-manager.service';
 import { type FlatFieldMetadata } from 'src/engine/metadata-modules/flat-field-metadata/types/flat-field-metadata.type';
 import { WorkspaceCacheService } from 'src/engine/workspace-cache/services/workspace-cache.service';
-import { getWorkspaceSchemaName } from 'src/engine/workspace-datasource/utils/get-workspace-schema-name.util';
 
 @RegisteredWorkspaceCommand('2.32.0', 1786800001000)
 @Command({
@@ -28,8 +25,8 @@ export class InitializePersonPhoneSearchLookupCommand extends ProvisionedWorkspa
     protected readonly workspaceIteratorService: WorkspaceIteratorService,
     private readonly workspaceCacheService: WorkspaceCacheService,
     @InjectDataSource() private readonly dataSource: DataSource,
-    @InjectMessageQueue(MessageQueue.phoneSearchIndexQueue)
-    private readonly queue: MessageQueueService,
+    private readonly triggerManager: PhoneSearchTriggerManagerService,
+    private readonly lifecycleCoordinator: PhoneSearchFieldLifecycleCoordinatorService,
   ) {
     super(workspaceIteratorService);
   }
@@ -60,18 +57,15 @@ export class InitializePersonPhoneSearchLookupCommand extends ProvisionedWorkspa
     );
     if (!fields.length) return;
     const runner = this.dataSource.createQueryRunner();
-    const schema = getWorkspaceSchemaName(workspaceId);
     let operationId: string | undefined;
     try {
+      await this.triggerManager.install({
+        workspaceId,
+        objectMetadataId: person.id,
+      });
       await runner.connect();
       await runner.startTransaction();
       await runner.query("SET LOCAL lock_timeout = '2s'");
-      await runner.query(
-        `DROP TRIGGER IF EXISTS "TRG_PERSON_PHONE_LOOKUP_SYNC" ON "${schema}"."person"`,
-      );
-      await runner.query(
-        `CREATE TRIGGER "TRG_PERSON_PHONE_LOOKUP_SYNC" AFTER INSERT OR UPDATE OR DELETE ON "${schema}"."person" FOR EACH ROW EXECUTE FUNCTION public.sync_person_phone_lookup('${workspaceId}', '${person.id}')`,
-      );
       const existing = (await runner.query(
         `SELECT id FROM core."phoneSearchIndexOperation" WHERE "workspaceId" = $1 AND "objectMetadataId" = $2 AND status IN ('PENDING','RUNNING','RETRYABLE')`,
         [workspaceId, person.id],
@@ -102,7 +96,7 @@ export class InitializePersonPhoneSearchLookupCommand extends ProvisionedWorkspa
       }
       await runner.commitTransaction();
       if (operationId)
-        await this.queue.add(PhoneSearchIndexJob.name, { operationId });
+        await this.lifecycleCoordinator.enqueue([operationId]);
     } catch (error) {
       if (runner.isTransactionActive) await runner.rollbackTransaction();
       throw error;

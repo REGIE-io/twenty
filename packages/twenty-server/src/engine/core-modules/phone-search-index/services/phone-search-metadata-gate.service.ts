@@ -41,7 +41,7 @@ export class PhoneSearchMetadataGateService {
         processedRecordCount: string;
       }>
     >(
-      `SELECT id, status, kind, generation, "processedRecordCount" FROM core."phoneSearchIndexOperation" WHERE "workspaceId" = $1 AND "objectMetadataId" = $2 AND status IN ('PENDING','RUNNING','RETRYABLE','FAILED') ORDER BY "createdAt" ASC LIMIT 1`,
+      `SELECT id, status, kind, generation, "processedRecordCount" FROM core."phoneSearchIndexOperation" WHERE "workspaceId" = $1 AND "objectMetadataId" = $2 AND status IN ('PENDING','RUNNING','RETRYABLE') ORDER BY "createdAt" ASC LIMIT 1`,
       [workspaceId, objectMetadataId],
     );
     const operation = rows[0];

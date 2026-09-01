@@ -86,7 +86,9 @@ export class AddPhoneSearchLookupFastInstanceCommand implements FastInstanceComm
           SELECT value ->> 'callingCode', value ->> 'number'
           FROM jsonb_array_elements(CASE WHEN jsonb_typeof(row_value -> (physical_field_name || 'AdditionalPhones')) = 'array' THEN row_value -> (physical_field_name || 'AdditionalPhones') ELSE '[]'::jsonb END)
         ) SELECT DISTINCT substr(calling_code, 2) || number FROM values_to_normalize
-          WHERE calling_code ~ '^\\+[0-9]+$' AND number ~ '^[0-9]+$';
+          WHERE calling_code ~ '^\\+[1-9][0-9]{0,2}$'
+            AND number ~ '^[0-9]+$'
+            AND char_length(substr(calling_code, 2) || number) <= 15;
       $$;
       CREATE OR REPLACE FUNCTION public.sync_person_phone_lookup()
       RETURNS trigger LANGUAGE plpgsql SET search_path = pg_catalog, public AS $$

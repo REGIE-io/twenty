@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { STANDARD_OBJECTS } from 'twenty-shared/metadata';
 import { FieldMetadataType } from 'twenty-shared/types';
 
@@ -9,9 +9,32 @@ import { MessageQueue } from 'src/engine/core-modules/message-queue/message-queu
 import { MessageQueueService } from 'src/engine/core-modules/message-queue/services/message-queue.service';
 import { PhoneSearchIndexJob } from 'src/engine/core-modules/phone-search-index/jobs/phone-search-index.job';
 import { type EntityManager } from 'typeorm';
+import {
+  type PhoneSearchLifecycleDelta,
+  type PhoneSearchLifecycleField,
+} from 'src/engine/core-modules/phone-search-index/types/phone-search-lifecycle-delta.type';
+
+type CompletePhoneLifecycleField = Required<PhoneSearchLifecycleField>;
+
+function assertCompletePhoneField(
+  field: PhoneSearchLifecycleField,
+): asserts field is CompletePhoneLifecycleField {
+  if (
+    !field.id ||
+    !field.universalIdentifier ||
+    !field.name ||
+    typeof field.isActive !== 'boolean'
+  ) {
+    throw new Error('Phone-search lifecycle field metadata is incomplete');
+  }
+}
 
 @Injectable()
 export class PhoneSearchFieldLifecycleCoordinatorService {
+  private readonly logger = new Logger(
+    PhoneSearchFieldLifecycleCoordinatorService.name,
+  );
+
   constructor(
     private readonly lifecycle: PhoneSearchFieldLifecycleService,
     @InjectMessageQueue(MessageQueue.phoneSearchIndexQueue)
@@ -20,11 +43,19 @@ export class PhoneSearchFieldLifecycleCoordinatorService {
   ) {}
 
   async enqueue(operationIds: string[]): Promise<void> {
-    await Promise.all(
+    const results = await Promise.allSettled(
       operationIds.map((operationId) =>
         this.queue.add(PhoneSearchIndexJob.name, { operationId }),
       ),
     );
+
+    results.forEach((result, index) => {
+      if (result.status === 'rejected') {
+        this.logger.warn(
+          `Failed to enqueue durable phone-search operation ${operationIds[index]}; the reconciler will retry: ${String(result.reason)}`,
+        );
+      }
+    });
   }
 
   async afterMigration({
@@ -37,13 +68,9 @@ export class PhoneSearchFieldLifecycleCoordinatorService {
     enqueue,
   }: {
     workspaceId: string;
-    objectMetadataId: string;
-    created: any[];
-    updated: any[];
-    deleted: any[];
     manager?: EntityManager;
     enqueue?: boolean;
-  }): Promise<string[]> {
+  } & PhoneSearchLifecycleDelta): Promise<string[]> {
     // Current services are present while historical workspace commands replay.
     // Do not let a historical PHONES metadata delta query 2.32 core tables.
     if (
@@ -58,6 +85,7 @@ export class PhoneSearchFieldLifecycleCoordinatorService {
         field.objectMetadataUniversalIdentifier ===
           STANDARD_OBJECTS.person.universalIdentifier
       ) {
+        assertCompletePhoneField(field);
         const operationId = await this.lifecycle.create({
           workspaceId,
           objectMetadataId,
@@ -79,6 +107,8 @@ export class PhoneSearchFieldLifecycleCoordinatorService {
           STANDARD_OBJECTS.person.universalIdentifier
       ) {
         const before = field.before;
+
+        assertCompletePhoneField(field);
         if (!before || before.name !== field.name)
           await this.lifecycle.rename({
             workspaceId,
@@ -103,6 +133,8 @@ export class PhoneSearchFieldLifecycleCoordinatorService {
         field.objectMetadataUniversalIdentifier ===
           STANDARD_OBJECTS.person.universalIdentifier
       ) {
+        if (!field.id)
+          throw new Error('Deleted phone field is missing its metadata id');
         const operationId = await this.lifecycle.markDeleting({
           workspaceId,
           objectMetadataId,

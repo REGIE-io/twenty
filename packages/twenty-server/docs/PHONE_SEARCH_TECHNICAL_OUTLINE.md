@@ -193,7 +193,8 @@ Columns:
   operation;
 - `lastRecordId uuid null`, the committed keyset cursor;
 - `processedRecordCount bigint`, `estimatedRecordCount bigint null`;
-- `attemptCount`, `lastError`, `lastErrorAt`;
+- `attemptCount`, `lastError`, `lastErrorAt`; `attemptCount` is the consecutive
+  failed-batch count and resets after any successful batch;
 - `leaseOwner`, `leaseExpiresAt`, `heartbeatAt`;
 - `createdAt`, `startedAt`, `completedAt`, `updatedAt`.
 
@@ -487,11 +488,14 @@ being confused with the new field even if names are reused.
 
 ### Worker fails permanently
 
-Set the operation and affected field states to `FAILED`; keep the metadata gate
-closed for Person field mutations, but leave CRM record CRUD available. Provide
-an operator/admin retry that resumes from the committed cursor and a cancel
-path that safely disables the affected field from phone lookup. Cancellation
-must never mark incomplete data `READY`.
+After five consecutive failed batches, set the operation and affected building
+field states to `FAILED`, clear only the building generation, and enqueue a
+bounded purge of that inactive generation. Preserve any active generation so
+phone search and CRM record CRUD remain available. The terminal failed
+operation does not keep the metadata gate closed; a pending cleanup operation
+may hold it only while cleanup is active. Failure bookkeeping is committed in a
+separate transaction after the failed batch rolls back so the reconciler cannot
+retry forever without advancing the counter.
 
 ### Process crashes after database commit but before enqueue
 
@@ -569,10 +573,11 @@ operation field remains non-ready before the pointer cutover. Existing queries
 continue using the old active generation throughout; old-generation rows are
 purged asynchronously only after the new pointer commits.
 
-Configuration values for batch size, inter-batch delay, statement timeout,
-lock timeout, lease duration, and retry ceiling must be explicit Twenty config
-variables with conservative defaults. Emit progress metrics and structured logs
-tagged by workspace, operation, generation, cursor, and duration.
+Each batch sets a two-second `lock_timeout` and the configurable
+`PHONE_SEARCH_INDEX_BATCH_STATEMENT_TIMEOUT_MS` (30 seconds by default). The
+retry ceiling is five consecutive failures. Emit progress metrics and
+structured logs tagged by workspace, operation, generation, cursor, and
+duration.
 
 ## Fresh workspace and upgrade paths
 
@@ -592,10 +597,12 @@ Register it through `instance-commands.constant.ts`.
 
 After standard Person physical metadata is created:
 
-1. install the stable trigger on the empty Person table;
-2. create a `READY`, query-enabled state for standard `person.phones` with
-   `activeProjectionGeneration = 1`;
-3. create no backfill operation because the table is empty.
+1. create the standard phone-field state and durable build operation through
+   the normal metadata lifecycle hook;
+2. install the stable trigger on the empty Person table before workspace
+   initialization returns;
+3. let the normal worker complete the empty build and atomically mark the
+   projection `READY`.
 
 Hook this into workspace creation after Person DDL exists, not into standard
 `FieldMetadata` as a fake `TS_VECTOR` field.

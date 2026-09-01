@@ -9,6 +9,8 @@ const SKIPPED_FILE_REGEX = /\.(spec|test)\.ts$/;
 const DATA_MUTATION_STATEMENT_REGEX = /^(UPDATE|INSERT|DELETE|MERGE)\b/i;
 const CTE_DATA_MUTATION_REGEX =
   /^WITH\b[\s\S]*[()]\s*(UPDATE|INSERT|DELETE|MERGE)\b/i;
+const ANONYMOUS_BLOCK_DATA_MUTATION_REGEX =
+  /\bDO\s+\$(?:[A-Za-z_][A-Za-z0-9_]*)?\$[\s\S]*?\b(UPDATE|INSERT|DELETE|MERGE)\b/i;
 
 const isFastInstanceCommandFile = (filename: string): boolean => {
   const markerIndex = filename.indexOf(UPGRADE_COMMAND_MARKER);
@@ -61,16 +63,26 @@ const getSqlText = (argument: any): string | null => {
   return null;
 };
 
+const stripStoredRoutineBodies = (sql: string): string =>
+  sql.replace(
+    /(\bCREATE\s+(?:OR\s+REPLACE\s+)?(?:FUNCTION|PROCEDURE)\b[\s\S]*?\bAS\s+)(\$([A-Za-z_][A-Za-z0-9_]*)?\$)[\s\S]*?\$\3\$/gi,
+    "$1''",
+  );
+
 const findDataMutationKeyword = (sql: string): string | null => {
-  const normalized = sql
+  const normalized = stripStoredRoutineBodies(sql)
     .replace(/--[^\n]*/g, '')
     .replace(/\/\*[\s\S]*?\*\//g, '')
     // Function bodies describe DML that runs later from a trigger or call;
     // CREATE FUNCTION itself remains schema-only migration work.
-    .replace(/\$\$[\s\S]*?\$\$/g, "''")
-    .replace(/\$([A-Za-z_][A-Za-z0-9_]*)\$[\s\S]*?\$\1\$/g, "''")
     .replace(/'(?:[^']|'')*'/g, "''")
     .replace(/"(?:[^"]|"")*"/g, '""');
+
+  const anonymousBlockMatch = normalized.match(
+    ANONYMOUS_BLOCK_DATA_MUTATION_REGEX,
+  );
+
+  if (anonymousBlockMatch) return anonymousBlockMatch[1].toUpperCase();
 
   for (const statement of normalized.split(';')) {
     const trimmed = statement.trim();

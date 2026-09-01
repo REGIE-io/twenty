@@ -53,7 +53,7 @@ describe('PhoneSearchFieldLifecycleCoordinatorService', () => {
       deleted: [
         {
           id: 'f',
-          type: 'PHONES',
+          type: FieldMetadataType.PHONES,
           objectMetadataUniversalIdentifier:
             STANDARD_OBJECTS.person.universalIdentifier,
         },
@@ -78,7 +78,8 @@ describe('PhoneSearchFieldLifecycleCoordinatorService', () => {
     );
     const field = {
       id: 'f',
-      type: 'PHONES',
+      universalIdentifier: 'field-universal-id',
+      type: FieldMetadataType.PHONES,
       name: 'phone',
       isActive: true,
       objectMetadataUniversalIdentifier:
@@ -194,7 +195,7 @@ describe('PhoneSearchFieldLifecycleCoordinatorService', () => {
       created: [
         {
           id: 'f',
-          type: 'TEXT',
+          type: FieldMetadataType.TEXT,
           objectMetadataUniversalIdentifier:
             STANDARD_OBJECTS.person.universalIdentifier,
         },
@@ -207,5 +208,46 @@ describe('PhoneSearchFieldLifecycleCoordinatorService', () => {
     });
     expect(lifecycle.create).not.toHaveBeenCalled();
     expect(queue.add).not.toHaveBeenCalled();
+  });
+
+  it('treats post-commit queue rejection as recoverable durable delivery', async () => {
+    const coordinator = new PhoneSearchFieldLifecycleCoordinatorService(
+      {} as never,
+      {
+        add: jest.fn().mockRejectedValue(new Error('redis unavailable')),
+      } as never,
+    );
+
+    await expect(
+      coordinator.enqueue(['durable-operation']),
+    ).resolves.toBeUndefined();
+  });
+
+  it('rejects an unresolved created phone field id before lifecycle SQL', async () => {
+    const lifecycle = { create: jest.fn() };
+    const coordinator = new PhoneSearchFieldLifecycleCoordinatorService(
+      lifecycle as never,
+      { add: jest.fn() } as never,
+    );
+
+    await expect(
+      coordinator.afterMigration({
+        workspaceId: 'workspace',
+        objectMetadataId: 'person',
+        updated: [],
+        deleted: [],
+        created: [
+          {
+            universalIdentifier: 'field-universal-id',
+            name: 'phones',
+            isActive: true,
+            type: FieldMetadataType.PHONES,
+            objectMetadataUniversalIdentifier:
+              STANDARD_OBJECTS.person.universalIdentifier,
+          },
+        ],
+      }),
+    ).rejects.toThrow('Phone-search lifecycle field metadata is incomplete');
+    expect(lifecycle.create).not.toHaveBeenCalled();
   });
 });

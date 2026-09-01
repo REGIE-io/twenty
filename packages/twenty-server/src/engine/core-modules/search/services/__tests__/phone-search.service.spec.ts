@@ -1,6 +1,7 @@
 import { FieldMetadataType } from 'twenty-shared/types';
 
 import { PhoneSearchService } from 'src/engine/core-modules/search/services/phone-search.service';
+import { encodeCursorData } from 'src/engine/api/graphql/graphql-query-runner/utils/cursors.util';
 import { type GlobalWorkspaceOrmManager } from 'src/engine/twenty-orm/global-workspace-datasource/global-workspace-orm.manager';
 
 jest.mock(
@@ -22,6 +23,82 @@ jest.mock(
 );
 
 describe('PhoneSearchService indexed query contract', () => {
+  it.each([null, [], 42, {}, { id: 'not-a-uuid' }])(
+    'rejects malformed cursor payload %p before any database query',
+    async (payload) => {
+      const dataSource = { query: jest.fn() };
+      const manager = { executeInWorkspaceContext: jest.fn() };
+      const service = new PhoneSearchService(
+        manager as unknown as GlobalWorkspaceOrmManager,
+        dataSource as never,
+      );
+
+      await expect(
+        service.searchPeopleByPhone({
+          workspace: { id: 'workspace' } as never,
+          args: {
+            phoneNumber: '+14155550100',
+            limit: 10,
+            after: Buffer.from(JSON.stringify(payload)).toString('base64'),
+          },
+          flatObjectMetadataMaps: {} as never,
+          flatFieldMetadataMaps: {} as never,
+        }),
+      ).rejects.toThrow('Invalid phone search cursor');
+      expect(manager.executeInWorkspaceContext).not.toHaveBeenCalled();
+      expect(dataSource.query).not.toHaveBeenCalled();
+    },
+  );
+
+  it('accepts a valid UUID cursor', async () => {
+    const manager = { executeInWorkspaceContext: jest.fn() };
+    const service = new PhoneSearchService(
+      manager as unknown as GlobalWorkspaceOrmManager,
+      { query: jest.fn() } as never,
+    );
+
+    await expect(
+      service.searchPeopleByPhone({
+        workspace: { id: 'workspace' } as never,
+        args: {
+          phoneNumber: '+14155550100',
+          limit: 10,
+          after: encodeCursorData({
+            id: '550e8400-e29b-41d4-a716-446655440000',
+          }),
+        },
+        flatObjectMetadataMaps: { byUniversalIdentifier: {} } as never,
+        flatFieldMetadataMaps: {} as never,
+      }),
+    ).resolves.toEqual({
+      edges: [],
+      pageInfo: { endCursor: null, hasNextPage: false },
+    });
+    expect(manager.executeInWorkspaceContext).not.toHaveBeenCalled();
+  });
+
+  it('rejects a cursor that is not valid encoded JSON', async () => {
+    const service = new PhoneSearchService(
+      {
+        executeInWorkspaceContext: jest.fn(),
+      } as unknown as GlobalWorkspaceOrmManager,
+      { query: jest.fn() } as never,
+    );
+
+    await expect(
+      service.searchPeopleByPhone({
+        workspace: { id: 'workspace' } as never,
+        args: {
+          phoneNumber: '+14155550100',
+          limit: 10,
+          after: Buffer.from('{').toString('base64'),
+        },
+        flatObjectMetadataMaps: {} as never,
+        flatFieldMetadataMaps: {} as never,
+      }),
+    ).rejects.toBeInstanceOf(Error);
+  });
+
   it('rejects non-E.164 input before querying permissions or the lookup index', async () => {
     const dataSource = { query: jest.fn() };
     const manager = { executeInWorkspaceContext: jest.fn() };

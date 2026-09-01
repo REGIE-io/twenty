@@ -65,4 +65,20 @@ describe('PhoneSearchMetadataGateService', () => {
     expect(dataSource.query).toHaveBeenCalledTimes(1);
     expect(dataSource.query.mock.calls[0]?.[0]).toContain('to_regclass');
   });
+
+  it('does not treat terminal failed work as an active metadata blocker', async () => {
+    const dataSource = {
+      query: jest
+        .fn()
+        .mockResolvedValueOnce([{ isAvailable: true }])
+        .mockResolvedValueOnce([])
+        .mockResolvedValueOnce([]),
+    };
+    const service = new PhoneSearchMetadataGateService(dataSource as never);
+
+    await expect(
+      service.assertAvailable({ workspaceId: 'w', objectMetadataId: 'p' }),
+    ).resolves.toBeUndefined();
+    expect(dataSource.query.mock.calls[2]?.[0]).not.toContain("'FAILED'");
+  });
 });
