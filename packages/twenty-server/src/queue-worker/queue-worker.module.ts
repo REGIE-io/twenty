@@ -6,6 +6,7 @@ import { MessageQueueModule } from 'src/engine/core-modules/message-queue/messag
 import { GlobalWorkspaceDataSourceModule } from 'src/engine/twenty-orm/global-workspace-datasource/global-workspace-datasource.module';
 import { TwentyORMModule } from 'src/engine/twenty-orm/twenty-orm.module';
 import { WorkspaceEventEmitterModule } from 'src/engine/workspace-event-emitter/workspace-event-emitter.module';
+import { CronRegistrationModule } from 'src/modules/cron-registration/cron-registration.module';
 
 @Module({
   imports: [
@@ -15,6 +16,9 @@ import { WorkspaceEventEmitterModule } from 'src/engine/workspace-event-emitter/
     JobsModule,
     TwentyORMModule,
     GlobalWorkspaceDataSourceModule,
+    // Registers the crons in CRONS_TO_REGISTER. Worker-only on purpose: the process that
+    // runs the jobs is the one that should own their schedule.
+    CronRegistrationModule,
   ],
 })
 export class QueueWorkerModule {}
