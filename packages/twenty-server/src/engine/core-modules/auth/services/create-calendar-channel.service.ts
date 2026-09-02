@@ -8,7 +8,6 @@ import {
   CalendarChannelSyncStatus,
   CalendarChannelVisibility,
 } from 'twenty-shared/types';
-import { isDefined } from 'twenty-shared/utils';
 import { CalendarChannelEntity } from 'src/engine/metadata-modules/calendar-channel/entities/calendar-channel.entity';
 import { GlobalWorkspaceOrmManager } from 'src/engine/twenty-orm/global-workspace-datasource/global-workspace-orm.manager';
 import { buildSystemAuthContext } from 'src/engine/twenty-orm/utils/build-system-auth-context.util';
@@ -19,7 +18,6 @@ export type CreateCalendarChannelInput = {
   handle: string;
   calendarVisibility?: CalendarChannelVisibility;
   skipMessageChannelConfiguration?: boolean;
-  isContactAutoCreationEnabled?: boolean;
   transactionManager: EntityManager;
 };
 
@@ -38,7 +36,6 @@ export class CreateCalendarChannelService {
       handle,
       calendarVisibility,
       skipMessageChannelConfiguration,
-      isContactAutoCreationEnabled,
       transactionManager,
     } = input;
 
@@ -53,9 +50,6 @@ export class CreateCalendarChannelService {
           connectedAccountId,
           handle,
           visibility: calendarVisibility || CalendarChannelVisibility.METADATA,
-          ...(isDefined(isContactAutoCreationEnabled)
-            ? { isContactAutoCreationEnabled }
-            : {}),
           syncStatus: skipMessageChannelConfiguration
             ? CalendarChannelSyncStatus.ONGOING
             : CalendarChannelSyncStatus.NOT_SYNCED,
