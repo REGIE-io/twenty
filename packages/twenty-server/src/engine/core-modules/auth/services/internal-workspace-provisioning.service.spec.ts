@@ -42,6 +42,7 @@ describe('InternalWorkspaceProvisioningService', () => {
         displayName: 'Acme Activated',
       }),
       findOneWorkspaceById: jest.fn().mockResolvedValue(workspace),
+      deleteWorkspace: jest.fn().mockResolvedValue(workspace),
     };
     const apiKeyService = {
       createWorkspaceAdminApiKeyToken: jest.fn().mockResolvedValue({
@@ -196,5 +197,36 @@ describe('InternalWorkspaceProvisioningService', () => {
       apiKey: 'api-key-token',
       apiKeyId: 'api-key-id',
     });
+  });
+
+  it('hard deletes a workspace', async () => {
+    const { service, workspaceService } = makeService();
+
+    const result = await service.deleteWorkspace(workspace.id);
+
+    expect(workspaceService.findOneWorkspaceById).toHaveBeenCalledWith(
+      workspace.id,
+    );
+    expect(workspaceService.deleteWorkspace).toHaveBeenCalledWith(workspace.id);
+    expect(result).toEqual({
+      ok: true,
+      id: workspace.id,
+      workspaceId: workspace.id,
+      deleted: true,
+    });
+  });
+
+  it('treats deletion of a missing workspace as already complete', async () => {
+    const { service, workspaceService } = makeService();
+
+    workspaceService.findOneWorkspaceById.mockResolvedValue(null);
+
+    await expect(service.deleteWorkspace(workspace.id)).resolves.toEqual({
+      ok: true,
+      id: workspace.id,
+      workspaceId: workspace.id,
+      deleted: false,
+    });
+    expect(workspaceService.deleteWorkspace).not.toHaveBeenCalled();
   });
 });

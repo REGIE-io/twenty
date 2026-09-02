@@ -118,6 +118,30 @@ export class InternalWorkspaceProvisioningService {
     };
   }
 
+  async deleteWorkspace(workspaceId: string) {
+    const workspace =
+      await this.workspaceService.findOneWorkspaceById(workspaceId);
+
+    if (!workspace) {
+      return {
+        ok: true,
+        id: workspaceId,
+        workspaceId,
+        deleted: false,
+      };
+    }
+
+    const deletedWorkspace =
+      await this.workspaceService.deleteWorkspace(workspaceId);
+
+    return {
+      ok: true,
+      id: deletedWorkspace.id,
+      workspaceId: deletedWorkspace.id,
+      deleted: true,
+    };
+  }
+
   private getServiceUserEmail(email?: string): string {
     return (
       email?.trim().toLowerCase() ||

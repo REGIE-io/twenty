@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  Delete,
   HttpCode,
   HttpStatus,
   Param,
@@ -48,6 +49,17 @@ export class InternalWorkspaceProvisioningController {
     workspaceId: string,
   ) {
     return await this.internalWorkspaceProvisioningService.activateWorkspace(
+      workspaceId,
+    );
+  }
+
+  @Delete(':workspaceId')
+  @HttpCode(HttpStatus.OK)
+  async deleteWorkspace(
+    @Param('workspaceId', new ParseUUIDPipe({ version: '4' }))
+    workspaceId: string,
+  ) {
+    return await this.internalWorkspaceProvisioningService.deleteWorkspace(
       workspaceId,
     );
   }
