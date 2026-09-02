@@ -59,6 +59,10 @@ export class CalendarRelaunchFailedCalendarChannelsCronJob {
     const failedCalendarChannels = await this.calendarChannelRepository
       .find({
         where: {
+          // A channel the user switched off must never be relaunched: doing so
+          // resets syncStatus to ACTIVE and clears throttleFailureCount, which
+          // both misreports the channel as syncing and destroys the failure trail.
+          isSyncEnabled: true,
           syncStage: CalendarChannelSyncStage.FAILED,
           syncStatus: CalendarChannelSyncStatus.FAILED_UNKNOWN,
           workspaceId: In(activeWorkspaceIds),
