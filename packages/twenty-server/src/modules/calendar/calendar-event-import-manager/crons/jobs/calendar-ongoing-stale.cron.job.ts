@@ -65,6 +65,7 @@ export class CalendarOngoingStaleCronJob {
         workspaceId: true,
       },
       where: {
+        isSyncEnabled: true,
         syncStage: In(CALENDAR_ONGOING_STALE_SYNC_STAGES),
         syncStageStartedAt: Or(IsNull(), LessThan(staleBefore)),
         workspace: {
