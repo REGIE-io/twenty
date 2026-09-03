@@ -1,44 +1,43 @@
-# Regie E2E workspace sweep
+# Regie E2E workspace quarantine and sweep
 
-## Why the sweep belongs in Twenty
+## Safety model
 
-Regie Go can clean up workspaces for which it has a tenant connection row. It
-cannot discover workspaces created before that row was written, or workspaces
-whose ephemeral Go database has already been destroyed. Twenty is the only
-system with an authoritative inventory for those orphans.
+Regie Go can clean up workspaces for which it retained a tenant connection,
+but Twenty is the authoritative inventory when provisioning is interrupted.
+Permanent deletion therefore requires durable E2E identity stored in Twenty;
+names alone are not sufficient.
 
-The normal E2E lifecycle should not depend on a sweep. Go must persist a
-`provisioning` connection immediately after Twenty returns the workspace and API
-key, and must issue a compensating hard delete when the remainder of setup
-fails. The sweep is a safety net for legacy or interrupted runs.
+When Go provisions an ephemeral CRM tenant, it sends both `ephemeral: true`
+and its `org_e2e_*` organization ID. Twenty accepts that marker only when the
+workspace slug also starts with `org-e2e-`, then stores the organization ID and
+exact workspace slug with the workspace.
 
-## Proposed scheduled sweep
+## Cleanup lifecycle
 
-Implement the sweep as a Twenty server command or worker job. It should:
+`DELETE /internal/workspaces/:workspaceId` is authenticated with
+`TWENTY_INTERNAL_METADATA_TOKEN`. It only soft-deletes the workspace and
+flushes its metadata caches; it never performs permanent deletion. The response
+calls this state `quarantined` and reports whether the workspace is eligible
+for eventual purging.
 
-1. Select workspaces whose subdomain starts with `org-e2e-` and whose creation
-   time is older than a configurable grace period (initially 24 hours).
-2. Exclude any workspace without the E2E prefix, regardless of age or status.
-3. Log a dry-run candidate count and workspace identifiers before deletion.
-4. Hard delete through `WorkspaceService.deleteWorkspace(workspaceId)` so the
-   workspace schema, metadata, files, and Redis workspace caches follow the
-   same cleanup path as other permanent deletions.
-5. Process a bounded batch (initially 25) under a distributed lock, record
-   success/failure counts, and retry individual failures on the next run.
+The hourly sweeper independently requires all of the following before permanent
+deletion:
 
-The job should expose metrics for candidates, deleted workspaces, failures, and
-oldest candidate age. Alert when failures persist or the oldest candidate age
-exceeds the grace period plus one schedule interval.
+1. The persisted marker has `ephemeral: true`.
+2. Its organization ID starts with `org_e2e_`.
+3. Its recorded slug exactly matches the current workspace slug.
+4. The workspace slug starts with `org-e2e-`.
 
-## Rollout
+If any check fails, the workspace remains quarantined indefinitely. No remotely
+callable endpoint performs an immediate hard delete.
 
-1. Deploy the internal hard-delete endpoint and the Go lifecycle fix.
-2. Run the proposed sweep in dry-run mode and compare candidates with recent
-   E2E run names.
-3. Manually approve the first bounded deletion batch.
-4. Enable the schedule only in the Regie-managed Twenty environment.
+The existing hourly suspended-workspace cleanup job also runs the E2E sweeper
+under its distributed lock. The sweeper selects at most 10 workspaces that have
+been quarantined for 24 hours. Its database query applies the marker, prefix,
+and age checks, and the service revalidates the full marker and exact slug in
+memory before calling `WorkspaceService.deleteWorkspace(workspaceId)`.
+Individual failures are logged and retried on the next run.
 
-`DELETE /internal/workspaces/:workspaceId` is guarded by
-`TWENTY_INTERNAL_METADATA_TOKEN` and performs an immediate hard delete. It is
-intended for the normal Go cleanup path; the future sweep should call the
-service directly rather than make an HTTP request back into Twenty.
+Legacy workspaces without the durable marker are deliberately excluded and
+require manual review. This prevents an old or customer-created workspace from
+becoming permanently deletable merely because its name resembles an E2E name.

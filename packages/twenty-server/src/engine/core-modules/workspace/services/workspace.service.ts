@@ -551,6 +551,10 @@ export class WorkspaceService {
     }
     this.logger.log(`workspace ${id} user workspaces deleted`);
 
+    await this.workspaceCacheStorageService.flush(workspace.id);
+    await this.flatEntityMapsCacheService.flushFlatEntityMaps({
+      workspaceId: workspace.id,
+    });
     this.logger.log(`workspace ${id} cache flushed`);
 
     if (softDelete) {
@@ -575,11 +579,6 @@ export class WorkspaceService {
     await this.deleteWorkspaceSyncableMetadataEntities(workspace);
 
     await this.workspaceDataSourceService.deleteWorkspaceDBSchema(workspace.id);
-
-    await this.workspaceCacheStorageService.flush(workspace.id);
-    await this.flatEntityMapsCacheService.flushFlatEntityMaps({
-      workspaceId: workspace.id,
-    });
 
     await this.messageQueueService.add<FileWorkspaceFolderDeletionJobData>(
       FileWorkspaceFolderDeletionJob.name,

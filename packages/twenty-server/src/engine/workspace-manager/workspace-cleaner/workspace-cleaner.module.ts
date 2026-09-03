@@ -6,6 +6,7 @@ import { BillingSubscriptionEntity } from 'src/engine/core-modules/billing/entit
 import { WorkspaceDomainsModule } from 'src/engine/core-modules/domain/workspace-domains/workspace-domains.module';
 import { EmailModule } from 'src/engine/core-modules/email/email.module';
 import { MetricsModule } from 'src/engine/core-modules/metrics/metrics.module';
+import { KeyValuePairEntity } from 'src/engine/core-modules/key-value-pair/key-value-pair.entity';
 import { UserWorkspaceEntity } from 'src/engine/core-modules/user-workspace/user-workspace.entity';
 import { UserVarsModule } from 'src/engine/core-modules/user/user-vars/user-vars.module';
 import { UserModule } from 'src/engine/core-modules/user/user.module';
@@ -18,6 +19,7 @@ import { CleanSuspendedWorkspacesCommand } from 'src/engine/workspace-manager/wo
 import { CleanSuspendedWorkspacesCronCommand } from 'src/engine/workspace-manager/workspace-cleaner/commands/clean-suspended-workspaces.cron.command';
 import { DestroyWorkspaceCommand } from 'src/engine/workspace-manager/workspace-cleaner/commands/destroy-workspace.command';
 import { CleanerWorkspaceService } from 'src/engine/workspace-manager/workspace-cleaner/services/cleaner.workspace-service';
+import { RegieE2eWorkspaceSweeperService } from 'src/engine/workspace-manager/workspace-cleaner/services/regie-e2e-workspace-sweeper.service';
 
 @Module({
   imports: [
@@ -25,6 +27,7 @@ import { CleanerWorkspaceService } from 'src/engine/workspace-manager/workspace-
       WorkspaceEntity,
       UserWorkspaceEntity,
       BillingSubscriptionEntity,
+      KeyValuePairEntity,
     ]),
     WorkspaceModule,
     UserVarsModule,
@@ -41,10 +44,12 @@ import { CleanerWorkspaceService } from 'src/engine/workspace-manager/workspace-
     CleanOnboardingWorkspacesCommand,
     CleanOnboardingWorkspacesCronCommand,
     CleanerWorkspaceService,
+    RegieE2eWorkspaceSweeperService,
     provideWorkspaceScopedRepository(BillingSubscriptionEntity),
   ],
   exports: [
     CleanerWorkspaceService,
+    RegieE2eWorkspaceSweeperService,
     CleanSuspendedWorkspacesCronCommand,
     CleanOnboardingWorkspacesCronCommand,
   ],
