@@ -31,12 +31,20 @@ deletion:
 If any check fails, the workspace remains quarantined indefinitely. No remotely
 callable endpoint performs an immediate hard delete.
 
+Re-quarantining an already soft-deleted workspace is a no-op after marker
+evaluation. In particular, it does not repeat membership removal or external
+billing cancellation while asynchronous billing state is still converging.
+
 The existing hourly suspended-workspace cleanup job also runs the E2E sweeper
 under its distributed lock. The sweeper selects at most 10 workspaces that have
 been quarantined for 24 hours. Its database query applies the marker, prefix,
 and age checks, and the service revalidates the full marker and exact slug in
 memory before calling `WorkspaceService.deleteWorkspace(workspaceId)`.
 Individual failures are logged and retried on the next run.
+
+The 10-workspace hourly batch permits 240 permanent deletions per day. A larger
+failure burst intentionally drains over multiple runs; monitor the oldest
+eligible quarantine before increasing the cap.
 
 Legacy workspaces without the durable marker are deliberately excluded and
 require manual review. This prevents an old or customer-created workspace from

@@ -165,9 +165,11 @@ export class InternalWorkspaceProvisioningService {
     const quarantinedAt = workspace.deletedAt ?? new Date();
     const purgeEligible = await this.hasValidE2eWorkspaceMarker(workspace);
 
-    // Re-run the soft-delete path for an existing tombstone too: older callers may
-    // have set deletedAt without flushing the workspace metadata caches.
-    await this.workspaceService.deleteWorkspace(workspaceId, true);
+    // A retry must not repeat external side effects such as Stripe cancellation
+    // while its asynchronous webhook is still updating the local subscription.
+    if (!alreadyQuarantined) {
+      await this.workspaceService.deleteWorkspace(workspaceId, true);
+    }
 
     return {
       ok: true,

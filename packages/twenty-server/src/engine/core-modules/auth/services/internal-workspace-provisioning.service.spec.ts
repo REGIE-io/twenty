@@ -313,10 +313,7 @@ describe('InternalWorkspaceProvisioningService', () => {
       purgeEligible: true,
       purgeAfter: '2026-09-02T00:00:00.000Z',
     });
-    expect(workspaceService.deleteWorkspace).toHaveBeenCalledWith(
-      e2eWorkspace.id,
-      true,
-    );
+    expect(workspaceService.deleteWorkspace).not.toHaveBeenCalled();
   });
 
   it('quarantines an unmarked workspace but makes it ineligible for purging', async () => {
