@@ -120,7 +120,9 @@ export class InternalWorkspaceProvisioningService {
 
   async deleteWorkspace(workspaceId: string) {
     const workspace =
-      await this.workspaceService.findOneWorkspaceById(workspaceId);
+      await this.workspaceService.findOneWorkspaceByIdIncludingDeleted(
+        workspaceId,
+      );
 
     if (!workspace) {
       return {

@@ -902,4 +902,11 @@ export class WorkspaceService {
       id,
     });
   }
+
+  async findOneWorkspaceByIdIncludingDeleted(id: string) {
+    return await this.workspaceRepository.findOne({
+      where: { id },
+      withDeleted: true,
+    });
+  }
 }

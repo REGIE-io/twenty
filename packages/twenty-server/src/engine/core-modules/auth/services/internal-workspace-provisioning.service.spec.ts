@@ -42,6 +42,9 @@ describe('InternalWorkspaceProvisioningService', () => {
         displayName: 'Acme Activated',
       }),
       findOneWorkspaceById: jest.fn().mockResolvedValue(workspace),
+      findOneWorkspaceByIdIncludingDeleted: jest
+        .fn()
+        .mockResolvedValue(workspace),
       deleteWorkspace: jest.fn().mockResolvedValue(workspace),
     };
     const apiKeyService = {
@@ -204,9 +207,9 @@ describe('InternalWorkspaceProvisioningService', () => {
 
     const result = await service.deleteWorkspace(workspace.id);
 
-    expect(workspaceService.findOneWorkspaceById).toHaveBeenCalledWith(
-      workspace.id,
-    );
+    expect(
+      workspaceService.findOneWorkspaceByIdIncludingDeleted,
+    ).toHaveBeenCalledWith(workspace.id);
     expect(workspaceService.deleteWorkspace).toHaveBeenCalledWith(workspace.id);
     expect(result).toEqual({
       ok: true,
@@ -216,10 +219,31 @@ describe('InternalWorkspaceProvisioningService', () => {
     });
   });
 
+  it('hard deletes a previously soft-deleted workspace', async () => {
+    const { service, workspaceService } = makeService();
+    const softDeletedWorkspace = {
+      ...workspace,
+      deletedAt: new Date('2026-09-01T00:00:00.000Z'),
+    };
+
+    workspaceService.findOneWorkspaceByIdIncludingDeleted.mockResolvedValue(
+      softDeletedWorkspace,
+    );
+    workspaceService.deleteWorkspace.mockResolvedValue(softDeletedWorkspace);
+
+    await expect(service.deleteWorkspace(workspace.id)).resolves.toMatchObject({
+      workspaceId: workspace.id,
+      deleted: true,
+    });
+    expect(workspaceService.deleteWorkspace).toHaveBeenCalledWith(workspace.id);
+  });
+
   it('treats deletion of a missing workspace as already complete', async () => {
     const { service, workspaceService } = makeService();
 
-    workspaceService.findOneWorkspaceById.mockResolvedValue(null);
+    workspaceService.findOneWorkspaceByIdIncludingDeleted.mockResolvedValue(
+      null,
+    );
 
     await expect(service.deleteWorkspace(workspace.id)).resolves.toEqual({
       ok: true,
