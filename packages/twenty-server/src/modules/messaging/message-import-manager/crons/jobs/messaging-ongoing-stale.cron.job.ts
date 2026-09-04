@@ -65,6 +65,7 @@ export class MessagingOngoingStaleCronJob {
         workspaceId: true,
       },
       where: {
+        isSyncEnabled: true,
         syncStage: In(MESSAGING_ONGOING_STALE_SYNC_STAGES),
         syncStageStartedAt: Or(IsNull(), LessThan(staleBefore)),
         workspace: {

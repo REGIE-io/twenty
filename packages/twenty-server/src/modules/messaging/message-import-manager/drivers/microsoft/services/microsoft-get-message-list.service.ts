@@ -15,6 +15,7 @@ import { type MessageFolderEntity } from 'src/engine/metadata-modules/message-fo
 import { MicrosoftMessageListFetchErrorHandler } from 'src/modules/messaging/message-import-manager/drivers/microsoft/services/microsoft-message-list-fetch-error-handler.service';
 import { type MicrosoftGraphBatchResponse } from 'src/modules/messaging/message-import-manager/drivers/microsoft/types/microsoft-graph-batch-response.type';
 import { type MicrosoftGraphDeltaListResponseBody } from 'src/modules/messaging/message-import-manager/drivers/microsoft/types/microsoft-graph-delta-list-response-body.type';
+import { buildMicrosoftInitialSyncFilter } from 'src/modules/messaging/message-import-manager/drivers/microsoft/utils/build-microsoft-initial-sync-filter.util';
 import { toRelativeGraphUrl } from 'src/modules/messaging/message-import-manager/drivers/microsoft/utils/to-relative-graph-url.util';
 import { type GetMessageListsArgs } from 'src/modules/messaging/message-import-manager/types/get-message-lists-args.type';
 import {
@@ -149,7 +150,10 @@ export class MicrosoftGetMessageListService {
 
     const folderId = folder.externalId || folder.name;
 
-    return `/me/mailfolders/${folderId}/messages/delta?$select=id`;
+    // No cursor means this folder has never been crawled, and an unfiltered delta would
+    // walk its entire history. Graph carries the filter into the deltaLink it returns, so
+    // every later fetch stays incremental without repeating it.
+    return `/me/mailfolders/${folderId}/messages/delta?$select=id&${buildMicrosoftInitialSyncFilter()}`;
   }
 
   private async iterateFolderPages(

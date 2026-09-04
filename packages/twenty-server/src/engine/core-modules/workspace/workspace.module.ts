@@ -29,8 +29,10 @@ import { WorkspaceEntityCacheProviderService } from 'src/engine/core-modules/wor
 import { WorkspaceService } from 'src/engine/core-modules/workspace/services/workspace.service';
 import { InternalMetadataTokenGuard } from 'src/engine/core-modules/workspace/internal/guards/internal-metadata-token.guard';
 import { CreateCalendarChannelService } from 'src/engine/core-modules/auth/services/create-calendar-channel.service';
+import { CreateMessageChannelService } from 'src/engine/core-modules/auth/services/create-message-channel.service';
 import { CalendarChannelEntity } from 'src/engine/metadata-modules/calendar-channel/entities/calendar-channel.entity';
 import { ConnectedAccountEntity } from 'src/engine/metadata-modules/connected-account/entities/connected-account.entity';
+import { MessageChannelEntity } from 'src/engine/metadata-modules/message-channel/entities/message-channel.entity';
 import { ConnectedAccountTokenEncryptionModule } from 'src/engine/metadata-modules/connected-account/services/connected-account-token-encryption.module';
 import { RefreshTokensManagerModule } from 'src/modules/connected-account/refresh-tokens-manager/connected-account-refresh-tokens-manager.module';
 import { InternalConnectedAccountProvisioningController } from 'src/engine/core-modules/workspace/internal/internal-connected-account-provisioning.controller';
@@ -62,6 +64,7 @@ import { WorkspaceMigrationModule } from 'src/engine/workspace-manager/workspace
       UserWorkspaceEntity,
       ConnectedAccountEntity,
       CalendarChannelEntity,
+      MessageChannelEntity,
     ]),
     MetricsModule,
     BillingModule,
@@ -107,6 +110,7 @@ import { WorkspaceMigrationModule } from 'src/engine/workspace-manager/workspace
     InternalWorkspaceMemberProvisioningService,
     InternalConnectedAccountProvisioningService,
     CreateCalendarChannelService,
+    CreateMessageChannelService,
     InternalMetadataTokenGuard,
     BillingDisabledGuard,
     CheckCustomDomainValidRecordsCronCommand,
