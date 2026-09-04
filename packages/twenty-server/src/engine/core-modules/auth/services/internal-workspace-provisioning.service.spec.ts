@@ -267,10 +267,11 @@ describe('InternalWorkspaceProvisioningService', () => {
 
   it('quarantines a persistently marked E2E workspace', async () => {
     const { service, workspaceService } = makeService();
+    const quarantinedAt = new Date('2026-09-01T00:00:00.000Z');
 
-    workspaceService.findOneWorkspaceByIdIncludingDeleted.mockResolvedValue(
-      e2eWorkspace,
-    );
+    workspaceService.findOneWorkspaceByIdIncludingDeleted
+      .mockResolvedValueOnce(e2eWorkspace)
+      .mockResolvedValueOnce({ ...e2eWorkspace, deletedAt: quarantinedAt });
 
     const result = await service.deleteWorkspace(e2eWorkspace.id);
 
@@ -289,7 +290,7 @@ describe('InternalWorkspaceProvisioningService', () => {
       quarantined: true,
       purgeEligible: true,
     });
-    expect(result.purgeAfter).toBeDefined();
+    expect(result.purgeAfter).toBe('2026-09-02T00:00:00.000Z');
   });
 
   it('idempotently re-quarantines a previously soft-deleted workspace', async () => {

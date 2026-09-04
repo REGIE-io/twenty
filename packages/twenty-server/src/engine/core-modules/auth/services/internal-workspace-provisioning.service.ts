@@ -162,13 +162,19 @@ export class InternalWorkspaceProvisioningService {
     }
 
     const alreadyQuarantined = Boolean(workspace.deletedAt);
-    const quarantinedAt = workspace.deletedAt ?? new Date();
+    let quarantinedAt = workspace.deletedAt ?? new Date();
     const purgeEligible = await this.hasValidE2eWorkspaceMarker(workspace);
 
     // A retry must not repeat external side effects such as Stripe cancellation
     // while its asynchronous webhook is still updating the local subscription.
     if (!alreadyQuarantined) {
       await this.workspaceService.deleteWorkspace(workspaceId, true);
+      const quarantinedWorkspace =
+        await this.workspaceService.findOneWorkspaceByIdIncludingDeleted(
+          workspaceId,
+        );
+
+      quarantinedAt = quarantinedWorkspace?.deletedAt ?? quarantinedAt;
     }
 
     return {
