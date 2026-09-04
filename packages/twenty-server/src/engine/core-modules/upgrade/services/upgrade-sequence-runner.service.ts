@@ -255,19 +255,19 @@ export class UpgradeSequenceRunnerService {
           });
 
         const lastAttemptedInstance =
-          await this.upgradeMigrationService.getLastAttemptedInstanceCommandOrThrow();
-        const lastAttemptedInstanceCursor =
-          this.upgradeSequenceReaderService.locateStepInSequenceOrThrow({
-            sequence,
-            stepName: lastAttemptedInstance.name,
-          });
-        const pendingInstanceCursor =
-          resolvePendingInstanceCursorBeforeWorkspaceSegment({
-            sequenceKinds: sequence.map((step) => step.kind),
-            lastAttemptedInstanceCursor,
-            lastAttemptedInstanceStatus: lastAttemptedInstance.status,
-            workspaceSegmentStartCursor: workspaceSliceBounds.startCursor,
-          });
+          await this.upgradeMigrationService.getLastAttemptedInstanceCommand();
+        const pendingInstanceCursor = lastAttemptedInstance
+          ? resolvePendingInstanceCursorBeforeWorkspaceSegment({
+              sequenceKinds: sequence.map((step) => step.kind),
+              lastAttemptedInstanceCursor:
+                this.upgradeSequenceReaderService.locateStepInSequenceOrThrow({
+                  sequence,
+                  stepName: lastAttemptedInstance.name,
+                }),
+              lastAttemptedInstanceStatus: lastAttemptedInstance.status,
+              workspaceSegmentStartCursor: workspaceSliceBounds.startCursor,
+            })
+          : null;
 
         if (pendingInstanceCursor !== null) {
           return pendingInstanceCursor;
