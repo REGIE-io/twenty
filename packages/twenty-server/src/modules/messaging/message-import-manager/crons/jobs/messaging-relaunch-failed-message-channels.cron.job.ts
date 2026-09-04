@@ -60,6 +60,10 @@ export class MessagingRelaunchFailedMessageChannelsCronJob {
     const failedMessageChannels = await this.messageChannelRepository
       .find({
         where: {
+          // A channel the user switched off must never be relaunched: doing so resets
+          // syncStatus to ACTIVE and clears throttleFailureCount, which both misreports
+          // the channel as syncing and destroys the failure trail.
+          isSyncEnabled: true,
           syncStage: MessageChannelSyncStage.FAILED,
           syncStatus: MessageChannelSyncStatus.FAILED_UNKNOWN,
           type: Not(MessageChannelType.EMAIL_GROUP),

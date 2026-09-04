@@ -9,11 +9,15 @@ import { InjectRepository } from '@nestjs/typeorm';
 import {
   CalendarChannelSyncStage,
   CalendarChannelVisibility,
+  MessageChannelSyncStage,
+  MessageChannelType,
+  MessageChannelVisibility,
 } from 'twenty-shared/types';
 import { isDefined } from 'twenty-shared/utils';
 import { type EntityManager, In, Repository } from 'typeorm';
 
 import { CreateCalendarChannelService } from 'src/engine/core-modules/auth/services/create-calendar-channel.service';
+import { CreateMessageChannelService } from 'src/engine/core-modules/auth/services/create-message-channel.service';
 import { plaintextStringSchema } from 'src/engine/core-modules/secret-encryption/branded-strings/plaintext-string.type';
 import { UserWorkspaceEntity } from 'src/engine/core-modules/user-workspace/user-workspace.entity';
 import { UserEntity } from 'src/engine/core-modules/user/user.entity';
@@ -28,6 +32,7 @@ import { WorkspaceEntity } from 'src/engine/core-modules/workspace/workspace.ent
 import { CalendarChannelEntity } from 'src/engine/metadata-modules/calendar-channel/entities/calendar-channel.entity';
 import { ConnectedAccountEntity } from 'src/engine/metadata-modules/connected-account/entities/connected-account.entity';
 import { ConnectedAccountTokenEncryptionService } from 'src/engine/metadata-modules/connected-account/services/connected-account-token-encryption.service';
+import { MessageChannelEntity } from 'src/engine/metadata-modules/message-channel/entities/message-channel.entity';
 
 @Injectable()
 export class InternalConnectedAccountProvisioningService {
@@ -46,7 +51,10 @@ export class InternalConnectedAccountProvisioningService {
     private readonly connectedAccountRepository: Repository<ConnectedAccountEntity>,
     @InjectRepository(CalendarChannelEntity)
     private readonly calendarChannelRepository: Repository<CalendarChannelEntity>,
+    @InjectRepository(MessageChannelEntity)
+    private readonly messageChannelRepository: Repository<MessageChannelEntity>,
     private readonly createCalendarChannelService: CreateCalendarChannelService,
+    private readonly createMessageChannelService: CreateMessageChannelService,
     private readonly connectedAccountTokenEncryptionService: ConnectedAccountTokenEncryptionService,
   ) {}
 
@@ -93,26 +101,39 @@ export class InternalConnectedAccountProvisioningService {
             transactionManager,
           );
 
-        // A plain mailbox connect. Nothing syncs from an account alone: every calendar
-        // and messaging job selects on channels.
-        if (input.withCalendarChannel === false) {
-          return {
-            connectedAccountId: connectedAccount.id,
-            created: accountCreated,
-          };
-        }
+        // Both default to on. With both off the account is recorded and nothing syncs:
+        // every calendar and messaging job selects on channels, never on the account.
+        let created = accountCreated;
+        let calendarChannelId: string | undefined;
+        let messageChannelId: string | undefined;
 
-        const { calendarChannelId, created: channelCreated } =
-          await this.findOrCreateCalendarChannel(
+        if (input.withCalendarChannel !== false) {
+          const calendarChannel = await this.findOrCreateCalendarChannel(
             input,
             connectedAccount.id,
             transactionManager,
           );
 
+          calendarChannelId = calendarChannel.calendarChannelId;
+          created = created || calendarChannel.created;
+        }
+
+        if (input.withMessageChannel !== false) {
+          const messageChannel = await this.findOrCreateMessageChannel(
+            input,
+            connectedAccount.id,
+            transactionManager,
+          );
+
+          messageChannelId = messageChannel.messageChannelId;
+          created = created || messageChannel.created;
+        }
+
         return {
           connectedAccountId: connectedAccount.id,
-          calendarChannelId,
-          created: accountCreated || channelCreated,
+          ...(isDefined(calendarChannelId) ? { calendarChannelId } : {}),
+          ...(isDefined(messageChannelId) ? { messageChannelId } : {}),
+          created,
         };
       },
     );
@@ -132,22 +153,36 @@ export class InternalConnectedAccountProvisioningService {
       where: { connectedAccountId, workspaceId, isSyncEnabled: true },
     });
 
-    if (calendarChannels.length === 0) {
-      return { disabledCalendarChannelIds: [] };
-    }
-
     const calendarChannelIds = calendarChannels.map((channel) => channel.id);
 
-    await this.calendarChannelRepository.update(
-      { id: In(calendarChannelIds), workspaceId },
-      { isSyncEnabled: false },
-    );
+    if (calendarChannelIds.length > 0) {
+      await this.calendarChannelRepository.update(
+        { id: In(calendarChannelIds), workspaceId },
+        { isSyncEnabled: false },
+      );
+    }
+
+    const messageChannels = await this.messageChannelRepository.find({
+      where: { connectedAccountId, workspaceId, isSyncEnabled: true },
+    });
+
+    const messageChannelIds = messageChannels.map((channel) => channel.id);
+
+    if (messageChannelIds.length > 0) {
+      await this.messageChannelRepository.update(
+        { id: In(messageChannelIds), workspaceId },
+        { isSyncEnabled: false },
+      );
+    }
 
     this.logger.log(
-      `Disabled ${calendarChannelIds.length} calendar channel(s) for connected account ${connectedAccountId} in workspace ${workspaceId}`,
+      `Disabled ${calendarChannelIds.length} calendar channel(s) and ${messageChannelIds.length} message channel(s) for connected account ${connectedAccountId} in workspace ${workspaceId}`,
     );
 
-    return { disabledCalendarChannelIds: calendarChannelIds };
+    return {
+      disabledCalendarChannelIds: calendarChannelIds,
+      disabledMessageChannelIds: messageChannelIds,
+    };
   }
 
   private async assertWorkspaceExists(workspaceId: string): Promise<void> {
@@ -318,5 +353,66 @@ export class InternalConnectedAccountProvisioningService {
       });
 
     return { calendarChannelId, created: true };
+  }
+
+  private async findOrCreateMessageChannel(
+    input: AttachConnectedAccountInput,
+    connectedAccountId: string,
+    transactionManager: EntityManager,
+  ): Promise<{ messageChannelId: string; created: boolean }> {
+    const messageChannelRepository =
+      transactionManager.getRepository(MessageChannelEntity);
+
+    // Restricted to the personal mailbox channel: a connected account can also carry
+    // group-email channels, which every import cron excludes and Regie never attaches.
+    const existing = await messageChannelRepository.findOneBy({
+      connectedAccountId,
+      workspaceId: input.workspaceId,
+      type: MessageChannelType.EMAIL,
+    });
+
+    if (isDefined(existing)) {
+      // Same reasoning as the calendar channel: nothing else revives a FAILED channel,
+      // and the reset is gated so a re-attach on a healthy channel keeps its cursor.
+      const isFailed = existing.syncStage === MessageChannelSyncStage.FAILED;
+
+      if (!existing.isSyncEnabled || isFailed) {
+        await messageChannelRepository.update(
+          { id: existing.id, workspaceId: input.workspaceId },
+          {
+            isSyncEnabled: true,
+            ...(isFailed
+              ? {
+                  syncStage: MessageChannelSyncStage.MESSAGE_LIST_FETCH_PENDING,
+                  syncStageStartedAt: null,
+                  throttleFailureCount: 0,
+                  // Left set, the throttle window alone would hold the revived channel
+                  // out of the list-fetch cron.
+                  throttleRetryAfter: null,
+                }
+              : {}),
+          },
+        );
+      }
+
+      return { messageChannelId: existing.id, created: false };
+    }
+
+    const messageChannelId =
+      await this.createMessageChannelService.createMessageChannel({
+        workspaceId: input.workspaceId,
+        connectedAccountId,
+        handle: input.handle,
+        // Regie is the only frontend and enforces privacy itself. Under METADATA the API
+        // returns subjects and bodies redacted.
+        messageVisibility:
+          input.messageVisibility ?? MessageChannelVisibility.SHARE_EVERYTHING,
+        // Starts the channel ready to fetch rather than pending configuration.
+        skipMessageChannelConfiguration: true,
+        isContactAutoCreationEnabled: false,
+        transactionManager,
+      });
+
+    return { messageChannelId, created: true };
   }
 }

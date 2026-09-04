@@ -11,6 +11,7 @@ import {
 import {
   CalendarChannelVisibility,
   ConnectedAccountProvider,
+  MessageChannelVisibility,
 } from 'twenty-shared/types';
 
 const lowercased = ({ value }: { value: unknown }) =>
@@ -49,8 +50,16 @@ export class AttachConnectedAccountDto {
   @IsIn(Object.values(CalendarChannelVisibility))
   calendarVisibility?: CalendarChannelVisibility;
 
-  // Absent or true creates the calendar channel. False records the account only.
+  @IsOptional()
+  @IsIn(Object.values(MessageChannelVisibility))
+  messageVisibility?: MessageChannelVisibility;
+
+  // Absent or true creates the channel. Setting both to false records the account only.
   @IsOptional()
   @IsBoolean()
   withCalendarChannel?: boolean;
+
+  @IsOptional()
+  @IsBoolean()
+  withMessageChannel?: boolean;
 }

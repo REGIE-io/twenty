@@ -50,7 +50,9 @@ export class InternalConnectedAccountProvisioningController {
         accessToken: body.accessToken,
         refreshToken: body.refreshToken,
         calendarVisibility: body.calendarVisibility,
+        messageVisibility: body.messageVisibility,
         withCalendarChannel: body.withCalendarChannel,
+        withMessageChannel: body.withMessageChannel,
       },
     );
   }

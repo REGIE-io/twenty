@@ -16,6 +16,7 @@ import { MESSAGING_GMAIL_USERS_MESSAGES_LIST_MAX_RESULT } from 'src/modules/mess
 import { GmailGetHistoryService } from 'src/modules/messaging/message-import-manager/drivers/gmail/services/gmail-get-history.service';
 import { GmailMessageListFetchErrorHandler } from 'src/modules/messaging/message-import-manager/drivers/gmail/services/gmail-message-list-fetch-error-handler.service';
 import { computeGmailExcludeSearchFilter } from 'src/modules/messaging/message-import-manager/drivers/gmail/utils/compute-gmail-exclude-search-filter.util';
+import { computeGmailInitialSyncSearchFilter } from 'src/modules/messaging/message-import-manager/drivers/gmail/utils/compute-gmail-initial-sync-search-filter.util';
 import { type GetMessageListsArgs } from 'src/modules/messaging/message-import-manager/types/get-message-lists-args.type';
 import { type GetMessageListsResponse } from 'src/modules/messaging/message-import-manager/types/get-message-lists-response.type';
 
@@ -57,13 +58,19 @@ export class GmailGetMessageListService {
       messageChannel.messageFolderImportPolicy,
     );
 
+    // This method only runs without a cursor, so this is the first crawl of the mailbox
+    // and the only fetch that would otherwise walk its entire history.
+    const searchFilter = computeGmailInitialSyncSearchFilter(
+      excludedSearchFilter,
+    );
+
     while (hasMoreMessages) {
       const messageList = await gmailClient.users.messages
         .list({
           userId: 'me',
           maxResults: MESSAGING_GMAIL_USERS_MESSAGES_LIST_MAX_RESULT,
           pageToken,
-          q: excludedSearchFilter,
+          q: searchFilter,
         })
         .catch((error) => {
           this.logger.error(
