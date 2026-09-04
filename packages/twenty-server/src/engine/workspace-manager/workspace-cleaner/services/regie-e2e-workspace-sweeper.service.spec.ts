@@ -58,6 +58,9 @@ describe('RegieE2eWorkspaceSweeperService', () => {
     ).resolves.toBe(1);
 
     expect(queryBuilder.limit).toHaveBeenCalledWith(10);
+    expect(queryBuilder.withDeleted.mock.invocationCallOrder[0]).toBeLessThan(
+      queryBuilder.innerJoinAndSelect.mock.invocationCallOrder[0],
+    );
     expect(queryBuilder.andWhere).toHaveBeenCalledWith(
       'workspace.deletedAt <= :cutoff',
       { cutoff: new Date('2026-09-01T00:00:00.001Z') },

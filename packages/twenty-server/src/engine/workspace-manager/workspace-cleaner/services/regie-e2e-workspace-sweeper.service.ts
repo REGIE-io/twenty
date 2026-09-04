@@ -31,8 +31,8 @@ export class RegieE2eWorkspaceSweeperService {
     const cutoff = new Date(now.getTime() - REGIE_E2E_PURGE_GRACE_PERIOD_MS);
     const markerRows = await this.keyValuePairRepository
       .createQueryBuilder('marker')
-      .innerJoinAndSelect('marker.workspace', 'workspace')
       .withDeleted()
+      .innerJoinAndSelect('marker.workspace', 'workspace')
       .where('marker.key = :key', { key: REGIE_E2E_WORKSPACE_MARKER_KEY })
       .andWhere('marker.type = :type', {
         type: KeyValuePairType.USER_VARIABLE,
