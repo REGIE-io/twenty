@@ -204,6 +204,8 @@ export { fastDeepEqual } from './json/fast-deep-equal';
 export { getAppPath } from './navigation/getAppPath';
 export { getSettingsPath } from './navigation/getSettingsPath';
 export { parseJson } from './parseJson';
+export { isFieldReadable } from './permissions/is-field-readable.util';
+export { canonicalizeE164PhoneSearchInput } from './phones/canonicalize-e164-phone-search-input.util';
 export { removePropertiesFromRecord } from './removePropertiesFromRecord';
 export { removeUndefinedFields } from './removeUndefinedFields';
 export { resolveRichTextVariables } from './rich-text-variable-resolver';

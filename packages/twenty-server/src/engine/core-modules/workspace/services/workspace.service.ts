@@ -33,6 +33,7 @@ import {
 } from 'src/engine/core-modules/emailing-domain/jobs/emailing-domain-workspace-cleanup.job';
 import { ExceptionHandlerService } from 'src/engine/core-modules/exception-handler/exception-handler.service';
 import { FeatureFlagService } from 'src/engine/core-modules/feature-flag/services/feature-flag.service';
+import { PhoneSearchWorkspaceCleanupService } from 'src/engine/core-modules/phone-search-index/services/phone-search-workspace-cleanup.service';
 import { FileCorePictureService } from 'src/engine/core-modules/file/file-core-picture/services/file-core-picture.service';
 import {
   FileWorkspaceFolderDeletionJob,
@@ -143,6 +144,7 @@ export class WorkspaceService {
     private readonly upgradeMigrationService: UpgradeMigrationService,
     private readonly upgradeSequenceReaderService: UpgradeSequenceReaderService,
     private readonly sdkClientGenerationService: SdkClientGenerationService,
+    private readonly phoneSearchWorkspaceCleanupService: PhoneSearchWorkspaceCleanupService,
   ) {}
 
   async updateWorkspaceById({
@@ -575,6 +577,10 @@ export class WorkspaceService {
     await this.deleteWorkspaceSyncableMetadataEntities(workspace);
 
     await this.workspaceDataSourceService.deleteWorkspaceDBSchema(workspace.id);
+
+    await this.phoneSearchWorkspaceCleanupService.cleanupWorkspace(
+      workspace.id,
+    );
 
     await this.workspaceCacheStorageService.flush(workspace.id);
     await this.flatEntityMapsCacheService.flushFlatEntityMaps({
