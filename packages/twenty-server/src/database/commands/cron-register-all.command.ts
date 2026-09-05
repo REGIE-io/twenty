@@ -10,6 +10,7 @@ import { BillingReminderCronCommand } from 'src/engine/core-modules/billing/remi
 import { EnterpriseKeyValidationCronCommand } from 'src/engine/core-modules/enterprise/cron/command/enterprise-key-validation.cron.command';
 import { EventLogCleanupCronCommand } from 'src/engine/core-modules/event-logs/cleanup/commands/event-log-cleanup.cron.command';
 import { PendingFileCleanupCronCommand } from 'src/engine/core-modules/file/file-upload/crons/commands/pending-file-cleanup.cron.command';
+import { PhoneSearchIndexReconcilerCronCommand } from 'src/engine/core-modules/phone-search-index/commands/phone-search-index-reconciler.cron.command';
 import { RotateSigningKeysCronCommand } from 'src/engine/core-modules/jwt/crons/commands/rotate-signing-keys.cron.command';
 import { CronTriggerCronCommand } from 'src/engine/core-modules/logic-function/logic-function-trigger/triggers/cron/cron-trigger.cron.command';
 import { CheckPublicDomainsValidRecordsCronCommand } from 'src/engine/core-modules/public-domain/crons/commands/check-public-domains-valid-records.cron.command';
@@ -73,6 +74,7 @@ export class CronRegisterAllCommand extends CommandRunner {
     private readonly applicationVersionCheckCronCommand: ApplicationVersionCheckCronCommand,
     private readonly staleRegistrationCleanupCronCommand: StaleRegistrationCleanupCronCommand,
     private readonly pendingFileCleanupCronCommand: PendingFileCleanupCronCommand,
+    private readonly phoneSearchIndexReconcilerCronCommand: PhoneSearchIndexReconcilerCronCommand,
     private readonly billingReminderCronCommand: BillingReminderCronCommand,
     private readonly userSessionCleanupCronCommand: UserSessionCleanupCronCommand,
     private readonly twentyConfigService: TwentyConfigService,
@@ -212,6 +214,10 @@ export class CronRegisterAllCommand extends CommandRunner {
       {
         name: 'UserSessionCleanup',
         command: this.userSessionCleanupCronCommand,
+      },
+      {
+        name: 'PhoneSearchIndexReconciler',
+        command: this.phoneSearchIndexReconcilerCronCommand,
       },
     ];
 

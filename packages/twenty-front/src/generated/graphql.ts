@@ -346,6 +346,29 @@ export type ObjectRecordFilterInput = {
   updatedAt?: InputMaybe<DateTimeFilter>;
 };
 
+export type PhoneSearchRecord = {
+  __typename?: 'PhoneSearchRecord';
+  recordId: Scalars['UUID']['output'];
+};
+
+export type PhoneSearchResultConnection = {
+  __typename?: 'PhoneSearchResultConnection';
+  edges: Array<PhoneSearchResultEdge>;
+  pageInfo: PhoneSearchResultPageInfo;
+};
+
+export type PhoneSearchResultEdge = {
+  __typename?: 'PhoneSearchResultEdge';
+  cursor: Scalars['String']['output'];
+  node: PhoneSearchRecord;
+};
+
+export type PhoneSearchResultPageInfo = {
+  __typename?: 'PhoneSearchResultPageInfo';
+  endCursor?: Maybe<Scalars['String']['output']>;
+  hasNextPage: Scalars['Boolean']['output'];
+};
+
 export type Query = {
   __typename?: 'Query';
   dpaAgreements: Array<DpaAgreement>;
@@ -366,6 +389,7 @@ export type Query = {
   getTimelineThreadsFromPersonId: TimelineThreadsWithTotal;
   isMaintenanceModeBannerDismissed: Scalars['Boolean']['output'];
   search: SearchResultConnection;
+  searchPeopleByPhone: PhoneSearchResultConnection;
   workflowStepConnectedAccountHandle?: Maybe<ConnectedAccountHandleDto>;
   workflowVersionContent: WorkflowVersionContent;
 };
@@ -436,6 +460,13 @@ export type QuerySearchArgs = {
   includedObjectNameSingulars?: InputMaybe<Array<Scalars['String']['input']>>;
   limit: Scalars['Int']['input'];
   searchInput: Scalars['String']['input'];
+};
+
+
+export type QuerySearchPeopleByPhoneArgs = {
+  after?: InputMaybe<Scalars['String']['input']>;
+  limit: Scalars['Int']['input'];
+  phoneNumber: Scalars['String']['input'];
 };
 
 
