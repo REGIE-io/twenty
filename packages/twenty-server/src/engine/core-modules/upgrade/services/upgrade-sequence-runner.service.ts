@@ -19,6 +19,7 @@ import {
 } from 'src/engine/core-modules/upgrade/services/upgrade-sequence-reader.service';
 import { WorkspaceCommandRunnerService } from 'src/engine/core-modules/upgrade/services/workspace-command-runner.service';
 import { formatUpgradeLog } from 'src/engine/core-modules/upgrade/utils/format-upgrade-log.util';
+import { resolvePendingInstanceCursorBeforeWorkspaceSegment } from 'src/engine/core-modules/upgrade/utils/resolve-pending-instance-cursor-before-workspace-segment.util';
 import { UpgradeAwareEntityMetadataAdapter } from 'src/engine/twenty-orm/upgrade-aware/upgrade-aware-entity-metadata.adapter';
 import { WorkspaceVersionService } from 'src/engine/workspace-manager/workspace-version/services/workspace-version.service';
 import { assertUnreachable, isDefined } from 'twenty-shared/utils';
@@ -252,6 +253,25 @@ export class UpgradeSequenceRunnerService {
             sequence,
             workspaceCommand: lastAttemptedStep,
           });
+
+        const lastAttemptedInstance =
+          await this.upgradeMigrationService.getLastAttemptedInstanceCommand();
+        const pendingInstanceCursor = lastAttemptedInstance
+          ? resolvePendingInstanceCursorBeforeWorkspaceSegment({
+              sequenceKinds: sequence.map((step) => step.kind),
+              lastAttemptedInstanceCursor:
+                this.upgradeSequenceReaderService.locateStepInSequenceOrThrow({
+                  sequence,
+                  stepName: lastAttemptedInstance.name,
+                }),
+              lastAttemptedInstanceStatus: lastAttemptedInstance.status,
+              workspaceSegmentStartCursor: workspaceSliceBounds.startCursor,
+            })
+          : null;
+
+        if (pendingInstanceCursor !== null) {
+          return pendingInstanceCursor;
+        }
 
         await this.validateWorkspaceCursorsAreInWorkspaceSegment({
           sequence,

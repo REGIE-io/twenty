@@ -6,6 +6,7 @@ import {
   computeSearchVectorAsExpressionFromSearchFieldMetadatas,
 } from 'src/engine/metadata-modules/flat-search-field-metadata/utils/compute-search-vector-as-expression-from-search-field-metadatas.util';
 import { type FlatSearchFieldMetadata } from 'src/engine/metadata-modules/flat-search-field-metadata/types/flat-search-field-metadata.type';
+import { assertSafeTsVectorExpression } from 'src/engine/workspace-manager/workspace-migration/utils/remove-sql-injection.util';
 
 export const deriveSearchVectorAsExpressionForTsVectorField = ({
   targetSearchFieldMetadatas,
@@ -37,7 +38,11 @@ export const deriveSearchVectorAsExpressionForTsVectorField = ({
     },
   );
 
-  return computeSearchVectorAsExpressionFromSearchFieldMetadatas(
+  const expression = computeSearchVectorAsExpressionFromSearchFieldMetadatas(
     targetSearchableFields,
   );
+
+  assertSafeTsVectorExpression(expression);
+
+  return expression;
 };
