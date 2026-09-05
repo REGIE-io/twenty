@@ -81,6 +81,7 @@ export class SearchService {
     limit,
     filter,
     after,
+    skipIlikeFallback,
     workspaceId,
   }: {
     flatObjectMetadatas: FlatObjectMetadata[];
@@ -134,6 +135,7 @@ export class SearchService {
                   limit: limit as number,
                   filter: filter ?? ({} as ObjectRecordFilter),
                   after,
+                  skipIlikeFallback,
                 }),
               };
             },
@@ -210,6 +212,7 @@ export class SearchService {
     limit,
     filter,
     after,
+    skipIlikeFallback,
   }: {
     entityManager: WorkspaceRepository<Entity>;
     rolePermissionConfig?: RolePermissionConfig;
@@ -221,6 +224,7 @@ export class SearchService {
     limit: number;
     filter: ObjectRecordFilterInput;
     after?: string;
+    skipIlikeFallback?: boolean;
   }) {
     const tsvectorResults = await this.buildSearchQueryAndGetRecords({
       entityManager,
@@ -236,7 +240,8 @@ export class SearchService {
     if (
       tsvectorResults.length > 0 ||
       !isNonEmptyString(searchInput.trim()) ||
-      isDefined(after)
+      isDefined(after) ||
+      skipIlikeFallback
     ) {
       return tsvectorResults;
     }
