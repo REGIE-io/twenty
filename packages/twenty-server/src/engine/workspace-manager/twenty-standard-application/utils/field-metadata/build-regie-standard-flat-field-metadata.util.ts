@@ -11,7 +11,6 @@ import {
 
 import { type FlatFieldMetadata } from 'src/engine/metadata-modules/flat-field-metadata/types/flat-field-metadata.type';
 import { type AllStandardObjectFieldName } from 'src/engine/workspace-manager/twenty-standard-application/types/all-standard-object-field-name.type';
-import { type AllStandardObjectName } from 'src/engine/workspace-manager/twenty-standard-application/types/all-standard-object-name.type';
 import {
   type CreateStandardFieldArgs,
   createStandardFieldFlatMetadata,
@@ -165,22 +164,24 @@ export const createRegieStandardScalarField = <
   isNullable?: boolean;
   options?: readonly string[];
 }): FlatFieldMetadata => {
-  const fieldUniversalIdentifier =
-    STANDARD_OBJECTS[args.objectName].fields[fieldName].universalIdentifier;
-  const selectOptions: FieldMetadataDefaultOption[] | null = options
-    ? options.map((value, position) => ({
-        id: getSelectOptionUniversalIdentifier({
-          applicationUniversalIdentifier:
-            TWENTY_STANDARD_APPLICATION_UNIVERSAL_IDENTIFIER,
-          fieldUniversalIdentifier,
+  const objectFields = STANDARD_OBJECTS[args.objectName].fields;
+  const fieldDefinition = objectFields[fieldName as keyof typeof objectFields];
+  const fieldUniversalIdentifier = fieldDefinition.universalIdentifier;
+  const selectOptions: (FieldMetadataDefaultOption & { id: string })[] | null =
+    options
+      ? options.map((value, position) => ({
+          id: getSelectOptionUniversalIdentifier({
+            applicationUniversalIdentifier:
+              TWENTY_STANDARD_APPLICATION_UNIVERSAL_IDENTIFIER,
+            fieldUniversalIdentifier,
+            value,
+          }),
           value,
-        }),
-        value,
-        label: value,
-        color: 'gray',
-        position,
-      }))
-    : null;
+          label: value,
+          color: 'gray',
+          position,
+        }))
+      : null;
 
   return createRegieField(args, {
     fieldName,

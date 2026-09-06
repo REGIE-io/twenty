@@ -14,4 +14,8 @@ export type BaseUniversalUpdateWorkspaceMigrationAction<
   update: UniversalFlatEntityUpdate<T>;
   flatEntity?: MetadataUniversalFlatEntity<T>;
   diff?: UniversalFlatEntityDiff<T>;
+  identityReassignment?: {
+    sourceUniversalIdentifier: string;
+    targetApplicationUniversalIdentifier: string;
+  };
 };

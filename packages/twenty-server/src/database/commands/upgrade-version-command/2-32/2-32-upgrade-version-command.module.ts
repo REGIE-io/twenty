@@ -4,6 +4,7 @@ import { WorkspaceIteratorModule } from 'src/database/commands/command-runners/w
 import { AddCalendarEventSummaryTabCommand } from 'src/database/commands/upgrade-version-command/2-32/2-32-workspace-command-1786609782000-add-calendar-event-summary-tab.command';
 import { AddWorkspaceMemberUiScaleFieldCommand } from 'src/database/commands/upgrade-version-command/2-32/2-32-workspace-command-1786700000000-add-workspace-member-ui-scale-field.command';
 import { InitializePersonPhoneSearchLookupCommand } from 'src/database/commands/upgrade-version-command/2-32/2-32-workspace-command-1786800001000-initialize-person-phone-search-lookup.command';
+import { AdoptRegieListSyncStandardSchemaCommand } from 'src/database/commands/upgrade-version-command/2-32/2-32-workspace-command-1786900000000-adopt-regie-list-sync-standard-schema.command';
 import { AddTimelineActivitySourceFieldCommand } from 'src/database/commands/upgrade-version-command/2-32/2-32-workspace-command-1789471410337-add-timeline-activity-source-field.command';
 import { ReconcilePersonPhoneSearchStateCommand } from 'src/database/commands/upgrade-version-command/2-32/2-32-workspace-command-1789454114932-reconcile-person-phone-search-state.command';
 import { ApplicationModule } from 'src/engine/core-modules/application/application.module';
@@ -23,6 +24,7 @@ import { WorkspaceMigrationModule } from 'src/engine/workspace-manager/workspace
     AddCalendarEventSummaryTabCommand,
     AddWorkspaceMemberUiScaleFieldCommand,
     InitializePersonPhoneSearchLookupCommand,
+    AdoptRegieListSyncStandardSchemaCommand,
     AddTimelineActivitySourceFieldCommand,
     ReconcilePersonPhoneSearchStateCommand,
   ],
