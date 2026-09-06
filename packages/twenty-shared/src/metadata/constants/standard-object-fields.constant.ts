@@ -4,35 +4,39 @@ import { getSystemRelationFieldUniversalIdentifier } from '@/application/determi
 import { STANDARD_OBJECT_UNIVERSAL_IDENTIFIERS } from '@/metadata/constants/standard-object-universal-identifiers.constant';
 import { buildStandardObjectSystemFields } from '@/metadata/utils/internal/build-standard-object-system-fields.util';
 
-const buildRegieStandardField = ({
+function buildRegieStandardField({
   objectUniversalIdentifier,
   name,
 }: {
   objectUniversalIdentifier: string;
   name: string;
-}) => ({
-  universalIdentifier: getFieldUniversalIdentifier({
-    applicationUniversalIdentifier:
-      TWENTY_STANDARD_APPLICATION_UNIVERSAL_IDENTIFIER,
-    objectUniversalIdentifier,
-    name,
-  }),
-});
+}) {
+  return {
+    universalIdentifier: getFieldUniversalIdentifier({
+      applicationUniversalIdentifier:
+        TWENTY_STANDARD_APPLICATION_UNIVERSAL_IDENTIFIER,
+      objectUniversalIdentifier,
+      name,
+    }),
+  };
+}
 
-const buildRegieStandardRelationField = ({
+function buildRegieStandardRelationField({
   objectUniversalIdentifier,
   relationTargetObjectUniversalIdentifier,
 }: {
   objectUniversalIdentifier: string;
   relationTargetObjectUniversalIdentifier: string;
-}) => ({
-  universalIdentifier: getSystemRelationFieldUniversalIdentifier({
-    applicationUniversalIdentifier:
-      TWENTY_STANDARD_APPLICATION_UNIVERSAL_IDENTIFIER,
-    objectUniversalIdentifier,
-    relationTargetObjectUniversalIdentifier,
-  }),
-});
+}) {
+  return {
+    universalIdentifier: getSystemRelationFieldUniversalIdentifier({
+      applicationUniversalIdentifier:
+        TWENTY_STANDARD_APPLICATION_UNIVERSAL_IDENTIFIER,
+      objectUniversalIdentifier,
+      relationTargetObjectUniversalIdentifier,
+    }),
+  };
+}
 
 // Important notice:
 // - Never ever mutate an existing universal identifier
