@@ -2,12 +2,16 @@
 
 For the Regie stage and production ECS deployment procedure, including the dedicated runner, recovery, mandatory post-upgrade restart, and canaries, see [REGIE_ECS_UPGRADE_RUNBOOK.md](./REGIE_ECS_UPGRADE_RUNBOOK.md).
 
+For the end-to-end process of adding or altering schema for both fresh and existing Regie workspaces, see [REGIE_WORKSPACE_SCHEMA_CHANGE_GUIDE.md](./REGIE_WORKSPACE_SCHEMA_CHANGE_GUIDE.md).
+
 The upgrade process relies on two types of commands:
 
 - **Instance commands** — schema and data migrations that run once at the instance level (replacing raw TypeORM migrations).
 - **Workspace commands** — commands that iterate over all active or suspended workspaces to apply per-workspace changes.
 
 Both are registered via decorators and automatically discovered by the upgrade pipeline.
+
+Only one `upgrade` command may run against a database at a time. The command holds the PostgreSQL advisory lock `twenty:upgrade-sequence` for its complete execution and exits nonzero if another runner already owns it. Deployment workflow concurrency and command-task checks remain defense in depth.
 
 ## Instance Commands
 
