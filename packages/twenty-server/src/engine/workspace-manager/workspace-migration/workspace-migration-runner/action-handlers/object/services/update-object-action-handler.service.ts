@@ -19,6 +19,7 @@ import { FlatObjectMetadata } from 'src/engine/metadata-modules/flat-object-meta
 import { ObjectMetadataEntity } from 'src/engine/metadata-modules/object-metadata/object-metadata.entity';
 import { WorkspaceSchemaManagerService } from 'src/engine/twenty-orm/workspace-schema-manager/workspace-schema-manager.service';
 import { computeObjectTargetTable } from 'src/engine/utils/compute-object-target-table.util';
+import { TWENTY_STANDARD_APPLICATION } from 'src/engine/workspace-manager/twenty-standard-application/constants/twenty-standard-applications';
 import {
   type FlatUpdateObjectAction,
   type UniversalUpdateObjectAction,
@@ -52,7 +53,9 @@ export class UpdateObjectActionHandlerService extends WorkspaceMigrationRunnerAc
 
     const flatObjectMetadata = findFlatEntityByUniversalIdentifierOrThrow({
       flatEntityMaps: allFlatEntityMaps.flatObjectMetadataMaps,
-      universalIdentifier: action.universalIdentifier,
+      universalIdentifier:
+        action.identityReassignment?.sourceUniversalIdentifier ??
+        action.universalIdentifier,
     });
 
     // TODO remove once https://github.com/twentyhq/core-team-issues/issues/2172 has been resolved
@@ -89,6 +92,15 @@ export class UpdateObjectActionHandlerService extends WorkspaceMigrationRunnerAc
       metadataName: 'objectMetadata',
       entityId: flatObjectMetadata.id,
       update: transpiledUpdate,
+      identityUpdate: action.identityReassignment
+        ? {
+            universalIdentifier: action.universalIdentifier,
+            applicationId: context.flatApplication.id,
+            isSystem:
+              context.flatApplication.universalIdentifier ===
+              TWENTY_STANDARD_APPLICATION.universalIdentifier,
+          }
+        : undefined,
     };
   }
 
@@ -140,10 +152,10 @@ export class UpdateObjectActionHandlerService extends WorkspaceMigrationRunnerAc
         ObjectMetadataEntity,
       );
 
-    await objectMetadataRepository.update(
-      flatAction.entityId,
-      flatAction.update,
-    );
+    await objectMetadataRepository.update(flatAction.entityId, {
+      ...flatAction.update,
+      ...flatAction.identityUpdate,
+    });
   }
 
   async executeForWorkspaceSchema(
@@ -155,7 +167,7 @@ export class UpdateObjectActionHandlerService extends WorkspaceMigrationRunnerAc
       allFlatEntityMaps: { flatObjectMetadataMaps, flatFieldMetadataMaps },
       workspaceId,
     } = context;
-    const { entityId, update } = flatAction;
+    const { entityId, identityUpdate, update } = flatAction;
 
     const flatObjectMetadata = findFlatEntityByIdInFlatEntityMapsOrThrow({
       flatEntityMaps: flatObjectMetadataMaps,
@@ -168,10 +180,19 @@ export class UpdateObjectActionHandlerService extends WorkspaceMigrationRunnerAc
         objectMetadata: flatObjectMetadata,
       });
 
-    if (isDefined(update.nameSingular)) {
+    if (isDefined(update.nameSingular) || isDefined(identityUpdate)) {
       const updatedFlatObjectMetadata: FlatObjectMetadata = {
         ...flatObjectMetadata,
-        nameSingular: update.nameSingular,
+        ...(isDefined(update.nameSingular)
+          ? { nameSingular: update.nameSingular }
+          : {}),
+        ...(isDefined(identityUpdate)
+          ? {
+              applicationId: context.flatApplication.id,
+              applicationUniversalIdentifier:
+                context.flatApplication.universalIdentifier,
+            }
+          : {}),
       };
 
       const newTableName = computeObjectTargetTable(updatedFlatObjectMetadata);

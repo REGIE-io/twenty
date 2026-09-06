@@ -40,6 +40,14 @@ import {
   WorkspaceMigrationOrchestratorSuccessfulResult,
 } from 'src/engine/workspace-manager/workspace-migration/types/workspace-migration-orchestrator.type';
 import { WorkspaceMigrationRunnerService } from 'src/engine/workspace-manager/workspace-migration/workspace-migration-runner/services/workspace-migration-runner.service';
+import { type AllUniversalWorkspaceMigrationAction } from 'src/engine/workspace-manager/workspace-migration/workspace-migration-builder/types/workspace-migration-action-common';
+import { type WorkspaceMigration } from 'src/engine/workspace-manager/workspace-migration/workspace-migration-builder/types/workspace-migration.type';
+
+export type WorkspaceMigrationIdentityReassignment = {
+  metadataName: 'objectMetadata' | 'fieldMetadata' | 'index';
+  sourceUniversalIdentifier: string;
+  targetUniversalIdentifier: string;
+};
 
 type ValidateBuildAndRunWorkspaceMigrationFromMatriceArgs = {
   workspaceId: string;
@@ -276,6 +284,121 @@ export class WorkspaceMigrationValidateBuildAndRunService {
       workspaceMigration,
       hasSchemaMetadataChanged,
     };
+  }
+
+  public async validateAndRunWorkspaceMigrationIdentityReassignment({
+    workspaceId,
+    applicationUniversalIdentifier,
+    identityReassignments,
+    dryRun = false,
+  }: {
+    workspaceId: string;
+    applicationUniversalIdentifier: string;
+    identityReassignments: WorkspaceMigrationIdentityReassignment[];
+    dryRun?: boolean;
+  }): Promise<{ hasSchemaMetadataChanged: boolean }> {
+    const metadataNames = [
+      ...new Set(identityReassignments.map(({ metadataName }) => metadataName)),
+    ];
+    const { flatApplicationMaps, allRelatedFlatEntityMaps } =
+      await this.workspaceMigrationFlatEntityMapsService.getOrRecomputeAllRelatedFlatEntityMaps(
+        {
+          workspaceId,
+          callerMetadataNames: metadataNames,
+        },
+      );
+    const targetApplicationId =
+      flatApplicationMaps.idByUniversalIdentifier[
+        applicationUniversalIdentifier
+      ];
+    const targetApplication = isDefined(targetApplicationId)
+      ? flatApplicationMaps.byId[targetApplicationId]
+      : undefined;
+
+    if (!isDefined(targetApplication)) {
+      throw new Error(
+        `Cannot reassign metadata identity: application ${applicationUniversalIdentifier} does not exist in workspace ${workspaceId}`,
+      );
+    }
+
+    const actions: AllUniversalWorkspaceMigrationAction[] = [];
+
+    for (const identityReassignment of identityReassignments) {
+      const flatEntityMaps =
+        identityReassignment.metadataName === 'objectMetadata'
+          ? allRelatedFlatEntityMaps.flatObjectMetadataMaps
+          : identityReassignment.metadataName === 'fieldMetadata'
+            ? allRelatedFlatEntityMaps.flatFieldMetadataMaps
+            : allRelatedFlatEntityMaps.flatIndexMaps;
+
+      if (!isDefined(flatEntityMaps)) {
+        throw new Error(
+          `Cannot reassign ${identityReassignment.metadataName}: metadata cache is unavailable`,
+        );
+      }
+
+      const sourceEntity =
+        flatEntityMaps.byUniversalIdentifier[
+          identityReassignment.sourceUniversalIdentifier
+        ];
+      const targetEntity =
+        flatEntityMaps.byUniversalIdentifier[
+          identityReassignment.targetUniversalIdentifier
+        ];
+
+      if (!isDefined(sourceEntity)) {
+        throw new Error(
+          `Cannot reassign ${identityReassignment.metadataName}: source universal identifier ${identityReassignment.sourceUniversalIdentifier} does not exist`,
+        );
+      }
+
+      if (isDefined(targetEntity) && targetEntity.id !== sourceEntity.id) {
+        throw new Error(
+          `Cannot reassign ${identityReassignment.metadataName} ${sourceEntity.id}: target universal identifier ${identityReassignment.targetUniversalIdentifier} is already held by ${targetEntity.id}`,
+        );
+      }
+
+      if (
+        sourceEntity.universalIdentifier ===
+          identityReassignment.targetUniversalIdentifier &&
+        sourceEntity.applicationId === targetApplication.id
+      ) {
+        continue;
+      }
+
+      actions.push({
+        type: 'update',
+        metadataName: identityReassignment.metadataName,
+        universalIdentifier: identityReassignment.targetUniversalIdentifier,
+        update: {},
+        identityReassignment: {
+          sourceUniversalIdentifier:
+            identityReassignment.sourceUniversalIdentifier,
+          targetApplicationUniversalIdentifier: applicationUniversalIdentifier,
+        },
+      } as AllUniversalWorkspaceMigrationAction);
+    }
+
+    if (dryRun || actions.length === 0) {
+      return { hasSchemaMetadataChanged: false };
+    }
+
+    const workspaceMigration: WorkspaceMigration = {
+      actions,
+      applicationUniversalIdentifier,
+    };
+    const { hasSchemaMetadataChanged, metadataEvents } =
+      await this.workspaceMigrationRunnerService.run({
+        workspaceId,
+        workspaceMigration,
+      });
+
+    this.metadataEventEmitter.emitMetadataEvents({
+      metadataEvents,
+      workspaceId,
+    });
+
+    return { hasSchemaMetadataChanged };
   }
 
   public async validateBuildAndRunWorkspaceMigration({
