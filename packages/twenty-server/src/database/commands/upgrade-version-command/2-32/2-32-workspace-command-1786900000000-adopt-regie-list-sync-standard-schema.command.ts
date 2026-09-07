@@ -38,6 +38,12 @@ const REGIE_OBJECT_UNIVERSAL_IDENTIFIERS = new Set(
   ),
 );
 
+const REGIE_RELATION_PREREQUISITE_OBJECT_NAMES = [
+  'person',
+  'company',
+  'task',
+] as const;
+
 const REGIE_INVERSE_FIELDS = new Set([
   'person.regieListMemberships',
   'person.regieSyncSources',
@@ -257,6 +263,24 @@ export class AdoptRegieListSyncStandardSchemaCommand extends ProvisionedWorkspac
     }
 
     if (existingRegieObjectCount === 0) {
+      // Some legacy provisioned workspaces intentionally have no core object
+      // graph. A complete Regie relation graph cannot be created there; the
+      // standard-application synchronizer can do so if the core graph is later
+      // provisioned.
+      const hasAllRelationPrerequisites =
+        REGIE_RELATION_PREREQUISITE_OBJECT_NAMES.every((objectName) =>
+          isDefined(
+            actualAllFlatEntityMaps.flatObjectMetadataMaps
+              .byUniversalIdentifier[
+              STANDARD_OBJECTS[objectName].universalIdentifier
+            ],
+          ),
+        );
+
+      if (!hasAllRelationPrerequisites) {
+        return;
+      }
+
       await this.createSchema({
         workspaceId,
         dryRun,
