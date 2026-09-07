@@ -6,10 +6,11 @@ import {
   type PageIteratorCallback,
 } from '@microsoft/microsoft-graph-client';
 
+import { type ConnectedAccountEntity } from 'src/engine/metadata-modules/connected-account/entities/connected-account.entity';
+import { calendarSyncWindow } from 'src/modules/calendar/calendar-event-import-manager/constants/calendar-sync-window.constant';
 import { MicrosoftCalendarEventListFetchErrorHandler } from 'src/modules/calendar/calendar-event-import-manager/drivers/microsoft-calendar/services/microsoft-calendar-event-list-fetch-error-handler.service';
 import { type GetCalendarEventsResponse } from 'src/modules/calendar/calendar-event-import-manager/services/calendar-get-events.service';
 import { MicrosoftOAuth2ClientProvider } from 'src/modules/connected-account/oauth2-client-manager/drivers/microsoft/microsoft-oauth2-client.provider';
-import { type ConnectedAccountEntity } from 'src/engine/metadata-modules/connected-account/entities/connected-account.entity';
 
 @Injectable()
 export class MicrosoftCalendarGetEventsService {
@@ -30,8 +31,7 @@ export class MicrosoftCalendarGetEventsService {
     const eventIdsToDelete: string[] = [];
 
     const response: PageCollection = await microsoftClient
-      .api(syncCursor || '/me/calendar/events/delta')
-      .version('beta')
+      .api(syncCursor || this.buildDeltaPath())
       .get()
       .catch((error: unknown) =>
         this.microsoftCalendarEventListFetchErrorHandler.handleError(error),
@@ -58,5 +58,11 @@ export class MicrosoftCalendarGetEventsService {
       calendarEventIdsToDelete: eventIdsToDelete,
       nextSyncCursor: pageIterator.getDeltaLink() || '',
     };
+  }
+
+  private buildDeltaPath(): string {
+    const { startDateTime, endDateTime } = calendarSyncWindow();
+
+    return `/me/calendarView/delta?startDateTime=${startDateTime.toISOString()}&endDateTime=${endDateTime.toISOString()}`;
   }
 }

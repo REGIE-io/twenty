@@ -20,4 +20,5 @@ export enum MessageQueue {
   triggerQueue = 'trigger-queue',
   aiQueue = 'ai-queue',
   aiStreamQueue = 'ai-stream-queue',
+  phoneSearchIndexQueue = 'phone-search-index-queue',
 }

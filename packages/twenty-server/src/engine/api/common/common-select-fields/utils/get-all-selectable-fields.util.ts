@@ -8,6 +8,7 @@ import {
   type RestrictedFieldsPermissions,
   compositeTypeDefinitions,
 } from 'twenty-shared/types';
+import { isFieldReadable } from 'twenty-shared/utils';
 
 import { computeMorphOrRelationFieldJoinColumnName } from 'src/engine/metadata-modules/field-metadata/utils/compute-morph-or-relation-field-join-column-name.util';
 import { isCompositeFieldMetadataType } from 'src/engine/metadata-modules/field-metadata/utils/is-composite-field-metadata-type.util';
@@ -41,7 +42,7 @@ export const getAllSelectableFields = ({
       flatEntityId: fieldId,
     });
 
-    if (restrictedFields[flatField.id]?.canRead === false) continue;
+    if (!isFieldReadable(restrictedFields, flatField.id)) continue;
 
     if (onlyUseLabelIdentifierFieldsInRelations) {
       const fieldIsLabelIdentifier = checkIfFieldIsLabelIdentifier(

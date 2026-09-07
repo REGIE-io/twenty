@@ -38,6 +38,9 @@ import { UserModule } from 'src/engine/core-modules/user/user.module';
 import { HandleWorkspaceMemberDeletedJob } from 'src/engine/core-modules/workspace/handle-workspace-member-deleted.job';
 import { WorkspaceEntity } from 'src/engine/core-modules/workspace/workspace.entity';
 import { WorkspaceModule } from 'src/engine/core-modules/workspace/workspace.module';
+import { PhoneSearchIndexModule } from 'src/engine/core-modules/phone-search-index/phone-search-index.module';
+import { PhoneSearchIndexJob } from 'src/engine/core-modules/phone-search-index/jobs/phone-search-index.job';
+import { PhoneSearchIndexReconcilerCronJob } from 'src/engine/core-modules/phone-search-index/jobs/phone-search-index-reconciler.cron.job';
 import { AiAgentMonitorModule } from 'src/engine/metadata-modules/ai/ai-agent-monitor/ai-agent-monitor.module';
 import { AiChatModule } from 'src/engine/metadata-modules/ai/ai-chat/ai-chat.module';
 import { LogicFunctionModule } from 'src/engine/metadata-modules/logic-function/logic-function.module';
@@ -100,6 +103,7 @@ import { WorkflowModule } from 'src/modules/workflow/workflow.module';
     PreInstalledAppsModule,
     OnboardingModule,
     BillingReminderModule,
+    PhoneSearchIndexModule,
   ],
   providers: [
     BillingReminderCronJob,
@@ -117,6 +121,8 @@ import { WorkflowModule } from 'src/modules/workflow/workflow.module';
     UpgradeApplicationsJob,
     InstallOnboardingAppsJob,
     InstallPreInstalledAppsJob,
+    PhoneSearchIndexJob,
+    PhoneSearchIndexReconcilerCronJob,
   ],
 })
 export class JobsModule {

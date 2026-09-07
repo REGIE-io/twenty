@@ -1,0 +1,1 @@
+export const PHONE_SEARCH_INDEX_RECONCILER_CRON_PATTERN = '*/2 * * * *';

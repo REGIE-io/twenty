@@ -2,10 +2,16 @@ import { Injectable } from '@nestjs/common';
 
 import {
   AllMetadataName,
+  STANDARD_OBJECTS,
   WorkspaceMigrationV2ExceptionCode,
 } from 'twenty-shared/metadata';
+import { FieldMetadataType } from 'twenty-shared/types';
+import { isDefined } from 'twenty-shared/utils';
 
 import { LoggerService } from 'src/engine/core-modules/logger/logger.service';
+import { PhoneSearchMetadataGateService } from 'src/engine/core-modules/phone-search-index/services/phone-search-metadata-gate.service';
+import { PhoneSearchFieldLifecycleCoordinatorService } from 'src/engine/core-modules/phone-search-index/services/phone-search-field-lifecycle-coordinator.service';
+import { type PhoneSearchLifecycleDelta } from 'src/engine/core-modules/phone-search-index/types/phone-search-lifecycle-delta.type';
 import { WORKSPACE_MIGRATION_ACTION_COUNT_BUCKET_BOUNDARIES } from 'src/engine/core-modules/metrics/constants/workspace-migration-action-count-bucket-boundaries.constant';
 import { WORKSPACE_MIGRATION_DURATION_MS_BUCKET_BOUNDARIES } from 'src/engine/core-modules/metrics/constants/workspace-migration-duration-ms-bucket-boundaries.constant';
 import { MetricsService } from 'src/engine/core-modules/metrics/metrics.service';
@@ -22,6 +28,7 @@ import {
   enrichCreateWorkspaceMigrationActionsWithIds,
   IdByUniversalIdentifierByMetadataName,
 } from 'src/engine/workspace-manager/workspace-migration/services/utils/enrich-create-workspace-migration-action-with-ids.util';
+import { getCreatedFieldIdByUniversalIdentifier } from 'src/engine/workspace-manager/workspace-migration/services/utils/get-created-field-id-by-universal-identifier.util';
 import { WorkspaceMigrationBuildOrchestratorService } from 'src/engine/workspace-manager/workspace-migration/services/workspace-migration-build-orchestrator.service';
 import {
   FlatEntityMapsBundle,
@@ -78,6 +85,8 @@ export class WorkspaceMigrationValidateBuildAndRunService {
     private readonly metricsService: MetricsService,
     private readonly logger: LoggerService,
     twentyConfigService: TwentyConfigService,
+    private readonly phoneSearchMetadataGateService?: PhoneSearchMetadataGateService,
+    private readonly phoneSearchFieldLifecycleCoordinatorService?: PhoneSearchFieldLifecycleCoordinatorService,
   ) {
     const logLevels = twentyConfigService.get('LOG_LEVELS');
 
@@ -88,6 +97,8 @@ export class WorkspaceMigrationValidateBuildAndRunService {
     args: WorkspaceMigrationOrchestratorBuildArgs & {
       idByUniversalIdentifierByMetadataName?: IdByUniversalIdentifierByMetadataName;
       dryRun?: boolean;
+      phoneLifecycleDelta?: PhoneSearchLifecycleDelta;
+      phoneMetadataGate?: { objectMetadataId: string };
     },
   ): Promise<
     | WorkspaceMigrationOrchestratorFailedResult
@@ -95,8 +106,13 @@ export class WorkspaceMigrationValidateBuildAndRunService {
         hasSchemaMetadataChanged: boolean;
       })
   > {
-    const { idByUniversalIdentifierByMetadataName, dryRun, ...buildArgs } =
-      args;
+    const {
+      idByUniversalIdentifierByMetadataName,
+      dryRun,
+      phoneLifecycleDelta,
+      phoneMetadataGate,
+      ...buildArgs
+    } = args;
 
     const buildStart = performance.now();
     const validateAndBuildResult =
@@ -152,6 +168,33 @@ export class WorkspaceMigrationValidateBuildAndRunService {
         idByUniversalIdentifierByMetadataName ?? {},
       workspaceMigration: validateAndBuildResult.workspaceMigration,
     });
+    const createdFieldIdByUniversalIdentifier =
+      getCreatedFieldIdByUniversalIdentifier(workspaceMigration);
+    const resolvedPhoneLifecycleDelta = phoneLifecycleDelta
+      ? {
+          ...phoneLifecycleDelta,
+          created: phoneLifecycleDelta.created.map((field) => {
+            if (!field.universalIdentifier) {
+              throw new Error(
+                'Created phone field is missing its universal identifier',
+              );
+            }
+            const fieldMetadataId =
+              field.id ??
+              createdFieldIdByUniversalIdentifier.get(
+                field.universalIdentifier,
+              );
+
+            if (!isDefined(fieldMetadataId)) {
+              throw new Error(
+                `Unable to resolve created phone field ${field.universalIdentifier}`,
+              );
+            }
+
+            return { ...field, id: fieldMetadataId };
+          }),
+        }
+      : undefined;
 
     if (dryRun === true || workspaceMigration.actions.length === 0) {
       return {
@@ -182,16 +225,45 @@ export class WorkspaceMigrationValidateBuildAndRunService {
     });
 
     const runStart = performance.now();
+    let phoneOperationIds: string[] = [];
     const { hasSchemaMetadataChanged, metadataEvents } =
       await this.workspaceMigrationRunnerService.run({
         workspaceId: args.workspaceId,
         workspaceMigration,
+        beforeActions: phoneMetadataGate
+          ? async (queryRunner) => {
+              await this.phoneSearchMetadataGateService?.assertAvailable({
+                workspaceId: args.workspaceId,
+                objectMetadataId: phoneMetadataGate.objectMetadataId,
+                manager: queryRunner.manager,
+              });
+            }
+          : undefined,
+        beforeCommit: resolvedPhoneLifecycleDelta
+          ? async (queryRunner) => {
+              phoneOperationIds =
+                (await this.phoneSearchFieldLifecycleCoordinatorService?.afterMigration(
+                  {
+                    workspaceId: args.workspaceId,
+                    ...resolvedPhoneLifecycleDelta,
+                    manager: queryRunner.manager,
+                    enqueue: false,
+                  },
+                )) ?? [];
+            }
+          : undefined,
       });
     const runMs = performance.now() - runStart;
 
     this.logger.perf(
       `[install-perf] workspaceMigrationRunnerService.run took ${runMs.toFixed(1)}ms for ${workspaceMigration.actions.length} actions`,
       WorkspaceMigrationValidateBuildAndRunService.name,
+    );
+
+    // Queue delivery happens only after the same transaction has committed.
+    // The reconciler is the durable fallback if Redis enqueue fails.
+    await this.phoneSearchFieldLifecycleCoordinatorService?.enqueue(
+      phoneOperationIds,
     );
 
     this.metadataEventEmitter.emitMetadataEvents({
@@ -354,6 +426,47 @@ export class WorkspaceMigrationValidateBuildAndRunService {
         hasSchemaMetadataChanged: boolean;
       })
   > {
+    const fieldOperations =
+      allFlatEntityOperationRecordByMetadataName.fieldMetadata;
+    const objectOperations =
+      allFlatEntityOperationRecordByMetadataName.objectMetadata;
+    const fieldsToCreate = Object.values(
+      fieldOperations?.flatEntityToCreate ?? {},
+    ).filter(isDefined);
+    const fieldsToDelete = Object.values(
+      fieldOperations?.flatEntityToDelete ?? {},
+    ).filter(isDefined);
+    const fieldsToUpdate = Object.values(
+      fieldOperations?.flatEntityToUpdate ?? {},
+    ).filter(isDefined);
+    const objectsToCreate = Object.values(
+      objectOperations?.flatEntityToCreate ?? {},
+    ).filter(isDefined);
+    const objectsToDelete = Object.values(
+      objectOperations?.flatEntityToDelete ?? {},
+    ).filter(isDefined);
+    const objectsToUpdate = Object.values(
+      objectOperations?.flatEntityToUpdate ?? {},
+    ).filter(isDefined);
+    const person =
+      allRelatedFlatEntityMaps.flatObjectMetadataMaps?.byUniversalIdentifier[
+        STANDARD_OBJECTS.person.universalIdentifier
+      ];
+    const hasPhoneFieldOperation =
+      fieldOperations &&
+      [...fieldsToCreate, ...fieldsToDelete, ...fieldsToUpdate].some(
+        (field) =>
+          field.objectMetadataUniversalIdentifier ===
+            person?.universalIdentifier &&
+          field.type === FieldMetadataType.PHONES,
+      );
+    const hasPersonObjectOperation =
+      objectOperations &&
+      [...objectsToCreate, ...objectsToDelete, ...objectsToUpdate].some(
+        (object) =>
+          object.universalIdentifier ===
+          STANDARD_OBJECTS.person.universalIdentifier,
+      );
     const {
       fromToAllFlatEntityMaps,
       inferDeletionFromMissingEntities,
@@ -383,6 +496,23 @@ export class WorkspaceMigrationValidateBuildAndRunService {
       additionalCacheDataMaps,
       idByUniversalIdentifierByMetadataName,
       dryRun,
+      phoneMetadataGate:
+        person && (hasPhoneFieldOperation || hasPersonObjectOperation)
+          ? { objectMetadataId: person.id }
+          : undefined,
+      phoneLifecycleDelta: person
+        ? {
+            objectMetadataId: person.id,
+            created: fieldsToCreate,
+            updated: fieldsToUpdate.map((field) => ({
+              ...field,
+              before:
+                allRelatedFlatEntityMaps.flatFieldMetadataMaps
+                  ?.byUniversalIdentifier[field.universalIdentifier],
+            })),
+            deleted: fieldsToDelete,
+          }
+        : undefined,
     });
   }
 }

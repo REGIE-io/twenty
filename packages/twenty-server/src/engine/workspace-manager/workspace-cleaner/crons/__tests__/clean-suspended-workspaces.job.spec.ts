@@ -4,6 +4,7 @@ import { type PostgresAdvisoryLockService } from 'src/database/typeorm/postgres-
 import { WorkspaceEntity } from 'src/engine/core-modules/workspace/workspace.entity';
 import { CleanSuspendedWorkspacesJob } from 'src/engine/workspace-manager/workspace-cleaner/crons/clean-suspended-workspaces.job';
 import { type CleanerWorkspaceService } from 'src/engine/workspace-manager/workspace-cleaner/services/cleaner.workspace-service';
+import { type RegieE2eWorkspaceSweeperService } from 'src/engine/workspace-manager/workspace-cleaner/services/regie-e2e-workspace-sweeper.service';
 
 jest.mock(
   'src/engine/workspace-manager/workspace-cleaner/services/cleaner.workspace-service',
@@ -19,6 +20,9 @@ describe('CleanSuspendedWorkspacesJob', () => {
   const cleanerWorkspaceService = {
     batchWarnOrCleanSuspendedWorkspaces: jest.fn(),
   };
+  const regieE2eWorkspaceSweeperService = {
+    purgeQuarantinedWorkspaces: jest.fn(),
+  };
   const postgresAdvisoryLockService = {
     tryWithLock: jest.fn(),
   };
@@ -26,6 +30,7 @@ describe('CleanSuspendedWorkspacesJob', () => {
   const createJob = () =>
     new CleanSuspendedWorkspacesJob(
       cleanerWorkspaceService as unknown as CleanerWorkspaceService,
+      regieE2eWorkspaceSweeperService as unknown as RegieE2eWorkspaceSweeperService,
       workspaceRepository as unknown as Repository<WorkspaceEntity>,
       postgresAdvisoryLockService as unknown as PostgresAdvisoryLockService,
     );
@@ -45,6 +50,9 @@ describe('CleanSuspendedWorkspacesJob', () => {
     expect(workspaceRepository.find).not.toHaveBeenCalled();
     expect(
       cleanerWorkspaceService.batchWarnOrCleanSuspendedWorkspaces,
+    ).not.toHaveBeenCalled();
+    expect(
+      regieE2eWorkspaceSweeperService.purgeQuarantinedWorkspaces,
     ).not.toHaveBeenCalled();
   });
 
@@ -70,5 +78,8 @@ describe('CleanSuspendedWorkspacesJob', () => {
     ).toHaveBeenCalledWith({
       workspaceIds: ['workspace-id'],
     });
+    expect(
+      regieE2eWorkspaceSweeperService.purgeQuarantinedWorkspaces,
+    ).toHaveBeenCalledTimes(1);
   });
 });
