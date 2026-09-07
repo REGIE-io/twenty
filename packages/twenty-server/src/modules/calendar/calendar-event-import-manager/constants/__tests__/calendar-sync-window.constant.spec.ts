@@ -25,12 +25,13 @@ describe('calendarSyncWindow', () => {
     );
   });
 
-  // A horizon at or below 31 days could lapse between monthly resets, silently.
-  it('leaves margin beyond the monthly reset cadence', () => {
+  // Resets happen on a channel's creation day-of-month, so one created on the 29th-31st
+  // skips February: Jan 30 to Mar 30 is 59 days. Below that the window lapses, silently.
+  it('leaves margin beyond the longest gap between resets', () => {
     const { endDateTime } = calendarSyncWindow(now);
 
     expect(endDateTime.getTime() - now.getTime()).toBeGreaterThan(
-      31 * MS_PER_DAY,
+      59 * MS_PER_DAY,
     );
   });
 });
