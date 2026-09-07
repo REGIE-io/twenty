@@ -42,6 +42,7 @@ export class MessagingOngoingStaleJob {
       async () => {
         const messageChannels = await this.messageChannelRepository.find({
           where: {
+            isSyncEnabled: true,
             syncStage: In(MESSAGING_ONGOING_STALE_SYNC_STAGES),
             workspaceId,
           },

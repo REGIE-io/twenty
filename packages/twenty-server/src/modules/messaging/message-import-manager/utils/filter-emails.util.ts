@@ -6,6 +6,7 @@ import { filterOutBlocklistedMessages } from 'src/modules/messaging/message-impo
 import { filterOutIcsAttachments } from 'src/modules/messaging/message-import-manager/utils/filter-out-ics-attachments.util';
 import { filterOutInternals } from 'src/modules/messaging/message-import-manager/utils/filter-out-internals.util';
 import { filterOutUnsubscribeRequests } from 'src/modules/messaging/message-import-manager/utils/filter-out-unsubscribe-requests.util';
+import { isBounce } from 'src/modules/messaging/message-import-manager/utils/is-bounce.util';
 import { isBulkMail } from 'src/modules/messaging/message-import-manager/utils/is-bulk-mail.util';
 import { isGroupEmail } from 'src/modules/messaging/message-import-manager/utils/is-group-email';
 import { isMessageSenderMatchingHandles } from 'src/modules/messaging/message-import-manager/utils/is-message-sender-matching-handles.util';
@@ -52,7 +53,9 @@ export const filterEmails = (
       return true;
     }
 
-    if (isBulkMail(message.messageHeaders ?? [])) {
+    // A bounce is auto-submitted, so isBulkMail would drop it. Regie consumes bounces
+    // downstream, so keep them while still excluding newsletters and other bulk mail.
+    if (isBulkMail(message.messageHeaders ?? []) && !isBounce(message)) {
       return false;
     }
 

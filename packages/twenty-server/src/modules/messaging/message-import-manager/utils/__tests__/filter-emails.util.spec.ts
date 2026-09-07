@@ -420,4 +420,70 @@ describe('filterEmails', () => {
       'reply-from-john',
     ]);
   });
+
+  it('keeps a bounce even though it is auto-submitted, but drops a plain newsletter', () => {
+    const primaryHandle = 'rep@gmail.com';
+
+    const bounce = {
+      externalId: 'bounce-dsn',
+      headerMessageId: 'bounce-header-id',
+      subject: 'Delivery Status Notification (Failure)',
+      messageThreadExternalId: 'thread-bounce',
+      receivedAt: new Date('2026-09-04T00:00:00.000Z'),
+      direction: MessageDirection.INCOMING,
+      text: 'Address not found',
+      participants: [
+        {
+          role: MessageParticipantRole.FROM,
+          handle: 'mailer-daemon@googlemail.com',
+          displayName: 'Mail Delivery Subsystem',
+        },
+        {
+          role: MessageParticipantRole.TO,
+          handle: primaryHandle,
+          displayName: 'Rep',
+        },
+      ],
+      attachments: [],
+      isDraft: false,
+      messageHeaders: [
+        { name: 'Auto-Submitted', value: 'auto-replied' },
+        {
+          name: 'Content-Type',
+          value: 'multipart/report; report-type=delivery-status; boundary=x',
+        },
+      ],
+    } as unknown as MessageWithParticipants;
+
+    const newsletter = {
+      externalId: 'newsletter',
+      headerMessageId: 'newsletter-header-id',
+      subject: 'Weekly digest',
+      messageThreadExternalId: 'thread-newsletter',
+      receivedAt: new Date('2026-09-04T00:00:00.000Z'),
+      direction: MessageDirection.INCOMING,
+      text: 'This week in tech',
+      participants: [
+        {
+          role: MessageParticipantRole.FROM,
+          handle: 'news@substack.com',
+          displayName: 'Newsletter',
+        },
+        {
+          role: MessageParticipantRole.TO,
+          handle: primaryHandle,
+          displayName: 'Rep',
+        },
+      ],
+      attachments: [],
+      isDraft: false,
+      messageHeaders: [
+        { name: 'List-Unsubscribe', value: '<https://unsub.example>' },
+      ],
+    } as unknown as MessageWithParticipants;
+
+    const result = filterEmails(primaryHandle, [], [bounce, newsletter], []);
+
+    expect(result.map((msg) => msg.externalId)).toEqual(['bounce-dsn']);
+  });
 });

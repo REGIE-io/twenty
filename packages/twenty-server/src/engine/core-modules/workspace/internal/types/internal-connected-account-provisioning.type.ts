@@ -1,6 +1,7 @@
 import {
   type CalendarChannelVisibility,
   type ConnectedAccountProvider,
+  type MessageChannelVisibility,
 } from 'twenty-shared/types';
 
 export type AttachConnectedAccountInput = {
@@ -15,19 +16,24 @@ export type AttachConnectedAccountInput = {
   accessToken: string;
   refreshToken: string;
   calendarVisibility?: CalendarChannelVisibility;
-  // Omitted or true creates the calendar channel. False records the account only.
+  messageVisibility?: MessageChannelVisibility;
+  // Both omitted or true. Set one to false to attach the account without that channel;
+  // set both to false to record the account only, which syncs nothing.
   withCalendarChannel?: boolean;
+  withMessageChannel?: boolean;
 };
 
 export type AttachConnectedAccountResult = {
   connectedAccountId: string;
-  // Absent when the attach asked for no calendar channel.
+  // Each is absent when the attach asked for no channel of that kind.
   calendarChannelId?: string;
+  messageChannelId?: string;
   created: boolean;
 };
 
 export type DetachConnectedAccountResult = {
-  // Channels are disabled rather than deleted, so already-synced meetings stay
-  // attributable and the sync cursor survives for a later re-enable.
+  // Channels are disabled rather than deleted, so already-synced meetings and messages
+  // stay attributable and the sync cursor survives for a later re-enable.
   disabledCalendarChannelIds: string[];
+  disabledMessageChannelIds: string[];
 };
