@@ -186,7 +186,7 @@ jobs:
         run: |
           EXCLUDED_COUNT=$(docker exec -e PGPASSWORD=postgres postgres \
             psql -U postgres -d default -tAc \
-            "UPDATE core.workspace AS workspace SET \"activationStatus\" = 'PENDING_CREATION' WHERE workspace.id = ANY(ARRAY['506915ec-21ca-431b-a04a-257eb216865e','aa8fdcb1-8ee1-4012-98af-44a97caa7411']::uuid[]) AND NOT EXISTS (SELECT 1 FROM core.\"objectMetadata\" AS object_metadata WHERE object_metadata.\"workspaceId\" = workspace.id) RETURNING workspace.id;" | wc -l)
+            "WITH excluded AS (UPDATE core.workspace AS workspace SET \"activationStatus\" = 'PENDING_CREATION' WHERE workspace.id = ANY(ARRAY['506915ec-21ca-431b-a04a-257eb216865e','aa8fdcb1-8ee1-4012-98af-44a97caa7411']::uuid[]) AND NOT EXISTS (SELECT 1 FROM core.\"objectMetadata\" AS object_metadata WHERE object_metadata.\"workspaceId\" = workspace.id) RETURNING workspace.id) SELECT count(*) FROM excluded;")
           echo "Excluded metadata-empty upgrade fixtures: ${EXCLUDED_COUNT}"
           if [ "${EXCLUDED_COUNT}" -ne 2 ]; then
             echo "::error::Expected exactly two named metadata-empty upgrade fixtures"
