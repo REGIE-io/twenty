@@ -267,22 +267,21 @@ export class AdoptRegieListSyncStandardSchemaCommand extends ProvisionedWorkspac
     }
 
     if (existingRegieObjectCount === 0) {
-      // Some legacy provisioned workspaces intentionally have no core object
-      // graph. A complete Regie relation graph cannot be created there; the
-      // standard-application synchronizer can do so if the core graph is later
-      // provisioned.
-      const hasAllRelationPrerequisites =
-        REGIE_RELATION_PREREQUISITE_OBJECT_NAMES.every((objectName) =>
-          isDefined(
-            actualAllFlatEntityMaps.flatObjectMetadataMaps
-              .byUniversalIdentifier[
-              STANDARD_OBJECTS[objectName].universalIdentifier
-            ],
-          ),
+      const missingRelationPrerequisites =
+        REGIE_RELATION_PREREQUISITE_OBJECT_NAMES.filter(
+          (objectName) =>
+            !isDefined(
+              actualAllFlatEntityMaps.flatObjectMetadataMaps
+                .byUniversalIdentifier[
+                STANDARD_OBJECTS[objectName].universalIdentifier
+              ],
+            ),
         );
 
-      if (!hasAllRelationPrerequisites) {
-        return;
+      if (missingRelationPrerequisites.length > 0) {
+        throw new Error(
+          `Cannot create the Regie Lists/Sync Source standard schema for workspace ${workspaceId}: missing required standard objects ${missingRelationPrerequisites.join(', ')}. Restore or provision the workspace core standard schema, then retry the 2.32 workspace upgrade; the upgrade cursor has not advanced.`,
+        );
       }
 
       await this.createSchema({
