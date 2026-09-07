@@ -218,10 +218,9 @@ export class MessagingSaveMessagesAndEnqueueContactCreationService {
             message.direction === MessageDirection.INCOMING && !message.isDraft,
         )
         .flatMap((message) => {
-          const messageId =
-            savedMessagesResult.messageExternalIdsAndIdsMap.get(
-              message.externalId,
-            );
+          const messageId = savedMessagesResult.messageExternalIdsAndIdsMap.get(
+            message.externalId,
+          );
 
           if (!isDefined(messageId) || !createdMessageIds.has(messageId)) {
             return [];

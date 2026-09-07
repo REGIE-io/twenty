@@ -37,6 +37,9 @@ export class MessagingReplyWebhookDispatchService {
   );
 
   constructor(
+    // WebhookEntity is a core-schema entity, not a workspace object, so the
+    // workspace-scoped repository does not apply; lookups filter by workspaceId.
+    // eslint-disable-next-line twenty/prefer-workspace-scoped-repository
     @InjectRepository(WebhookEntity)
     private readonly webhookRepository: Repository<WebhookEntity>,
     @InjectMessageQueue(MessageQueue.webhookQueue)
