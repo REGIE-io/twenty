@@ -4,6 +4,7 @@ import { isString } from '@sniptt/guards';
 import { type GaxiosError } from 'gaxios';
 import { google } from 'googleapis';
 
+import { calendarSyncWindow } from 'src/modules/calendar/calendar-event-import-manager/constants/calendar-sync-window.constant';
 import { parseGaxiosError } from 'src/modules/calendar/calendar-event-import-manager/drivers/google-calendar/utils/parse-gaxios-error.util';
 import { parseGoogleCalendarError } from 'src/modules/calendar/calendar-event-import-manager/drivers/google-calendar/utils/parse-google-calendar-error.util';
 import { type GetCalendarEventsResponse } from 'src/modules/calendar/calendar-event-import-manager/services/calendar-get-events.service';
@@ -38,15 +39,25 @@ export class GoogleCalendarGetEventsService {
 
     let hasMoreEvents = true;
 
+    const { startDateTime, endDateTime } = calendarSyncWindow();
+
     while (hasMoreEvents) {
       const googleCalendarEvents = await googleCalendarClient.events
         .list({
           calendarId: 'primary',
           maxResults: 500,
           singleEvents: true,
-          syncToken: syncCursor,
           pageToken: nextPageToken,
           showDeleted: true,
+          // Initial sync only — either alongside a syncToken is a 400. timeMax matters as
+          // much as timeMin: singleEvents expands a never-ending series to its last
+          // occurrence.
+          ...(syncCursor
+            ? { syncToken: syncCursor }
+            : {
+                timeMin: startDateTime.toISOString(),
+                timeMax: endDateTime.toISOString(),
+              }),
         })
         .catch(async (error: GaxiosError) => {
           this.handleError(error);

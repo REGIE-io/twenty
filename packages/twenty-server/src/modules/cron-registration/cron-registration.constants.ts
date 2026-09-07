@@ -11,6 +11,10 @@ import {
   CalendarOngoingStaleCronJob,
 } from 'src/modules/calendar/calendar-event-import-manager/crons/jobs/calendar-ongoing-stale.cron.job';
 import {
+  CALENDAR_REFRESH_SYNC_WINDOW_CRON_PATTERN,
+  CalendarRefreshSyncWindowCronJob,
+} from 'src/modules/calendar/calendar-event-import-manager/crons/jobs/calendar-refresh-sync-window.cron.job';
+import {
   CALENDAR_RELAUNCH_FAILED_CALENDAR_CHANNELS_CRON_PATTERN,
   CalendarRelaunchFailedCalendarChannelsCronJob,
 } from 'src/modules/calendar/calendar-event-import-manager/crons/jobs/calendar-relaunch-failed-calendar-channels.cron.job';
@@ -47,5 +51,9 @@ export const CRONS_TO_REGISTER: CronToRegister[] = [
   {
     jobName: CalendarRelaunchFailedCalendarChannelsCronJob.name,
     pattern: CALENDAR_RELAUNCH_FAILED_CALENDAR_CHANNELS_CRON_PATTERN,
+  },
+  {
+    jobName: CalendarRefreshSyncWindowCronJob.name,
+    pattern: CALENDAR_REFRESH_SYNC_WINDOW_CRON_PATTERN,
   },
 ];
