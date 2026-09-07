@@ -23,6 +23,7 @@ import { getFlatEntityMapsExceptionContext } from 'src/engine/metadata-modules/f
 import { transpileFlatEntityOperationArrayToRecord } from 'src/engine/metadata-modules/flat-entity/utils/transpile-flat-entity-operation-array-to-record.util';
 import { MetadataSideEffectEngineService } from 'src/engine/metadata-modules/metadata-side-effect/services/metadata-side-effect-engine.service';
 import { MetadataEventEmitter } from 'src/engine/subscriptions/metadata-event/metadata-event-emitter';
+import { TWENTY_STANDARD_APPLICATION } from 'src/engine/workspace-manager/twenty-standard-application/constants/twenty-standard-applications';
 import { WorkspaceMigrationV2Exception } from 'src/engine/workspace-manager/workspace-migration.exception';
 import {
   enrichCreateWorkspaceMigrationActionsWithIds,
@@ -436,6 +437,48 @@ export class WorkspaceMigrationValidateBuildAndRunService {
     return await this.validateBuildAndRunWorkspaceMigrationFromRecordInternal({
       ...args,
       skipSideEffectExpandEngine: false,
+    });
+  }
+
+  /**
+   * Runs metadata authored by twenty-standard through the literal From/To
+   * migration path. Standard metadata already declares its system relations,
+   * so expanding custom-object side effects here would create duplicates and
+   * would require unrelated standard objects to exist during an upgrade.
+   */
+  public async validateBuildAndRunTwentyStandardWorkspaceMigration({
+    allFlatEntityOperationByMetadataName,
+    workspaceId,
+    applicationUniversalIdentifier,
+    dryRun,
+  }: Omit<
+    ValidateBuildAndRunWorkspaceMigrationFromMatriceArgs,
+    'isSystemBuild'
+  >): Promise<
+    | WorkspaceMigrationOrchestratorFailedResult
+    | (WorkspaceMigrationOrchestratorSuccessfulResult & {
+        hasSchemaMetadataChanged: boolean;
+      })
+  > {
+    if (
+      applicationUniversalIdentifier !==
+      TWENTY_STANDARD_APPLICATION.universalIdentifier
+    ) {
+      throw new Error(
+        'Twenty-standard workspace migrations can only target the twenty-standard application',
+      );
+    }
+
+    return await this.validateBuildAndRunWorkspaceMigrationFromRecordInternal({
+      allFlatEntityOperationRecordByMetadataName:
+        transpileFlatEntityOperationArrayToRecord(
+          allFlatEntityOperationByMetadataName,
+        ),
+      workspaceId,
+      isSystemBuild: true,
+      applicationUniversalIdentifier,
+      dryRun,
+      skipSideEffectExpandEngine: true,
     });
   }
 

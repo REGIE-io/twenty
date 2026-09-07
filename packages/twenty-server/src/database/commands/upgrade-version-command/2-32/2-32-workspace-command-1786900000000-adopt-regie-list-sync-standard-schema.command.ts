@@ -106,7 +106,8 @@ const assertCompatibleField = ({
     expectedField.type === FieldMetadataType.MULTI_SELECT
   ) {
     const actualValues = actualField.options?.map(({ value }) => value) ?? [];
-    const expectedValues = expectedField.options?.map(({ value }) => value) ?? [];
+    const expectedValues =
+      expectedField.options?.map(({ value }) => value) ?? [];
 
     if (JSON.stringify(actualValues) !== JSON.stringify(expectedValues)) {
       throw new Error(
@@ -320,11 +321,10 @@ export class AdoptRegieListSyncStandardSchemaCommand extends ProvisionedWorkspac
       expectedAllFlatEntityMaps.flatIndexMaps.byUniversalIdentifier,
     ).filter(({ objectMetadataId }) => relevantObjectIds.has(objectMetadataId));
     const result =
-      await this.workspaceMigrationValidateBuildAndRunService.validateBuildAndRunWorkspaceMigration(
+      await this.workspaceMigrationValidateBuildAndRunService.validateBuildAndRunTwentyStandardWorkspaceMigration(
         {
           workspaceId,
           dryRun,
-          isSystemBuild: true,
           applicationUniversalIdentifier:
             twentyStandardApplicationUniversalIdentifier,
           allFlatEntityOperationByMetadataName: {
@@ -410,9 +410,8 @@ export class AdoptRegieListSyncStandardSchemaCommand extends ProvisionedWorkspac
       });
 
       return (
-        REGIE_OBJECT_UNIVERSAL_IDENTIFIERS.has(
-          object.universalIdentifier,
-        ) || REGIE_INVERSE_FIELDS.has(`${object.nameSingular}.${field.name}`)
+        REGIE_OBJECT_UNIVERSAL_IDENTIFIERS.has(object.universalIdentifier) ||
+        REGIE_INVERSE_FIELDS.has(`${object.nameSingular}.${field.name}`)
       );
     });
 
@@ -465,9 +464,7 @@ export class AdoptRegieListSyncStandardSchemaCommand extends ProvisionedWorkspac
         objectMetadataId,
       });
 
-      return REGIE_OBJECT_UNIVERSAL_IDENTIFIERS.has(
-        object.universalIdentifier,
-      );
+      return REGIE_OBJECT_UNIVERSAL_IDENTIFIERS.has(object.universalIdentifier);
     });
 
     for (const expectedIndex of expectedIndexes) {
@@ -475,9 +472,7 @@ export class AdoptRegieListSyncStandardSchemaCommand extends ProvisionedWorkspac
         allFlatEntityMaps: expectedAllFlatEntityMaps,
         objectMetadataId: expectedIndex.objectMetadataId,
       });
-      const actualObject = actualObjectsByName.get(
-        expectedObject.nameSingular,
-      );
+      const actualObject = actualObjectsByName.get(expectedObject.nameSingular);
 
       if (!isDefined(actualObject)) {
         throw new Error(`Missing Regie object ${expectedObject.nameSingular}`);
@@ -498,7 +493,11 @@ export class AdoptRegieListSyncStandardSchemaCommand extends ProvisionedWorkspac
     }
 
     const needsIdentityReassignment = identityReassignments.some(
-      ({ metadataName, sourceUniversalIdentifier, targetUniversalIdentifier }) => {
+      ({
+        metadataName,
+        sourceUniversalIdentifier,
+        targetUniversalIdentifier,
+      }) => {
         const maps =
           metadataName === 'objectMetadata'
             ? actualAllFlatEntityMaps.flatObjectMetadataMaps

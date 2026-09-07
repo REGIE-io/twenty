@@ -33,7 +33,10 @@ const rebuildMaps = <T extends SyncableFlatEntity>(
 ): FlatEntityMaps<T> =>
   entities.reduce(
     (maps, flatEntity) =>
-      addFlatEntityToFlatEntityMapsOrThrow({ flatEntity, flatEntityMaps: maps }),
+      addFlatEntityToFlatEntityMapsOrThrow({
+        flatEntity,
+        flatEntityMaps: maps,
+      }),
     createEmptyFlatEntityMaps() as FlatEntityMaps<T>,
   );
 
@@ -61,7 +64,9 @@ const legacyMaps = (): RegieMaps => {
     maps.flatObjectMetadataMaps.byUniversalIdentifier,
   ).filter(isDefined);
   const regieObjectIds = new Set(
-    objects.filter(({ nameSingular }) => isRegieObjectName(nameSingular)).map(({ id }) => id),
+    objects
+      .filter(({ nameSingular }) => isRegieObjectName(nameSingular))
+      .map(({ id }) => id),
   );
   const objectNameById = new Map(
     objects.map(({ id, nameSingular }) => [id, nameSingular]),
@@ -92,7 +97,8 @@ const legacyMaps = (): RegieMaps => {
         ['person', 'company', 'task'].includes(objectName ?? '') &&
         ['regieListMemberships', 'regieSyncSources'].includes(field.name);
 
-      if (!regieObjectIds.has(field.objectMetadataId) && !isInverse) return field;
+      if (!regieObjectIds.has(field.objectMetadataId) && !isInverse)
+        return field;
 
       return {
         ...field,
@@ -128,6 +134,7 @@ const legacyMaps = (): RegieMaps => {
 };
 
 describe('AdoptRegieListSyncStandardSchemaCommand', () => {
+  const validateBuildAndRunTwentyStandardWorkspaceMigration = jest.fn();
   const validateBuildAndRunWorkspaceMigration = jest.fn();
   const validateAndRunWorkspaceMigrationIdentityReassignment = jest.fn();
   let maps: RegieMaps;
@@ -136,6 +143,11 @@ describe('AdoptRegieListSyncStandardSchemaCommand', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     maps = legacyMaps();
+    validateBuildAndRunTwentyStandardWorkspaceMigration.mockResolvedValue({
+      status: 'success',
+      hasSchemaMetadataChanged: true,
+      workspaceMigration: { actions: [] },
+    });
     validateBuildAndRunWorkspaceMigration.mockResolvedValue({
       status: 'success',
       hasSchemaMetadataChanged: true,
@@ -152,8 +164,7 @@ describe('AdoptRegieListSyncStandardSchemaCommand', () => {
           .mockResolvedValue({
             twentyStandardFlatApplication: {
               id: STANDARD_APPLICATION_ID,
-              universalIdentifier:
-                STANDARD_APPLICATION_UNIVERSAL_IDENTIFIER,
+              universalIdentifier: STANDARD_APPLICATION_UNIVERSAL_IDENTIFIER,
             },
           }),
       } as never,
@@ -161,6 +172,7 @@ describe('AdoptRegieListSyncStandardSchemaCommand', () => {
         getOrRecompute: jest.fn().mockImplementation(async () => maps),
       } as never,
       {
+        validateBuildAndRunTwentyStandardWorkspaceMigration,
         validateBuildAndRunWorkspaceMigration,
         validateAndRunWorkspaceMigrationIdentityReassignment,
       } as never,
@@ -185,12 +197,25 @@ describe('AdoptRegieListSyncStandardSchemaCommand', () => {
     await run();
 
     const [{ allFlatEntityOperationByMetadataName }] =
-      validateBuildAndRunWorkspaceMigration.mock.calls[0];
+      validateBuildAndRunTwentyStandardWorkspaceMigration.mock.calls[0];
 
-    expect(allFlatEntityOperationByMetadataName.objectMetadata.flatEntityToCreate).toHaveLength(3);
-    expect(allFlatEntityOperationByMetadataName.fieldMetadata.flatEntityToCreate).toHaveLength(40);
-    expect(allFlatEntityOperationByMetadataName.index.flatEntityToCreate).toHaveLength(3);
-    expect(validateAndRunWorkspaceMigrationIdentityReassignment).not.toHaveBeenCalled();
+    expect(
+      allFlatEntityOperationByMetadataName.objectMetadata.flatEntityToCreate,
+    ).toHaveLength(3);
+    expect(
+      allFlatEntityOperationByMetadataName.fieldMetadata.flatEntityToCreate,
+    ).toHaveLength(40);
+    expect(
+      allFlatEntityOperationByMetadataName.index.flatEntityToCreate,
+    ).toHaveLength(3);
+    expect(
+      validateBuildAndRunTwentyStandardWorkspaceMigration,
+    ).toHaveBeenCalledWith(
+      expect.not.objectContaining({ isSystemBuild: expect.anything() }),
+    );
+    expect(
+      validateAndRunWorkspaceMigrationIdentityReassignment,
+    ).not.toHaveBeenCalled();
   });
 
   it('adopts compatible legacy metadata and then locks object schema editing', async () => {
@@ -199,9 +224,24 @@ describe('AdoptRegieListSyncStandardSchemaCommand', () => {
     const [{ identityReassignments }] =
       validateAndRunWorkspaceMigrationIdentityReassignment.mock.calls[0];
 
-    expect(identityReassignments.filter(({ metadataName }: { metadataName: string }) => metadataName === 'objectMetadata')).toHaveLength(3);
-    expect(identityReassignments.filter(({ metadataName }: { metadataName: string }) => metadataName === 'fieldMetadata')).toHaveLength(64);
-    expect(identityReassignments.filter(({ metadataName }: { metadataName: string }) => metadataName === 'index')).toHaveLength(3);
+    expect(
+      identityReassignments.filter(
+        ({ metadataName }: { metadataName: string }) =>
+          metadataName === 'objectMetadata',
+      ),
+    ).toHaveLength(3);
+    expect(
+      identityReassignments.filter(
+        ({ metadataName }: { metadataName: string }) =>
+          metadataName === 'fieldMetadata',
+      ),
+    ).toHaveLength(64);
+    expect(
+      identityReassignments.filter(
+        ({ metadataName }: { metadataName: string }) =>
+          metadataName === 'index',
+      ),
+    ).toHaveLength(3);
     expect(validateBuildAndRunWorkspaceMigration).toHaveBeenCalledTimes(1);
     expect(
       validateBuildAndRunWorkspaceMigration.mock.calls[0][0]
@@ -222,16 +262,18 @@ describe('AdoptRegieListSyncStandardSchemaCommand', () => {
 
     await run();
 
-    expect(validateAndRunWorkspaceMigrationIdentityReassignment).not.toHaveBeenCalled();
+    expect(
+      validateAndRunWorkspaceMigrationIdentityReassignment,
+    ).not.toHaveBeenCalled();
     expect(validateBuildAndRunWorkspaceMigration).not.toHaveBeenCalled();
   });
 
   it('passes dry-run through without applying object updates', async () => {
     await run(true);
 
-    expect(validateAndRunWorkspaceMigrationIdentityReassignment).toHaveBeenCalledWith(
-      expect.objectContaining({ dryRun: true }),
-    );
+    expect(
+      validateAndRunWorkspaceMigrationIdentityReassignment,
+    ).toHaveBeenCalledWith(expect.objectContaining({ dryRun: true }));
     expect(validateBuildAndRunWorkspaceMigration).not.toHaveBeenCalled();
   });
 
@@ -243,7 +285,9 @@ describe('AdoptRegieListSyncStandardSchemaCommand', () => {
     );
 
     await expect(run()).rejects.toThrow('Partial Regie schema');
-    expect(validateAndRunWorkspaceMigrationIdentityReassignment).not.toHaveBeenCalled();
+    expect(
+      validateAndRunWorkspaceMigrationIdentityReassignment,
+    ).not.toHaveBeenCalled();
   });
 
   it('fails closed on a duplicate durable object name', async () => {
@@ -254,11 +298,19 @@ describe('AdoptRegieListSyncStandardSchemaCommand', () => {
       .find(({ nameSingular }) => nameSingular === 'regieStaticList');
 
     maps.flatObjectMetadataMaps = rebuildMaps([
-      ...Object.values(maps.flatObjectMetadataMaps.byUniversalIdentifier).filter(isDefined),
-      { ...object!, id: 'duplicate-object-id', universalIdentifier: 'duplicate-object-ui' },
+      ...Object.values(
+        maps.flatObjectMetadataMaps.byUniversalIdentifier,
+      ).filter(isDefined),
+      {
+        ...object!,
+        id: 'duplicate-object-id',
+        universalIdentifier: 'duplicate-object-ui',
+      },
     ]);
 
-    await expect(run()).rejects.toThrow('Duplicate Regie object regieStaticList');
+    await expect(run()).rejects.toThrow(
+      'Duplicate Regie object regieStaticList',
+    );
   });
 
   it('fails closed on a wrong scalar field type', async () => {
@@ -283,9 +335,9 @@ describe('AdoptRegieListSyncStandardSchemaCommand', () => {
       .find(({ name }) => name === 'membershipKey');
 
     maps.flatFieldMetadataMaps = rebuildMaps([
-      ...Object.values(
-        maps.flatFieldMetadataMaps.byUniversalIdentifier,
-      ).filter(isDefined),
+      ...Object.values(maps.flatFieldMetadataMaps.byUniversalIdentifier).filter(
+        isDefined,
+      ),
       {
         ...membershipKey!,
         id: 'duplicate-field-id',
@@ -390,7 +442,10 @@ describe('AdoptRegieListSyncStandardSchemaCommand', () => {
           index.flatIndexFieldMetadatas.some(({ fieldMetadataId }) =>
             Object.values(maps.flatFieldMetadataMaps.byUniversalIdentifier)
               .filter(isDefined)
-              .some(({ id, name }) => id === fieldMetadataId && name === 'sourceKey'),
+              .some(
+                ({ id, name }) =>
+                  id === fieldMetadataId && name === 'sourceKey',
+              ),
           )
             ? { ...index, isUnique: false }
             : index,
@@ -409,12 +464,17 @@ describe('AdoptRegieListSyncStandardSchemaCommand', () => {
         index.flatIndexFieldMetadatas.some(({ fieldMetadataId }) =>
           Object.values(maps.flatFieldMetadataMaps.byUniversalIdentifier)
             .filter(isDefined)
-            .some(({ id, name }) => id === fieldMetadataId && name === 'membershipKey'),
+            .some(
+              ({ id, name }) =>
+                id === fieldMetadataId && name === 'membershipKey',
+            ),
         ),
       );
 
     maps.flatIndexMaps = rebuildMaps([
-      ...Object.values(maps.flatIndexMaps.byUniversalIdentifier).filter(isDefined),
+      ...Object.values(maps.flatIndexMaps.byUniversalIdentifier).filter(
+        isDefined,
+      ),
       {
         ...membershipIndex!,
         id: 'duplicate-index-id',
