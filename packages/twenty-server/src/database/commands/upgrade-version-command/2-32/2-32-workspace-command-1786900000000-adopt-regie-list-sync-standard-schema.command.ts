@@ -42,6 +42,10 @@ const REGIE_RELATION_PREREQUISITE_OBJECT_NAMES = [
   'person',
   'company',
   'task',
+  'timelineActivity',
+  'attachment',
+  'noteTarget',
+  'taskTarget',
 ] as const;
 
 const REGIE_INVERSE_FIELDS = new Set([
@@ -336,9 +340,8 @@ export class AdoptRegieListSyncStandardSchemaCommand extends ProvisionedWorkspac
       });
 
       return (
-        !field.isSystemSideEffect &&
-        (relevantObjectIds.has(field.objectMetadataId) ||
-          REGIE_INVERSE_FIELDS.has(`${object.nameSingular}.${field.name}`))
+        relevantObjectIds.has(field.objectMetadataId) ||
+        REGIE_INVERSE_FIELDS.has(`${object.nameSingular}.${field.name}`)
       );
     });
     const indexesToCreate = values(
