@@ -188,8 +188,18 @@ describe('AdoptRegieListSyncStandardSchemaCommand', () => {
     });
 
   it('creates the complete schema when no Regie object exists', async () => {
+    const current = currentMaps();
+
     maps = {
-      flatObjectMetadataMaps: createEmptyFlatEntityMaps(),
+      flatObjectMetadataMaps: rebuildMaps(
+        Object.values(
+          current.flatObjectMetadataMaps.byUniversalIdentifier,
+        )
+          .filter(isDefined)
+          .filter(({ nameSingular }) =>
+            ['person', 'company', 'task'].includes(nameSingular),
+          ),
+      ),
       flatFieldMetadataMaps: createEmptyFlatEntityMaps(),
       flatIndexMaps: createEmptyFlatEntityMaps(),
     };
@@ -216,6 +226,21 @@ describe('AdoptRegieListSyncStandardSchemaCommand', () => {
     expect(
       validateAndRunWorkspaceMigrationIdentityReassignment,
     ).not.toHaveBeenCalled();
+  });
+
+  it('defers creation when core relation objects are unavailable', async () => {
+    maps = {
+      flatObjectMetadataMaps: createEmptyFlatEntityMaps(),
+      flatFieldMetadataMaps: createEmptyFlatEntityMaps(),
+      flatIndexMaps: createEmptyFlatEntityMaps(),
+    };
+
+    await run();
+
+    expect(
+      validateBuildAndRunTwentyStandardWorkspaceMigration,
+    ).not.toHaveBeenCalled();
+    expect(validateBuildAndRunWorkspaceMigration).not.toHaveBeenCalled();
   });
 
   it('adopts compatible legacy metadata and then locks object schema editing', async () => {
