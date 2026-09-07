@@ -197,7 +197,15 @@ describe('AdoptRegieListSyncStandardSchemaCommand', () => {
         )
           .filter(isDefined)
           .filter(({ nameSingular }) =>
-            ['person', 'company', 'task'].includes(nameSingular),
+            [
+              'person',
+              'company',
+              'task',
+              'timelineActivity',
+              'attachment',
+              'noteTarget',
+              'taskTarget',
+            ].includes(nameSingular),
           ),
       ),
       flatFieldMetadataMaps: createEmptyFlatEntityMaps(),
@@ -214,7 +222,7 @@ describe('AdoptRegieListSyncStandardSchemaCommand', () => {
     ).toHaveLength(3);
     expect(
       allFlatEntityOperationByMetadataName.fieldMetadata.flatEntityToCreate,
-    ).toHaveLength(40);
+    ).toHaveLength(64);
     expect(
       allFlatEntityOperationByMetadataName.index.flatEntityToCreate,
     ).toHaveLength(3);
