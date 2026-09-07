@@ -1,4 +1,5 @@
 import { CallMessageReceivedWebhookJob } from 'src/modules/messaging/message-import-manager/jobs/call-message-received-webhook.job';
+import { type CallMessageReceivedWebhookJobData } from 'src/modules/messaging/message-import-manager/types/message-received-webhook-payload.type';
 import {
   type DispatchIncomingMessageWebhooksInput,
   MessagingReplyWebhookDispatchService,
@@ -148,8 +149,9 @@ describe('MessagingReplyWebhookDispatchService', () => {
     );
 
     expect(messageQueueService.add).toHaveBeenCalledTimes(4);
-    const firstPayload = messageQueueService.add.mock.calls[0][1].payload;
+    const firstJobData = (messageQueueService.add as jest.Mock).mock
+      .calls[0][1] as CallMessageReceivedWebhookJobData;
 
-    expect(firstPayload.receivedAt).toBeNull();
+    expect(firstJobData.payload.receivedAt).toBeNull();
   });
 });
