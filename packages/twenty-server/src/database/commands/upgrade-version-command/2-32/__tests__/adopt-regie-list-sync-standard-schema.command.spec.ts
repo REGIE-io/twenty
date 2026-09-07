@@ -236,14 +236,16 @@ describe('AdoptRegieListSyncStandardSchemaCommand', () => {
     ).not.toHaveBeenCalled();
   });
 
-  it('defers creation when core relation objects are unavailable', async () => {
+  it('fails closed when core relation objects are unavailable', async () => {
     maps = {
       flatObjectMetadataMaps: createEmptyFlatEntityMaps(),
       flatFieldMetadataMaps: createEmptyFlatEntityMaps(),
       flatIndexMaps: createEmptyFlatEntityMaps(),
     };
 
-    await run();
+    await expect(run()).rejects.toThrow(
+      'missing required standard objects person, company, task, timelineActivity, attachment, noteTarget, taskTarget. Restore or provision the workspace core standard schema, then retry the 2.32 workspace upgrade; the upgrade cursor has not advanced.',
+    );
 
     expect(
       validateBuildAndRunTwentyStandardWorkspaceMigration,
