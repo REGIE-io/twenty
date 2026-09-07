@@ -60,9 +60,8 @@ export class GmailGetMessageListService {
 
     // This method only runs without a cursor, so this is the first crawl of the mailbox
     // and the only fetch that would otherwise walk its entire history.
-    const searchFilter = computeGmailInitialSyncSearchFilter(
-      excludedSearchFilter,
-    );
+    const searchFilter =
+      computeGmailInitialSyncSearchFilter(excludedSearchFilter);
 
     while (hasMoreMessages) {
       const messageList = await gmailClient.users.messages

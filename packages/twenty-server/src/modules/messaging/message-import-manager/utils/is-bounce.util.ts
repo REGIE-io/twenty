@@ -15,9 +15,7 @@ import { type MessageWithParticipants } from 'src/modules/messaging/message-impo
 //    the report headers (the FROM participant is always populated by both drivers).
 const BOUNCE_SENDER_LOCAL_PARTS = ['mailer-daemon', 'postmaster'];
 
-const hasDeliveryStatusReport = (
-  message: MessageWithParticipants,
-): boolean =>
+const hasDeliveryStatusReport = (message: MessageWithParticipants): boolean =>
   (message.messageHeaders ?? []).some(({ name, value }) => {
     if (name.toLowerCase() !== 'content-type') {
       return false;
@@ -31,9 +29,7 @@ const hasDeliveryStatusReport = (
     );
   });
 
-const hasFailedRecipientsHeader = (
-  message: MessageWithParticipants,
-): boolean =>
+const hasFailedRecipientsHeader = (message: MessageWithParticipants): boolean =>
   (message.messageHeaders ?? []).some(
     ({ name }) => name.toLowerCase() === 'x-failed-recipients',
   );
