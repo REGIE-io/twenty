@@ -225,7 +225,12 @@ jobs:
         run: npx nx run twenty-server:command-no-deps -- cache:flush
 
       - name: Server / Run upgrade command
-        run: npx nx run twenty-server:command-no-deps -- upgrade --verbose
+        # This workflow's cross-version canary is the fully provisioned seed
+        # workspace verified above. The dev seed also contains deliberately
+        # metadata-empty workspace fixtures used by upgrade-runner tests; they
+        # are not valid application-schema canaries and workspace commands must
+        # fail closed on them rather than silently advancing their cursors.
+        run: npx nx run twenty-server:command-no-deps -- upgrade --verbose --workspace-id "${SEED_WORKSPACE_ID}"
 
       - name: Server / Start
         run: |
