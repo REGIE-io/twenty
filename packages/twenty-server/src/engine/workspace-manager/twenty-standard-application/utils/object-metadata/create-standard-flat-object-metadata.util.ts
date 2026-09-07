@@ -856,6 +856,102 @@ export const STANDARD_FLAT_OBJECT_METADATA_BUILDERS_BY_OBJECT_NAME = {
       twentyStandardApplicationId,
       now,
     }),
+  regieStaticList: ({
+    now,
+    workspaceId,
+    standardObjectMetadataRelatedEntityIds,
+    twentyStandardApplicationId,
+    dependencyFlatEntityMaps,
+  }: Omit<
+    CreateStandardObjectArgs<'regieStaticList'>,
+    'context' | 'objectName'
+  >) =>
+    createStandardObjectFlatMetadata({
+      objectName: 'regieStaticList',
+      dependencyFlatEntityMaps,
+      context: {
+        universalIdentifier:
+          STANDARD_OBJECTS.regieStaticList.universalIdentifier,
+        nameSingular: 'regieStaticList',
+        namePlural: 'regieStaticLists',
+        labelSingular: 'Regie Static List',
+        labelPlural: 'Regie Static Lists',
+        description: 'A persisted Regie list',
+        icon: 'IconList',
+        isSystem: true,
+        isUICreatable: false,
+        isUIEditable: false,
+        labelIdentifierFieldMetadataName: 'name',
+      },
+      workspaceId,
+      standardObjectMetadataRelatedEntityIds,
+      twentyStandardApplicationId,
+      now,
+    }),
+  regieListMembership: ({
+    now,
+    workspaceId,
+    standardObjectMetadataRelatedEntityIds,
+    twentyStandardApplicationId,
+    dependencyFlatEntityMaps,
+  }: Omit<
+    CreateStandardObjectArgs<'regieListMembership'>,
+    'context' | 'objectName'
+  >) =>
+    createStandardObjectFlatMetadata({
+      objectName: 'regieListMembership',
+      dependencyFlatEntityMaps,
+      context: {
+        universalIdentifier:
+          STANDARD_OBJECTS.regieListMembership.universalIdentifier,
+        nameSingular: 'regieListMembership',
+        namePlural: 'regieListMemberships',
+        labelSingular: 'Regie List Membership',
+        labelPlural: 'Regie List Memberships',
+        description: 'A record membership in a Regie list',
+        icon: 'IconListDetails',
+        isSystem: true,
+        isUICreatable: false,
+        isUIEditable: false,
+        labelIdentifierFieldMetadataName: 'membershipKey',
+      },
+      workspaceId,
+      standardObjectMetadataRelatedEntityIds,
+      twentyStandardApplicationId,
+      now,
+    }),
+  regieSyncSource: ({
+    now,
+    workspaceId,
+    standardObjectMetadataRelatedEntityIds,
+    twentyStandardApplicationId,
+    dependencyFlatEntityMaps,
+  }: Omit<
+    CreateStandardObjectArgs<'regieSyncSource'>,
+    'context' | 'objectName'
+  >) =>
+    createStandardObjectFlatMetadata({
+      objectName: 'regieSyncSource',
+      dependencyFlatEntityMaps,
+      context: {
+        universalIdentifier:
+          STANDARD_OBJECTS.regieSyncSource.universalIdentifier,
+        nameSingular: 'regieSyncSource',
+        namePlural: 'regieSyncSources',
+        labelSingular: 'CRM Sync Source',
+        labelPlural: 'CRM Sync Sources',
+        description: 'Workspace-visible CRM record provenance',
+        icon: 'IconRefresh',
+        isSystem: true,
+        isUICreatable: false,
+        isUIEditable: false,
+        labelIdentifierFieldMetadataName: 'sourceKey',
+      },
+      workspaceId,
+      standardObjectMetadataRelatedEntityIds,
+      twentyStandardApplicationId,
+      now,
+    }),
 } satisfies {
   [P in AllStandardObjectName]: (
     args: Omit<CreateStandardObjectArgs<P>, 'context' | 'objectName'>,
