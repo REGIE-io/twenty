@@ -178,6 +178,21 @@ jobs:
             exit 1
           fi
 
+      - name: Old version / Exclude metadata-empty upgrade fixtures
+        # workspace:seed:dev also creates two deliberately metadata-empty
+        # workspaces for upgrade-runner tests. They are not provisioned schema
+        # canaries. Keep them out of the unfiltered upgrade set explicitly so a
+        # workspace command can fail closed on an unexpected sparse workspace.
+        run: |
+          EXCLUDED_COUNT=$(docker exec -e PGPASSWORD=postgres postgres \
+            psql -U postgres -d default -tAc \
+            "UPDATE core.workspace AS workspace SET \"activationStatus\" = 'PENDING_CREATION' WHERE workspace.id = ANY(ARRAY['506915ec-21ca-431b-a04a-257eb216865e','aa8fdcb1-8ee1-4012-98af-44a97caa7411']::uuid[]) AND NOT EXISTS (SELECT 1 FROM core.\"objectMetadata\" AS object_metadata WHERE object_metadata.\"workspaceId\" = workspace.id) RETURNING workspace.id;" | wc -l)
+          echo "Excluded metadata-empty upgrade fixtures: ${EXCLUDED_COUNT}"
+          if [ "${EXCLUDED_COUNT}" -ne 2 ]; then
+            echo "::error::Expected exactly two named metadata-empty upgrade fixtures"
+            exit 1
+          fi
+
       - name: Old version / Stop container
         run: |
           mkdir -p upgrade-logs
@@ -225,12 +240,7 @@ jobs:
         run: npx nx run twenty-server:command-no-deps -- cache:flush
 
       - name: Server / Run upgrade command
-        # This workflow's cross-version canary is the fully provisioned seed
-        # workspace verified above. The dev seed also contains deliberately
-        # metadata-empty workspace fixtures used by upgrade-runner tests; they
-        # are not valid application-schema canaries and workspace commands must
-        # fail closed on them rather than silently advancing their cursors.
-        run: npx nx run twenty-server:command-no-deps -- upgrade --verbose --workspace-id "${SEED_WORKSPACE_ID}"
+        run: npx nx run twenty-server:command-no-deps -- upgrade --verbose
 
       - name: Server / Start
         run: |
