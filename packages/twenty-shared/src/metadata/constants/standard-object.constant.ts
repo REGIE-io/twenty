@@ -1252,6 +1252,33 @@ export const STANDARD_OBJECTS = {
       }),
     },
   },
+  regieStaticList: {
+    universalIdentifier: STANDARD_OBJECT_UNIVERSAL_IDENTIFIERS.regieStaticList,
+    fields: STANDARD_OBJECT_FIELDS.regieStaticList,
+    indexes: {},
+  },
+  regieListMembership: {
+    universalIdentifier:
+      STANDARD_OBJECT_UNIVERSAL_IDENTIFIERS.regieListMembership,
+    fields: STANDARD_OBJECT_FIELDS.regieListMembership,
+    indexes: {
+      membershipKeyUniqueIndex: {
+        universalIdentifier: '91c12587-2226-469d-b260-2d22f0242ffc',
+      },
+    },
+  },
+  regieSyncSource: {
+    universalIdentifier: STANDARD_OBJECT_UNIVERSAL_IDENTIFIERS.regieSyncSource,
+    fields: STANDARD_OBJECT_FIELDS.regieSyncSource,
+    indexes: {
+      sourceKeyUniqueIndex: {
+        universalIdentifier: 'bf033fce-8a4f-4b85-ab0a-85193899e8cf',
+      },
+      externalRecordLookupIndex: {
+        universalIdentifier: 'e7ac8c38-1037-490e-877e-74c2c0d7f88e',
+      },
+    },
+  },
 } as const satisfies Record<
   string,
   {

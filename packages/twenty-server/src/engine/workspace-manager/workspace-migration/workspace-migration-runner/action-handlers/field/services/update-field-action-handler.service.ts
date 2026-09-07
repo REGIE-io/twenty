@@ -109,7 +109,9 @@ export class UpdateFieldActionHandlerService extends WorkspaceMigrationRunnerAct
 
     const flatFieldMetadata = findFlatEntityByUniversalIdentifierOrThrow({
       flatEntityMaps: allFlatEntityMaps.flatFieldMetadataMaps,
-      universalIdentifier: action.universalIdentifier,
+      universalIdentifier:
+        action.identityReassignment?.sourceUniversalIdentifier ??
+        action.universalIdentifier,
     });
 
     const { universalSettings, ...updateWithResolvedForeignKeys } =
@@ -137,6 +139,12 @@ export class UpdateFieldActionHandlerService extends WorkspaceMigrationRunnerAct
       entityId: flatFieldMetadata.id,
       update,
       rebuildSearchVector: action.rebuildSearchVector,
+      identityUpdate: action.identityReassignment
+        ? {
+            universalIdentifier: action.universalIdentifier,
+            applicationId: context.flatApplication.id,
+          }
+        : undefined,
     };
   }
 
@@ -157,14 +165,18 @@ export class UpdateFieldActionHandlerService extends WorkspaceMigrationRunnerAct
     // — the actual state change is handled by the metadata side-effect
     // engine, which owns the backing unique index lifecycle.
     const { isUnique: _droppedIsUnique, ...persistedUpdate } = update;
+    const metadataUpdate = {
+      ...persistedUpdate,
+      ...flatAction.identityUpdate,
+    };
 
-    if (Object.keys(persistedUpdate).length === 0) {
+    if (Object.keys(metadataUpdate).length === 0) {
       return;
     }
 
     await fieldMetadataRepository.update(
       { id: entityId, workspaceId },
-      persistedUpdate,
+      metadataUpdate,
     );
   }
 

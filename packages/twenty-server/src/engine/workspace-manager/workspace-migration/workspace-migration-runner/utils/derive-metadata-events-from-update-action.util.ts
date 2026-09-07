@@ -84,6 +84,14 @@ const deriveAllMetadataEventsFromUpdateAction = ({
 
       const toFlatEntity = flatAction.updatedFlatIndex;
 
+      if (flatAction.identityUpdate) {
+        return [];
+      }
+
+      if (!toFlatEntity) {
+        throw new Error('Index update is missing updated index metadata');
+      }
+
       const deleteIndexMetadataEvent: DeleteMetadataEvent<'index'> = {
         metadataName: 'index',
         recordId: fromFlatEntity.id,

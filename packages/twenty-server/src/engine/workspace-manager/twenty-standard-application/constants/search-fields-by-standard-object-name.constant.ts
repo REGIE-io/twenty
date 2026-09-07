@@ -42,6 +42,11 @@ export const SEARCH_FIELDS_BY_STANDARD_OBJECT_NAME = {
     { name: 'phones', type: FieldMetadataType.PHONES },
     { name: 'jobTitle', type: FieldMetadataType.TEXT },
   ],
+  regieStaticList: [{ name: 'name', type: FieldMetadataType.TEXT }],
+  regieListMembership: [
+    { name: 'membershipKey', type: FieldMetadataType.TEXT },
+  ],
+  regieSyncSource: [{ name: 'sourceKey', type: FieldMetadataType.TEXT }],
   task: [
     { name: 'title', type: FieldMetadataType.TEXT },
     { name: 'bodyV2', type: FieldMetadataType.RICH_TEXT },

@@ -25,6 +25,22 @@ export const optimisticallyApplyUpdateActionOnAllFlatEntityMaps = ({
         flatEntityMaps: allFlatEntityMaps['flatIndexMaps'],
       });
 
+      if (flatAction.identityUpdate) {
+        replaceFlatEntityInFlatEntityMapsThroughMutationOrThrow({
+          flatEntity: {
+            ...flatIndex,
+            ...flatAction.identityUpdate,
+          },
+          flatEntityMapsToMutate: allFlatEntityMaps.flatIndexMaps,
+        });
+
+        return allFlatEntityMaps;
+      }
+
+      if (!flatAction.updatedFlatIndex) {
+        throw new Error('Index update is missing updated index metadata');
+      }
+
       deleteFlatEntityFromFlatEntityAndRelatedEntityMapsThroughMutationOrThrow({
         flatEntity: flatIndex,
         flatEntityAndRelatedMapsToMutate: allFlatEntityMaps,
@@ -82,6 +98,7 @@ export const optimisticallyApplyUpdateActionOnAllFlatEntityMaps = ({
       const toFlatEntity = {
         ...fromFlatEntity,
         ...flatAction.update,
+        ...flatAction.identityUpdate,
       };
 
       replaceFlatEntityInFlatEntityMapsThroughMutationOrThrow({
