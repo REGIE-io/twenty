@@ -14,6 +14,7 @@ import { type SearchFieldMetadataEntity } from 'src/engine/metadata-modules/sear
 import { buildSqlColumnDefinition } from 'src/engine/twenty-orm/workspace-schema-manager/utils/build-sql-column-definition.util';
 import { computeTableName } from 'src/engine/utils/compute-table-name.util';
 import { TWENTY_STANDARD_APPLICATION } from 'src/engine/workspace-manager/twenty-standard-application/constants/twenty-standard-applications';
+import { type SearchableFieldOption } from 'src/engine/workspace-manager/utils/get-ts-vector-column-expression.util';
 import {
   escapeIdentifier,
   escapeLiteral,
@@ -34,14 +35,18 @@ const buildSearchFieldMetadataDerivationInputs = ({
 }): {
   indexedFieldById: ReadonlyMap<
     string,
-    { name: string; type: FieldMetadataType }
+    { name: string; type: FieldMetadataType; options?: SearchableFieldOption[] }
   >;
   flatSearchFieldMetadataMaps: FlatEntityMaps<FlatSearchFieldMetadata>;
 } => {
   const indexedFieldById = new Map(
     fieldMetadatas.map((fieldMetadata) => [
       fieldMetadata.id,
-      { name: fieldMetadata.name, type: fieldMetadata.type },
+      {
+        name: fieldMetadata.name,
+        type: fieldMetadata.type,
+        options: fieldMetadata.options ?? undefined,
+      },
     ]),
   );
 

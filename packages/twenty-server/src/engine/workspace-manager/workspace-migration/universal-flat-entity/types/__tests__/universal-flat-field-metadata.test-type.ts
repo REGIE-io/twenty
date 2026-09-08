@@ -8,6 +8,7 @@ import {
   type FieldNumberVariant,
   type NullablePartial,
   type NumberDataType,
+  type RegieCustomFieldMarker,
   type RelationOnDeleteAction,
   type RelationType,
   type SerializedRelation,
@@ -120,6 +121,9 @@ type SettingsExpectedResult =
     }
   | {
       displayedMaxRows?: number | undefined;
+      // TEXT settings also carry the namespaced Regie custom-field marker, which is what
+      // makes a custom field eligible for the object's search vector.
+      regieCustomField?: RegieCustomFieldMarker | undefined;
       __JsonbPropertyBrand__?: undefined;
     }
   | null;

@@ -282,6 +282,16 @@ export type { RecordGqlOperationGqlRecordFields } from './RecordGqlOperationGqlR
 export type { RecordGqlOperationOrderBy } from './RecordGqlOperationOrderBy';
 export type { RecordGqlOperationSignature } from './RecordGqlOperationSignature';
 export type { RecordGqlOperationVariables } from './RecordGqlOperationVariables';
+export type {
+  RegieCustomFieldMarker,
+  RegieCustomFieldSettings,
+  RegieCustomFieldMarkerParseResult,
+} from './RegieCustomFieldMarker';
+export {
+  regieCustomFieldMarkerSchema,
+  REGIE_CUSTOM_FIELD_MARKER_KEY,
+  parseRegieCustomFieldMarker,
+} from './RegieCustomFieldMarker';
 export type { RelationAndMorphRelationFieldMetadataType } from './RelationAndMorphRelationFieldMetadataType';
 export type { RelationCreationPayload } from './RelationCreationPayload';
 export { RelationOnDeleteAction } from './RelationOnDeleteAction.type';

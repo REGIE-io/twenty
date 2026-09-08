@@ -116,8 +116,6 @@ type NotDefinedSettings = {
 type SettingsAssertions = [
   Expect<HasAllProperties<FullNameFieldMetadata, NotDefinedSettings>>,
   Expect<HasAllProperties<RatingFieldMetadata, NotDefinedSettings>>,
-  Expect<HasAllProperties<SelectFieldMetadata, NotDefinedSettings>>,
-  Expect<HasAllProperties<MultiSelectFieldMetadata, NotDefinedSettings>>,
   Expect<HasAllProperties<PositionFieldMetadata, NotDefinedSettings>>,
   Expect<HasAllProperties<RawJsonFieldMetadata, NotDefinedSettings>>,
   Expect<HasAllProperties<ActorFieldMetadata, NotDefinedSettings>>,
@@ -130,6 +128,29 @@ type SettingsAssertions = [
       {
         settings: JsonbProperty<
           FieldMetadataSettingsMapping[FieldMetadataType.TEXT]
+        >;
+      }
+    >
+  >,
+  // SELECT and MULTI_SELECT settings exist only to carry the namespaced Regie custom-field
+  // marker, so they moved out of NotDefinedSettings. Asserted through the mapping rather
+  // than spelled out, so this tracks the mapping instead of restating it.
+  Expect<
+    HasAllProperties<
+      SelectFieldMetadata,
+      {
+        settings: JsonbProperty<
+          FieldMetadataSettingsMapping[FieldMetadataType.SELECT]
+        >;
+      }
+    >
+  >,
+  Expect<
+    HasAllProperties<
+      MultiSelectFieldMetadata,
+      {
+        settings: JsonbProperty<
+          FieldMetadataSettingsMapping[FieldMetadataType.MULTI_SELECT]
         >;
       }
     >

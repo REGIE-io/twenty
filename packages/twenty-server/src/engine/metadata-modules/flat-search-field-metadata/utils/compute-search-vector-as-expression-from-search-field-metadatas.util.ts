@@ -1,14 +1,18 @@
 import { type FieldMetadataType } from 'twenty-shared/types';
 import { isSearchableFieldType } from 'twenty-shared/utils';
 
+import { isRegieSearchableFieldType } from 'src/engine/workspace-manager/utils/is-regie-searchable-field-type.util';
 import {
   type FieldTypeAndNameMetadata,
   getTsVectorColumnExpressionFromFields,
+  type SearchableFieldOption,
 } from 'src/engine/workspace-manager/utils/get-ts-vector-column-expression.util';
 
 export type SearchVectorTargetField = {
   name: string;
   type: FieldMetadataType;
+  // Dropdown options, so the expression can project labels that never reach the row.
+  options?: SearchableFieldOption[];
   // Per-object ordinal from the searchFieldMetadata row, driving deterministic order.
   position: number;
   // Tie-break for rows sharing a position (searchFieldMetadata universalIdentifier).
@@ -20,12 +24,17 @@ export const buildSearchVectorTargetField = ({
   position,
   sortKey,
 }: {
-  field: { name: string; type: FieldMetadataType };
+  field: {
+    name: string;
+    type: FieldMetadataType;
+    options?: SearchableFieldOption[];
+  };
   position: number;
   sortKey: string;
 }): SearchVectorTargetField => ({
   name: field.name,
   type: field.type,
+  options: field.options,
   position,
   sortKey,
 });
@@ -47,11 +56,17 @@ export const computeSearchVectorAsExpressionFromSearchFieldMetadatas = (
 
       return a.sortKey < b.sortKey ? -1 : a.sortKey > b.sortKey ? 1 : 0;
     })
-    .flatMap((targetField) =>
-      isSearchableFieldType(targetField.type)
-        ? [{ name: targetField.name, type: targetField.type }]
-        : [],
-    );
+    .flatMap((targetField): FieldTypeAndNameMetadata[] => {
+      const { type } = targetField;
+
+      // Twenty's own predicate stays narrow; Regie-marked dropdowns are admitted on top
+      // of it, otherwise a registered SELECT row would be silently dropped here.
+      if (!isSearchableFieldType(type) && !isRegieSearchableFieldType(type)) {
+        return [];
+      }
+
+      return [{ name: targetField.name, type, options: targetField.options }];
+    });
 
   return getTsVectorColumnExpressionFromFields(orderedSearchableFields);
 };

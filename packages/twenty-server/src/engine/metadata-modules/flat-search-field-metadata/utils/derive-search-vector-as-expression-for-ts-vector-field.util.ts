@@ -6,6 +6,7 @@ import {
   computeSearchVectorAsExpressionFromSearchFieldMetadatas,
 } from 'src/engine/metadata-modules/flat-search-field-metadata/utils/compute-search-vector-as-expression-from-search-field-metadatas.util';
 import { type FlatSearchFieldMetadata } from 'src/engine/metadata-modules/flat-search-field-metadata/types/flat-search-field-metadata.type';
+import { type SearchableFieldOption } from 'src/engine/workspace-manager/utils/get-ts-vector-column-expression.util';
 import { assertSafeTsVectorExpression } from 'src/engine/workspace-manager/workspace-migration/utils/remove-sql-injection.util';
 
 export const deriveSearchVectorAsExpressionForTsVectorField = ({
@@ -15,7 +16,13 @@ export const deriveSearchVectorAsExpressionForTsVectorField = ({
   targetSearchFieldMetadatas: FlatSearchFieldMetadata[];
   indexedFieldById: ReadonlyMap<
     string,
-    { name: string; type: FieldMetadataType }
+    {
+      name: string;
+      type: FieldMetadataType;
+      // Dropdown labels live in metadata, not the row, so the expression needs them here
+      // or a registered SELECT row projects nothing.
+      options?: SearchableFieldOption[];
+    }
   >;
 }): string => {
   const targetSearchableFields = targetSearchFieldMetadatas.flatMap(
