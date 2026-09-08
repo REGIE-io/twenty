@@ -1,1 +1,1 @@
-export const MAX_CUSTOM_INDEXES_PER_OBJECT = 10;
+export const MAX_CUSTOM_INDEXES_PER_OBJECT = 25;
