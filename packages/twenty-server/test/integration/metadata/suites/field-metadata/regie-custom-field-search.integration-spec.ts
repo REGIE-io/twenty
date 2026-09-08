@@ -1,10 +1,12 @@
+import { isDefined } from 'twenty-shared/utils';
+
 import { createManyOperation } from 'test/integration/graphql/utils/create-many-operation.util';
 import { search } from 'test/integration/graphql/utils/search.util';
 import { createOneFieldMetadata } from 'test/integration/metadata/suites/field-metadata/utils/create-one-field-metadata.util';
 import { updateOneFieldMetadata } from 'test/integration/metadata/suites/field-metadata/utils/update-one-field-metadata.util';
-import { createOneObjectMetadata } from 'test/integration/metadata/suites/object-metadata/utils/create-one-object-metadata.util';
-import { deleteOneObjectMetadata } from 'test/integration/metadata/suites/object-metadata/utils/delete-one-object-metadata.util';
-import { updateOneObjectMetadata } from 'test/integration/metadata/suites/object-metadata/utils/update-one-object-metadata.util';
+import { deleteOneFieldMetadata } from 'test/integration/metadata/suites/field-metadata/utils/delete-one-field-metadata.util';
+import { findManyObjectMetadata } from 'test/integration/metadata/suites/object-metadata/utils/find-many-object-metadata.util';
+import { jestExpectToBeDefined } from 'test/utils/jest-expect-to-be-defined.util.test';
 import {
   FieldMetadataType,
   type RegieCustomFieldSettings,
@@ -17,9 +19,15 @@ import {
 describe('Regie custom field search', () => {
   let testObjectMetadataId: string;
   let tierFieldMetadataId: string;
+  const createdFieldMetadataIds: string[] = [];
+  let tierOptionIds: Record<string, string> = {};
 
-  const OBJECT_NAME_SINGULAR = 'regieSearchObject';
-  const OBJECT_NAME_PLURAL = 'regieSearchObjects';
+  // The marker's target enum only covers person, account, task and calendar_event, and the
+  // handler cross-checks it against the object's real name. A custom object can therefore
+  // never carry a Regie searchable field, so this runs against the standard company object,
+  // which `target: 'account'` maps to.
+  const OBJECT_NAME_SINGULAR = 'company';
+  const OBJECT_NAME_PLURAL = 'companies';
   const TIER_FIELD_NAME = 'regieTier';
   const RECORD_NAME_VALUE = 'RegieSearchNameToken11';
 
@@ -27,7 +35,10 @@ describe('Regie custom field search', () => {
   // rejects anywhere in the expression, quoted or not.
   const GOLD_LABEL = 'Gold -- under $10k';
   const GOLD_VALUE = 'GOLD';
-  const SILVER_LABEL = "Owner's silver";
+  // Carries an apostrophe on purpose (the DDL-escaping case) but is otherwise a token no
+  // seeded company can contain: this suite now runs against the standard company object,
+  // where a common word like "Owner" matches seed data and makes exact counts meaningless.
+  const SILVER_LABEL = "O'Brien zzsilvertoken";
   const SILVER_VALUE = 'SILVER';
 
   // Typed rather than inline: an object literal would widen `version` to number and
@@ -48,43 +59,44 @@ describe('Regie custom field search', () => {
   };
 
   beforeAll(async () => {
-    const {
-      data: {
-        createOneObject: { id: objectMetadataId },
-      },
-    } = await createOneObjectMetadata({
+    const { objects } = await findManyObjectMetadata({
       expectToFail: false,
-      input: {
-        nameSingular: OBJECT_NAME_SINGULAR,
-        namePlural: OBJECT_NAME_PLURAL,
-        labelSingular: 'Regie Search Object',
-        labelPlural: 'Regie Search Objects',
-        icon: 'IconSearch',
-        isLabelSyncedWithName: false,
-      },
+      input: { filter: {}, paging: { first: 100 } },
+      gqlFields: `id nameSingular`,
     });
 
-    testObjectMetadataId = objectMetadataId;
+    const companyObject = objects.find(
+      (object) => object.nameSingular === OBJECT_NAME_SINGULAR,
+    );
+
+    jestExpectToBeDefined(companyObject);
+
+    testObjectMetadataId = companyObject.id;
   });
 
   afterAll(async () => {
-    await updateOneObjectMetadata({
-      expectToFail: false,
-      input: {
-        idToUpdate: testObjectMetadataId,
-        updatePayload: { isActive: false },
-      },
-    });
-    await deleteOneObjectMetadata({
-      expectToFail: false,
-      input: { idToDelete: testObjectMetadataId },
-    });
+    // company is a standard object, so only the fields this suite added are removed.
+    // A field has to be deactivated before it can be deleted.
+    for (const fieldMetadataId of createdFieldMetadataIds) {
+      await updateOneFieldMetadata({
+        expectToFail: false,
+        gqlFields: `id`,
+        input: {
+          idToUpdate: fieldMetadataId,
+          updatePayload: { isActive: false },
+        },
+      });
+      await deleteOneFieldMetadata({
+        expectToFail: false,
+        input: { idToDelete: fieldMetadataId },
+      });
+    }
   });
 
   it('accepts a generated column for a marked dropdown, and finds a record by its option label', async () => {
     const {
       data: {
-        createOneField: { id: tierFieldId },
+        createOneField: { id: tierFieldId, options: createdOptions },
       },
     } = await createOneFieldMetadata({
       expectToFail: false,
@@ -105,10 +117,20 @@ describe('Regie custom field search', () => {
         ],
         settings: searchableMarker,
       },
-      gqlFields: `id name type`,
+      gqlFields: `id name type options`,
     });
 
     tierFieldMetadataId = tierFieldId;
+    createdFieldMetadataIds.push(tierFieldId);
+    // Relabelling has to reuse the option's server-assigned id. The options update maps old
+    // values to new ones BY ID, so a payload with fresh ids reads as "remove one option, add
+    // another", the value mapping comes out empty, and the column's data is dropped instead
+    // of migrated. Stored identity is the id, not the value.
+    tierOptionIds = Object.fromEntries(
+      (createdOptions ?? []).flatMap((option) =>
+        isDefined(option.id) ? [[option.value, option.id] as const] : [],
+      ),
+    );
 
     await createManyOperation({
       objectMetadataSingularName: OBJECT_NAME_SINGULAR,
@@ -139,7 +161,7 @@ describe('Regie custom field search', () => {
       expectToFail: false,
     });
 
-    expect(await searchFor('Owner')).toBe(1);
+    expect(await searchFor('zzsilvertoken')).toBe(1);
   });
 
   // Proves the rebuild trigger: without it the index keeps the old label and nothing reports
@@ -153,12 +175,14 @@ describe('Regie custom field search', () => {
         updatePayload: {
           options: [
             {
+              id: tierOptionIds[GOLD_VALUE],
               label: 'Platinum tier',
               value: GOLD_VALUE,
               position: 0,
               color: 'green',
             },
             {
+              id: tierOptionIds[SILVER_VALUE],
               label: SILVER_LABEL,
               value: SILVER_VALUE,
               position: 1,
@@ -170,8 +194,11 @@ describe('Regie custom field search', () => {
     });
 
     expect(await searchFor('Platinum')).toBe(1);
-    // The old label is gone from the index rather than lingering beside the new one.
-    expect(await searchFor('Gold')).toBe(0);
+    // "under" appears only in the OLD label, never in the stored value, so it isolates the
+    // label half of the projection. Searching "Gold" would be useless here: the stored value
+    // GOLD is still indexed and to_tsvector('simple', ...) lowercases, so it would match
+    // whether or not the relabel took effect.
+    expect(await searchFor('under')).toBe(0);
   });
 
   it('stops matching once the field is archived', async () => {
@@ -207,7 +234,11 @@ describe('Regie custom field search', () => {
   it('leaves an unmarked dropdown out of the search surface', async () => {
     const UNMARKED_FIELD_NAME = 'regieUnmarkedTier';
 
-    await createOneFieldMetadata({
+    const {
+      data: {
+        createOneField: { id: unmarkedFieldId },
+      },
+    } = await createOneFieldMetadata({
       expectToFail: false,
       input: {
         name: UNMARKED_FIELD_NAME,
@@ -227,16 +258,84 @@ describe('Regie custom field search', () => {
       gqlFields: `id name type`,
     });
 
+    createdFieldMetadataIds.push(unmarkedFieldId);
+
     await createManyOperation({
       objectMetadataSingularName: OBJECT_NAME_SINGULAR,
       objectMetadataPluralName: OBJECT_NAME_PLURAL,
       gqlFields: `id name ${UNMARKED_FIELD_NAME}`,
       data: [
-        { name: 'RegieSearchBronzeToken33', [UNMARKED_FIELD_NAME]: 'BRONZE' },
+        { name: 'RegieSearchUnmarkedToken33', [UNMARKED_FIELD_NAME]: 'BRONZE' },
       ],
       expectToFail: false,
     });
 
+    // The record name deliberately avoids the word searched for: `name` is in the search
+    // surface by default, so a name containing "Bronze" would match through it and hide
+    // whether the dropdown was indexed at all.
     expect(await searchFor('Bronze')).toBe(0);
+  });
+
+  // Regression guard for the enum-swap fix. Changing enum options renames the column aside
+  // and drops it, which Postgres refuses while a generated column reads it, so the
+  // searchVector is dropped first and recreated by the rebuild an options change schedules.
+  // That rebuild is only scheduled for a field that is actually indexed, so the drop is
+  // guarded on the field having a searchFieldMetadata row. Without that guard, editing the
+  // options of ANY ordinary enum field would drop its object's searchVector and never put
+  // it back, silently breaking search for the whole object.
+  it('keeps the object searchable after an unmarked dropdown changes its options', async () => {
+    const OPTIONS_ONLY_FIELD_NAME = 'regieOptionsOnlyTier';
+    const RECORD_NAME = 'RegieSearchGuardToken44';
+
+    const {
+      data: {
+        createOneField: { id: optionsOnlyFieldId },
+      },
+    } = await createOneFieldMetadata({
+      expectToFail: false,
+      input: {
+        name: OPTIONS_ONLY_FIELD_NAME,
+        label: 'Regie Options Only Tier',
+        type: FieldMetadataType.SELECT,
+        objectMetadataId: testObjectMetadataId,
+        isLabelSyncedWithName: false,
+        options: [
+          { label: 'Before', value: 'BEFORE', position: 0, color: 'blue' },
+        ],
+      },
+      gqlFields: `id name type`,
+    });
+
+    createdFieldMetadataIds.push(optionsOnlyFieldId);
+
+    await createManyOperation({
+      objectMetadataSingularName: OBJECT_NAME_SINGULAR,
+      objectMetadataPluralName: OBJECT_NAME_PLURAL,
+      gqlFields: `id name ${OPTIONS_ONLY_FIELD_NAME}`,
+      data: [{ name: RECORD_NAME, [OPTIONS_ONLY_FIELD_NAME]: 'BEFORE' }],
+      expectToFail: false,
+    });
+
+    // Baseline: the object's own name field is indexed, so the record is reachable.
+    expect(await searchFor(RECORD_NAME)).toBe(1);
+
+    await updateOneFieldMetadata({
+      expectToFail: false,
+      gqlFields: `id`,
+      input: {
+        idToUpdate: optionsOnlyFieldId,
+        updatePayload: {
+          options: [
+            { label: 'After', value: 'BEFORE', position: 0, color: 'blue' },
+          ],
+        },
+      },
+    });
+
+    // The searchVector must still exist and still index the name field. A dropped-and-never
+    // recreated vector would make this 0 while nothing else reported a problem.
+    expect(await searchFor(RECORD_NAME)).toBe(1);
+    // The unmarked field's label stays out of the surface, before and after the edit.
+    expect(await searchFor('After')).toBe(0);
   });
 });

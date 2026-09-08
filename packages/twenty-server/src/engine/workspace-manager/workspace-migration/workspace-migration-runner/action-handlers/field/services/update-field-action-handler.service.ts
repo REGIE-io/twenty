@@ -48,6 +48,7 @@ import {
   type WorkspaceMigrationActionRunnerContext,
 } from 'src/engine/workspace-manager/workspace-migration/workspace-migration-runner/types/workspace-migration-action-runner-args.type';
 import { fieldMetadataTypeToColumnType } from 'src/engine/workspace-manager/workspace-migration/workspace-migration-runner/utils/field-metadata-type-to-column-type.util';
+import { SEARCH_VECTOR_FIELD } from 'src/engine/metadata-modules/search-field-metadata/constants/search-vector-field.constants';
 import { generateColumnDefinitions } from 'src/engine/workspace-manager/workspace-migration/workspace-migration-runner/utils/generate-column-definitions.util';
 import { getWorkspaceSchemaContextForMigration } from 'src/engine/workspace-manager/workspace-migration/workspace-migration-runner/utils/get-workspace-schema-context-for-migration.util';
 import {
@@ -693,6 +694,26 @@ export class UpdateFieldActionHandlerService extends WorkspaceMigrationRunnerAct
       flatObjectMetadata,
       workspaceId,
     });
+
+    // Changing enum options renames the column aside and drops it. Postgres refuses that
+    // drop (2BP01) when a generated column reads it, which is the case once a field is in
+    // its object's searchVector: the projection names the column directly. So the vector is
+    // dropped first and recreated by the rebuild an options change already schedules.
+    //
+    // Guarded on the field actually being indexed. A rebuild is only scheduled for a field
+    // that has a searchFieldMetadata row, so dropping unconditionally would leave every
+    // other object with an ordinary enum field permanently without its searchVector.
+    const isIndexedInSearchVector =
+      flatFieldMetadata.searchFieldMetadataUniversalIdentifiers.length > 0;
+
+    if (isIndexedInSearchVector) {
+      await this.workspaceSchemaManagerService.columnManager.dropColumns({
+        queryRunner,
+        schemaName,
+        tableName,
+        columnNames: [SEARCH_VECTOR_FIELD.name],
+      });
+    }
 
     for (const enumColumnDefinition of enumColumnDefinitions) {
       await this.workspaceSchemaManagerService.enumManager.alterEnumValues({
