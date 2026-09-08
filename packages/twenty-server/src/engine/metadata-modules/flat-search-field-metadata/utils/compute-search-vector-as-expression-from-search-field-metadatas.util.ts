@@ -1,7 +1,7 @@
 import { type FieldMetadataType } from 'twenty-shared/types';
 import { isSearchableFieldType } from 'twenty-shared/utils';
 
-import { isRegieSearchableFieldType } from 'src/engine/workspace-manager/utils/is-regie-searchable-field-type.util';
+import { isAdditionalSearchableFieldType } from 'src/engine/workspace-manager/utils/is-additional-searchable-field-type.util';
 import {
   type FieldTypeAndNameMetadata,
   getTsVectorColumnExpressionFromFields,
@@ -59,9 +59,9 @@ export const computeSearchVectorAsExpressionFromSearchFieldMetadatas = (
     .flatMap((targetField): FieldTypeAndNameMetadata[] => {
       const { type } = targetField;
 
-      // Twenty's own predicate stays narrow; Regie-marked dropdowns are admitted on top
+      // Twenty's own predicate stays narrow; marked dropdowns are admitted on top
       // of it, otherwise a registered SELECT row would be silently dropped here.
-      if (!isSearchableFieldType(type) && !isRegieSearchableFieldType(type)) {
+      if (!isSearchableFieldType(type) && !isAdditionalSearchableFieldType(type)) {
         return [];
       }
 

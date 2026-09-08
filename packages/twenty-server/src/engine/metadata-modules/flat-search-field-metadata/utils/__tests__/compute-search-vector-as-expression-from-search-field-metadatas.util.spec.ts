@@ -7,7 +7,7 @@ import {
 } from 'src/engine/metadata-modules/flat-search-field-metadata/utils/compute-search-vector-as-expression-from-search-field-metadatas.util';
 
 describe('computeSearchVectorAsExpressionFromSearchFieldMetadatas', () => {
-  it('should keep a Regie select target in the expression', () => {
+  it('should keep an additionally searchable select target in the expression', () => {
     const expression = computeSearchVectorAsExpressionFromSearchFieldMetadatas([
       buildSearchVectorTargetField({
         field: {
@@ -24,7 +24,7 @@ describe('computeSearchVectorAsExpressionFromSearchFieldMetadatas', () => {
     expect(expression).toContain('"acmeTier"');
   });
 
-  it('should keep a Regie multi-select target in the expression', () => {
+  it('should keep an additionally searchable multi-select target in the expression', () => {
     const expression = computeSearchVectorAsExpressionFromSearchFieldMetadatas([
       buildSearchVectorTargetField({
         field: {

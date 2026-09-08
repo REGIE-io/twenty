@@ -6,10 +6,10 @@ import { type MetadataUniversalFlatEntity } from 'src/engine/metadata-modules/fl
 import { MetadataSideEffectExceptionCode } from 'src/engine/metadata-modules/metadata-side-effect/exceptions/metadata-side-effect-exception-code';
 import { buildFieldSideEffectParentNotFoundFailure } from 'src/engine/metadata-modules/metadata-side-effect/handlers/field-metadata/utils/build-field-side-effect-parent-not-found-failure.util';
 import {
-  findRegisteredRegieSearchRows,
-  getRegieSearchState,
-  resolveRegieSearchRow,
-} from 'src/engine/metadata-modules/metadata-side-effect/handlers/field-metadata/utils/regie-custom-search.util';
+  findRegisteredAdditionalSearchRows,
+  getAdditionalSearchState,
+  resolveAdditionalSearchRow,
+} from 'src/engine/metadata-modules/metadata-side-effect/handlers/field-metadata/utils/additional-search.util';
 import {
   type BuildSideEffectsArgs,
   MetadataSideEffectHandler,
@@ -20,13 +20,13 @@ import {
 } from 'src/engine/metadata-modules/metadata-side-effect/types/metadata-side-effect-result.type';
 
 @Injectable()
-export class FieldRegieSearchOnUpdateSideEffectHandlerService extends MetadataSideEffectHandler(
+export class FieldAdditionalSearchOnUpdateSideEffectHandlerService extends MetadataSideEffectHandler(
   {
     operation: 'update',
     metadataName: 'fieldMetadata',
-    name: 'fieldRegieSearchOnUpdate',
+    name: 'fieldAdditionalSearchOnUpdate',
     description:
-      "Keeps a Regie field's searchFieldMetadata registration in step with its marker and its active state, so turning search off, archiving, or restoring a field adds or removes it from the object's searchVector.",
+      "Keeps a marked field's searchFieldMetadata registration in step with its marker and its active state, so turning search off, archiving, or restoring a field adds or removes it from the object's searchVector.",
   },
 ) {
   buildSideEffects({
@@ -34,26 +34,26 @@ export class FieldRegieSearchOnUpdateSideEffectHandlerService extends MetadataSi
     allFlatEntityOperationRecordByMetadataName,
     relatedFlatEntityMaps,
   }: BuildSideEffectsArgs<'fieldMetadata'>): MetadataSideEffectResult {
-    const regieSearchState = getRegieSearchState(flatFieldMetadata);
+    const additionalSearchState = getAdditionalSearchState(flatFieldMetadata);
 
-    if (regieSearchState.status === 'absent') {
+    if (additionalSearchState.status === 'absent') {
       return { status: 'noop' };
     }
 
-    if (regieSearchState.status === 'invalid') {
-      const issues = regieSearchState.issues.join('; ');
+    if (additionalSearchState.status === 'invalid') {
+      const issues = additionalSearchState.issues.join('; ');
 
-      return this.buildRegieSearchFailure({
+      return this.buildAdditionalSearchFailure({
         flatFieldMetadata,
-        message: t`Invalid Regie custom field marker on field "${flatFieldMetadata.name}": ${issues}`,
+        message: t`Invalid additional-search marker on field "${flatFieldMetadata.name}": ${issues}`,
       });
     }
 
     // There is no pre-update entity to diff against, so intent is reconciled against the
     // rows that already exist. That also makes the handler idempotent, which is what lets a
     // retried update settle the same field rather than registering it twice.
-    const shouldBeRegistered = regieSearchState.status === 'enabled';
-    const registeredRows = findRegisteredRegieSearchRows({
+    const shouldBeRegistered = additionalSearchState.status === 'enabled';
+    const registeredRows = findRegisteredAdditionalSearchRows({
       flatFieldMetadata,
       relatedFlatEntityMaps,
     });
@@ -72,8 +72,8 @@ export class FieldRegieSearchOnUpdateSideEffectHandlerService extends MetadataSi
       };
     }
 
-    const resolution = resolveRegieSearchRow({
-      marker: regieSearchState.marker,
+    const resolution = resolveAdditionalSearchRow({
+      marker: additionalSearchState.marker,
       flatFieldMetadata,
       allFlatEntityOperationRecordByMetadataName,
       relatedFlatEntityMaps,
@@ -89,7 +89,7 @@ export class FieldRegieSearchOnUpdateSideEffectHandlerService extends MetadataSi
     if (resolution.outcome === 'fail') {
       const reason = resolution.message;
 
-      return this.buildRegieSearchFailure({
+      return this.buildAdditionalSearchFailure({
         flatFieldMetadata,
         message: t`Cannot register field "${flatFieldMetadata.name}" for search: ${reason}`,
       });
@@ -108,7 +108,7 @@ export class FieldRegieSearchOnUpdateSideEffectHandlerService extends MetadataSi
     };
   }
 
-  private buildRegieSearchFailure({
+  private buildAdditionalSearchFailure({
     flatFieldMetadata,
     message,
   }: {
@@ -125,7 +125,7 @@ export class FieldRegieSearchOnUpdateSideEffectHandlerService extends MetadataSi
       },
       errors: [
         {
-          code: MetadataSideEffectExceptionCode.REGIE_CUSTOM_FIELD_SEARCH_REGISTRATION_FAILED,
+          code: MetadataSideEffectExceptionCode.ADDITIONAL_SEARCH_REGISTRATION_FAILED,
           message,
           userFriendlyMessage: msg`This field could not be registered for search`,
         },

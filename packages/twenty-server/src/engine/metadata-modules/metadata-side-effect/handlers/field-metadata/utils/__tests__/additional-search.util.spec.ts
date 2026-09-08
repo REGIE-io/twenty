@@ -1,40 +1,40 @@
 import {
   FieldMetadataType,
-  type RegieCustomFieldMarker,
+  type AdditionalSearchMarker,
 } from 'twenty-shared/types';
 
 import {
-  getRegieSearchState,
-  getRegieSearchTargetMismatch,
-  isRegieSearchEnabled,
-  type RegieSearchableField,
-} from 'src/engine/metadata-modules/metadata-side-effect/handlers/field-metadata/utils/regie-custom-search.util';
+  getAdditionalSearchState,
+  getAdditionalSearchTargetMismatch,
+  isAdditionalSearchEnabled,
+  type AdditionalSearchableField,
+} from 'src/engine/metadata-modules/metadata-side-effect/handlers/field-metadata/utils/additional-search.util';
 
-const marker: RegieCustomFieldMarker = {
+const marker: AdditionalSearchMarker = {
   version: 1,
   target: 'account',
   searchable: true,
 };
 
 const field = (
-  overrides: Partial<RegieSearchableField> = {},
-): RegieSearchableField => ({
+  overrides: Partial<AdditionalSearchableField> = {},
+): AdditionalSearchableField => ({
   type: FieldMetadataType.SELECT,
   isActive: true,
-  universalSettings: { regieCustomField: marker },
+  universalSettings: { additionalSearch: marker },
   ...overrides,
 });
 
-describe('getRegieSearchState', () => {
+describe('getAdditionalSearchState', () => {
   it('is absent for a field with no marker, since the field is not ours', () => {
-    const result = getRegieSearchState(field({ universalSettings: {} }));
+    const result = getAdditionalSearchState(field({ universalSettings: {} }));
 
     expect(result.status).toBe('absent');
   });
 
   it('is invalid for a malformed marker, and says why', () => {
-    const result = getRegieSearchState(
-      field({ universalSettings: { regieCustomField: { version: 1 } } }),
+    const result = getAdditionalSearchState(
+      field({ universalSettings: { additionalSearch: { version: 1 } } }),
     );
 
     expect(result.status).toBe('invalid');
@@ -45,10 +45,10 @@ describe('getRegieSearchState', () => {
   });
 
   it('is disabled, not absent, when searchable is false, because the field is still ours', () => {
-    const result = getRegieSearchState(
+    const result = getAdditionalSearchState(
       field({
         universalSettings: {
-          regieCustomField: { ...marker, searchable: false },
+          additionalSearch: { ...marker, searchable: false },
         },
       }),
     );
@@ -57,7 +57,7 @@ describe('getRegieSearchState', () => {
   });
 
   it('is unsupported for a type with no projection, which callers treat as a no-op', () => {
-    const result = getRegieSearchState(
+    const result = getAdditionalSearchState(
       field({ type: FieldMetadataType.CURRENCY }),
     );
 
@@ -65,13 +65,13 @@ describe('getRegieSearchState', () => {
   });
 
   it('is inactive for an archived field, even with searchable true', () => {
-    const result = getRegieSearchState(field({ isActive: false }));
+    const result = getAdditionalSearchState(field({ isActive: false }));
 
     expect(result.status).toBe('inactive');
   });
 
   it('is enabled for an active, marked, projectable field', () => {
-    const result = getRegieSearchState(field());
+    const result = getAdditionalSearchState(field());
 
     expect(result.status).toBe('enabled');
   });
@@ -82,7 +82,7 @@ describe('getRegieSearchState', () => {
   // actionable fact (this type can never be searched) than `inactive` (re-activating the
   // field would not be enough on its own).
   it('reports unsupported over inactive when a field is both archived and unsupported', () => {
-    const result = getRegieSearchState(
+    const result = getAdditionalSearchState(
       field({ type: FieldMetadataType.CURRENCY, isActive: false }),
     );
 
@@ -90,17 +90,17 @@ describe('getRegieSearchState', () => {
   });
 });
 
-describe('isRegieSearchEnabled', () => {
-  it('is true only when getRegieSearchState reports enabled', () => {
-    expect(isRegieSearchEnabled(field())).toBe(true);
-    expect(isRegieSearchEnabled(field({ isActive: false }))).toBe(false);
-    expect(isRegieSearchEnabled(field({ universalSettings: {} }))).toBe(false);
+describe('isAdditionalSearchEnabled', () => {
+  it('is true only when getAdditionalSearchState reports enabled', () => {
+    expect(isAdditionalSearchEnabled(field())).toBe(true);
+    expect(isAdditionalSearchEnabled(field({ isActive: false }))).toBe(false);
+    expect(isAdditionalSearchEnabled(field({ universalSettings: {} }))).toBe(false);
   });
 });
 
-describe('getRegieSearchTargetMismatch', () => {
+describe('getAdditionalSearchTargetMismatch', () => {
   it('passes for a correct pairing, since account maps to company', () => {
-    const result = getRegieSearchTargetMismatch({
+    const result = getAdditionalSearchTargetMismatch({
       marker,
       objectNameSingular: 'company',
     });
@@ -109,7 +109,7 @@ describe('getRegieSearchTargetMismatch', () => {
   });
 
   it('reports a person marker on the company object with both names', () => {
-    const result = getRegieSearchTargetMismatch({
+    const result = getAdditionalSearchTargetMismatch({
       marker: { ...marker, target: 'person' },
       objectNameSingular: 'company',
     });

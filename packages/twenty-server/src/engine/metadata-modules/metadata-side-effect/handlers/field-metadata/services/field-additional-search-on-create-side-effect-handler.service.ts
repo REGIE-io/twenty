@@ -6,9 +6,9 @@ import { type MetadataUniversalFlatEntity } from 'src/engine/metadata-modules/fl
 import { MetadataSideEffectExceptionCode } from 'src/engine/metadata-modules/metadata-side-effect/exceptions/metadata-side-effect-exception-code';
 import { buildFieldSideEffectParentNotFoundFailure } from 'src/engine/metadata-modules/metadata-side-effect/handlers/field-metadata/utils/build-field-side-effect-parent-not-found-failure.util';
 import {
-  getRegieSearchState,
-  resolveRegieSearchRow,
-} from 'src/engine/metadata-modules/metadata-side-effect/handlers/field-metadata/utils/regie-custom-search.util';
+  getAdditionalSearchState,
+  resolveAdditionalSearchRow,
+} from 'src/engine/metadata-modules/metadata-side-effect/handlers/field-metadata/utils/additional-search.util';
 import {
   type BuildSideEffectsArgs,
   MetadataSideEffectHandler,
@@ -19,13 +19,13 @@ import {
 } from 'src/engine/metadata-modules/metadata-side-effect/types/metadata-side-effect-result.type';
 
 @Injectable()
-export class FieldRegieSearchOnCreateSideEffectHandlerService extends MetadataSideEffectHandler(
+export class FieldAdditionalSearchOnCreateSideEffectHandlerService extends MetadataSideEffectHandler(
   {
     operation: 'create',
     metadataName: 'fieldMetadata',
-    name: 'fieldRegieSearchOnCreate',
+    name: 'fieldAdditionalSearchOnCreate',
     description:
-      "When a field created by Regie asks for search through its settings marker, register the searchFieldMetadata row that projects it into the object's searchVector. Custom fields never get such a row on their own, so without this side effect their values stay invisible to per-object full-text search.",
+      "When a field asks for search through its settings marker, register the searchFieldMetadata row that projects it into the object's searchVector. Custom fields never get such a row on their own, so without this side effect their values stay invisible to per-object full-text search.",
   },
 ) {
   buildSideEffects({
@@ -33,34 +33,34 @@ export class FieldRegieSearchOnCreateSideEffectHandlerService extends MetadataSi
     allFlatEntityOperationRecordByMetadataName,
     relatedFlatEntityMaps,
   }: BuildSideEffectsArgs<'fieldMetadata'>): MetadataSideEffectResult {
-    const regieSearchState = getRegieSearchState(flatFieldMetadata);
+    const additionalSearchState = getAdditionalSearchState(flatFieldMetadata);
 
-    switch (regieSearchState.status) {
-      // Not a Regie field at all, or a Regie field whose registration is off: nothing to do.
+    switch (additionalSearchState.status) {
+      // Not a marked field at all, or a marked field whose registration is off: nothing to do.
       case 'absent':
       case 'disabled':
       case 'inactive':
         return { status: 'noop' };
       // Deliberately a no-op and not a failure: the list of projectable types lives in
-      // Twenty alone, so Go can send `searchable: true` unconditionally without
+      // Twenty alone, so the owning service can send `searchable: true` unconditionally without
       // duplicating that list, and asking for search on a type Twenty cannot project
       // must never fail field creation.
       case 'unsupported':
         return { status: 'noop' };
       case 'invalid': {
-        const issues = regieSearchState.issues.join('; ');
+        const issues = additionalSearchState.issues.join('; ');
 
-        return this.buildRegieSearchFailure({
+        return this.buildAdditionalSearchFailure({
           flatFieldMetadata,
-          message: t`Invalid Regie custom field marker on field "${flatFieldMetadata.name}": ${issues}`,
+          message: t`Invalid additional-search marker on field "${flatFieldMetadata.name}": ${issues}`,
         });
       }
       case 'enabled':
         break;
     }
 
-    const resolution = resolveRegieSearchRow({
-      marker: regieSearchState.marker,
+    const resolution = resolveAdditionalSearchRow({
+      marker: additionalSearchState.marker,
       flatFieldMetadata,
       allFlatEntityOperationRecordByMetadataName,
       relatedFlatEntityMaps,
@@ -76,7 +76,7 @@ export class FieldRegieSearchOnCreateSideEffectHandlerService extends MetadataSi
     if (resolution.outcome === 'fail') {
       const reason = resolution.message;
 
-      return this.buildRegieSearchFailure({
+      return this.buildAdditionalSearchFailure({
         flatFieldMetadata,
         message: t`Cannot register field "${flatFieldMetadata.name}" for search: ${reason}`,
       });
@@ -95,7 +95,7 @@ export class FieldRegieSearchOnCreateSideEffectHandlerService extends MetadataSi
     };
   }
 
-  private buildRegieSearchFailure({
+  private buildAdditionalSearchFailure({
     flatFieldMetadata,
     message,
   }: {
@@ -112,7 +112,7 @@ export class FieldRegieSearchOnCreateSideEffectHandlerService extends MetadataSi
       },
       errors: [
         {
-          code: MetadataSideEffectExceptionCode.REGIE_CUSTOM_FIELD_SEARCH_REGISTRATION_FAILED,
+          code: MetadataSideEffectExceptionCode.ADDITIONAL_SEARCH_REGISTRATION_FAILED,
           message,
           userFriendlyMessage: msg`This field could not be registered for search`,
         },

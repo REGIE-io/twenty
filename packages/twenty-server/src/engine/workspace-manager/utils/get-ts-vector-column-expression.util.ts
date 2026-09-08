@@ -10,7 +10,7 @@ import {
 } from 'src/engine/metadata-modules/field-metadata/utils/compute-column-name.util';
 import { isCompositeFieldMetadataType } from 'src/engine/metadata-modules/field-metadata/utils/is-composite-field-metadata-type.util';
 import { isSearchableSubfield } from 'src/engine/workspace-manager/utils/is-searchable-subfield.util';
-import { type RegieSearchableFieldType } from 'src/engine/workspace-manager/utils/is-regie-searchable-field-type.util';
+import { type AdditionalSearchableFieldType } from 'src/engine/workspace-manager/utils/is-additional-searchable-field-type.util';
 import {
   escapeIdentifier,
   escapeLiteral,
@@ -26,7 +26,7 @@ export type SearchableFieldOption = {
 
 export type FieldTypeAndNameMetadata = {
   name: string;
-  type: SearchableFieldType | RegieSearchableFieldType;
+  type: SearchableFieldType | AdditionalSearchableFieldType;
   options?: SearchableFieldOption[];
 };
 

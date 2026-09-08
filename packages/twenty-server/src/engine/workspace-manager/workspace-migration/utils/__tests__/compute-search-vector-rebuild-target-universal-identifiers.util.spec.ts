@@ -2,7 +2,7 @@ import { computeSearchVectorRebuildTargetUniversalIdentifiers } from 'src/engine
 
 const VECTOR_UNIVERSAL_IDENTIFIER = 'search-vector-universal-identifier';
 const SEARCH_ROW_UNIVERSAL_IDENTIFIER = 'search-row-universal-identifier';
-const FIELD_UNIVERSAL_IDENTIFIER = 'regie-field-universal-identifier';
+const FIELD_UNIVERSAL_IDENTIFIER = 'marked-field-universal-identifier';
 
 const buildArgs = (fieldUpdate: Record<string, unknown>) =>
   ({
@@ -52,7 +52,7 @@ describe('computeSearchVectorRebuildTargetUniversalIdentifiers', () => {
     expect([...targets]).toEqual([VECTOR_UNIVERSAL_IDENTIFIER]);
   });
 
-  // Regie's dropdown projections write option values AND labels into the generated
+  // the dropdown projections write option values AND labels into the generated
   // expression, so relabelling "Gold" leaves stale text in the index until it is rebuilt.
   // Standard Twenty fields never put options in the expression, which is why this trigger
   // did not exist before.

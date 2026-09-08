@@ -132,7 +132,7 @@ type SettingsAssertions = [
       }
     >
   >,
-  // SELECT and MULTI_SELECT settings exist only to carry the namespaced Regie custom-field
+  // SELECT and MULTI_SELECT settings exist only to carry the namespaced additional-search
   // marker, so they moved out of NotDefinedSettings. Asserted through the mapping rather
   // than spelled out, so this tracks the mapping instead of restating it.
   Expect<

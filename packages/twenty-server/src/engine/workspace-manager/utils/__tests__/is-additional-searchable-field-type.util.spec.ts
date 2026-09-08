@@ -1,7 +1,7 @@
 import { FieldMetadataType } from 'twenty-shared/types';
 import { isSearchableFieldType } from 'twenty-shared/utils';
 
-import { isRegieSearchableFieldType } from '../is-regie-searchable-field-type.util';
+import { isAdditionalSearchableFieldType } from '../is-additional-searchable-field-type.util';
 
 const ADMITTED = [
   FieldMetadataType.TEXT,
@@ -21,11 +21,11 @@ const REFUSED = [
 ];
 
 test.each(ADMITTED)('%s is projectable', (type) => {
-  expect(isRegieSearchableFieldType(type)).toBe(true);
+  expect(isAdditionalSearchableFieldType(type)).toBe(true);
 });
 
 test.each(REFUSED)('%s is not projectable', (type) => {
-  expect(isRegieSearchableFieldType(type)).toBe(false);
+  expect(isAdditionalSearchableFieldType(type)).toBe(false);
 });
 
 // The whole point of a separate predicate: stock objects must behave as before.

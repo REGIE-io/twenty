@@ -5,7 +5,7 @@ import { type IsExactly } from '@/types/IsExactly';
 import { type RelationOnDeleteAction } from '@/types/RelationOnDeleteAction.type';
 import { type RelationType } from '@/types/RelationType';
 import { type SerializedRelation } from '@/types/SerializedRelation.type';
-import { type RegieCustomFieldSettings } from './RegieCustomFieldMarker';
+import { type AdditionalSearchSettings } from './AdditionalSearchMarker';
 
 export enum NumberDataType {
   FLOAT = 'float',
@@ -69,25 +69,25 @@ export type FieldMetadataSettingsMapping = {
   [FieldMetadataType.DATE]: FieldMetadataDateSettings | null;
   [FieldMetadataType.DATE_TIME]: FieldMetadataDateTimeSettings | null;
   [FieldMetadataType.TEXT]:
-    | (FieldMetadataTextSettings & RegieCustomFieldSettings)
+    | (FieldMetadataTextSettings & AdditionalSearchSettings)
     | null;
   [FieldMetadataType.RELATION]: FieldMetadataRelationSettings;
   [FieldMetadataType.ADDRESS]: FieldMetadataAddressSettings | null;
   [FieldMetadataType.MORPH_RELATION]: FieldMetadataRelationSettings;
   [FieldMetadataType.TS_VECTOR]: null;
   [FieldMetadataType.PHONES]:
-    | (FieldMetadataMultiItemSettings & RegieCustomFieldSettings)
+    | (FieldMetadataMultiItemSettings & AdditionalSearchSettings)
     | null;
   [FieldMetadataType.EMAILS]:
-    | (FieldMetadataMultiItemSettings & RegieCustomFieldSettings)
+    | (FieldMetadataMultiItemSettings & AdditionalSearchSettings)
     | null;
   [FieldMetadataType.LINKS]:
-    | (FieldMetadataMultiItemSettings & RegieCustomFieldSettings)
+    | (FieldMetadataMultiItemSettings & AdditionalSearchSettings)
     | null;
-  // Select settings are otherwise empty, but the namespaced Regie marker has to survive
+  // Select settings are otherwise empty, but the namespaced additional-search marker has to survive
   // metadata create/update serialization, so these two need a slot to live in.
-  [FieldMetadataType.SELECT]: RegieCustomFieldSettings | null;
-  [FieldMetadataType.MULTI_SELECT]: RegieCustomFieldSettings | null;
+  [FieldMetadataType.SELECT]: AdditionalSearchSettings | null;
+  [FieldMetadataType.MULTI_SELECT]: AdditionalSearchSettings | null;
   [FieldMetadataType.ARRAY]: FieldMetadataMultiItemSettings | null;
   [FieldMetadataType.FILES]: FieldMetadataFilesSettings;
 };

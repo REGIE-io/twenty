@@ -1,6 +1,6 @@
 import {
   FieldMetadataType,
-  type RegieCustomFieldMarker,
+  type AdditionalSearchMarker,
 } from 'twenty-shared/types';
 
 import { type FlatEntityMaps } from 'src/engine/metadata-modules/flat-entity/types/flat-entity-maps.type';
@@ -8,7 +8,7 @@ import { type MetadataUniversalFlatEntity } from 'src/engine/metadata-modules/fl
 import { getFlatFieldMetadataMock } from 'src/engine/metadata-modules/flat-field-metadata/__mocks__/get-flat-field-metadata.mock';
 import { type FlatFieldMetadata } from 'src/engine/metadata-modules/flat-field-metadata/types/flat-field-metadata.type';
 import { getFlatObjectMetadataMock } from 'src/engine/metadata-modules/flat-object-metadata/__mocks__/get-flat-object-metadata.mock';
-import { FieldRegieSearchOnUpdateSideEffectHandlerService } from 'src/engine/metadata-modules/metadata-side-effect/handlers/field-metadata/services/field-regie-search-on-update-side-effect-handler.service';
+import { FieldAdditionalSearchOnUpdateSideEffectHandlerService } from 'src/engine/metadata-modules/metadata-side-effect/handlers/field-metadata/services/field-additional-search-on-update-side-effect-handler.service';
 import { type BuildSideEffectsArgs } from 'src/engine/metadata-modules/metadata-side-effect/interfaces/base-metadata-side-effect-handler.service';
 import { SEARCH_VECTOR_FIELD } from 'src/engine/metadata-modules/search-field-metadata/constants/search-vector-field.constants';
 
@@ -17,10 +17,10 @@ const APPLICATION_UNIVERSAL_IDENTIFIER = '11111111-1111-4111-8111-111111111111';
 const COMPANY_OBJECT_UNIVERSAL_IDENTIFIER =
   'company-object-universal-identifier';
 const SEARCH_VECTOR_UNIVERSAL_IDENTIFIER = 'search-vector-universal-identifier';
-const REGIE_FIELD_UNIVERSAL_IDENTIFIER = 'regie-field-universal-identifier';
+const MARKED_FIELD_UNIVERSAL_IDENTIFIER = 'marked-field-universal-identifier';
 const EXISTING_ROW_UNIVERSAL_IDENTIFIER = 'existing-search-row';
 
-const marker: RegieCustomFieldMarker = {
+const marker: AdditionalSearchMarker = {
   version: 1,
   target: 'account',
   searchable: true,
@@ -64,13 +64,13 @@ const buildArgs = ({
   });
 
   const flatFieldMetadata = getFlatFieldMetadataMock({
-    universalIdentifier: REGIE_FIELD_UNIVERSAL_IDENTIFIER,
+    universalIdentifier: MARKED_FIELD_UNIVERSAL_IDENTIFIER,
     objectMetadataId: 'company-object-id',
     applicationUniversalIdentifier: APPLICATION_UNIVERSAL_IDENTIFIER,
     objectMetadataUniversalIdentifier: COMPANY_OBJECT_UNIVERSAL_IDENTIFIER,
-    name: 'regieIntent',
+    name: 'searchIntent',
     type: FieldMetadataType.SELECT,
-    universalSettings: { regieCustomField: marker },
+    universalSettings: { additionalSearch: marker },
     searchFieldMetadataUniversalIdentifiers: isRegistered
       ? [EXISTING_ROW_UNIVERSAL_IDENTIFIER]
       : [],
@@ -96,7 +96,7 @@ const buildArgs = ({
         byUniversalIdentifier: {
           [EXISTING_ROW_UNIVERSAL_IDENTIFIER]: {
             universalIdentifier: EXISTING_ROW_UNIVERSAL_IDENTIFIER,
-            fieldMetadataUniversalIdentifier: REGIE_FIELD_UNIVERSAL_IDENTIFIER,
+            fieldMetadataUniversalIdentifier: MARKED_FIELD_UNIVERSAL_IDENTIFIER,
           } as MetadataUniversalFlatEntity<'searchFieldMetadata'>,
         },
         universalIdentifierById: {},
@@ -112,8 +112,8 @@ const buildArgs = ({
   } as unknown as BuildSideEffectsArgs<'fieldMetadata'>;
 };
 
-describe('FieldRegieSearchOnUpdateSideEffectHandlerService', () => {
-  const service = new FieldRegieSearchOnUpdateSideEffectHandlerService();
+describe('FieldAdditionalSearchOnUpdateSideEffectHandlerService', () => {
+  const service = new FieldAdditionalSearchOnUpdateSideEffectHandlerService();
 
   const createdRows = (result: ReturnType<typeof service.buildSideEffects>) =>
     result.status === 'success'
@@ -143,7 +143,7 @@ describe('FieldRegieSearchOnUpdateSideEffectHandlerService', () => {
         isRegistered: true,
         fieldOverrides: {
           universalSettings: {
-            regieCustomField: { ...marker, searchable: false },
+            additionalSearch: { ...marker, searchable: false },
           },
           searchFieldMetadataUniversalIdentifiers: [
             EXISTING_ROW_UNIVERSAL_IDENTIFIER,
@@ -193,7 +193,7 @@ describe('FieldRegieSearchOnUpdateSideEffectHandlerService', () => {
         isRegistered: false,
         fieldOverrides: {
           universalSettings: {
-            regieCustomField: { ...marker, searchable: false },
+            additionalSearch: { ...marker, searchable: false },
           },
         },
       }),
@@ -202,7 +202,7 @@ describe('FieldRegieSearchOnUpdateSideEffectHandlerService', () => {
     expect(result).toEqual({ status: 'noop' });
   });
 
-  it('does nothing for a field that carries no Regie marker', () => {
+  it('does nothing for a field that carries no marker', () => {
     const result = service.buildSideEffects(
       buildArgs({ fieldOverrides: { universalSettings: {} } }),
     );
@@ -226,7 +226,7 @@ describe('FieldRegieSearchOnUpdateSideEffectHandlerService', () => {
         fieldOverrides: {
           // Deliberately malformed, so by definition it does not satisfy the contract type.
           universalSettings: {
-            regieCustomField: { version: 1 },
+            additionalSearch: { version: 1 },
           } as unknown as MetadataUniversalFlatEntity<'fieldMetadata'>['universalSettings'],
         },
       }),
@@ -240,7 +240,7 @@ describe('FieldRegieSearchOnUpdateSideEffectHandlerService', () => {
       buildArgs({
         fieldOverrides: {
           universalSettings: {
-            regieCustomField: { ...marker, target: 'person' },
+            additionalSearch: { ...marker, target: 'person' },
           },
         },
       }),

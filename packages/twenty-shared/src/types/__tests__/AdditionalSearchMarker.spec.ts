@@ -1,17 +1,17 @@
-import { parseRegieCustomFieldMarker } from '@/types/RegieCustomFieldMarker';
+import { parseAdditionalSearchMarker } from '@/types/AdditionalSearchMarker';
 
 const valid = { version: 1, target: 'account', searchable: true } as const;
 
-describe('parseRegieCustomFieldMarker', () => {
+describe('parseAdditionalSearchMarker', () => {
   it('reports absent when settings carry no marker', () => {
-    expect(parseRegieCustomFieldMarker(null).status).toBe('absent');
-    expect(parseRegieCustomFieldMarker(undefined).status).toBe('absent');
-    expect(parseRegieCustomFieldMarker({}).status).toBe('absent');
-    expect(parseRegieCustomFieldMarker({ other: 1 }).status).toBe('absent');
+    expect(parseAdditionalSearchMarker(null).status).toBe('absent');
+    expect(parseAdditionalSearchMarker(undefined).status).toBe('absent');
+    expect(parseAdditionalSearchMarker({}).status).toBe('absent');
+    expect(parseAdditionalSearchMarker({ other: 1 }).status).toBe('absent');
   });
 
   it('parses a valid marker', () => {
-    expect(parseRegieCustomFieldMarker({ regieCustomField: valid })).toEqual({
+    expect(parseAdditionalSearchMarker({ additionalSearch: valid })).toEqual({
       status: 'valid',
       marker: valid,
     });
@@ -21,24 +21,24 @@ describe('parseRegieCustomFieldMarker', () => {
   // rather than be silently dropped.
   it('treats an unknown key as invalid rather than ignoring it', () => {
     expect(
-      parseRegieCustomFieldMarker({
-        regieCustomField: { ...valid, format: 'plain' },
+      parseAdditionalSearchMarker({
+        additionalSearch: { ...valid, format: 'plain' },
       }).status,
     ).toBe('invalid');
   });
 
-  // This is what forces Twenty to accept a version before Go emits it.
+  // This is what forces Twenty to accept a version before the owning service emits it.
   it('treats an unknown version as invalid', () => {
     expect(
-      parseRegieCustomFieldMarker({
-        regieCustomField: { ...valid, version: 2 },
+      parseAdditionalSearchMarker({
+        additionalSearch: { ...valid, version: 2 },
       }).status,
     ).toBe('invalid');
   });
 
   it('names the offending path so the failure is actionable', () => {
-    const result = parseRegieCustomFieldMarker({
-      regieCustomField: { version: 1, target: 'nope', searchable: true },
+    const result = parseAdditionalSearchMarker({
+      additionalSearch: { version: 1, target: 'nope', searchable: true },
     });
 
     expect(result.status).toBe('invalid');
@@ -55,16 +55,16 @@ describe('parseRegieCustomFieldMarker', () => {
       'calendar_event',
     ] as const) {
       expect(
-        parseRegieCustomFieldMarker({
-          regieCustomField: { ...valid, target },
+        parseAdditionalSearchMarker({
+          additionalSearch: { ...valid, target },
         }).status,
       ).toBe('valid');
     }
   });
 
   it('keeps a disabled marker valid, because the field is still ours', () => {
-    const result = parseRegieCustomFieldMarker({
-      regieCustomField: { ...valid, searchable: false },
+    const result = parseAdditionalSearchMarker({
+      additionalSearch: { ...valid, searchable: false },
     });
 
     expect(result).toEqual({

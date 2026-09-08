@@ -22,7 +22,7 @@ export const computeSearchVectorRebuildTargetUniversalIdentifiers = ({
     { byUniversalIdentifier: {} };
 
   // A rename changes the column name the expression reads. An options change matters for
-  // the same reason but only for Regie's dropdown projections, which write option values
+  // the same reason but only for the dropdown projections, which write option values
   // and labels into the expression itself: relabelling "Gold" would otherwise leave the old
   // label in the index with nothing reporting a problem. Standard fields never put options
   // in the expression, so this trigger costs them nothing.

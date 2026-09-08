@@ -222,7 +222,7 @@ describe('getTsVectorColumnExpressionFromFields', () => {
   });
 });
 
-describe('getTsVectorColumnExpressionFromFields with Regie dropdown fields', () => {
+describe('getTsVectorColumnExpressionFromFields with additionally searchable dropdown fields', () => {
   const tierSelectField = {
     name: 'acmeTier',
     type: FieldMetadataType.SELECT,

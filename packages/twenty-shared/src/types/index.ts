@@ -7,6 +7,16 @@
  *                              |___/
  */
 
+export type {
+  AdditionalSearchMarker,
+  AdditionalSearchSettings,
+  AdditionalSearchMarkerParseResult,
+} from './AdditionalSearchMarker';
+export {
+  additionalSearchMarkerSchema,
+  ADDITIONAL_SEARCH_MARKER_KEY,
+  parseAdditionalSearchMarker,
+} from './AdditionalSearchMarker';
 export type { AllowedAddressSubField } from './AddressFieldsType';
 export { ALLOWED_ADDRESS_SUBFIELDS } from './AddressFieldsType';
 export { AggregateOperations } from './AggregateOperations';
@@ -282,16 +292,6 @@ export type { RecordGqlOperationGqlRecordFields } from './RecordGqlOperationGqlR
 export type { RecordGqlOperationOrderBy } from './RecordGqlOperationOrderBy';
 export type { RecordGqlOperationSignature } from './RecordGqlOperationSignature';
 export type { RecordGqlOperationVariables } from './RecordGqlOperationVariables';
-export type {
-  RegieCustomFieldMarker,
-  RegieCustomFieldSettings,
-  RegieCustomFieldMarkerParseResult,
-} from './RegieCustomFieldMarker';
-export {
-  regieCustomFieldMarkerSchema,
-  REGIE_CUSTOM_FIELD_MARKER_KEY,
-  parseRegieCustomFieldMarker,
-} from './RegieCustomFieldMarker';
 export type { RelationAndMorphRelationFieldMetadataType } from './RelationAndMorphRelationFieldMetadataType';
 export type { RelationCreationPayload } from './RelationCreationPayload';
 export { RelationOnDeleteAction } from './RelationOnDeleteAction.type';

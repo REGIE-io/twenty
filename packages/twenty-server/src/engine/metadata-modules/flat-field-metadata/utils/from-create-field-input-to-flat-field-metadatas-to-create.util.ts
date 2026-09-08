@@ -148,7 +148,7 @@ export const fromCreateFieldInputToFlatFieldMetadatasToCreate = async ({
               options,
               defaultValue: commonFlatFieldMetadata.defaultValue as string, // Could this be improved ?
               // Dropdown settings used to be null-only, so this branch discarded whatever
-              // was sent. They now carry the namespaced Regie marker, which is what makes a
+              // was sent. They now carry the namespaced additional-search marker, which is what makes a
               // custom field eligible for its object's search vector, so the caller's
               // settings have to survive rather than being overwritten here.
               universalSettings: isUniversalFieldMetadataSettingsOftype(

@@ -9,14 +9,14 @@ import { findManyObjectMetadata } from 'test/integration/metadata/suites/object-
 import { jestExpectToBeDefined } from 'test/utils/jest-expect-to-be-defined.util.test';
 import {
   FieldMetadataType,
-  type RegieCustomFieldSettings,
+  type AdditionalSearchSettings,
 } from 'twenty-shared/types';
 
 // The only test that executes the generated SQL. Everything else in this feature asserts
 // on expression *strings*; Postgres is the only thing that can say whether a generated
 // column is legal, whether a record is findable by a dropdown label it never stores, and
 // whether relabelling an option actually refreshes the index.
-describe('Regie custom field search', () => {
+describe('Additional searchable field', () => {
   let testObjectMetadataId: string;
   let tierFieldMetadataId: string;
   const createdFieldMetadataIds: string[] = [];
@@ -24,12 +24,12 @@ describe('Regie custom field search', () => {
 
   // The marker's target enum only covers person, account, task and calendar_event, and the
   // handler cross-checks it against the object's real name. A custom object can therefore
-  // never carry a Regie searchable field, so this runs against the standard company object,
+  // never carry an additionally searchable field, so this runs against the standard company object,
   // which `target: 'account'` maps to.
   const OBJECT_NAME_SINGULAR = 'company';
   const OBJECT_NAME_PLURAL = 'companies';
-  const TIER_FIELD_NAME = 'regieTier';
-  const RECORD_NAME_VALUE = 'RegieSearchNameToken11';
+  const TIER_FIELD_NAME = 'additionalTier';
+  const RECORD_NAME_VALUE = 'AdditionalSearchNameToken11';
 
   // A label a user would plausibly type, carrying two characters that isSafeTsVectorExpression
   // rejects anywhere in the expression, quoted or not.
@@ -43,8 +43,8 @@ describe('Regie custom field search', () => {
 
   // Typed rather than inline: an object literal would widen `version` to number and
   // `target` to string, which the settings slot rightly refuses.
-  const searchableMarker: RegieCustomFieldSettings = {
-    regieCustomField: { version: 1, target: 'account', searchable: true },
+  const searchableMarker: AdditionalSearchSettings = {
+    additionalSearch: { version: 1, target: 'account', searchable: true },
   };
 
   const searchFor = async (searchInput: string) => {
@@ -102,7 +102,7 @@ describe('Regie custom field search', () => {
       expectToFail: false,
       input: {
         name: TIER_FIELD_NAME,
-        label: 'Regie Tier',
+        label: 'Additional Tier',
         type: FieldMetadataType.SELECT,
         objectMetadataId: testObjectMetadataId,
         isLabelSyncedWithName: false,
@@ -156,7 +156,7 @@ describe('Regie custom field search', () => {
       objectMetadataPluralName: OBJECT_NAME_PLURAL,
       gqlFields: `id name ${TIER_FIELD_NAME}`,
       data: [
-        { name: 'RegieSearchSilverToken22', [TIER_FIELD_NAME]: SILVER_VALUE },
+        { name: 'AdditionalSearchSilverToken22', [TIER_FIELD_NAME]: SILVER_VALUE },
       ],
       expectToFail: false,
     });
@@ -232,7 +232,7 @@ describe('Regie custom field search', () => {
   // The marker is what admits a field to the search surface, so an unmarked dropdown must
   // behave exactly as it did before this feature existed.
   it('leaves an unmarked dropdown out of the search surface', async () => {
-    const UNMARKED_FIELD_NAME = 'regieUnmarkedTier';
+    const UNMARKED_FIELD_NAME = 'additionalUnmarkedTier';
 
     const {
       data: {
@@ -242,7 +242,7 @@ describe('Regie custom field search', () => {
       expectToFail: false,
       input: {
         name: UNMARKED_FIELD_NAME,
-        label: 'Regie Unmarked Tier',
+        label: 'Unmarked Tier',
         type: FieldMetadataType.SELECT,
         objectMetadataId: testObjectMetadataId,
         isLabelSyncedWithName: false,
@@ -265,7 +265,7 @@ describe('Regie custom field search', () => {
       objectMetadataPluralName: OBJECT_NAME_PLURAL,
       gqlFields: `id name ${UNMARKED_FIELD_NAME}`,
       data: [
-        { name: 'RegieSearchUnmarkedToken33', [UNMARKED_FIELD_NAME]: 'BRONZE' },
+        { name: 'AdditionalSearchUnmarkedToken33', [UNMARKED_FIELD_NAME]: 'BRONZE' },
       ],
       expectToFail: false,
     });
@@ -284,8 +284,8 @@ describe('Regie custom field search', () => {
   // options of ANY ordinary enum field would drop its object's searchVector and never put
   // it back, silently breaking search for the whole object.
   it('keeps the object searchable after an unmarked dropdown changes its options', async () => {
-    const OPTIONS_ONLY_FIELD_NAME = 'regieOptionsOnlyTier';
-    const RECORD_NAME = 'RegieSearchGuardToken44';
+    const OPTIONS_ONLY_FIELD_NAME = 'additionalOptionsOnlyTier';
+    const RECORD_NAME = 'AdditionalSearchGuardToken44';
 
     const {
       data: {
@@ -295,7 +295,7 @@ describe('Regie custom field search', () => {
       expectToFail: false,
       input: {
         name: OPTIONS_ONLY_FIELD_NAME,
-        label: 'Regie Options Only Tier',
+        label: 'Options Only Tier',
         type: FieldMetadataType.SELECT,
         objectMetadataId: testObjectMetadataId,
         isLabelSyncedWithName: false,
