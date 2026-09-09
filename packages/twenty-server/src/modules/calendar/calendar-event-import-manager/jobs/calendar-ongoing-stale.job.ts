@@ -41,6 +41,7 @@ export class CalendarOngoingStaleJob {
       async () => {
         const calendarChannels = await this.calendarChannelRepository.find({
           where: {
+            isSyncEnabled: true,
             syncStage: In(CALENDAR_ONGOING_STALE_SYNC_STAGES),
             workspaceId,
           },
