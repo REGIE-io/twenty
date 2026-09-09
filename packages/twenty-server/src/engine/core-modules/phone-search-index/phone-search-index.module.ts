@@ -8,6 +8,7 @@ import { PhoneSearchFieldLifecycleService } from 'src/engine/core-modules/phone-
 import { PhoneSearchFieldLifecycleCoordinatorService } from 'src/engine/core-modules/phone-search-index/services/phone-search-field-lifecycle-coordinator.service';
 import { PhoneSearchWorkspaceCleanupService } from 'src/engine/core-modules/phone-search-index/services/phone-search-workspace-cleanup.service';
 import { PhoneSearchIndexReconcilerCronCommand } from 'src/engine/core-modules/phone-search-index/commands/phone-search-index-reconciler.cron.command';
+import { PhoneSearchIndexStatusCommand } from 'src/engine/core-modules/phone-search-index/commands/phone-search-index-status.command';
 
 @Module({
   providers: [
@@ -15,6 +16,7 @@ import { PhoneSearchIndexReconcilerCronCommand } from 'src/engine/core-modules/p
     PhoneSearchIndexBackfillService,
     PhoneSearchIndexReconcilerService,
     PhoneSearchIndexReconcilerCronCommand,
+    PhoneSearchIndexStatusCommand,
     PhoneSearchMetadataGateService,
     PhoneSearchFieldLifecycleService,
     PhoneSearchFieldLifecycleCoordinatorService,
