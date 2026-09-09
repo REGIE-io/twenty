@@ -52,6 +52,7 @@ export class FlushCacheCommand extends CommandRunner {
       this.logger.log('Cache flushed');
     } catch (error) {
       this.logger.error(error.message);
+      throw error;
     }
   }
 
