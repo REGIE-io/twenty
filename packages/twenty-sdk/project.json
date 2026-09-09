@@ -9,7 +9,7 @@
       "executor": "nx:run-commands",
       "cache": true,
       "inputs": ["production", "^production"],
-      "dependsOn": ["build", "^build"],
+      "dependsOn": ["^build"],
       "outputs": ["{projectRoot}/dist"],
       "options": {
         "cwd": "{projectRoot}",
@@ -89,7 +89,7 @@
     "build:sdk": {
       "executor": "nx:run-commands",
       "cache": true,
-      "dependsOn": ["^build"],
+      "dependsOn": ["build", "^build"],
       "inputs": ["{projectRoot}/src/sdk/**/*", "^production"],
       "outputs": [
         "{projectRoot}/dist/billing",
