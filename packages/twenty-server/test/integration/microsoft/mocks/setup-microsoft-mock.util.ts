@@ -186,7 +186,7 @@ export const setupMicrosoftMock = ({
       ),
     failCalendarDelta: (failure) =>
       httpMock.use(
-        http.get('*/me/calendar/events/delta', () =>
+        http.get('*/me/calendarView/delta', () =>
           microsoftGraphErrorResponse(failure),
         ),
       ),
