@@ -6,8 +6,7 @@ import {
   MessageParticipantRole,
 } from 'twenty-shared/types';
 import { isDefined } from 'twenty-shared/utils';
-
-import { MessageDirection } from 'src/modules/messaging/common/enums/message-direction.enum';
+import { isNonEmptyString } from '@sniptt/guards';
 
 import { type MessageChannelEntity } from 'src/engine/metadata-modules/message-channel/entities/message-channel.entity';
 import { InjectMessageQueue } from 'src/engine/core-modules/message-queue/decorators/message-queue.decorator';
@@ -27,8 +26,8 @@ import {
 import { MessagingMessageFolderAssociationService } from 'src/modules/messaging/message-import-manager/services/messaging-message-folder-association.service';
 import { MessagingMessageService } from 'src/modules/messaging/message-import-manager/services/messaging-message.service';
 import {
-  type IncomingMessageForWebhook,
   MessagingReplyWebhookDispatchService,
+  type SyncedMessageForWebhook,
 } from 'src/modules/messaging/message-import-manager/services/messaging-reply-webhook-dispatch.service';
 import { type MessageChannelMessageAssociationFolderAssociation } from 'src/modules/messaging/message-import-manager/types/message-channel-message-association-folder-association.type';
 import { type MessageWithParticipants } from 'src/modules/messaging/message-import-manager/types/message';
@@ -203,20 +202,17 @@ export class MessagingSaveMessagesAndEnqueueContactCreationService {
     if (savedMessagesResult) {
       // Emitted after the transaction commits so the message, its participants and its
       // channel association all exist when a receiver calls back for the full record.
-      // Only newly created, incoming, non-draft messages: re-syncs re-see the same
-      // externalIds but createdMessages holds only this run's inserts, so a reply is
-      // announced exactly once.
+      // Only newly created, non-draft messages: re-syncs re-see the same externalIds but
+      // createdMessages holds only this run's inserts, so a message is announced exactly
+      // once. Both directions go out, under a different event name each.
       const createdMessageIds = new Set(
         savedMessagesResult.createdMessages
           .map((message) => message.id)
           .filter(isDefined),
       );
 
-      const incomingMessages: IncomingMessageForWebhook[] = messagesToSave
-        .filter(
-          (message) =>
-            message.direction === MessageDirection.INCOMING && !message.isDraft,
-        )
+      const syncedMessages: SyncedMessageForWebhook[] = messagesToSave
+        .filter((message) => !message.isDraft)
         .flatMap((message) => {
           const messageId = savedMessagesResult.messageExternalIdsAndIdsMap.get(
             message.externalId,
@@ -230,21 +226,30 @@ export class MessagingSaveMessagesAndEnqueueContactCreationService {
             {
               messageId,
               messageExternalId: message.externalId,
+              headerMessageId: message.headerMessageId,
               threadId:
                 savedMessagesResult.messageExternalIdToMessageThreadIdMap.get(
                   message.externalId,
                 ) ?? null,
+              to: message.participants
+                .filter(
+                  (participant) =>
+                    participant.role === MessageParticipantRole.TO,
+                )
+                .map((participant) => participant.handle)
+                .filter(isNonEmptyString),
+              direction: message.direction,
               receivedAt: message.receivedAt,
             },
           ];
         });
 
-      await this.replyWebhookDispatchService.dispatchIncomingMessageWebhooks({
+      await this.replyWebhookDispatchService.dispatchSyncedMessageWebhooks({
         workspaceId,
         channelId: messageChannel.id,
         connectedAccountId: connectedAccount.id,
         handle: connectedAccount.handle,
-        messages: incomingMessages,
+        messages: syncedMessages,
       });
     }
 

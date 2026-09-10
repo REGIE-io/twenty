@@ -1,15 +1,16 @@
+import { MessageDirection } from 'src/modules/messaging/common/enums/message-direction.enum';
 import { CallMessageReceivedWebhookJob } from 'src/modules/messaging/message-import-manager/jobs/call-message-received-webhook.job';
-import { type CallMessageReceivedWebhookJobData } from 'src/modules/messaging/message-import-manager/types/message-received-webhook-payload.type';
+import { type CallMessageSyncWebhookJobData } from 'src/modules/messaging/message-import-manager/types/message-received-webhook-payload.type';
 import {
-  type DispatchIncomingMessageWebhooksInput,
+  type DispatchSyncedMessageWebhooksInput,
   MessagingReplyWebhookDispatchService,
 } from 'src/modules/messaging/message-import-manager/services/messaging-reply-webhook-dispatch.service';
 
 const WORKSPACE_ID = 'workspace-1';
 
 const baseInput = (
-  overrides: Partial<DispatchIncomingMessageWebhooksInput> = {},
-): DispatchIncomingMessageWebhooksInput => ({
+  overrides: Partial<DispatchSyncedMessageWebhooksInput> = {},
+): DispatchSyncedMessageWebhooksInput => ({
   workspaceId: WORKSPACE_ID,
   channelId: 'channel-1',
   connectedAccountId: 'account-1',
@@ -18,7 +19,10 @@ const baseInput = (
     {
       messageId: 'message-1',
       messageExternalId: 'gmail-1',
+      headerMessageId: '<CAE62F0v9DT3@mail.gmail.com>',
       threadId: 'thread-1',
+      to: ['prospect@acme.com'],
+      direction: MessageDirection.INCOMING,
       receivedAt: new Date('2026-09-04T11:13:33.000Z'),
     },
   ],
@@ -44,7 +48,7 @@ describe('MessagingReplyWebhookDispatchService', () => {
   it('does nothing when there are no messages', async () => {
     const { service, webhookRepository, messageQueueService } = makeHarness([]);
 
-    await service.dispatchIncomingMessageWebhooks(baseInput({ messages: [] }));
+    await service.dispatchSyncedMessageWebhooks(baseInput({ messages: [] }));
 
     expect(webhookRepository.find).not.toHaveBeenCalled();
     expect(messageQueueService.add).not.toHaveBeenCalled();
@@ -60,7 +64,7 @@ describe('MessagingReplyWebhookDispatchService', () => {
       },
     ]);
 
-    await service.dispatchIncomingMessageWebhooks(baseInput());
+    await service.dispatchSyncedMessageWebhooks(baseInput());
 
     expect(messageQueueService.add).toHaveBeenCalledTimes(1);
     expect(messageQueueService.add).toHaveBeenCalledWith(
@@ -76,10 +80,12 @@ describe('MessagingReplyWebhookDispatchService', () => {
           workspaceId: WORKSPACE_ID,
           messageId: 'message-1',
           messageExternalId: 'gmail-1',
+          headerMessageId: '<CAE62F0v9DT3@mail.gmail.com>',
           threadId: 'thread-1',
           channelId: 'channel-1',
           connectedAccountId: 'account-1',
           handle: 'rep@example.com',
+          to: ['prospect@acme.com'],
           direction: 'INCOMING',
           receivedAt: '2026-09-04T11:13:33.000Z',
         },
@@ -88,12 +94,79 @@ describe('MessagingReplyWebhookDispatchService', () => {
     );
   });
 
+  it('emits message.sent for an outgoing message', async () => {
+    const { service, messageQueueService } = makeHarness([
+      {
+        id: 'webhook-1',
+        targetUrl: 'https://go.regie.ai/hooks/sent',
+        secret: 'shh',
+        operations: ['message.sent'],
+      },
+    ]);
+
+    await service.dispatchSyncedMessageWebhooks(
+      baseInput({
+        messages: [
+          {
+            messageId: 'message-2',
+            messageExternalId: 'gmail-2',
+            headerMessageId: '<CAE62F0uZ0w@mail.gmail.com>',
+            threadId: 'thread-2',
+            to: ['prospect@acme.com', 'cto@acme.com'],
+            direction: MessageDirection.OUTGOING,
+            receivedAt: null,
+          },
+        ],
+      }),
+    );
+
+    expect(messageQueueService.add).toHaveBeenCalledTimes(1);
+    const jobData = (messageQueueService.add as jest.Mock).mock
+      .calls[0][1] as CallMessageSyncWebhookJobData;
+
+    expect(jobData.payload.eventName).toBe('message.sent');
+    expect(jobData.payload.direction).toBe('OUTGOING');
+    expect(jobData.payload.headerMessageId).toBe(
+      '<CAE62F0uZ0w@mail.gmail.com>',
+    );
+    expect(jobData.payload.to).toEqual(['prospect@acme.com', 'cto@acme.com']);
+  });
+
+  it('does not send outgoing messages to a webhook subscribed only to message.received', async () => {
+    const { service, messageQueueService } = makeHarness([
+      {
+        id: 'webhook-1',
+        targetUrl: 'https://x',
+        secret: 's',
+        operations: ['message.received'],
+      },
+    ]);
+
+    await service.dispatchSyncedMessageWebhooks(
+      baseInput({
+        messages: [
+          {
+            messageId: 'message-2',
+            messageExternalId: 'gmail-2',
+            headerMessageId: null,
+            threadId: null,
+            to: [],
+            direction: MessageDirection.OUTGOING,
+            receivedAt: null,
+          },
+        ],
+      }),
+    );
+
+    expect(messageQueueService.add).not.toHaveBeenCalled();
+  });
+
   it('matches wildcard operations', async () => {
     const { service, messageQueueService } = makeHarness([
       { id: 'w', targetUrl: 'https://x', secret: 's', operations: ['*.*'] },
     ]);
 
-    await service.dispatchIncomingMessageWebhooks(baseInput());
+    await service.dispatchSyncedMessageWebhooks(baseInput());
 
     expect(messageQueueService.add).toHaveBeenCalledTimes(1);
   });
@@ -108,7 +181,7 @@ describe('MessagingReplyWebhookDispatchService', () => {
       },
     ]);
 
-    await service.dispatchIncomingMessageWebhooks(baseInput());
+    await service.dispatchSyncedMessageWebhooks(baseInput());
 
     expect(messageQueueService.add).not.toHaveBeenCalled();
   });
@@ -129,19 +202,25 @@ describe('MessagingReplyWebhookDispatchService', () => {
       },
     ]);
 
-    await service.dispatchIncomingMessageWebhooks(
+    await service.dispatchSyncedMessageWebhooks(
       baseInput({
         messages: [
           {
             messageId: 'm1',
             messageExternalId: 'e1',
+            headerMessageId: '<a@mail.gmail.com>',
             threadId: 't1',
+            to: ['a@acme.com'],
+            direction: MessageDirection.INCOMING,
             receivedAt: null,
           },
           {
             messageId: 'm2',
             messageExternalId: 'e2',
+            headerMessageId: null,
             threadId: null,
+            to: [],
+            direction: MessageDirection.INCOMING,
             receivedAt: null,
           },
         ],
@@ -150,7 +229,7 @@ describe('MessagingReplyWebhookDispatchService', () => {
 
     expect(messageQueueService.add).toHaveBeenCalledTimes(4);
     const firstJobData = (messageQueueService.add as jest.Mock).mock
-      .calls[0][1] as CallMessageReceivedWebhookJobData;
+      .calls[0][1] as CallMessageSyncWebhookJobData;
 
     expect(firstJobData.payload.receivedAt).toBeNull();
   });
