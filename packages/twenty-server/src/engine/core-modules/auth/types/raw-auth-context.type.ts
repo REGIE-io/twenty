@@ -1,3 +1,5 @@
+import { type RegieSource } from 'twenty-shared/constants';
+
 import { type FlatApiKey } from 'src/engine/core-modules/api-key/types/flat-api-key.type';
 import { type FlatApplication } from 'src/engine/core-modules/application/types/flat-application.type';
 import { type FlatAuthContextUser } from 'src/engine/core-modules/auth/types/flat-auth-context-user.type';
@@ -22,6 +24,8 @@ export type RawAuthContext = {
     impersonatedUserWorkspaceId?: string;
   };
   tokenType?: JwtTokenTypeEnum;
+  // Which Regie write path produced the change, threaded from the X-Regie-Source header.
+  regieSource?: RegieSource;
   // When the user last proved their identity. Only sessions can express this:
   // a JWT's iat is its renewal time, not the moment the user authenticated.
   authenticatedAt?: Date;

@@ -238,5 +238,43 @@ describe('formatTwentyOrmEventToDatabaseBatchEvent', () => {
         },
       });
     });
+
+    it('stamps the Regie source from the auth context onto the event', () => {
+      const result = formatTwentyOrmEventToDatabaseBatchEvent({
+        action: DatabaseEventAction.UPDATED,
+        objectMetadataItem: flatObjectMetadata,
+        flatFieldMetadataMaps,
+        workspaceId: mockWorkspaceId,
+        authContext: { ...mockAuthContext, regieSource: 'enrichment' },
+        recordsAfter: [{ id: 'record-1', name: 'John Doe Updated' }],
+        recordsBefore: [{ id: 'record-1', name: 'John Doe' }],
+      });
+
+      const updateEvent = result?.events[0] as ObjectRecordUpdateEvent<{
+        id: string;
+        name: string;
+      }>;
+
+      expect(updateEvent.source).toBe('enrichment');
+    });
+
+    it('leaves the source undefined when the auth context carries none', () => {
+      const result = formatTwentyOrmEventToDatabaseBatchEvent({
+        action: DatabaseEventAction.UPDATED,
+        objectMetadataItem: flatObjectMetadata,
+        flatFieldMetadataMaps,
+        workspaceId: mockWorkspaceId,
+        authContext: mockAuthContext,
+        recordsAfter: [{ id: 'record-1', name: 'John Doe Updated' }],
+        recordsBefore: [{ id: 'record-1', name: 'John Doe' }],
+      });
+
+      const updateEvent = result?.events[0] as ObjectRecordUpdateEvent<{
+        id: string;
+        name: string;
+      }>;
+
+      expect(updateEvent.source).toBeUndefined();
+    });
   });
 });

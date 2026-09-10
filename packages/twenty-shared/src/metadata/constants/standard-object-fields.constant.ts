@@ -31,6 +31,9 @@ export const STANDARD_OBJECT_FIELDS = {
     properties: {
       universalIdentifier: '20202020-f142-4b04-b91b-6a2b4af3bf11',
     },
+    source: {
+      universalIdentifier: '20202020-e02a-4bef-9914-72d42eb8f6c6',
+    },
     workspaceMember: {
       universalIdentifier: '20202020-af23-4479-9a30-868edc474b36',
     },
