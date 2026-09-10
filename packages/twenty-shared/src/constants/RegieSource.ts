@@ -19,17 +19,17 @@ export const REGIE_SOURCES = [
 
 export type RegieSource = (typeof REGIE_SOURCES)[number];
 
-const REGIE_SOURCE_SET: ReadonlySet<string> = new Set(REGIE_SOURCES);
-
 // Narrows an untrusted header value to a RegieSource, or undefined when it is absent or
 // unrecognised. Undefined is deliberate: an unknown source must leave the row unlabelled
 // rather than mislabelled, and a mislabelled row is worse than an unlabelled one.
-export const parseRegieSource = (
+export function parseRegieSource(
   value: string | string[] | undefined | null,
-): RegieSource | undefined => {
+): RegieSource | undefined {
   if (typeof value !== 'string') {
     return undefined;
   }
 
-  return REGIE_SOURCE_SET.has(value) ? (value as RegieSource) : undefined;
-};
+  return REGIE_SOURCES.includes(value as RegieSource)
+    ? (value as RegieSource)
+    : undefined;
+}
