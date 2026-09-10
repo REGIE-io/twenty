@@ -1,7 +1,7 @@
 import { STANDARD_OBJECTS } from 'twenty-shared/metadata';
 
 import { type WorkspaceIteratorService } from 'src/database/commands/command-runners/workspace-iterator.service';
-import { AddTimelineActivitySourceFieldCommand } from 'src/database/commands/upgrade-version-command/2-32/2-32-workspace-command-1786900000000-add-timeline-activity-source-field.command';
+import { AddTimelineActivitySourceFieldCommand } from 'src/database/commands/upgrade-version-command/2-32/2-32-workspace-command-1786900001000-add-timeline-activity-source-field.command';
 import { type ApplicationService } from 'src/engine/core-modules/application/application.service';
 import { type WorkspaceCacheService } from 'src/engine/workspace-cache/services/workspace-cache.service';
 import { computeTwentyStandardApplicationAllFlatEntityMaps } from 'src/engine/workspace-manager/twenty-standard-application/utils/twenty-standard-application-all-flat-entity-maps.constant';

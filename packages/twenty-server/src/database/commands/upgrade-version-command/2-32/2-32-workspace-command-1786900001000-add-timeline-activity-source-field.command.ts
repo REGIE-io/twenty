@@ -21,7 +21,7 @@ const SOURCE_FIELD_UNIVERSAL_IDENTIFIER =
 // Regie stamps which of its write paths produced a change (X-Regie-Source) onto the
 // timeline row. New workspaces get the column at provisioning through the standard
 // application sync; this backfills it onto workspaces that predate the field.
-@RegisteredWorkspaceCommand('2.32.0', 1786900000000)
+@RegisteredWorkspaceCommand('2.32.0', 1786900001000)
 @Command({
   name: 'upgrade:2-32:add-timeline-activity-source-field',
   description:
