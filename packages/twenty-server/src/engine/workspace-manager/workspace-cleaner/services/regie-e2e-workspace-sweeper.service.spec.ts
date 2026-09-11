@@ -39,6 +39,7 @@ describe('RegieE2eWorkspaceSweeperService', () => {
     };
     const workspaceService = {
       deleteWorkspace: jest.fn().mockResolvedValue(workspace),
+      suspendWorkspace: jest.fn().mockResolvedValue(undefined),
     };
     const service = new RegieE2eWorkspaceSweeperService(
       workspaceService as unknown as WorkspaceService,
@@ -96,5 +97,71 @@ describe('RegieE2eWorkspaceSweeperService', () => {
 
     await expect(service.purgeQuarantinedWorkspaces()).resolves.toBe(0);
     expect(workspaceService.deleteWorkspace).not.toHaveBeenCalled();
+  });
+
+  describe('quarantineLeakedWorkspaces', () => {
+    const leakedWorkspace = {
+      id: '20202020-0000-4000-8000-000000000002',
+      subdomain: 'org-e2e-run-2',
+      deletedAt: null,
+      createdAt: new Date('2026-09-01T00:00:00.000Z'),
+    };
+    const validLeakedMarkerRow = {
+      workspace: leakedWorkspace,
+      value: {
+        ephemeral: true,
+        organizationId: 'org_e2e_run_2',
+        workspaceSlug: leakedWorkspace.subdomain,
+      },
+    };
+
+    it('quarantines a leaked workspace past the leak grace period', async () => {
+      const { service, queryBuilder, workspaceService } = makeService([
+        validLeakedMarkerRow,
+      ]);
+
+      await expect(
+        service.quarantineLeakedWorkspaces(
+          new Date('2026-09-01T06:00:00.001Z'),
+        ),
+      ).resolves.toBe(1);
+
+      expect(queryBuilder.withDeleted).not.toHaveBeenCalled();
+      expect(queryBuilder.andWhere).toHaveBeenCalledWith(
+        'workspace.deletedAt IS NULL',
+      );
+      expect(queryBuilder.andWhere).toHaveBeenCalledWith(
+        'workspace.createdAt <= :cutoff',
+        { cutoff: new Date('2026-09-01T00:00:00.001Z') },
+      );
+      expect(queryBuilder.limit).toHaveBeenCalledWith(10);
+      expect(workspaceService.suspendWorkspace).toHaveBeenCalledWith(
+        leakedWorkspace.id,
+      );
+      expect(workspaceService.deleteWorkspace).toHaveBeenCalledWith(
+        leakedWorkspace.id,
+        true,
+      );
+    });
+
+    it('refuses a leaked workspace with an invalid marker', async () => {
+      const { service, workspaceService } = makeService([
+        {
+          ...validLeakedMarkerRow,
+          value: {
+            ...validLeakedMarkerRow.value,
+            organizationId: 'org_customer',
+          },
+        },
+      ]);
+
+      await expect(
+        service.quarantineLeakedWorkspaces(
+          new Date('2026-09-01T06:00:00.001Z'),
+        ),
+      ).resolves.toBe(0);
+      expect(workspaceService.suspendWorkspace).not.toHaveBeenCalled();
+      expect(workspaceService.deleteWorkspace).not.toHaveBeenCalled();
+    });
   });
 });

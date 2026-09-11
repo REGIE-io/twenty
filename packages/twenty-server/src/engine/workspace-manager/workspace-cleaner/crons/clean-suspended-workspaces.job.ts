@@ -49,6 +49,7 @@ export class CleanSuspendedWorkspacesJob {
           workspaceIds: suspendedWorkspaceIds.map((workspace) => workspace.id),
         });
         await this.regieE2eWorkspaceSweeperService.purgeQuarantinedWorkspaces();
+        await this.regieE2eWorkspaceSweeperService.quarantineLeakedWorkspaces();
       },
     );
 
