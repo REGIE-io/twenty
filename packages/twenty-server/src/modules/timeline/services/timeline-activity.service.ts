@@ -180,6 +180,7 @@ export class TimelineActivityService {
           objectSingularName,
           recordId: event.recordId,
           workspaceMemberId: event.workspaceMemberId,
+          source: event.source,
           properties: event.properties,
         })) satisfies TimelineActivityPayload[]),
       ];
@@ -202,6 +203,7 @@ export class TimelineActivityService {
           objectSingularName,
           recordId: event.recordId,
           workspaceMemberId: event.workspaceMemberId,
+          source: event.source,
           properties: event.properties,
         })) satisfies TimelineActivityPayload[]),
       ];
@@ -225,6 +227,7 @@ export class TimelineActivityService {
       objectSingularName,
       recordId: event.recordId,
       workspaceMemberId: event.workspaceMemberId,
+      source: event.source,
       properties: event.properties,
     })) satisfies TimelineActivityPayload[];
   }
@@ -308,6 +311,7 @@ export class TimelineActivityService {
           return {
             name: `linked-${activityType}.${action}`,
             workspaceMemberId: event.workspaceMemberId,
+            source: event.source,
             recordId: activityTarget[targetColumn.replace(/Id$/, '')],
             linkedRecordCachedName: activityTitle,
             linkedRecordId: activityId,
@@ -430,6 +434,7 @@ export class TimelineActivityService {
           linkedRecordId: activity.id,
           linkedObjectMetadataId: activityObjectMetadataId,
           workspaceMemberId: event.workspaceMemberId,
+          source: event.source,
           properties: {},
         } satisfies TimelineActivityPayload;
       })

@@ -50,8 +50,19 @@ describe('WorkspaceAuthContextMiddleware', () => {
   const buildRequest = (overrides: Partial<Request> = {}): Request =>
     ({
       workspace: mockWorkspace,
+      headers: {},
       ...overrides,
     }) as unknown as Request;
+
+  const captureContextOn = (): (() => unknown) => {
+    let capturedContext: unknown;
+
+    (mockNext as jest.Mock).mockImplementation(() => {
+      capturedContext = workspaceAuthContextStorage.getStore();
+    });
+
+    return () => capturedContext;
+  };
 
   it('should call next without auth context when workspace is not defined', () => {
     const req = buildRequest({ workspace: undefined });
@@ -217,6 +228,69 @@ describe('WorkspaceAuthContextMiddleware', () => {
         'No authentication context found',
         AuthExceptionCode.UNAUTHENTICATED,
       ),
+    );
+  });
+
+  it('stamps the Regie source header onto the auth context', () => {
+    const req = buildRequest({
+      apiKey: mockApiKey,
+      headers: { 'x-regie-source': 'enrichment' },
+    } as unknown as Partial<Request>);
+    const context = captureContextOn();
+
+    middleware.use(req, mockResponse, mockNext);
+
+    expect(context()).toEqual(
+      expect.objectContaining({ type: 'apiKey', regieSource: 'enrichment' }),
+    );
+  });
+
+  it('drops an unrecognised Regie source rather than trusting it', () => {
+    const req = buildRequest({
+      apiKey: mockApiKey,
+      headers: { 'x-regie-source': 'marketing' },
+    } as unknown as Partial<Request>);
+    const context = captureContextOn();
+
+    middleware.use(req, mockResponse, mockNext);
+
+    expect(context()).not.toHaveProperty('regieSource');
+  });
+
+  it('lets an API-key caller name the acting member via header', () => {
+    const req = buildRequest({
+      apiKey: mockApiKey,
+      headers: { 'x-regie-member-id': 'acting-member-id' },
+    } as unknown as Partial<Request>);
+    const context = captureContextOn();
+
+    middleware.use(req, mockResponse, mockNext);
+
+    expect(context()).toEqual(
+      expect.objectContaining({
+        type: 'apiKey',
+        workspaceMemberId: 'acting-member-id',
+      }),
+    );
+  });
+
+  it('ignores the member header on a user session, using the session member', () => {
+    const req = buildRequest({
+      user: mockUser,
+      userWorkspaceId: 'user-workspace-id',
+      workspaceMemberId: 'workspace-member-id',
+      workspaceMember: mockWorkspaceMember,
+      headers: { 'x-regie-member-id': 'spoofed-member-id' },
+    } as unknown as Partial<Request>);
+    const context = captureContextOn();
+
+    middleware.use(req, mockResponse, mockNext);
+
+    expect(context()).toEqual(
+      expect.objectContaining({
+        type: 'user',
+        workspaceMemberId: 'workspace-member-id',
+      }),
     );
   });
 
