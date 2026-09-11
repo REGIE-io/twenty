@@ -31,4 +31,5 @@ const ADDITIONAL_SEARCHABLE_FIELD_TYPES = new Set<FieldMetadataType>([
 
 export const isAdditionalSearchableFieldType = (
   type: FieldMetadataType,
-): type is AdditionalSearchableFieldType => ADDITIONAL_SEARCHABLE_FIELD_TYPES.has(type);
+): type is AdditionalSearchableFieldType =>
+  ADDITIONAL_SEARCHABLE_FIELD_TYPES.has(type);

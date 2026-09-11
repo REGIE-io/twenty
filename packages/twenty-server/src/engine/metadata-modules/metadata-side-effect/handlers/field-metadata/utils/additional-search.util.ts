@@ -69,8 +69,9 @@ export const getAdditionalSearchState = (
   return { status: 'enabled', marker };
 };
 
-export const isAdditionalSearchEnabled = (field: AdditionalSearchableField): boolean =>
-  getAdditionalSearchState(field).status === 'enabled';
+export const isAdditionalSearchEnabled = (
+  field: AdditionalSearchableField,
+): boolean => getAdditionalSearchState(field).status === 'enabled';
 
 // The marker names the object in the owning service's vocabulary; Twenty names it differently. Checking
 // them against each other catches a caller that created a person field against the company

@@ -61,7 +61,10 @@ export const computeSearchVectorAsExpressionFromSearchFieldMetadatas = (
 
       // Twenty's own predicate stays narrow; marked dropdowns are admitted on top
       // of it, otherwise a registered SELECT row would be silently dropped here.
-      if (!isSearchableFieldType(type) && !isAdditionalSearchableFieldType(type)) {
+      if (
+        !isSearchableFieldType(type) &&
+        !isAdditionalSearchableFieldType(type)
+      ) {
         return [];
       }
 

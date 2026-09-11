@@ -94,7 +94,9 @@ describe('isAdditionalSearchEnabled', () => {
   it('is true only when getAdditionalSearchState reports enabled', () => {
     expect(isAdditionalSearchEnabled(field())).toBe(true);
     expect(isAdditionalSearchEnabled(field({ isActive: false }))).toBe(false);
-    expect(isAdditionalSearchEnabled(field({ universalSettings: {} }))).toBe(false);
+    expect(isAdditionalSearchEnabled(field({ universalSettings: {} }))).toBe(
+      false,
+    );
   });
 });
 
