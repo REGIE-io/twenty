@@ -55,9 +55,19 @@ The 10-workspace hourly batch permits 240 permanent deletions per day. A larger
 failure burst intentionally drains over multiple runs; monitor the oldest
 eligible quarantine before increasing the cap.
 
-Legacy workspaces without the durable marker are deliberately excluded and
-require manual review. This prevents an old or customer-created workspace from
-becoming permanently deletable merely because its name resembles an E2E name.
+Legacy workspaces without the durable marker are deliberately excluded from
+prefix-based cleanup. To migrate one, Go must look up the authoritative tenant
+connection and submit its exact organization ID, Twenty workspace ID, and
+derived workspace slug to
+`POST /internal/workspaces/:workspaceId/e2e-marker`. Twenty verifies both E2E
+prefixes, requires the supplied slug to equal the workspace's current subdomain,
+and refuses to overwrite a conflicting marker. The operation is idempotent and
+does not delete or quarantine the workspace.
+
+After the marker is backfilled, Go can call the normal `DELETE` endpoint to
+quarantine the workspace. This supports pre-marker inventory without allowing
+an old or customer-created workspace to become permanently deletable merely
+because its name resembles an E2E name.
 
 ## One-time backlog drain
 
@@ -65,6 +75,11 @@ Use `workspace:purge-regie-e2e-batch` to run exactly one normal, guarded E2E
 sweeper batch. The command preserves the marker, organization ID, exact slug,
 24-hour grace period, and 10-workspace limit; it does not expose an unbounded or
 parallel deletion mode.
+
+For pre-marker workspaces, first run Go's bounded legacy backfill and quarantine
+operation. Review its exact organization/workspace mappings and failures before
+running a Twenty purge batch. Never construct a deletion list from workspace
+names alone.
 
 From the built server package, run one batch with:
 

@@ -293,6 +293,81 @@ describe('InternalWorkspaceProvisioningService', () => {
     expect(result.purgeAfter).toBe('2026-09-02T00:00:00.000Z');
   });
 
+  it('backfills a marker from an exact legacy E2E workspace mapping', async () => {
+    const { service, workspaceService, keyValuePairService } = makeService();
+
+    workspaceService.findOneWorkspaceByIdIncludingDeleted.mockResolvedValue(
+      e2eWorkspace,
+    );
+    keyValuePairService.get.mockResolvedValue([]);
+
+    await expect(
+      service.backfillE2eWorkspaceMarker(e2eWorkspace.id, {
+        organizationId: 'org_e2e_run_1',
+        workspaceSlug: e2eWorkspace.subdomain,
+      }),
+    ).resolves.toEqual({
+      ok: true,
+      workspaceId: e2eWorkspace.id,
+      organizationId: 'org_e2e_run_1',
+      workspaceSlug: e2eWorkspace.subdomain,
+      backfilled: true,
+      purgeEligible: true,
+    });
+    expect(keyValuePairService.set).toHaveBeenCalledWith({
+      workspaceId: e2eWorkspace.id,
+      key: 'regie-internal:e2e-workspace-marker',
+      value: {
+        ephemeral: true,
+        organizationId: 'org_e2e_run_1',
+        workspaceSlug: e2eWorkspace.subdomain,
+      },
+      type: 'USER_VARIABLE',
+    });
+  });
+
+  it('refuses a legacy marker that does not exactly match the workspace', async () => {
+    const { service, workspaceService, keyValuePairService } = makeService();
+
+    workspaceService.findOneWorkspaceByIdIncludingDeleted.mockResolvedValue(
+      e2eWorkspace,
+    );
+    keyValuePairService.get.mockResolvedValue([]);
+
+    await expect(
+      service.backfillE2eWorkspaceMarker(e2eWorkspace.id, {
+        organizationId: 'org_e2e_run_1',
+        workspaceSlug: 'org-e2e-different-run',
+      }),
+    ).rejects.toThrow(BadRequestException);
+    expect(keyValuePairService.set).not.toHaveBeenCalled();
+  });
+
+  it('does not overwrite a conflicting legacy E2E marker', async () => {
+    const { service, workspaceService, keyValuePairService } = makeService();
+
+    workspaceService.findOneWorkspaceByIdIncludingDeleted.mockResolvedValue(
+      e2eWorkspace,
+    );
+    keyValuePairService.get.mockResolvedValue([
+      {
+        value: {
+          ephemeral: true,
+          organizationId: 'org_e2e_other_run',
+          workspaceSlug: e2eWorkspace.subdomain,
+        },
+      },
+    ]);
+
+    await expect(
+      service.backfillE2eWorkspaceMarker(e2eWorkspace.id, {
+        organizationId: 'org_e2e_run_1',
+        workspaceSlug: e2eWorkspace.subdomain,
+      }),
+    ).rejects.toThrow(BadRequestException);
+    expect(keyValuePairService.set).not.toHaveBeenCalled();
+  });
+
   it('idempotently re-quarantines a previously soft-deleted workspace', async () => {
     const { service, workspaceService } = makeService();
     const softDeletedWorkspace = {
