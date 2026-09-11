@@ -8,26 +8,31 @@ import { InjectMessageQueue } from 'src/engine/core-modules/message-queue/decora
 import { MessageQueue } from 'src/engine/core-modules/message-queue/message-queue.constants';
 import { MessageQueueService } from 'src/engine/core-modules/message-queue/services/message-queue.service';
 import { WebhookEntity } from 'src/engine/metadata-modules/webhook/entities/webhook.entity';
+import { MessageDirection } from 'src/modules/messaging/common/enums/message-direction.enum';
 import {
   MESSAGE_RECEIVED_WEBHOOK_EVENT,
-  buildMessageReceivedWebhookOperationsToMatch,
+  MESSAGE_SENT_WEBHOOK_EVENT,
+  buildMessageWebhookOperationsToMatch,
 } from 'src/modules/messaging/message-import-manager/constants/messaging-reply-webhook.constant';
 import { CallMessageReceivedWebhookJob } from 'src/modules/messaging/message-import-manager/jobs/call-message-received-webhook.job';
-import { type CallMessageReceivedWebhookJobData } from 'src/modules/messaging/message-import-manager/types/message-received-webhook-payload.type';
+import { type CallMessageSyncWebhookJobData } from 'src/modules/messaging/message-import-manager/types/message-received-webhook-payload.type';
 
-export type IncomingMessageForWebhook = {
+export type SyncedMessageForWebhook = {
   messageId: string;
   messageExternalId: string;
+  headerMessageId: string | null;
   threadId: string | null;
+  to: string[];
+  direction: MessageDirection;
   receivedAt: Date | null;
 };
 
-export type DispatchIncomingMessageWebhooksInput = {
+export type DispatchSyncedMessageWebhooksInput = {
   workspaceId: string;
   channelId: string;
   connectedAccountId: string;
   handle: string;
-  messages: IncomingMessageForWebhook[];
+  messages: SyncedMessageForWebhook[];
 };
 
 @Injectable()
@@ -46,8 +51,8 @@ export class MessagingReplyWebhookDispatchService {
     private readonly messageQueueService: MessageQueueService,
   ) {}
 
-  async dispatchIncomingMessageWebhooks(
-    input: DispatchIncomingMessageWebhooksInput,
+  async dispatchSyncedMessageWebhooks(
+    input: DispatchSyncedMessageWebhooksInput,
   ): Promise<void> {
     const { workspaceId, channelId, connectedAccountId, handle, messages } =
       input;
@@ -56,57 +61,73 @@ export class MessagingReplyWebhookDispatchService {
       return;
     }
 
-    const webhooks = await this.findMatchingWebhooks(workspaceId);
+    const webhooks = await this.webhookRepository.find({
+      where: { workspaceId },
+    });
 
     if (webhooks.length === 0) {
       return;
     }
 
+    let dispatchedCount = 0;
+
     // One job per webhook per message: the receiver dedupes on messageExternalId, and a
     // single failing endpoint retries without holding up the others.
-    for (const webhook of webhooks) {
-      for (const message of messages) {
-        const jobData: CallMessageReceivedWebhookJobData = {
+    for (const message of messages) {
+      const eventName = this.getEventName(message.direction);
+      const matchingWebhooks = this.filterWebhooksByEvent(webhooks, eventName);
+
+      for (const webhook of matchingWebhooks) {
+        const jobData: CallMessageSyncWebhookJobData = {
           targetUrl: webhook.targetUrl,
           secret: webhook.secret,
           webhookId: webhook.id,
           workspaceId,
           payload: {
-            eventName: MESSAGE_RECEIVED_WEBHOOK_EVENT,
+            eventName,
             webhookId: webhook.id,
             workspaceId,
             messageId: message.messageId,
             messageExternalId: message.messageExternalId,
+            headerMessageId: message.headerMessageId,
             threadId: message.threadId,
             channelId,
             connectedAccountId,
             handle,
-            direction: 'INCOMING',
+            to: message.to,
+            direction: message.direction,
             receivedAt: message.receivedAt?.toISOString() ?? null,
           },
         };
 
-        await this.messageQueueService.add<CallMessageReceivedWebhookJobData>(
+        await this.messageQueueService.add<CallMessageSyncWebhookJobData>(
           CallMessageReceivedWebhookJob.name,
           jobData,
           { retryLimit: 3 },
         );
+
+        dispatchedCount += 1;
       }
     }
 
-    this.logger.log(
-      `Dispatched ${MESSAGE_RECEIVED_WEBHOOK_EVENT} for ${messages.length} message(s) to ${webhooks.length} webhook(s) in workspace ${workspaceId}`,
-    );
+    if (dispatchedCount > 0) {
+      this.logger.log(
+        `Dispatched ${dispatchedCount} message sync webhook job(s) for ${messages.length} message(s) in workspace ${workspaceId}`,
+      );
+    }
   }
 
-  private async findMatchingWebhooks(
-    workspaceId: string,
-  ): Promise<WebhookEntity[]> {
-    const operationsToMatch = buildMessageReceivedWebhookOperationsToMatch();
+  private getEventName(direction: MessageDirection): string {
+    return direction === MessageDirection.OUTGOING
+      ? MESSAGE_SENT_WEBHOOK_EVENT
+      : MESSAGE_RECEIVED_WEBHOOK_EVENT;
+  }
 
-    const webhooks = await this.webhookRepository.find({
-      where: { workspaceId },
-    });
+  private filterWebhooksByEvent(
+    webhooks: WebhookEntity[],
+    eventName: string,
+  ): WebhookEntity[] {
+    const operationsToMatch = buildMessageWebhookOperationsToMatch(eventName);
 
     return webhooks.filter(
       (webhook) =>
