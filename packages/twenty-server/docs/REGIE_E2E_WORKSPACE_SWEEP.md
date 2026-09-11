@@ -45,15 +45,16 @@ loads active suspended workspaces old enough to require a warning or soft
 deletion. It no longer loads every soft-deleted suspended workspace merely to
 skip it after reaching the limit.
 
-The same batch runs the E2E sweeper, which selects at most 10 workspaces that
+The same batch runs the E2E sweeper, which selects at most 15 workspaces that
 have been quarantined for 24 hours. Its database query applies the marker,
 prefix, and age checks, and the service revalidates the full marker and exact
 slug in memory before calling `WorkspaceService.deleteWorkspace(workspaceId)`.
 Individual failures are logged and retried on the next run.
 
-The 10-workspace hourly batch permits 240 permanent deletions per day. A larger
-failure burst intentionally drains over multiple runs; monitor the oldest
-eligible quarantine before increasing the cap.
+The 15-workspace hourly batch permits 360 permanent deletions per day. This is
+above the observed 255 CRM E2E legs in a busy 24-hour period while keeping
+deletions sequential. A larger failure burst intentionally drains over multiple
+runs; monitor the oldest eligible quarantine before increasing the cap.
 
 Legacy workspaces without the durable marker are deliberately excluded from
 prefix-based cleanup. To migrate one, Go must look up the authoritative tenant
@@ -73,7 +74,7 @@ because its name resembles an E2E name.
 
 Use `workspace:purge-regie-e2e-batch` to run exactly one normal, guarded E2E
 sweeper batch. The command preserves the marker, organization ID, exact slug,
-24-hour grace period, and 10-workspace limit; it does not expose an unbounded or
+24-hour grace period, and 15-workspace limit; it does not expose an unbounded or
 parallel deletion mode.
 
 For pre-marker workspaces, first run Go's bounded legacy backfill and quarantine
