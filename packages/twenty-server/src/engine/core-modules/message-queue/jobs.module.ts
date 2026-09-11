@@ -51,6 +51,7 @@ import { SubscriptionsModule } from 'src/engine/subscriptions/subscriptions.modu
 import { CleanOnboardingWorkspacesJob } from 'src/engine/workspace-manager/workspace-cleaner/crons/clean-onboarding-workspaces.job';
 import { CleanSuspendedWorkspacesJob } from 'src/engine/workspace-manager/workspace-cleaner/crons/clean-suspended-workspaces.job';
 import { CleanWorkspaceDeletionWarningUserVarsJob } from 'src/engine/workspace-manager/workspace-cleaner/jobs/clean-workspace-deletion-warning-user-vars.job';
+import { CleanSuspendedWorkspacesBatchJob } from 'src/engine/workspace-manager/workspace-cleaner/jobs/clean-suspended-workspaces-batch.job';
 import { WorkspaceCleanerModule } from 'src/engine/workspace-manager/workspace-cleaner/workspace-cleaner.module';
 import { CalendarEventParticipantManagerModule } from 'src/modules/calendar/calendar-event-participant-manager/calendar-event-participant-manager.module';
 import { CalendarModule } from 'src/modules/calendar/calendar.module';
@@ -108,6 +109,7 @@ import { WorkflowModule } from 'src/modules/workflow/workflow.module';
   providers: [
     BillingReminderCronJob,
     CleanSuspendedWorkspacesJob,
+    CleanSuspendedWorkspacesBatchJob,
     CleanOnboardingWorkspacesJob,
     EmailSenderJob,
     SendCampaignEmailJob,

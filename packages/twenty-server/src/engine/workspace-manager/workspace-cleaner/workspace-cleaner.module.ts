@@ -17,6 +17,7 @@ import { CleanOnboardingWorkspacesCommand } from 'src/engine/workspace-manager/w
 import { CleanOnboardingWorkspacesCronCommand } from 'src/engine/workspace-manager/workspace-cleaner/commands/clean-onboarding-workspaces.cron.command';
 import { CleanSuspendedWorkspacesCommand } from 'src/engine/workspace-manager/workspace-cleaner/commands/clean-suspended-workspaces.command';
 import { CleanSuspendedWorkspacesCronCommand } from 'src/engine/workspace-manager/workspace-cleaner/commands/clean-suspended-workspaces.cron.command';
+import { PurgeRegieE2eWorkspacesCommand } from 'src/engine/workspace-manager/workspace-cleaner/commands/purge-regie-e2e-workspaces.command';
 import { DestroyWorkspaceCommand } from 'src/engine/workspace-manager/workspace-cleaner/commands/destroy-workspace.command';
 import { CleanerWorkspaceService } from 'src/engine/workspace-manager/workspace-cleaner/services/cleaner.workspace-service';
 import { RegieE2eWorkspaceSweeperService } from 'src/engine/workspace-manager/workspace-cleaner/services/regie-e2e-workspace-sweeper.service';
@@ -41,6 +42,7 @@ import { RegieE2eWorkspaceSweeperService } from 'src/engine/workspace-manager/wo
     DestroyWorkspaceCommand,
     CleanSuspendedWorkspacesCronCommand,
     CleanSuspendedWorkspacesCommand,
+    PurgeRegieE2eWorkspacesCommand,
     CleanOnboardingWorkspacesCommand,
     CleanOnboardingWorkspacesCronCommand,
     CleanerWorkspaceService,
