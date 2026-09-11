@@ -14,4 +14,5 @@ export type FilterOperator =
   | 'containsAny'
   | 'containsIlike'
   | 'isEmptyArray'
-  | 'search';
+  | 'search'
+  | 'match';

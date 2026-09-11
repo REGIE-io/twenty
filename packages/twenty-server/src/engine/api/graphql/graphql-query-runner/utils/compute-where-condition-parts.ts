@@ -169,6 +169,14 @@ export const computeWhereConditionParts = ({
         },
       };
     }
+    case 'match': {
+      const tsQuery = formatSearchTerms(value, 'and');
+
+      return {
+        sql: `${fieldReference} @@ to_tsquery('simple', public.unaccent_immutable(:${key}${paramSuffix}Ts))`,
+        params: { [`${key}${paramSuffix}Ts`]: tsQuery },
+      };
+    }
     case 'notContains':
       return {
         sql: `NOT (${fieldReference}::text[] && ARRAY[:...${key}${paramSuffix}]::text[])`,

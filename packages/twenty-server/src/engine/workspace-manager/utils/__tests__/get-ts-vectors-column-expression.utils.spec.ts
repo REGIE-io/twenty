@@ -4,6 +4,7 @@ import {
   type FieldTypeAndNameMetadata,
   getTsVectorColumnExpressionFromFields,
 } from 'src/engine/workspace-manager/utils/get-ts-vector-column-expression.util';
+import { isSafeTsVectorExpression } from 'src/engine/workspace-manager/workspace-migration/utils/remove-sql-injection.util';
 
 const nameTextField = { name: 'name', type: FieldMetadataType.TEXT };
 const nameFullNameField = {
@@ -218,5 +219,175 @@ describe('getTsVectorColumnExpressionFromFields', () => {
       expect(additionalPhonesCoalesce).toBe(true);
       expect(secondaryLinksCoalesce).toBe(true);
     });
+  });
+});
+
+describe('getTsVectorColumnExpressionFromFields with additionally searchable dropdown fields', () => {
+  const tierSelectField = {
+    name: 'acmeTier',
+    type: FieldMetadataType.SELECT,
+    options: [
+      { value: 'GOLD', label: 'Gold', position: 0 },
+      { value: 'SILVER', label: 'Silver', position: 1 },
+    ],
+  } as unknown as FieldTypeAndNameMetadata;
+
+  const segmentsMultiSelectField = {
+    name: 'acmeSegments',
+    type: FieldMetadataType.MULTI_SELECT,
+    options: [
+      { value: 'GOLD', label: 'Gold', position: 0 },
+      { value: 'SILVER', label: 'Silver', position: 1 },
+    ],
+  } as unknown as FieldTypeAndNameMetadata;
+
+  it('should index both the stored value and the label of a select', () => {
+    const result = getTsVectorColumnExpressionFromFields([tierSelectField]);
+
+    expect(result).toContain("WHEN 'GOLD' THEN 'GOLD'");
+    expect(result).toContain("WHEN 'GOLD' THEN 'Gold'");
+    expect(result).toContain("WHEN 'SILVER' THEN 'SILVER'");
+    expect(result).toContain("WHEN 'SILVER' THEN 'Silver'");
+  });
+
+  it('should not cast the raw select column to text', () => {
+    const result = getTsVectorColumnExpressionFromFields([tierSelectField]);
+
+    expect(result).not.toContain('"acmeTier"::text');
+  });
+
+  it('should escape single quotes in select labels', () => {
+    const result = getTsVectorColumnExpressionFromFields([
+      {
+        name: 'acmeTier',
+        type: FieldMetadataType.SELECT,
+        options: [{ value: 'OWNER', label: "Owner's choice", position: 0 }],
+      },
+    ] as unknown as FieldTypeAndNameMetadata[]);
+
+    expect(result).toContain("'Owner''s choice'");
+  });
+
+  it('should test membership per option for a multi-select, for value and label', () => {
+    const result = getTsVectorColumnExpressionFromFields([
+      segmentsMultiSelectField,
+    ]);
+
+    expect(result).toContain(
+      "CASE WHEN 'GOLD' = ANY(\"acmeSegments\") THEN 'GOLD'",
+    );
+    expect(result).toContain(
+      "CASE WHEN 'GOLD' = ANY(\"acmeSegments\") THEN 'Gold'",
+    );
+    expect(result).toContain(
+      "CASE WHEN 'SILVER' = ANY(\"acmeSegments\") THEN 'SILVER'",
+    );
+    expect(result).toContain(
+      "CASE WHEN 'SILVER' = ANY(\"acmeSegments\") THEN 'Silver'",
+    );
+  });
+
+  it('should emit select options in metadata position order', () => {
+    const result = getTsVectorColumnExpressionFromFields([
+      {
+        name: 'acmeTier',
+        type: FieldMetadataType.SELECT,
+        options: [
+          { value: 'SILVER', label: 'Silver', position: 1 },
+          { value: 'GOLD', label: 'Gold', position: 0 },
+        ],
+      },
+    ] as unknown as FieldTypeAndNameMetadata[]);
+
+    expect(result.indexOf("'GOLD'")).toBeGreaterThan(-1);
+    expect(result.indexOf("'GOLD'")).toBeLessThan(result.indexOf("'SILVER'"));
+  });
+
+  it('should emit multi-select options in metadata position order', () => {
+    const result = getTsVectorColumnExpressionFromFields([
+      {
+        name: 'acmeSegments',
+        type: FieldMetadataType.MULTI_SELECT,
+        options: [
+          { value: 'SILVER', label: 'Silver', position: 1 },
+          { value: 'GOLD', label: 'Gold', position: 0 },
+        ],
+      },
+    ] as unknown as FieldTypeAndNameMetadata[]);
+
+    expect(result.indexOf("'GOLD'")).toBeGreaterThan(-1);
+    expect(result.indexOf("'GOLD'")).toBeLessThan(result.indexOf("'SILVER'"));
+  });
+
+  it('should contribute an empty projection for a select with no options', () => {
+    const result = getTsVectorColumnExpressionFromFields([
+      {
+        name: 'acmeTier',
+        type: FieldMetadataType.SELECT,
+        options: [],
+      },
+    ] as unknown as FieldTypeAndNameMetadata[]);
+
+    expect(result).toBe("to_tsvector('simple', '')");
+    expect(isSafeTsVectorExpression(result)).toBe(true);
+  });
+
+  it('should contribute an empty projection for a multi-select with undefined options', () => {
+    const result = getTsVectorColumnExpressionFromFields([
+      {
+        name: 'acmeSegments',
+        type: FieldMetadataType.MULTI_SELECT,
+      },
+    ] as unknown as FieldTypeAndNameMetadata[]);
+
+    expect(result).toBe("to_tsvector('simple', '')");
+    expect(isSafeTsVectorExpression(result)).toBe(true);
+  });
+
+  it('should keep the expression safe when a label contains tsvector-unsafe tokens', () => {
+    const result = getTsVectorColumnExpressionFromFields([
+      {
+        name: 'acmeTier',
+        type: FieldMetadataType.SELECT,
+        options: [
+          { value: 'CHEAP', label: 'Under $10k', position: 0 },
+          { value: 'GOLD', label: 'Gold -- premium', position: 1 },
+        ],
+      },
+    ] as unknown as FieldTypeAndNameMetadata[]);
+
+    expect(isSafeTsVectorExpression(result)).toBe(true);
+    expect(result).not.toContain('$');
+    expect(result).not.toContain('--');
+  });
+
+  it('should keep the expression safe when a multi-select label contains tsvector-unsafe tokens', () => {
+    const result = getTsVectorColumnExpressionFromFields([
+      {
+        name: 'acmeSegments',
+        type: FieldMetadataType.MULTI_SELECT,
+        options: [
+          { value: 'CHEAP', label: 'Under $10k', position: 0 },
+          { value: 'GOLD', label: 'Gold -- premium', position: 1 },
+        ],
+      },
+    ] as unknown as FieldTypeAndNameMetadata[]);
+
+    expect(isSafeTsVectorExpression(result)).toBe(true);
+    expect(result).not.toContain('$');
+    expect(result).not.toContain('--');
+  });
+
+  it('should keep searchable words intact while sanitising a label', () => {
+    const result = getTsVectorColumnExpressionFromFields([
+      {
+        name: 'acmeTier',
+        type: FieldMetadataType.SELECT,
+        options: [{ value: 'CHEAP', label: 'Under $10k', position: 0 }],
+      },
+    ] as unknown as FieldTypeAndNameMetadata[]);
+
+    expect(result).toContain('Under');
+    expect(result).toContain('10k');
   });
 });

@@ -7,6 +7,16 @@
  *                              |___/
  */
 
+export type {
+  AdditionalSearchMarker,
+  AdditionalSearchSettings,
+  AdditionalSearchMarkerParseResult,
+} from './AdditionalSearchMarker';
+export {
+  additionalSearchMarkerSchema,
+  ADDITIONAL_SEARCH_MARKER_KEY,
+  parseAdditionalSearchMarker,
+} from './AdditionalSearchMarker';
 export type { AllowedAddressSubField } from './AddressFieldsType';
 export { ALLOWED_ADDRESS_SUBFIELDS } from './AddressFieldsType';
 export { AggregateOperations } from './AggregateOperations';
