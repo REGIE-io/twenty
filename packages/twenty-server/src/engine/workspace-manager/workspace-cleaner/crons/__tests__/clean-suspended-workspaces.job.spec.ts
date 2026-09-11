@@ -22,6 +22,7 @@ describe('CleanSuspendedWorkspacesJob', () => {
   };
   const regieE2eWorkspaceSweeperService = {
     purgeQuarantinedWorkspaces: jest.fn(),
+    quarantineLeakedWorkspaces: jest.fn(),
   };
   const postgresAdvisoryLockService = {
     tryWithLock: jest.fn(),
@@ -54,6 +55,9 @@ describe('CleanSuspendedWorkspacesJob', () => {
     expect(
       regieE2eWorkspaceSweeperService.purgeQuarantinedWorkspaces,
     ).not.toHaveBeenCalled();
+    expect(
+      regieE2eWorkspaceSweeperService.quarantineLeakedWorkspaces,
+    ).not.toHaveBeenCalled();
   });
 
   it('cleans suspended workspaces while holding the lock', async () => {
@@ -80,6 +84,9 @@ describe('CleanSuspendedWorkspacesJob', () => {
     });
     expect(
       regieE2eWorkspaceSweeperService.purgeQuarantinedWorkspaces,
+    ).toHaveBeenCalledTimes(1);
+    expect(
+      regieE2eWorkspaceSweeperService.quarantineLeakedWorkspaces,
     ).toHaveBeenCalledTimes(1);
   });
 });
