@@ -15,9 +15,19 @@ describe('WorkspaceService phone-search cleanup ordering', () => {
         id: 'workspace-id',
         customDomain: null,
       }),
-      delete: jest.fn().mockImplementation(async () => {
-        steps.push('core-workspace-delete');
-      }),
+    });
+    setServiceProperty('workspaceDeletionMaintenanceService', {
+      runInTransaction: jest.fn(
+        async (
+          _timeouts: unknown,
+          operation: (manager: object) => Promise<void>,
+        ) =>
+          operation({
+            delete: jest.fn().mockImplementation(async () => {
+              steps.push('core-workspace-delete');
+            }),
+          }),
+      ),
     });
     setServiceProperty('userWorkspaceRepository', {
       find: jest.fn().mockResolvedValue([]),

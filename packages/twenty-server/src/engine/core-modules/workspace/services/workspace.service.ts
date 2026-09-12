@@ -69,6 +69,11 @@ import { PermissionsService } from 'src/engine/metadata-modules/permissions/perm
 import { WorkspaceCacheStorageService } from 'src/engine/workspace-cache-storage/workspace-cache-storage.service';
 import { WorkspaceDataSourceService } from 'src/engine/workspace-datasource/workspace-datasource.service';
 import { WorkspaceManagerService } from 'src/engine/workspace-manager/workspace-manager.service';
+import {
+  WORKSPACE_DELETION_CLIENT_TIMEOUT_MS,
+  WORKSPACE_DELETION_LOCK_TIMEOUT_MS,
+  WORKSPACE_DELETION_STATEMENT_TIMEOUT_MS,
+} from 'src/engine/workspace-manager/workspace-cleaner/constants/workspace-deletion-timeouts.constant';
 import { WorkspaceDeletionMaintenanceService } from 'src/engine/workspace-manager/workspace-cleaner/services/workspace-deletion-maintenance.service';
 import { WorkspaceFieldMetadataDeletionService } from 'src/engine/workspace-manager/workspace-cleaner/services/workspace-field-metadata-deletion.service';
 import { DEFAULT_FEATURE_FLAGS } from 'src/engine/workspace-manager/workspace-migration/constant/default-feature-flags';
@@ -651,7 +656,16 @@ export class WorkspaceService {
   }
 
   async hardDeleteWorkspaceCoreRow(id: string): Promise<void> {
-    await this.workspaceRepository.delete(id);
+    await this.workspaceDeletionMaintenanceService.runInTransaction(
+      {
+        statementTimeoutMs: WORKSPACE_DELETION_STATEMENT_TIMEOUT_MS,
+        lockTimeoutMs: WORKSPACE_DELETION_LOCK_TIMEOUT_MS,
+        clientTimeoutMs: WORKSPACE_DELETION_CLIENT_TIMEOUT_MS,
+      },
+      async (manager) => {
+        await manager.delete(WorkspaceEntity, { id });
+      },
+    );
     await this.coreEntityCacheService.invalidate('workspaceEntity', id);
 
     this.logger.log(`workspace ${id} hard deleted`);
@@ -661,7 +675,11 @@ export class WorkspaceService {
     workspace: WorkspaceEntity,
   ): Promise<void> {
     await this.workspaceDeletionMaintenanceService.runInTransaction(
-      { statementTimeoutMs: 60_000, lockTimeoutMs: 2_000 },
+      {
+        statementTimeoutMs: WORKSPACE_DELETION_STATEMENT_TIMEOUT_MS,
+        lockTimeoutMs: WORKSPACE_DELETION_LOCK_TIMEOUT_MS,
+        clientTimeoutMs: WORKSPACE_DELETION_CLIENT_TIMEOUT_MS,
+      },
       async (manager) => {
         for (const metadataName of ALL_METADATA_NAMES_SORTED_ATOMICALLY) {
           if (metadataName === 'fieldMetadata') {

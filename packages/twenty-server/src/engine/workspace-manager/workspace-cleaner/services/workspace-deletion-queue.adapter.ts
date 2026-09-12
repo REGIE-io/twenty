@@ -17,7 +17,15 @@ export class WorkspaceDeletionQueueAdapter implements WorkspaceDeletionEnqueuer 
     return this.queue.add(
       WorkspaceDeletionJob.name,
       { workspaceId: input.workspaceId },
-      { id: input.jobId, retryLimit: 2 },
+      {
+        id: input.jobId,
+        retryLimit: 2,
+        retryBackoff: {
+          type: 'exponential',
+          delay: 5_000,
+          jitter: 0.25,
+        },
+      },
     );
   }
 }

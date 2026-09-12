@@ -4,6 +4,8 @@ import { WorkspaceService } from 'src/engine/core-modules/workspace/services/wor
 import { MetricsService } from 'src/engine/core-modules/metrics/metrics.service';
 import { MetricsKeys } from 'src/engine/core-modules/metrics/types/metrics-keys.type';
 import { WorkspaceDeletionPhase } from 'src/engine/core-modules/workspace/types/workspace-deletion-lifecycle.type';
+import { WORKSPACE_DELETION_PHASE_TIMEOUT_MS } from 'src/engine/workspace-manager/workspace-cleaner/constants/workspace-deletion-timeouts.constant';
+import { withWorkspaceDeletionDeadline } from 'src/engine/workspace-manager/workspace-cleaner/errors/workspace-deletion-timeout.error';
 import { type WorkspaceDeletionPhaseRunners } from 'src/engine/workspace-manager/workspace-cleaner/services/workspace-deletion-phase-executor.service';
 import { WorkspaceDeletionTraceService } from 'src/engine/workspace-manager/workspace-cleaner/services/workspace-deletion-trace.service';
 
@@ -60,7 +62,11 @@ export class WorkspaceDeletionPhaseRunnersService {
       phase,
     });
     try {
-      await operation();
+      await withWorkspaceDeletionDeadline(
+        operation(),
+        WORKSPACE_DELETION_PHASE_TIMEOUT_MS,
+        'WORKSPACE_DELETION_PHASE_TIMEOUT',
+      );
       this.trace.record({
         event: 'workspace_deletion_phase_finished',
         workspaceId,

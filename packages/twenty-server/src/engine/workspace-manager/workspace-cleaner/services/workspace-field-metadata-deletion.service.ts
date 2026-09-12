@@ -2,10 +2,12 @@ import { Injectable } from '@nestjs/common';
 
 import { type EntityManager } from 'typeorm';
 
+import {
+  WORKSPACE_DELETION_CLIENT_TIMEOUT_MS,
+  WORKSPACE_DELETION_LOCK_TIMEOUT_MS,
+  WORKSPACE_DELETION_STATEMENT_TIMEOUT_MS,
+} from 'src/engine/workspace-manager/workspace-cleaner/constants/workspace-deletion-timeouts.constant';
 import { WorkspaceDeletionMaintenanceService } from 'src/engine/workspace-manager/workspace-cleaner/services/workspace-deletion-maintenance.service';
-
-const METADATA_STATEMENT_TIMEOUT_MS = 60_000;
-const METADATA_LOCK_TIMEOUT_MS = 2_000;
 
 @Injectable()
 export class WorkspaceFieldMetadataDeletionService {
@@ -16,8 +18,9 @@ export class WorkspaceFieldMetadataDeletionService {
   delete(workspaceId: string): Promise<number> {
     return this.maintenance.runInTransaction(
       {
-        statementTimeoutMs: METADATA_STATEMENT_TIMEOUT_MS,
-        lockTimeoutMs: METADATA_LOCK_TIMEOUT_MS,
+        statementTimeoutMs: WORKSPACE_DELETION_STATEMENT_TIMEOUT_MS,
+        lockTimeoutMs: WORKSPACE_DELETION_LOCK_TIMEOUT_MS,
+        clientTimeoutMs: WORKSPACE_DELETION_CLIENT_TIMEOUT_MS,
       },
       (manager) => this.deleteWithManager(manager, workspaceId),
     );

@@ -4,6 +4,11 @@ import { MessageQueue } from 'src/engine/core-modules/message-queue/message-queu
 import { ExceptionHandlerService } from 'src/engine/core-modules/exception-handler/exception-handler.service';
 import { MetricsService } from 'src/engine/core-modules/metrics/metrics.service';
 import { MetricsKeys } from 'src/engine/core-modules/metrics/types/metrics-keys.type';
+import { WORKSPACE_DELETION_JOB_TIMEOUT_MS } from 'src/engine/workspace-manager/workspace-cleaner/constants/workspace-deletion-timeouts.constant';
+import {
+  type WorkspaceDeletionTimeoutError,
+  withWorkspaceDeletionDeadline,
+} from 'src/engine/workspace-manager/workspace-cleaner/errors/workspace-deletion-timeout.error';
 import { WorkspaceDeletionCoordinatorService } from 'src/engine/workspace-manager/workspace-cleaner/services/workspace-deletion-coordinator.service';
 import { WorkspaceDeletionPhaseRunnersService } from 'src/engine/workspace-manager/workspace-cleaner/services/workspace-deletion-phase-runners.service';
 import { WorkspaceDeletionTraceService } from 'src/engine/workspace-manager/workspace-cleaner/services/workspace-deletion-trace.service';
@@ -24,11 +29,48 @@ export class WorkspaceDeletionJob {
   async handle({ workspaceId }: WorkspaceDeletionJobData): Promise<void> {
     this.trace.record({ event: 'workspace_deletion_started', workspaceId });
 
-    const result = await this.coordinator.execute(
-      workspaceId,
-      this.phaseRunners.build(),
-      { now: new Date(), staleAfterMs: 30_000, maxAttempts: 3 },
-    );
+    let result;
+
+    try {
+      result = await withWorkspaceDeletionDeadline(
+        this.coordinator.execute(workspaceId, this.phaseRunners.build(), {
+          now: new Date(),
+          staleAfterMs: 30_000,
+          maxAttempts: 3,
+        }),
+        WORKSPACE_DELETION_JOB_TIMEOUT_MS,
+        'WORKSPACE_DELETION_JOB_TIMEOUT',
+      );
+    } catch (error) {
+      const capturedError =
+        error instanceof Error ? error : new Error(String(error));
+      const errorCode = (error as Partial<WorkspaceDeletionTimeoutError>)?.code;
+      const attributes = {
+        deletionKind: 'UNKNOWN',
+        phase: 'UNKNOWN',
+        result: 'retryable-failure',
+        errorCode,
+      };
+
+      this.trace.record({
+        event: 'workspace_deletion_failed',
+        workspaceId,
+        ...attributes,
+        attempt: 0,
+        errorMessage: capturedError.message,
+      });
+      void this.metrics.incrementCounterForEvent({
+        key: MetricsKeys.WorkspaceDeletionFailed,
+        attributes,
+        shouldStoreInCache: false,
+      });
+      this.exceptionHandler.captureExceptions([capturedError], {
+        workspace: { id: workspaceId },
+        additionalData: { ...attributes, attempt: 0 },
+      });
+
+      throw capturedError;
+    }
 
     if (
       result.status === 'retryable-failure' ||
