@@ -57,7 +57,7 @@ describe('RegieE2eWorkspaceSweeperService', () => {
       service.purgeQuarantinedWorkspaces(new Date('2026-09-02T00:00:00.001Z')),
     ).resolves.toBe(1);
 
-    expect(queryBuilder.limit).toHaveBeenCalledWith(10);
+    expect(queryBuilder.limit).toHaveBeenCalledWith(15);
     expect(queryBuilder.withDeleted.mock.invocationCallOrder[0]).toBeLessThan(
       queryBuilder.innerJoinAndSelect.mock.invocationCallOrder[0],
     );

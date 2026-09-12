@@ -103,6 +103,15 @@ export const MESSAGE_QUEUE_WORKER_CONFIG: Record<
       boundedShutdownDrain: false,
     },
   },
+  [MessageQueue.workspaceCleanupQueue]: {
+    priority: 7,
+    workerOptions: {
+      concurrency: 1,
+      lockDuration: 30_000,
+      maxStalledCount: 1,
+      boundedShutdownDrain: false,
+    },
+  },
   [MessageQueue.entityEventsToDbQueue]: {
     priority: 1,
     workerOptions: {
