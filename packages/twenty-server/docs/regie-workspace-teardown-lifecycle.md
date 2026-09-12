@@ -222,7 +222,11 @@ Add deletion execution fields to `core.workspace`:
 - `deletionLastErrorMessage`, bounded and scrubbed
 
 Do not overload `deletedAt`. It continues to mean that a workspace has been
-soft-deleted and has entered its grace period.
+soft-deleted and has entered its grace period. It is also the only persisted
+clock used for hard-deletion eligibility. Do not persist a separate
+`purgeAfter` timestamp: each discovery run derives eligibility from `deletedAt`
+and the reaper's current grace-period policy, so operators retain control over
+when quarantined workspaces become purgeable.
 
 Candidate discovery atomically transitions an eligible workspace into
 `PENDING_DELETION`. A worker atomically claims it by changing it to
@@ -267,9 +271,17 @@ Replace the combined PR #137 batch with three independent discovery jobs:
 2. Ordinary hard-deletion discovery.
 3. Regie E2E hard-deletion discovery, scheduled every ten minutes.
 
+Before admitting fresh hard-deletion candidates, recovery first reclaims stale
+`ONGOING_DELETION` workspaces so partial teardown resumes before more
+destructive work starts. It also re-enqueues stranded `PENDING_DELETION` rows;
+these have not necessarily begun teardown and do not otherwise impose an
+execution order. Exhausted `DELETION_FAILED` rows still require the configured
+reconciler or operator transition before they become retryable.
+
 Discovery jobs only:
 
-1. select a bounded, deterministically ordered page;
+1. select a bounded page, using deterministic ordering for stable pagination
+   and backlog fairness;
 2. validate the eligibility/safety boundary;
 3. atomically set `PENDING_DELETION` when hard deletion is required; and
 4. enqueue one deterministic job per workspace.
@@ -280,7 +292,9 @@ discovery runs must not create concurrent teardown jobs for the same workspace.
 One worker job processes one workspace. Use a workspace-scoped advisory lock,
 not a single global cleanup lock. Start with queue concurrency one to measure
 database impact. Increase it only when load tests and production metrics show
-safe headroom.
+safe headroom. Queue execution order is not a correctness requirement: recovery
+work has priority over fresh teardown, but jobs within either class may execute
+in any order.
 
 The ten-minute schedule changes arrival latency and potential throughput; it
 does not replace backpressure. If a prior job is slow, work remains queued
@@ -370,7 +384,10 @@ Prefer persisted typed marker columns if the query cannot be made reliably
 selective. Do not weaken the marker plus slug plus quarantine validation in
 order to make the query faster.
 
-All candidate queries must be bounded and deterministically ordered.
+All candidate queries must be bounded and deterministically ordered so repeated
+discovery pages are stable and the backlog is treated fairly. This ordering
+applies only to candidate selection; it does not impose FIFO execution on the
+workspace deletion queue.
 
 ### 5. Give maintenance work appropriate limits and recovery
 
@@ -425,7 +442,8 @@ CloudWatch alarms for:
 - workspace deletion job failures/stalls; and
 - phase duration approaching its deadline.
 
-Add a periodic reconciler which:
+Add a periodic reconciler which processes recovery work before admitting fresh
+hard-deletion candidates and:
 
 1. re-enqueues stale `PENDING_DELETION` rows;
 2. reclaims stale `ONGOING_DELETION` rows;
@@ -445,7 +463,16 @@ GET  /internal/workspaces/:workspaceId/deletion
 ```
 
 The request identifies deletion kind and supplies the E2E safety identity when
-applicable. Repeated requests are idempotent and return the same operation.
+applicable. The workspace ID is the deletion identifier; no second deletion
+state machine is persisted. Repeated requests return the current persisted
+workspace lifecycle while the row exists. Once the final workspace row is
+absent, both request and status operations report idempotent completion. They do
+not claim that a separate historical operation record still exists.
+
+For a soft-deleted workspace, the API may return a derived informational
+eligibility time, but it is not persisted and is not authoritative. The reaper
+always decides current eligibility from `deletedAt` and its configured grace
+policy.
 
 The status response exposes only lifecycle information needed by Go:
 
@@ -571,7 +598,8 @@ no individual job throws, such as repeated lock contention or safety skips.
 
 Run contract tests across both PRs:
 
-- repeated deletion requests return one operation;
+- repeated deletion requests return the same workspace lifecycle while it
+  exists, and report idempotent completion once it is absent;
 - Go remains `deprovisioning` while Twenty reports pending/running;
 - a retryable Twenty failure becomes `deprovision_failed` without reactivating
   the tenant;
