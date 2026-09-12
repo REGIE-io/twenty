@@ -21,8 +21,10 @@ import { PurgeRegieE2eWorkspacesCommand } from 'src/engine/workspace-manager/wor
 import { DestroyWorkspaceCommand } from 'src/engine/workspace-manager/workspace-cleaner/commands/destroy-workspace.command';
 import { CleanerWorkspaceService } from 'src/engine/workspace-manager/workspace-cleaner/services/cleaner.workspace-service';
 import { RegieE2eWorkspaceSweeperService } from 'src/engine/workspace-manager/workspace-cleaner/services/regie-e2e-workspace-sweeper.service';
+import { RegieE2eWorkspaceDeletionDiscoveryService } from 'src/engine/workspace-manager/workspace-cleaner/services/regie-e2e-workspace-deletion-discovery.service';
 import { WorkspaceDeletionLifecycleService } from 'src/engine/workspace-manager/workspace-cleaner/services/workspace-deletion-lifecycle.service';
 import { WorkspaceDeletionLifecycleStore } from 'src/engine/workspace-manager/workspace-cleaner/services/workspace-deletion-lifecycle.store';
+import { WorkspaceDeletionPhaseExecutorService } from 'src/engine/workspace-manager/workspace-cleaner/services/workspace-deletion-phase-executor.service';
 
 @Module({
   imports: [
@@ -49,15 +51,19 @@ import { WorkspaceDeletionLifecycleStore } from 'src/engine/workspace-manager/wo
     CleanOnboardingWorkspacesCronCommand,
     CleanerWorkspaceService,
     RegieE2eWorkspaceSweeperService,
+    RegieE2eWorkspaceDeletionDiscoveryService,
     WorkspaceDeletionLifecycleService,
     WorkspaceDeletionLifecycleStore,
+    WorkspaceDeletionPhaseExecutorService,
     provideWorkspaceScopedRepository(BillingSubscriptionEntity),
   ],
   exports: [
     CleanerWorkspaceService,
     RegieE2eWorkspaceSweeperService,
+    RegieE2eWorkspaceDeletionDiscoveryService,
     WorkspaceDeletionLifecycleService,
     WorkspaceDeletionLifecycleStore,
+    WorkspaceDeletionPhaseExecutorService,
     CleanSuspendedWorkspacesCronCommand,
     CleanOnboardingWorkspacesCronCommand,
   ],
