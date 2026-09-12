@@ -1,3 +1,4 @@
+import { type MetricsService } from 'src/engine/core-modules/metrics/metrics.service';
 import { WorkspaceDeletionPhase } from 'src/engine/core-modules/workspace/types/workspace-deletion-lifecycle.type';
 import { type WorkspaceService } from 'src/engine/core-modules/workspace/services/workspace.service';
 import { WorkspaceDeletionPhaseRunnersService } from 'src/engine/workspace-manager/workspace-cleaner/services/workspace-deletion-phase-runners.service';
@@ -15,10 +16,13 @@ describe('WorkspaceDeletionPhaseRunnersService', () => {
       hardDeleteWorkspaceCoreRow: jest.fn(),
     } as unknown as WorkspaceService;
     const trace = { record: jest.fn() };
-    const runners = new WorkspaceDeletionPhaseRunnersService(
+    const metrics = { recordHistogram: jest.fn() };
+    const service = Reflect.construct(WorkspaceDeletionPhaseRunnersService, [
       workspaceService,
       trace as unknown as WorkspaceDeletionTraceService,
-    ).build();
+      metrics as unknown as MetricsService,
+    ]);
+    const runners = service.build();
 
     for (const phase of Object.values(WorkspaceDeletionPhase)) {
       await runners[phase](workspaceId);
@@ -52,6 +56,50 @@ describe('WorkspaceDeletionPhaseRunnersService', () => {
       workspaceId,
       phase: WorkspaceDeletionPhase.CORE_ROW,
       result: 'completed',
+    });
+    expect(metrics.recordHistogram).toHaveBeenCalledWith({
+      key: 'workspace-deletion/phase-duration-ms',
+      value: expect.any(Number),
+      unit: 'ms',
+      attributes: {
+        phase: WorkspaceDeletionPhase.MEMBERS,
+        result: 'completed',
+      },
+    });
+  });
+
+  it('records failed phase duration and progress without swallowing the error', async () => {
+    const workspaceId = '20202020-0000-4000-8000-000000000001';
+    const failure = new Error('metadata statement timeout');
+    const workspaceService = {
+      hardDeleteWorkspaceMetadata: jest.fn().mockRejectedValue(failure),
+    } as unknown as WorkspaceService;
+    const trace = { record: jest.fn() };
+    const metrics = { recordHistogram: jest.fn() };
+    const service = Reflect.construct(WorkspaceDeletionPhaseRunnersService, [
+      workspaceService,
+      trace as unknown as WorkspaceDeletionTraceService,
+      metrics as unknown as MetricsService,
+    ]);
+
+    await expect(
+      service.build()[WorkspaceDeletionPhase.METADATA](workspaceId),
+    ).rejects.toBe(failure);
+
+    expect(trace.record).toHaveBeenLastCalledWith({
+      event: 'workspace_deletion_phase_finished',
+      workspaceId,
+      phase: WorkspaceDeletionPhase.METADATA,
+      result: 'failed',
+    });
+    expect(metrics.recordHistogram).toHaveBeenCalledWith({
+      key: 'workspace-deletion/phase-duration-ms',
+      value: expect.any(Number),
+      unit: 'ms',
+      attributes: {
+        phase: WorkspaceDeletionPhase.METADATA,
+        result: 'failed',
+      },
     });
   });
 });

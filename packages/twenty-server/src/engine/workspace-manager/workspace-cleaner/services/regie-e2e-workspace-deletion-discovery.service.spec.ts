@@ -3,6 +3,7 @@ import { type Repository } from 'typeorm';
 import { WorkspaceActivationStatus } from 'twenty-shared/workspace';
 
 import { type KeyValuePairEntity } from 'src/engine/core-modules/key-value-pair/key-value-pair.entity';
+import { type MetricsService } from 'src/engine/core-modules/metrics/metrics.service';
 import {
   type WorkspaceDeletionLifecycle,
   WorkspaceDeletionKind,
@@ -13,6 +14,7 @@ import {
   type WorkspaceDeletionEnqueuer,
 } from 'src/engine/workspace-manager/workspace-cleaner/services/regie-e2e-workspace-deletion-discovery.service';
 import { type WorkspaceDeletionLifecycleStore } from 'src/engine/workspace-manager/workspace-cleaner/services/workspace-deletion-lifecycle.store';
+import { type WorkspaceDeletionTraceService } from 'src/engine/workspace-manager/workspace-cleaner/services/workspace-deletion-trace.service';
 
 describe('RegieE2eWorkspaceDeletionDiscoveryService', () => {
   const now = new Date('2026-09-12T12:00:00.000Z');
@@ -75,12 +77,29 @@ describe('RegieE2eWorkspaceDeletionDiscoveryService', () => {
       requestDeletion: jest.fn().mockResolvedValue(requested),
     };
     const enqueuer = { enqueue: jest.fn().mockResolvedValue(undefined) };
-    const service = new RegieE2eWorkspaceDeletionDiscoveryService(
-      markerRepository as unknown as Repository<KeyValuePairEntity>,
-      lifecycleStore as unknown as WorkspaceDeletionLifecycleStore,
+    const trace = { record: jest.fn() };
+    const metrics = {
+      incrementCounterBy: jest.fn(),
+      incrementCounterForEvent: jest.fn(),
+    };
+    const service = Reflect.construct(
+      RegieE2eWorkspaceDeletionDiscoveryService,
+      [
+        markerRepository as unknown as Repository<KeyValuePairEntity>,
+        lifecycleStore as unknown as WorkspaceDeletionLifecycleStore,
+        trace as unknown as WorkspaceDeletionTraceService,
+        metrics as unknown as MetricsService,
+      ],
     );
 
-    return { service, queryBuilder, lifecycleStore, enqueuer };
+    return {
+      service,
+      queryBuilder,
+      lifecycleStore,
+      enqueuer,
+      trace,
+      metrics,
+    };
   };
 
   const discover = (
@@ -117,6 +136,73 @@ describe('RegieE2eWorkspaceDeletionDiscoveryService', () => {
     expect(enqueuer.enqueue).toHaveBeenNthCalledWith(2, {
       workspaceId: workspace.id,
       jobId: `workspace-delete:${workspace.id}`,
+    });
+  });
+
+  it('emits discovery lifecycle events and bounded-cardinality counters', async () => {
+    const stranded = lifecycle('20202020-0000-4000-8000-000000000099');
+    const { service, enqueuer, trace, metrics } = makeService({
+      recovery: [stranded],
+    });
+
+    await discover(service, enqueuer);
+
+    expect(trace.record).toHaveBeenNthCalledWith(1, {
+      event: 'workspace_deletion_discovery_started',
+      deletionKind: 'E2E',
+    });
+    expect(trace.record).toHaveBeenLastCalledWith({
+      event: 'workspace_deletion_discovery_finished',
+      deletionKind: 'E2E',
+      candidates: 1,
+      recovered: 1,
+      admitted: 1,
+    });
+    expect(metrics.incrementCounterBy).toHaveBeenCalledWith({
+      key: 'workspace-deletion/discovery-candidates',
+      amount: 1,
+      attributes: { deletionKind: 'E2E' },
+    });
+    expect(metrics.incrementCounterBy).toHaveBeenCalledWith({
+      key: 'workspace-deletion/admitted',
+      amount: 1,
+      attributes: { deletionKind: 'E2E' },
+    });
+    expect(metrics.incrementCounterBy).toHaveBeenCalledWith({
+      key: 'workspace-deletion/recovered',
+      amount: 1,
+      attributes: { deletionKind: 'E2E' },
+    });
+    expect(metrics.incrementCounterBy.mock.calls.flat()).not.toContain(
+      workspace.id,
+    );
+    expect(metrics.incrementCounterForEvent).not.toHaveBeenCalledWith(
+      expect.objectContaining({ key: 'workspace-deletion/completed' }),
+    );
+  });
+
+  it('emits a failed discovery event and counter before propagating the error to the Sentry monitor', async () => {
+    const { service, queryBuilder, enqueuer, trace, metrics } = makeService();
+    const failure = new Error('marker query timed out');
+
+    queryBuilder.getMany.mockRejectedValue(failure);
+
+    await expect(discover(service, enqueuer)).rejects.toBe(failure);
+
+    expect(trace.record).toHaveBeenNthCalledWith(1, {
+      event: 'workspace_deletion_discovery_started',
+      deletionKind: 'E2E',
+    });
+    expect(trace.record).toHaveBeenLastCalledWith({
+      event: 'workspace_deletion_discovery_failed',
+      deletionKind: 'E2E',
+      errorCode: 'ERROR',
+      errorMessage: 'marker query timed out',
+    });
+    expect(metrics.incrementCounterForEvent).toHaveBeenCalledWith({
+      key: 'workspace-deletion/discovery-failed',
+      attributes: { deletionKind: 'E2E', errorCode: 'ERROR' },
+      shouldStoreInCache: false,
     });
   });
 
