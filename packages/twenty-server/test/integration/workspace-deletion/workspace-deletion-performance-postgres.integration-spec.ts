@@ -2,6 +2,8 @@ import crypto from 'crypto';
 
 import { DataSource } from 'typeorm';
 
+import { AddWorkspaceDeletionLifecycleFastInstanceCommand } from 'src/database/commands/upgrade-version-command/2-32/2-32-instance-command-fast-1789196612599-add-workspace-deletion-lifecycle';
+
 jest.useRealTimers();
 
 describe('workspace deletion production-shaped PostgreSQL performance contracts', () => {
@@ -39,6 +41,16 @@ describe('workspace deletion production-shaped PostgreSQL performance contracts'
           : false,
     });
     await dataSource.initialize();
+    const queryRunner = dataSource.createQueryRunner();
+
+    await queryRunner.connect();
+    try {
+      await new AddWorkspaceDeletionLifecycleFastInstanceCommand().up(
+        queryRunner,
+      );
+    } finally {
+      await queryRunner.release();
+    }
   });
 
   beforeEach(() => {

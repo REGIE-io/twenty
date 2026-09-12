@@ -41,9 +41,20 @@ export class AddWorkspaceDeletionLifecycleFastInstanceCommand implements FastIns
       CREATE INDEX IF NOT EXISTS "IDX_WORKSPACE_DELETION_RECOVERY"
       ON "core"."workspace" ("activationStatus", "deletionLastProgressAt")
     `);
+    await queryRunner.query(`
+      CREATE INDEX IF NOT EXISTS "IDX_REGIE_E2E_MARKER_DISCOVERY"
+      ON "core"."keyValuePair" ("workspaceId")
+      WHERE key = 'regie-internal:e2e-workspace-marker'
+        AND type = 'USER_VARIABLE'
+        AND value ->> 'ephemeral' = 'true'
+        AND value ->> 'organizationId' LIKE 'org\\_e2e\\_%' ESCAPE '\\'
+    `);
   }
 
   public async down(queryRunner: QueryRunner): Promise<void> {
+    await queryRunner.query(
+      `DROP INDEX IF EXISTS "core"."IDX_REGIE_E2E_MARKER_DISCOVERY"`,
+    );
     await queryRunner.query(
       `DROP INDEX IF EXISTS "core"."IDX_WORKSPACE_DELETION_RECOVERY"`,
     );

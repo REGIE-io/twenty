@@ -13,7 +13,6 @@ import {
   IsNull,
   LessThan,
   Not,
-  QueryRunner,
   Repository,
 } from 'typeorm';
 
@@ -58,7 +57,6 @@ import {
 } from 'src/engine/core-modules/workspace/workspace.exception';
 import { AiModelRegistryService } from 'src/engine/metadata-modules/ai/ai-models/services/ai-model-registry.service';
 import { isModelAllowedByWorkspace } from 'src/engine/metadata-modules/ai/ai-models/utils/is-model-allowed.util';
-import { FieldMetadataEntity } from 'src/engine/metadata-modules/field-metadata/field-metadata.entity';
 import { ALL_METADATA_ENTITY_BY_METADATA_NAME } from 'src/engine/metadata-modules/flat-entity/constant/all-metadata-entity-by-metadata-name.constant';
 import { ALL_METADATA_NAMES_SORTED_ATOMICALLY } from 'src/engine/metadata-modules/flat-entity/constant/all-metadata-names-sorted-atomically.constant';
 import { WorkspaceManyOrAllFlatEntityMapsCacheService } from 'src/engine/metadata-modules/flat-entity/services/workspace-many-or-all-flat-entity-maps-cache.service';
@@ -71,6 +69,8 @@ import { PermissionsService } from 'src/engine/metadata-modules/permissions/perm
 import { WorkspaceCacheStorageService } from 'src/engine/workspace-cache-storage/workspace-cache-storage.service';
 import { WorkspaceDataSourceService } from 'src/engine/workspace-datasource/workspace-datasource.service';
 import { WorkspaceManagerService } from 'src/engine/workspace-manager/workspace-manager.service';
+import { WorkspaceDeletionMaintenanceService } from 'src/engine/workspace-manager/workspace-cleaner/services/workspace-deletion-maintenance.service';
+import { WorkspaceFieldMetadataDeletionService } from 'src/engine/workspace-manager/workspace-cleaner/services/workspace-field-metadata-deletion.service';
 import { DEFAULT_FEATURE_FLAGS } from 'src/engine/workspace-manager/workspace-migration/constant/default-feature-flags';
 
 // A workspace stuck in ONGOING_CREATION for longer than this is treated as a
@@ -145,6 +145,8 @@ export class WorkspaceService {
     private readonly upgradeSequenceReaderService: UpgradeSequenceReaderService,
     private readonly sdkClientGenerationService: SdkClientGenerationService,
     private readonly phoneSearchWorkspaceCleanupService: PhoneSearchWorkspaceCleanupService,
+    private readonly workspaceDeletionMaintenanceService: WorkspaceDeletionMaintenanceService,
+    private readonly workspaceFieldMetadataDeletionService: WorkspaceFieldMetadataDeletionService,
   ) {}
 
   async updateWorkspaceById({
@@ -658,139 +660,40 @@ export class WorkspaceService {
   private async deleteWorkspaceSyncableMetadataEntities(
     workspace: WorkspaceEntity,
   ): Promise<void> {
-    const fieldMetadataIdChunks = await this.getFieldMetadataIdChunks(
-      workspace.id,
-    );
-    const queryRunner = this.coreDataSource.createQueryRunner();
+    await this.workspaceDeletionMaintenanceService.runInTransaction(
+      { statementTimeoutMs: 60_000, lockTimeoutMs: 2_000 },
+      async (manager) => {
+        for (const metadataName of ALL_METADATA_NAMES_SORTED_ATOMICALLY) {
+          if (metadataName === 'fieldMetadata') {
+            const deletedCount =
+              await this.workspaceFieldMetadataDeletionService.deleteWithManager(
+                manager,
+                workspace.id,
+              );
 
-    await queryRunner.connect();
+            if (deletedCount > 0) {
+              this.logger.log(
+                `workspace ${workspace.id}: deleted ${deletedCount} ${metadataName} record(s)`,
+              );
+            }
 
-    try {
-      await queryRunner.startTransaction();
-
-      for (const metadataName of ALL_METADATA_NAMES_SORTED_ATOMICALLY) {
-        if (metadataName === 'fieldMetadata') {
-          const deletedCount = await this.deleteFieldMetadataInChunks(
-            queryRunner,
-            workspace.id,
-            fieldMetadataIdChunks,
-          );
-
-          if (deletedCount > 0) {
-            this.logger.log(
-              `workspace ${workspace.id}: deleted ${deletedCount} ${metadataName} record(s)`,
-            );
+            continue;
           }
 
-          continue;
+          const entity = ALL_METADATA_ENTITY_BY_METADATA_NAME[metadataName];
+
+          const result = await manager.delete(entity, {
+            workspaceId: workspace.id,
+          });
+
+          if (result.affected && result.affected > 0) {
+            this.logger.log(
+              `workspace ${workspace.id}: deleted ${result.affected} ${metadataName} record(s)`,
+            );
+          }
         }
-
-        const entity = ALL_METADATA_ENTITY_BY_METADATA_NAME[metadataName];
-
-        const result = await queryRunner.manager.delete(entity, {
-          workspaceId: workspace.id,
-        });
-
-        if (result.affected && result.affected > 0) {
-          this.logger.log(
-            `workspace ${workspace.id}: deleted ${result.affected} ${metadataName} record(s)`,
-          );
-        }
-      }
-
-      await queryRunner.commitTransaction();
-    } catch (error) {
-      await queryRunner.rollbackTransaction();
-
-      throw error;
-    } finally {
-      await queryRunner.release();
-    }
-  }
-
-  // FieldMetadataEntity has a self-referencing FK (relationTargetFieldMetadataId)
-  // Related fields must be deleted together to avoid constraint violations
-  private async getFieldMetadataIdChunks(
-    workspaceId: string,
-  ): Promise<string[][]> {
-    const CHUNK_SIZE = 50;
-
-    const { flatFieldMetadataMaps } =
-      await this.flatEntityMapsCacheService.getOrRecomputeManyOrAllFlatEntityMaps(
-        {
-          workspaceId,
-          flatMapsKeys: ['flatFieldMetadataMaps'],
-        },
-      );
-
-    const fields = Object.values(
-      flatFieldMetadataMaps.byUniversalIdentifier,
-    ).filter(isDefined);
-
-    if (fields.length === 0) {
-      return [];
-    }
-
-    const processedIds = new Set<string>();
-    const fieldsMap = new Map(fields.map((field) => [field.id, field]));
-    const chunks: string[][] = [];
-    let currentChunk: string[] = [];
-
-    for (const field of fields) {
-      if (processedIds.has(field.id)) {
-        continue;
-      }
-
-      currentChunk.push(field.id);
-      processedIds.add(field.id);
-
-      if (field.relationTargetFieldMetadataId) {
-        const relatedField = fieldsMap.get(field.relationTargetFieldMetadataId);
-
-        if (relatedField && !processedIds.has(relatedField.id)) {
-          currentChunk.push(relatedField.id);
-          processedIds.add(relatedField.id);
-        }
-      }
-
-      if (currentChunk.length >= CHUNK_SIZE) {
-        chunks.push([...currentChunk]);
-        currentChunk = [];
-      }
-    }
-
-    if (currentChunk.length > 0) {
-      chunks.push(currentChunk);
-    }
-
-    return chunks;
-  }
-
-  private async deleteFieldMetadataInChunks(
-    queryRunner: QueryRunner,
-    workspaceId: string,
-    fieldMetadataIdChunks: string[][],
-  ): Promise<number> {
-    let totalDeleted = 0;
-
-    for (const [index, chunk] of fieldMetadataIdChunks.entries()) {
-      const result = await queryRunner.manager
-        .createQueryBuilder()
-        .delete()
-        .from(FieldMetadataEntity)
-        .whereInIds(chunk)
-        .execute();
-
-      const deletedInChunk = result.affected || 0;
-
-      totalDeleted += deletedInChunk;
-
-      this.logger.log(
-        `workspace ${workspaceId}: fieldMetadata chunk ${index + 1}/${fieldMetadataIdChunks.length} - deleted ${deletedInChunk} record(s)`,
-      );
-    }
-
-    return totalDeleted;
+      },
+    );
   }
 
   async handleRemoveWorkspaceMember(

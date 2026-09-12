@@ -54,6 +54,8 @@ import { WorkspaceCacheStorageModule } from 'src/engine/workspace-cache-storage/
 import { WorkspaceDataSourceModule } from 'src/engine/workspace-datasource/workspace-datasource.module';
 import { WorkspaceManagerModule } from 'src/engine/workspace-manager/workspace-manager.module';
 import { WorkspaceMigrationModule } from 'src/engine/workspace-manager/workspace-migration/workspace-migration.module';
+import { WorkspaceDeletionMaintenanceService } from 'src/engine/workspace-manager/workspace-cleaner/services/workspace-deletion-maintenance.service';
+import { WorkspaceFieldMetadataDeletionService } from 'src/engine/workspace-manager/workspace-cleaner/services/workspace-field-metadata-deletion.service';
 
 @Module({
   imports: [
@@ -107,6 +109,8 @@ import { WorkspaceMigrationModule } from 'src/engine/workspace-manager/workspace
   providers: [
     WorkspaceResolver,
     WorkspaceService,
+    WorkspaceDeletionMaintenanceService,
+    WorkspaceFieldMetadataDeletionService,
     WorkspaceGaugeService,
     WorkspaceEntityCacheProviderService,
     InternalWorkspaceMemberProvisioningService,
