@@ -102,4 +102,40 @@ describe('WorkspaceDeletionPhaseRunnersService', () => {
       },
     });
   });
+
+  it('fails a phase at its overall deadline even when the underlying operation eventually resolves', async () => {
+    const workspaceService = {
+      hardDeleteWorkspaceMetadata: jest.fn(
+        () => new Promise<void>((resolve) => setTimeout(resolve, 70_000)),
+      ),
+    } as unknown as WorkspaceService;
+    const trace = { record: jest.fn() };
+    const metrics = { recordHistogram: jest.fn() };
+    const service = Reflect.construct(WorkspaceDeletionPhaseRunnersService, [
+      workspaceService,
+      trace as unknown as WorkspaceDeletionTraceService,
+      metrics as unknown as MetricsService,
+    ]);
+
+    const execution = service
+      .build()
+      [WorkspaceDeletionPhase.METADATA]('20202020-0000-4000-8000-000000000001');
+    const outcome = execution.then(
+      () => ({ resolved: true }),
+      (error) => ({ error }),
+    );
+
+    await jest.advanceTimersByTimeAsync(70_000);
+    await expect(outcome).resolves.toEqual({
+      error: expect.objectContaining({
+        code: 'WORKSPACE_DELETION_PHASE_TIMEOUT',
+      }),
+    });
+    expect(trace.record).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        event: 'workspace_deletion_phase_finished',
+        result: 'failed',
+      }),
+    );
+  });
 });

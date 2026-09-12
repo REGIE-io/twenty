@@ -150,4 +150,36 @@ describe('WorkspaceDeletionJob', () => {
       );
     },
   );
+
+  it('fails and reports a worker that exceeds the overall job deadline', async () => {
+    coordinator.execute.mockImplementation(
+      () =>
+        new Promise((resolve) =>
+          setTimeout(
+            () => resolve({ status: 'completed', deletionKind: 'E2E' }),
+            11 * 60_000,
+          ),
+        ),
+    );
+
+    const execution = job().handle({ workspaceId });
+    const outcome = execution.then(
+      () => ({ resolved: true }),
+      (error) => ({ error }),
+    );
+
+    await jest.advanceTimersByTimeAsync(11 * 60_000);
+    await expect(outcome).resolves.toEqual({
+      error: expect.objectContaining({
+        code: 'WORKSPACE_DELETION_JOB_TIMEOUT',
+      }),
+    });
+    expect(metrics.incrementCounterForEvent).toHaveBeenCalledWith(
+      expect.objectContaining({ key: 'workspace-deletion/failed' }),
+    );
+    expect(exceptionHandler.captureExceptions).toHaveBeenCalledWith(
+      [expect.objectContaining({ code: 'WORKSPACE_DELETION_JOB_TIMEOUT' })],
+      expect.objectContaining({ workspace: { id: workspaceId } }),
+    );
+  });
 });

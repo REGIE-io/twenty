@@ -17,7 +17,15 @@ describe('WorkspaceDeletionQueueAdapter', () => {
     expect(queue.add).toHaveBeenCalledWith(
       WorkspaceDeletionJob.name,
       { workspaceId: 'workspace-id' },
-      { id: 'workspace-delete:workspace-id', retryLimit: 2 },
+      {
+        id: 'workspace-delete:workspace-id',
+        retryLimit: 2,
+        retryBackoff: {
+          type: 'exponential',
+          delay: 5_000,
+          jitter: 0.25,
+        },
+      },
     );
   });
 });

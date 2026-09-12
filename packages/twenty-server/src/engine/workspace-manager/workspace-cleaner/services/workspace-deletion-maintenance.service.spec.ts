@@ -5,8 +5,12 @@ import { WorkspaceDeletionMaintenanceService } from 'src/engine/workspace-manage
 describe('WorkspaceDeletionMaintenanceService', () => {
   const makeService = () => {
     const manager = {} as EntityManager;
+    const databaseConnection = {
+      connectionParameters: { query_timeout: 10_000 },
+    };
     const queryRunner = {
       manager,
+      databaseConnection,
       connect: jest.fn(),
       startTransaction: jest.fn(),
       query: jest.fn(),
@@ -72,5 +76,44 @@ describe('WorkspaceDeletionMaintenanceService', () => {
     expect(queryRunner.rollbackTransaction).toHaveBeenCalledTimes(1);
     expect(queryRunner.commitTransaction).not.toHaveBeenCalled();
     expect(queryRunner.release).toHaveBeenCalledTimes(1);
+  });
+
+  it('keeps the client deadline beyond the server deadline and restores the pooled connection', async () => {
+    const { queryRunner, service } = makeService();
+    const observedClientTimeouts: number[] = [];
+    const timeouts = {
+      statementTimeoutMs: 60_000,
+      lockTimeoutMs: 2_000,
+      clientTimeoutMs: 65_000,
+    } as Parameters<typeof service.runInTransaction>[0] & {
+      clientTimeoutMs: number;
+    };
+
+    await service.runInTransaction(timeouts, async () => {
+      observedClientTimeouts.push(
+        queryRunner.databaseConnection.connectionParameters.query_timeout,
+      );
+    });
+
+    expect(observedClientTimeouts).toEqual([65_000]);
+    expect(
+      queryRunner.databaseConnection.connectionParameters.query_timeout,
+    ).toBe(10_000);
+  });
+
+  it('rejects ambiguous timeout ordering before opening a database connection', async () => {
+    const { queryRunner, service } = makeService();
+    const invalidTimeouts = {
+      statementTimeoutMs: 60_000,
+      lockTimeoutMs: 2_000,
+      clientTimeoutMs: 10_000,
+    } as Parameters<typeof service.runInTransaction>[0] & {
+      clientTimeoutMs: number;
+    };
+
+    await expect(
+      service.runInTransaction(invalidTimeouts, async () => undefined),
+    ).rejects.toThrow('client timeout must exceed statement timeout');
+    expect(queryRunner.connect).not.toHaveBeenCalled();
   });
 });

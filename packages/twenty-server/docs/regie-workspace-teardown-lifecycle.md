@@ -405,6 +405,32 @@ Use a maintenance query runner with explicit, separately configured limits:
 
 Do not increase the global primary database timeout.
 
+#### Controlled RDS deletion timing sample
+
+On 2026-09-12, a controlled run deleted 30 isolated workspaces from the
+development RDS instance. Each fixture contained 600 paired, self-referencing
+field metadata rows, its object metadata row, and a workspace schema. The timed
+section included the field and object metadata statements, schema drop, final
+workspace-row deletion, transaction commit, and no fixture construction.
+
+| Statistic                    | Duration |
+| ---------------------------- | -------: |
+| Mean                         | 1,542 ms |
+| Sample standard deviation    |    89 ms |
+| Mean + 2 standard deviations | 1,721 ms |
+| p95                          | 1,747 ms |
+| Maximum                      | 1,879 ms |
+
+This is a low-load database-only calibration, not an end-to-end production
+service-level objective: it excludes members, Redis, queues, object storage,
+email-domain cleanup, and DNS. For the measured database work, round the larger
+of mean plus two standard deviations and p95 upward rather than using the raw
+1,721 ms value, producing a 2,000 ms measured boundary. Use 5,000 ms as the
+initial server statement-timeout candidate to retain load headroom until a
+representative production-load sample is available. Set the client, phase, and
+job deadlines outside the server statement deadline so PostgreSQL remains the
+first component to cancel ambiguous database work.
+
 Configure bounded automatic retries with exponential backoff and jitter.
 Differentiate retryable database pressure, lock contention, and infrastructure
 errors from permanent safety-validation failures. Permanent marker failures
