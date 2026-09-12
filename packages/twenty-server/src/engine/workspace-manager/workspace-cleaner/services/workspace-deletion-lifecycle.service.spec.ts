@@ -5,7 +5,7 @@ import {
   type WorkspaceDeletionLifecycle,
   WorkspaceDeletionKind,
   WorkspaceDeletionPhase,
-} from 'src/engine/workspace-manager/workspace-cleaner/types/workspace-deletion-lifecycle.type';
+} from 'src/engine/core-modules/workspace/types/workspace-deletion-lifecycle.type';
 
 describe('WorkspaceDeletionLifecycleService', () => {
   const workspaceId = '20202020-0000-4000-8000-000000000001';

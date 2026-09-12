@@ -1,3 +1,5 @@
+import { Injectable } from '@nestjs/common';
+
 import { WorkspaceActivationStatus } from 'twenty-shared/workspace';
 
 import {
@@ -5,8 +7,9 @@ import {
   type WorkspaceDeletionKind,
   type WorkspaceDeletionPhase,
   WORKSPACE_DELETION_PHASES,
-} from 'src/engine/workspace-manager/workspace-cleaner/types/workspace-deletion-lifecycle.type';
+} from 'src/engine/core-modules/workspace/types/workspace-deletion-lifecycle.type';
 
+@Injectable()
 export class WorkspaceDeletionLifecycleService {
   requestDeletion(
     workspace: WorkspaceDeletionLifecycle,

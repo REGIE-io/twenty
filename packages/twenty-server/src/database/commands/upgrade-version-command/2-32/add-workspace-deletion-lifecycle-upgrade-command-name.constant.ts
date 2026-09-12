@@ -1,0 +1,2 @@
+export const ADD_WORKSPACE_DELETION_LIFECYCLE_UPGRADE_COMMAND_NAME =
+  '2.32.0_AddWorkspaceDeletionLifecycleFastInstanceCommand_1789196612599';
