@@ -24,6 +24,8 @@ import { RegieE2eWorkspaceSweeperService } from 'src/engine/workspace-manager/wo
 import { RegieE2eWorkspaceDeletionDiscoveryService } from 'src/engine/workspace-manager/workspace-cleaner/services/regie-e2e-workspace-deletion-discovery.service';
 import { WorkspaceDeletionLifecycleService } from 'src/engine/workspace-manager/workspace-cleaner/services/workspace-deletion-lifecycle.service';
 import { WorkspaceDeletionLifecycleStore } from 'src/engine/workspace-manager/workspace-cleaner/services/workspace-deletion-lifecycle.store';
+import { WorkspaceDeletionCoordinatorService } from 'src/engine/workspace-manager/workspace-cleaner/services/workspace-deletion-coordinator.service';
+import { WorkspaceDeletionMonitoringService } from 'src/engine/workspace-manager/workspace-cleaner/services/workspace-deletion-monitoring.service';
 import { WorkspaceDeletionPhaseExecutorService } from 'src/engine/workspace-manager/workspace-cleaner/services/workspace-deletion-phase-executor.service';
 
 @Module({
@@ -55,6 +57,8 @@ import { WorkspaceDeletionPhaseExecutorService } from 'src/engine/workspace-mana
     WorkspaceDeletionLifecycleService,
     WorkspaceDeletionLifecycleStore,
     WorkspaceDeletionPhaseExecutorService,
+    WorkspaceDeletionCoordinatorService,
+    WorkspaceDeletionMonitoringService,
     provideWorkspaceScopedRepository(BillingSubscriptionEntity),
   ],
   exports: [
@@ -64,6 +68,8 @@ import { WorkspaceDeletionPhaseExecutorService } from 'src/engine/workspace-mana
     WorkspaceDeletionLifecycleService,
     WorkspaceDeletionLifecycleStore,
     WorkspaceDeletionPhaseExecutorService,
+    WorkspaceDeletionCoordinatorService,
+    WorkspaceDeletionMonitoringService,
     CleanSuspendedWorkspacesCronCommand,
     CleanOnboardingWorkspacesCronCommand,
   ],

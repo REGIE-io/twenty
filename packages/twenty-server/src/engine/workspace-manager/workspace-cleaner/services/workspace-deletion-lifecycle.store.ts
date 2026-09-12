@@ -225,6 +225,33 @@ export class WorkspaceDeletionLifecycleStore {
     return rows.map((row) => this.mapRow(row));
   }
 
+  async isDeletionComplete(workspaceId: string): Promise<boolean> {
+    const rows = await this.dataSource.query<Array<{ exists: boolean }>>(
+      `SELECT EXISTS (
+         SELECT 1 FROM "core"."workspace" WHERE id = $1
+       ) AS "exists"`,
+      [workspaceId],
+    );
+
+    return rows[0]?.exists === false;
+  }
+
+  async findOutstandingDeletions(): Promise<WorkspaceDeletionLifecycle[]> {
+    const rows = await this.dataSource.query<WorkspaceDeletionLifecycleRow[]>(
+      `SELECT ${WORKSPACE_DELETION_RETURNING}
+         FROM "core"."workspace"
+        WHERE "activationStatus" IN ($1, $2, $3)
+        ORDER BY "deletionRequestedAt" ASC, id ASC`,
+      [
+        WorkspaceActivationStatus.PENDING_DELETION,
+        WorkspaceActivationStatus.ONGOING_DELETION,
+        WorkspaceActivationStatus.DELETION_FAILED,
+      ],
+    );
+
+    return rows.map((row) => this.mapRow(row));
+  }
+
   private mapFirstRow(
     result: WorkspaceDeletionQueryResult,
   ): WorkspaceDeletionLifecycle | null {

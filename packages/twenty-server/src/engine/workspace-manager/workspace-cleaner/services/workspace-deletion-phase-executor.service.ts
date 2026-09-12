@@ -62,7 +62,34 @@ export class WorkspaceDeletionPhaseExecutorService {
       }
 
       if (phase === WorkspaceDeletionPhase.CORE_ROW) {
-        return { status: 'completed' };
+        if (await this.lifecycleStore.isDeletionComplete(claim.workspaceId)) {
+          return { status: 'completed' };
+        }
+
+        const completionError = new Error(
+          'Core workspace row still exists after the CORE_ROW phase',
+        );
+        const recorded = await this.lifecycleStore.recordFailure(
+          claim.workspaceId,
+          phase,
+          expectedAttempt,
+          'CORE_ROW_STILL_PRESENT',
+          completionError.message,
+          maxAttempts,
+        );
+
+        if (recorded === null) {
+          return { status: 'fenced' };
+        }
+
+        return {
+          status:
+            recorded.activationStatus ===
+            WorkspaceActivationStatus.DELETION_FAILED
+              ? 'terminal-failure'
+              : 'retryable-failure',
+          error: completionError,
+        };
       }
 
       claim = await this.lifecycleStore.checkpointPhase(
