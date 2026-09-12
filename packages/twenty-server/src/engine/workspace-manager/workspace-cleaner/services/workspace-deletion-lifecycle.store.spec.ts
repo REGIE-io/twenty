@@ -35,6 +35,32 @@ describe('WorkspaceDeletionLifecycleStore', () => {
     );
   });
 
+  it('uses a separate atomic transition for explicit instant hard deletion', async () => {
+    const query = jest.fn().mockResolvedValue([[], 0]);
+    const store = new WorkspaceDeletionLifecycleStore({
+      query,
+    } as unknown as DataSource);
+
+    await store.requestInstantHardDeletion(
+      workspaceId,
+      WorkspaceDeletionKind.E2E,
+      now,
+    );
+
+    expect(query).toHaveBeenCalledWith(
+      expect.stringContaining('"activationStatus" IN ($6, $7)'),
+      [
+        workspaceId,
+        WorkspaceActivationStatus.PENDING_DELETION,
+        WorkspaceDeletionKind.E2E,
+        WorkspaceDeletionPhase.MEMBERS,
+        now,
+        WorkspaceActivationStatus.ACTIVE,
+        WorkspaceActivationStatus.SUSPENDED,
+      ],
+    );
+  });
+
   it('uses one conditional update to claim pending or stale work', async () => {
     const query = jest.fn().mockResolvedValue([
       [

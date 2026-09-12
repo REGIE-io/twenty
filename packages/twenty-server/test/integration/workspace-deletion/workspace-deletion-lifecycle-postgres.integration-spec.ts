@@ -157,6 +157,26 @@ describe('workspace deletion lifecycle PostgreSQL contracts', () => {
     });
   });
 
+  it('atomically admits an active workspace through explicit instant hard deletion', async () => {
+    await firstDataSource.query(
+      `UPDATE "core"."workspace" SET "activationStatus" = $2 WHERE id = $1`,
+      [workspaceId, WorkspaceActivationStatus.ACTIVE],
+    );
+
+    await expect(
+      firstStore.requestInstantHardDeletion(
+        workspaceId,
+        WorkspaceDeletionKind.E2E,
+        new Date('2026-09-02T00:00:00.000Z'),
+      ),
+    ).resolves.toMatchObject({
+      workspaceId,
+      activationStatus: WorkspaceActivationStatus.PENDING_DELETION,
+      deletionKind: WorkspaceDeletionKind.E2E,
+      deletionPhase: WorkspaceDeletionPhase.MEMBERS,
+    });
+  });
+
   it('allows exactly one of two database connections to claim a pending deletion', async () => {
     const requestedAt = new Date('2026-09-02T00:00:00.000Z');
     const claimedAt = new Date('2026-09-02T00:01:00.000Z');
