@@ -1,6 +1,8 @@
 import { Injectable } from '@nestjs/common';
 
 import { WorkspaceService } from 'src/engine/core-modules/workspace/services/workspace.service';
+import { MetricsService } from 'src/engine/core-modules/metrics/metrics.service';
+import { MetricsKeys } from 'src/engine/core-modules/metrics/types/metrics-keys.type';
 import { WorkspaceDeletionPhase } from 'src/engine/core-modules/workspace/types/workspace-deletion-lifecycle.type';
 import { type WorkspaceDeletionPhaseRunners } from 'src/engine/workspace-manager/workspace-cleaner/services/workspace-deletion-phase-executor.service';
 import { WorkspaceDeletionTraceService } from 'src/engine/workspace-manager/workspace-cleaner/services/workspace-deletion-trace.service';
@@ -10,6 +12,7 @@ export class WorkspaceDeletionPhaseRunnersService {
   constructor(
     private readonly workspaceService: WorkspaceService,
     private readonly trace: WorkspaceDeletionTraceService,
+    private readonly metrics: MetricsService,
   ) {}
 
   build(): WorkspaceDeletionPhaseRunners {
@@ -48,6 +51,9 @@ export class WorkspaceDeletionPhaseRunnersService {
     workspaceId: string,
     operation: () => Promise<void>,
   ): Promise<void> {
+    const startedAt = Date.now();
+    let result = 'completed';
+
     this.trace.record({
       event: 'workspace_deletion_phase_started',
       workspaceId,
@@ -62,6 +68,7 @@ export class WorkspaceDeletionPhaseRunnersService {
         result: 'completed',
       });
     } catch (error) {
+      result = 'failed';
       this.trace.record({
         event: 'workspace_deletion_phase_finished',
         workspaceId,
@@ -69,6 +76,13 @@ export class WorkspaceDeletionPhaseRunnersService {
         result: 'failed',
       });
       throw error;
+    } finally {
+      this.metrics.recordHistogram({
+        key: MetricsKeys.WorkspaceDeletionPhaseDurationMs,
+        value: Date.now() - startedAt,
+        unit: 'ms',
+        attributes: { phase, result },
+      });
     }
   }
 }

@@ -1,8 +1,9 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, type OnModuleInit } from '@nestjs/common';
 
 import { WorkspaceActivationStatus } from 'twenty-shared/workspace';
 
 import { type WorkspaceDeletionLifecycle } from 'src/engine/core-modules/workspace/types/workspace-deletion-lifecycle.type';
+import { MetricsService } from 'src/engine/core-modules/metrics/metrics.service';
 import { WorkspaceDeletionLifecycleStore } from 'src/engine/workspace-manager/workspace-cleaner/services/workspace-deletion-lifecycle.store';
 
 export type WorkspaceDeletionMonitoringState =
@@ -19,10 +20,73 @@ export type WorkspaceDeletionMonitoringRow = WorkspaceDeletionLifecycle & {
 };
 
 @Injectable()
-export class WorkspaceDeletionMonitoringService {
+export class WorkspaceDeletionMonitoringService implements OnModuleInit {
   constructor(
     private readonly lifecycleStore: WorkspaceDeletionLifecycleStore,
+    private readonly metrics?: MetricsService,
   ) {}
+
+  onModuleInit(): void {
+    this.registerMetrics({ now: () => new Date(), staleAfterMs: 30_000 });
+  }
+
+  registerMetrics({
+    now,
+    staleAfterMs,
+  }: {
+    now: () => Date;
+    staleAfterMs: number;
+  }): void {
+    if (this.metrics === undefined) {
+      return;
+    }
+
+    this.metrics.createMultiObservableGauge({
+      metricName: 'workspace-deletion/backlog',
+      options: {
+        description:
+          'Outstanding workspace deletions grouped by kind and lifecycle state',
+      },
+      callback: async () => {
+        const { rows } = await this.report(now(), staleAfterMs);
+        const counts = new Map<
+          string,
+          {
+            deletionKind: string;
+            state: WorkspaceDeletionMonitoringState;
+            value: number;
+          }
+        >();
+
+        for (const row of rows) {
+          const deletionKind = row.deletionKind ?? 'UNKNOWN';
+          const key = `${deletionKind}:${row.state}`;
+          const current = counts.get(key);
+
+          counts.set(key, {
+            deletionKind,
+            state: row.state,
+            value: (current?.value ?? 0) + 1,
+          });
+        }
+
+        return [...counts.values()].map(({ deletionKind, state, value }) => ({
+          value,
+          attributes: { deletionKind, state },
+        }));
+      },
+      cacheValue: false,
+    });
+    this.metrics.createObservableGauge({
+      metricName: 'workspace-deletion/oldest-age-ms',
+      options: {
+        description: 'Age in milliseconds of the oldest outstanding deletion',
+      },
+      callback: async () =>
+        (await this.report(now(), staleAfterMs)).summary.oldestAgeMs,
+      cacheValue: false,
+    });
+  }
 
   async report(now: Date, staleAfterMs: number) {
     const lifecycles = await this.lifecycleStore.findOutstandingDeletions();

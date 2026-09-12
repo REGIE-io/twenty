@@ -14,9 +14,19 @@ export type WorkspaceDeletionPhaseRunners = Record<
 >;
 
 export type WorkspaceDeletionExecutionResult =
-  | { status: 'completed' }
+  | {
+      status: 'completed';
+      deletionKind: WorkspaceDeletionLifecycle['deletionKind'];
+    }
   | { status: 'fenced' }
-  | { status: 'retryable-failure' | 'terminal-failure'; error: unknown };
+  | {
+      status: 'retryable-failure' | 'terminal-failure';
+      error: unknown;
+      deletionKind: WorkspaceDeletionLifecycle['deletionKind'];
+      phase: WorkspaceDeletionPhase;
+      attempt: number;
+      errorCode: string;
+    };
 
 @Injectable()
 export class WorkspaceDeletionPhaseExecutorService {
@@ -38,11 +48,12 @@ export class WorkspaceDeletionPhaseExecutorService {
       try {
         await runners[phase](claim.workspaceId);
       } catch (error) {
+        const errorCode = this.errorCode(error);
         const recorded = await this.lifecycleStore.recordFailure(
           claim.workspaceId,
           phase,
           expectedAttempt,
-          this.errorCode(error),
+          errorCode,
           this.errorMessage(error),
           maxAttempts,
         );
@@ -58,12 +69,16 @@ export class WorkspaceDeletionPhaseExecutorService {
               ? 'terminal-failure'
               : 'retryable-failure',
           error,
+          deletionKind: claim.deletionKind,
+          phase,
+          attempt: expectedAttempt,
+          errorCode,
         };
       }
 
       if (phase === WorkspaceDeletionPhase.CORE_ROW) {
         if (await this.lifecycleStore.isDeletionComplete(claim.workspaceId)) {
-          return { status: 'completed' };
+          return { status: 'completed', deletionKind: claim.deletionKind };
         }
 
         const completionError = new Error(
@@ -89,6 +104,10 @@ export class WorkspaceDeletionPhaseExecutorService {
               ? 'terminal-failure'
               : 'retryable-failure',
           error: completionError,
+          deletionKind: claim.deletionKind,
+          phase,
+          attempt: expectedAttempt,
+          errorCode: 'CORE_ROW_STILL_PRESENT',
         };
       }
 
@@ -108,6 +127,15 @@ export class WorkspaceDeletionPhaseExecutorService {
   }
 
   private errorCode(error: unknown): string {
+    if (
+      typeof error === 'object' &&
+      error !== null &&
+      'code' in error &&
+      typeof error.code === 'string'
+    ) {
+      return error.code;
+    }
+
     return error instanceof Error && error.name
       ? error.name.toUpperCase()
       : 'UNKNOWN_ERROR';

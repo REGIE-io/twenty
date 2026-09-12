@@ -78,6 +78,7 @@ import { WorkspaceDeletionQueueAdapter } from 'src/engine/workspace-manager/work
     provideWorkspaceScopedRepository(BillingSubscriptionEntity),
   ],
   exports: [
+    MetricsModule,
     CleanerWorkspaceService,
     RegieE2eWorkspaceSweeperService,
     RegieE2eWorkspaceDeletionDiscoveryService,

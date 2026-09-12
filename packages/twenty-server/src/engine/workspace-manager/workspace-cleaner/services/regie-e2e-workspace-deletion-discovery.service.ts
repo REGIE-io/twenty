@@ -13,8 +13,11 @@ import {
   KeyValuePairEntity,
   KeyValuePairType,
 } from 'src/engine/core-modules/key-value-pair/key-value-pair.entity';
+import { MetricsService } from 'src/engine/core-modules/metrics/metrics.service';
+import { MetricsKeys } from 'src/engine/core-modules/metrics/types/metrics-keys.type';
 import { WorkspaceDeletionKind } from 'src/engine/core-modules/workspace/types/workspace-deletion-lifecycle.type';
 import { WorkspaceDeletionLifecycleStore } from 'src/engine/workspace-manager/workspace-cleaner/services/workspace-deletion-lifecycle.store';
+import { WorkspaceDeletionTraceService } from 'src/engine/workspace-manager/workspace-cleaner/services/workspace-deletion-trace.service';
 
 export type WorkspaceDeletionEnqueuer = {
   enqueue(input: { workspaceId: string; jobId: string }): Promise<void>;
@@ -30,6 +33,8 @@ export class RegieE2eWorkspaceDeletionDiscoveryService {
     @InjectRepository(KeyValuePairEntity)
     private readonly markerRepository: Repository<KeyValuePairEntity>,
     private readonly lifecycleStore: WorkspaceDeletionLifecycleStore,
+    private readonly trace: WorkspaceDeletionTraceService,
+    private readonly metrics: MetricsService,
   ) {}
 
   async discover(
@@ -46,6 +51,78 @@ export class RegieE2eWorkspaceDeletionDiscoveryService {
       limit: number;
     },
   ): Promise<{ recovered: number; admitted: number }> {
+    this.trace.record({
+      event: 'workspace_deletion_discovery_started',
+      deletionKind: WorkspaceDeletionKind.E2E,
+    });
+
+    try {
+      const result = await this.discoverCandidates(enqueuer, {
+        now,
+        gracePeriodMs,
+        staleAfterMs,
+        limit,
+      });
+      const attributes = { deletionKind: WorkspaceDeletionKind.E2E };
+
+      this.metrics.incrementCounterBy({
+        key: MetricsKeys.WorkspaceDeletionDiscoveryCandidates,
+        amount: result.candidates,
+        attributes,
+      });
+      this.metrics.incrementCounterBy({
+        key: MetricsKeys.WorkspaceDeletionRecovered,
+        amount: result.recovered,
+        attributes,
+      });
+      this.metrics.incrementCounterBy({
+        key: MetricsKeys.WorkspaceDeletionAdmitted,
+        amount: result.admitted,
+        attributes,
+      });
+      this.trace.record({
+        event: 'workspace_deletion_discovery_finished',
+        deletionKind: WorkspaceDeletionKind.E2E,
+        ...result,
+      });
+
+      return { recovered: result.recovered, admitted: result.admitted };
+    } catch (error) {
+      const errorCode = this.errorCode(error);
+
+      this.trace.record({
+        event: 'workspace_deletion_discovery_failed',
+        deletionKind: WorkspaceDeletionKind.E2E,
+        errorCode,
+        errorMessage: this.errorMessage(error),
+      });
+      void this.metrics.incrementCounterForEvent({
+        key: MetricsKeys.WorkspaceDeletionDiscoveryFailed,
+        attributes: {
+          deletionKind: WorkspaceDeletionKind.E2E,
+          errorCode,
+        },
+        shouldStoreInCache: false,
+      });
+
+      throw error;
+    }
+  }
+
+  private async discoverCandidates(
+    enqueuer: WorkspaceDeletionEnqueuer,
+    {
+      now,
+      gracePeriodMs,
+      staleAfterMs,
+      limit,
+    }: {
+      now: Date;
+      gracePeriodMs: number;
+      staleAfterMs: number;
+      limit: number;
+    },
+  ): Promise<{ candidates: number; recovered: number; admitted: number }> {
     const recovery = await this.lifecycleStore.findRecoveryCandidates(
       now,
       staleAfterMs,
@@ -103,7 +180,30 @@ export class RegieE2eWorkspaceDeletionDiscoveryService {
       admitted += 1;
     }
 
-    return { recovered: recovery.length, admitted };
+    return {
+      candidates: markerRows.length,
+      recovered: recovery.length,
+      admitted,
+    };
+  }
+
+  private errorCode(error: unknown): string {
+    if (
+      typeof error === 'object' &&
+      error !== null &&
+      'code' in error &&
+      typeof error.code === 'string'
+    ) {
+      return error.code;
+    }
+
+    return error instanceof Error && error.name
+      ? error.name.toUpperCase()
+      : 'UNKNOWN_ERROR';
+  }
+
+  private errorMessage(error: unknown): string {
+    return error instanceof Error ? error.message : String(error);
   }
 
   private enqueue(

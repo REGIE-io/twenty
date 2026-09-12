@@ -59,7 +59,10 @@ describe('WorkspaceDeletionPhaseExecutorService', () => {
         runners,
         3,
       ),
-    ).resolves.toEqual({ status: 'completed' });
+    ).resolves.toEqual({
+      status: 'completed',
+      deletionKind: WorkspaceDeletionKind.E2E,
+    });
 
     expect(runners.MEMBERS).not.toHaveBeenCalled();
     expect(runners.METADATA).not.toHaveBeenCalled();
@@ -98,7 +101,14 @@ describe('WorkspaceDeletionPhaseExecutorService', () => {
         runners,
         3,
       ),
-    ).resolves.toEqual({ status: 'retryable-failure', error: failure });
+    ).resolves.toEqual({
+      status: 'retryable-failure',
+      error: failure,
+      deletionKind: WorkspaceDeletionKind.E2E,
+      phase: WorkspaceDeletionPhase.SCHEMA,
+      attempt: 2,
+      errorCode: 'ERROR',
+    });
     expect(store.recordFailure).toHaveBeenCalledWith(
       workspaceId,
       WorkspaceDeletionPhase.SCHEMA,
@@ -171,7 +181,10 @@ describe('WorkspaceDeletionPhaseExecutorService', () => {
         runners,
         3,
       ),
-    ).resolves.toEqual({ status: 'completed' });
+    ).resolves.toEqual({
+      status: 'completed',
+      deletionKind: WorkspaceDeletionKind.E2E,
+    });
     expect(store.recordFailure).not.toHaveBeenCalled();
   });
 });
