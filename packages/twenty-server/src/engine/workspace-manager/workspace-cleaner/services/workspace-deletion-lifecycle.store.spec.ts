@@ -13,7 +13,7 @@ describe('WorkspaceDeletionLifecycleStore', () => {
   const now = new Date('2026-09-02T00:00:00.000Z');
 
   it('requests deletion only from the quarantined state', async () => {
-    const query = jest.fn().mockResolvedValue([]);
+    const query = jest.fn().mockResolvedValue([[], 0]);
     const store = new WorkspaceDeletionLifecycleStore({
       query,
     } as unknown as DataSource);
@@ -37,17 +37,20 @@ describe('WorkspaceDeletionLifecycleStore', () => {
 
   it('uses one conditional update to claim pending or stale work', async () => {
     const query = jest.fn().mockResolvedValue([
-      {
-        workspaceId,
-        activationStatus: WorkspaceActivationStatus.ONGOING_DELETION,
-        deletionKind: WorkspaceDeletionKind.E2E,
-        deletionPhase: WorkspaceDeletionPhase.METADATA,
-        deletionRequestedAt: now,
-        deletionLastProgressAt: now,
-        deletionAttemptCount: '2',
-        deletionLastErrorCode: null,
-        deletionLastErrorMessage: null,
-      },
+      [
+        {
+          workspaceId,
+          activationStatus: WorkspaceActivationStatus.ONGOING_DELETION,
+          deletionKind: WorkspaceDeletionKind.E2E,
+          deletionPhase: WorkspaceDeletionPhase.METADATA,
+          deletionRequestedAt: now,
+          deletionLastProgressAt: now,
+          deletionAttemptCount: '2',
+          deletionLastErrorCode: null,
+          deletionLastErrorMessage: null,
+        },
+      ],
+      1,
     ]);
     const store = new WorkspaceDeletionLifecycleStore({
       query,

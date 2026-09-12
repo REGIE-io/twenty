@@ -21,15 +21,22 @@ describe('workspace deletion lifecycle PostgreSQL contracts', () => {
   let workspaceId: string;
 
   beforeAll(async () => {
+    const ssl =
+      process.env.PG_DATABASE_SSL === 'true'
+        ? { rejectUnauthorized: false }
+        : false;
+
     firstDataSource = new DataSource({
       type: 'postgres',
       url: process.env.PG_DATABASE_URL,
       synchronize: false,
+      ssl,
     });
     secondDataSource = new DataSource({
       type: 'postgres',
       url: process.env.PG_DATABASE_URL,
       synchronize: false,
+      ssl,
     });
     await Promise.all([
       firstDataSource.initialize(),
@@ -77,6 +84,10 @@ describe('workspace deletion lifecycle PostgreSQL contracts', () => {
   });
 
   afterEach(async () => {
+    if (!firstDataSource.isInitialized) {
+      return;
+    }
+
     await firstDataSource.query(
       'DELETE FROM "core"."workspace" WHERE id = $1',
       [workspaceId],
@@ -84,7 +95,11 @@ describe('workspace deletion lifecycle PostgreSQL contracts', () => {
   });
 
   afterAll(async () => {
-    await Promise.all([firstDataSource.destroy(), secondDataSource.destroy()]);
+    await Promise.all(
+      [firstDataSource, secondDataSource]
+        .filter((dataSource) => dataSource.isInitialized)
+        .map((dataSource) => dataSource.destroy()),
+    );
   });
 
   it('persists a requested deletion on the workspace row', async () => {

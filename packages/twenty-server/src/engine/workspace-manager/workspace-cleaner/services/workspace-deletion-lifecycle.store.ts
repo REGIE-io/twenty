@@ -18,6 +18,10 @@ type WorkspaceDeletionLifecycleRow = Omit<
   deletionAttemptCount: number | string;
 };
 
+type WorkspaceDeletionQueryResult =
+  | WorkspaceDeletionLifecycleRow[]
+  | [WorkspaceDeletionLifecycleRow[], number];
+
 const WORKSPACE_DELETION_RETURNING = `
   id AS "workspaceId",
   "activationStatus",
@@ -39,7 +43,7 @@ export class WorkspaceDeletionLifecycleStore {
     kind: WorkspaceDeletionKind,
     now: Date,
   ): Promise<WorkspaceDeletionLifecycle | null> {
-    const rows = await this.dataSource.query<WorkspaceDeletionLifecycleRow[]>(
+    const result = await this.dataSource.query<WorkspaceDeletionQueryResult>(
       `UPDATE "core"."workspace"
           SET "activationStatus" = $2,
               "deletionKind" = $3,
@@ -62,7 +66,7 @@ export class WorkspaceDeletionLifecycleStore {
       ],
     );
 
-    return this.mapRow(rows[0]);
+    return this.mapFirstRow(result);
   }
 
   async claimDeletion(
@@ -71,7 +75,7 @@ export class WorkspaceDeletionLifecycleStore {
     staleAfterMs: number,
   ): Promise<WorkspaceDeletionLifecycle | null> {
     const staleBefore = new Date(now.getTime() - staleAfterMs);
-    const rows = await this.dataSource.query<WorkspaceDeletionLifecycleRow[]>(
+    const result = await this.dataSource.query<WorkspaceDeletionQueryResult>(
       `UPDATE "core"."workspace"
           SET "activationStatus" = $2,
               "deletionLastProgressAt" = $3,
@@ -94,12 +98,15 @@ export class WorkspaceDeletionLifecycleStore {
       ],
     );
 
-    return this.mapRow(rows[0]);
+    return this.mapFirstRow(result);
   }
 
-  private mapRow(
-    row: WorkspaceDeletionLifecycleRow | undefined,
+  private mapFirstRow(
+    result: WorkspaceDeletionQueryResult,
   ): WorkspaceDeletionLifecycle | null {
+    const firstResult = result[0];
+    const row = Array.isArray(firstResult) ? firstResult[0] : firstResult;
+
     if (row === undefined) {
       return null;
     }
