@@ -7,6 +7,7 @@ import { WorkspaceActivationStatus } from 'twenty-shared/workspace';
 
 import {
   type WorkspaceDeletionLifecycle,
+  WORKSPACE_DELETION_PHASES,
   WorkspaceDeletionKind,
   WorkspaceDeletionPhase,
 } from 'src/engine/core-modules/workspace/types/workspace-deletion-lifecycle.type';
@@ -102,30 +103,126 @@ export class WorkspaceDeletionLifecycleStore {
   }
 
   async checkpointPhase(
-    _workspaceId: string,
-    _completedPhase: WorkspaceDeletionPhase,
-    _expectedAttempt: number,
-    _now: Date,
+    workspaceId: string,
+    completedPhase: WorkspaceDeletionPhase,
+    expectedAttempt: number,
+    now: Date,
   ): Promise<WorkspaceDeletionLifecycle | null> {
-    throw new Error('Persisted deletion phase checkpoints are not implemented');
+    const phaseIndex = WORKSPACE_DELETION_PHASES.indexOf(completedPhase);
+    const nextPhase = WORKSPACE_DELETION_PHASES[phaseIndex + 1];
+
+    if (nextPhase === undefined) {
+      throw new Error('CORE_ROW completion is represented by an absent row');
+    }
+
+    const result = await this.dataSource.query<WorkspaceDeletionQueryResult>(
+      `UPDATE "core"."workspace"
+          SET "deletionPhase" = $5,
+              "deletionLastProgressAt" = $4,
+              "deletionLastErrorCode" = NULL,
+              "deletionLastErrorMessage" = NULL
+        WHERE id = $1
+          AND "activationStatus" = $2
+          AND "deletionPhase" = $3
+          AND "deletionAttemptCount" = $6
+      RETURNING ${WORKSPACE_DELETION_RETURNING}`,
+      [
+        workspaceId,
+        WorkspaceActivationStatus.ONGOING_DELETION,
+        completedPhase,
+        now,
+        nextPhase,
+        expectedAttempt,
+      ],
+    );
+
+    return this.mapFirstRow(result);
   }
 
   async recordFailure(
-    _workspaceId: string,
-    _failedPhase: WorkspaceDeletionPhase,
-    _expectedAttempt: number,
-    _errorCode: string,
-    _errorMessage: string,
-    _maxAttempts: number,
+    workspaceId: string,
+    failedPhase: WorkspaceDeletionPhase,
+    expectedAttempt: number,
+    errorCode: string,
+    errorMessage: string,
+    maxAttempts: number,
   ): Promise<WorkspaceDeletionLifecycle | null> {
-    throw new Error('Persisted deletion failures are not implemented');
+    const result = await this.dataSource.query<WorkspaceDeletionQueryResult>(
+      `UPDATE "core"."workspace"
+          SET "activationStatus" = CASE
+                WHEN "deletionAttemptCount" >= $6 THEN $7
+                ELSE "activationStatus"
+              END,
+              "deletionLastErrorCode" = $4,
+              "deletionLastErrorMessage" = $5
+        WHERE id = $1
+          AND "activationStatus" = $2
+          AND "deletionPhase" = $3
+          AND "deletionAttemptCount" = $8
+      RETURNING ${WORKSPACE_DELETION_RETURNING}`,
+      [
+        workspaceId,
+        WorkspaceActivationStatus.ONGOING_DELETION,
+        failedPhase,
+        errorCode.slice(0, 100),
+        errorMessage.slice(0, 1000),
+        maxAttempts,
+        WorkspaceActivationStatus.DELETION_FAILED,
+        expectedAttempt,
+      ],
+    );
+
+    return this.mapFirstRow(result);
   }
 
   async retryFailedDeletion(
-    _workspaceId: string,
-    _now: Date,
+    workspaceId: string,
+    now: Date,
   ): Promise<WorkspaceDeletionLifecycle | null> {
-    throw new Error('Persisted deletion retries are not implemented');
+    const result = await this.dataSource.query<WorkspaceDeletionQueryResult>(
+      `UPDATE "core"."workspace"
+          SET "activationStatus" = $2,
+              "deletionLastProgressAt" = $3,
+              "deletionLastErrorCode" = NULL,
+              "deletionLastErrorMessage" = NULL
+        WHERE id = $1
+          AND "activationStatus" = $4
+      RETURNING ${WORKSPACE_DELETION_RETURNING}`,
+      [
+        workspaceId,
+        WorkspaceActivationStatus.PENDING_DELETION,
+        now,
+        WorkspaceActivationStatus.DELETION_FAILED,
+      ],
+    );
+
+    return this.mapFirstRow(result);
+  }
+
+  async findRecoveryCandidates(
+    now: Date,
+    staleAfterMs: number,
+    limit: number,
+  ): Promise<WorkspaceDeletionLifecycle[]> {
+    const rows = await this.dataSource.query<WorkspaceDeletionLifecycleRow[]>(
+      `SELECT ${WORKSPACE_DELETION_RETURNING}
+         FROM "core"."workspace"
+        WHERE "activationStatus" = $1
+           OR (
+             "activationStatus" = $2
+             AND "deletionLastProgressAt" <= $3
+           )
+        ORDER BY "deletionLastProgressAt" ASC, id ASC
+        LIMIT $4`,
+      [
+        WorkspaceActivationStatus.PENDING_DELETION,
+        WorkspaceActivationStatus.ONGOING_DELETION,
+        new Date(now.getTime() - staleAfterMs),
+        limit,
+      ],
+    );
+
+    return rows.map((row) => this.mapRow(row));
   }
 
   private mapFirstRow(
@@ -138,9 +235,12 @@ export class WorkspaceDeletionLifecycleStore {
       return null;
     }
 
-    return {
-      ...row,
-      deletionAttemptCount: Number(row.deletionAttemptCount),
-    };
+    return this.mapRow(row);
+  }
+
+  private mapRow(
+    row: WorkspaceDeletionLifecycleRow,
+  ): WorkspaceDeletionLifecycle {
+    return { ...row, deletionAttemptCount: Number(row.deletionAttemptCount) };
   }
 }

@@ -345,4 +345,45 @@ describe('workspace deletion lifecycle PostgreSQL contracts', () => {
       deletionAttemptCount: 2,
     });
   });
+
+  it('discovers pending work immediately but ongoing work only after it becomes stale', async () => {
+    const requestedAt = new Date('2026-09-02T00:00:00.000Z');
+    const claimedAt = new Date('2026-09-02T00:01:00.000Z');
+
+    await firstStore.requestDeletion(
+      workspaceId,
+      WorkspaceDeletionKind.E2E,
+      requestedAt,
+    );
+    await expect(
+      firstStore.findRecoveryCandidates(requestedAt, 30_000, 15),
+    ).resolves.toEqual([
+      expect.objectContaining({
+        workspaceId,
+        activationStatus: WorkspaceActivationStatus.PENDING_DELETION,
+      }),
+    ]);
+
+    await firstStore.claimDeletion(workspaceId, claimedAt, 30_000);
+    await expect(
+      firstStore.findRecoveryCandidates(
+        new Date(claimedAt.getTime() + 29_999),
+        30_000,
+        15,
+      ),
+    ).resolves.toEqual([]);
+    await expect(
+      firstStore.findRecoveryCandidates(
+        new Date(claimedAt.getTime() + 30_000),
+        30_000,
+        15,
+      ),
+    ).resolves.toEqual([
+      expect.objectContaining({
+        workspaceId,
+        activationStatus: WorkspaceActivationStatus.ONGOING_DELETION,
+        deletionAttemptCount: 1,
+      }),
+    ]);
+  });
 });
