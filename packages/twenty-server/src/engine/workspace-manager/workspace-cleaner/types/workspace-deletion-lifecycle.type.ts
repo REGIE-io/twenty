@@ -15,6 +15,15 @@ export enum WorkspaceDeletionPhase {
   CORE_ROW = 'CORE_ROW',
 }
 
+export const WORKSPACE_DELETION_PHASES = [
+  WorkspaceDeletionPhase.MEMBERS,
+  WorkspaceDeletionPhase.METADATA,
+  WorkspaceDeletionPhase.SCHEMA,
+  WorkspaceDeletionPhase.CACHE,
+  WorkspaceDeletionPhase.EXTERNAL_CLEANUP,
+  WorkspaceDeletionPhase.CORE_ROW,
+] as const;
+
 export type WorkspaceDeletionLifecycle = {
   workspaceId: string;
   activationStatus: WorkspaceActivationStatus;
