@@ -12,23 +12,27 @@ export class WorkspaceDeletionTimeoutError extends Error {
   }
 }
 
+// A JavaScript promise cannot be cancelled safely. Keep awaiting the operation
+// after its deadline so callers retain their workspace lock, then surface the
+// timeout once no work can still be running in the background.
 export async function withWorkspaceDeletionDeadline<T>(
   operation: Promise<T>,
   timeoutMs: number,
   code: WorkspaceDeletionTimeoutCode,
 ): Promise<T> {
-  let timeout: ReturnType<typeof setTimeout> | undefined;
+  let deadlineExceeded = false;
+  const timeout = setTimeout(() => {
+    deadlineExceeded = true;
+  }, timeoutMs);
 
   try {
-    return await Promise.race([
-      operation,
-      new Promise<never>((_resolve, reject) => {
-        timeout = setTimeout(
-          () => reject(new WorkspaceDeletionTimeoutError(code, timeoutMs)),
-          timeoutMs,
-        );
-      }),
-    ]);
+    const result = await operation;
+
+    if (deadlineExceeded) {
+      throw new WorkspaceDeletionTimeoutError(code, timeoutMs);
+    }
+
+    return result;
   } finally {
     clearTimeout(timeout);
   }

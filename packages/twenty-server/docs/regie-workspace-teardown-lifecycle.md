@@ -405,6 +405,17 @@ Use a maintenance query runner with explicit, separately configured limits:
 
 Do not increase the global primary database timeout.
 
+The PostgreSQL statement and client limits are cancellation boundaries: the
+transaction must have stopped and rolled back before the workspace lock is
+released. The phase and job deadlines are duration guards, not permission to
+abandon a still-running JavaScript promise. If either deadline is exceeded,
+retain the workspace advisory lock, wait for the underlying operation to
+settle, and only then report the timeout and allow a retry. A genuinely stuck
+operation therefore remains `ONGOING_DELETION` and is surfaced by the
+motionless-backlog monitor; it must not overlap a retry. Immediate deadline
+cancellation can be added only where the entire phase accepts a cancellation
+signal and confirms that mutation has stopped before returning.
+
 #### Controlled RDS deletion timing sample
 
 On 2026-09-12, a controlled run deleted 30 isolated workspaces from the
@@ -598,6 +609,8 @@ Verify:
 
 - deterministic job IDs prevent duplicate active jobs;
 - advisory locking prevents concurrent teardown for one workspace;
+- crossing a phase or job deadline does not release the advisory lock while
+  the underlying operation is still running;
 - lock renewal supports a job longer than 30 seconds;
 - a genuinely stalled job is retried within the configured budget;
 - retries use backoff rather than a tight loop;

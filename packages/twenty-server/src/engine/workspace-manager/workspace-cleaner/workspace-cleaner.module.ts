@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 
+import { TypeORMModule } from 'src/database/typeorm/typeorm.module';
 import { BillingModule } from 'src/engine/core-modules/billing/billing.module';
 import { BillingSubscriptionEntity } from 'src/engine/core-modules/billing/entities/billing-subscription.entity';
 import { WorkspaceDomainsModule } from 'src/engine/core-modules/domain/workspace-domains/workspace-domains.module';
@@ -39,6 +40,7 @@ import { WorkspaceDeletionQueueAdapter } from 'src/engine/workspace-manager/work
 @Module({
   controllers: [InternalWorkspaceInstantHardDeletionController],
   imports: [
+    TypeORMModule,
     TypeOrmModule.forFeature([
       WorkspaceEntity,
       UserWorkspaceEntity,

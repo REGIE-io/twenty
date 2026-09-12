@@ -1,6 +1,7 @@
 import { type MetricsService } from 'src/engine/core-modules/metrics/metrics.service';
 import { WorkspaceDeletionPhase } from 'src/engine/core-modules/workspace/types/workspace-deletion-lifecycle.type';
 import { type WorkspaceService } from 'src/engine/core-modules/workspace/services/workspace.service';
+import { WORKSPACE_DELETION_PHASE_TIMEOUT_MS } from 'src/engine/workspace-manager/workspace-cleaner/constants/workspace-deletion-timeouts.constant';
 import { WorkspaceDeletionPhaseRunnersService } from 'src/engine/workspace-manager/workspace-cleaner/services/workspace-deletion-phase-runners.service';
 import { type WorkspaceDeletionTraceService } from 'src/engine/workspace-manager/workspace-cleaner/services/workspace-deletion-trace.service';
 
@@ -124,8 +125,25 @@ describe('WorkspaceDeletionPhaseRunnersService', () => {
       () => ({ resolved: true }),
       (error) => ({ error }),
     );
+    let settled = false;
 
-    await jest.advanceTimersByTimeAsync(70_000);
+    void outcome.then(() => {
+      settled = true;
+    });
+
+    await jest.advanceTimersByTimeAsync(WORKSPACE_DELETION_PHASE_TIMEOUT_MS);
+
+    expect(settled).toBe(false);
+    expect(trace.record).not.toHaveBeenCalledWith(
+      expect.objectContaining({
+        event: 'workspace_deletion_phase_finished',
+        result: 'failed',
+      }),
+    );
+
+    await jest.advanceTimersByTimeAsync(
+      70_000 - WORKSPACE_DELETION_PHASE_TIMEOUT_MS,
+    );
     await expect(outcome).resolves.toEqual({
       error: expect.objectContaining({
         code: 'WORKSPACE_DELETION_PHASE_TIMEOUT',
