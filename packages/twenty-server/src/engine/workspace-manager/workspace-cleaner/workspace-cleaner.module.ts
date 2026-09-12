@@ -4,6 +4,9 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { BillingModule } from 'src/engine/core-modules/billing/billing.module';
 import { BillingSubscriptionEntity } from 'src/engine/core-modules/billing/entities/billing-subscription.entity';
 import { WorkspaceDomainsModule } from 'src/engine/core-modules/domain/workspace-domains/workspace-domains.module';
+import { InternalMetadataTokenGuard } from 'src/engine/core-modules/workspace/internal/guards/internal-metadata-token.guard';
+import { NoPermissionGuard } from 'src/engine/guards/no-permission.guard';
+import { InternalWorkspaceInstantHardDeletionController } from 'src/engine/workspace-manager/workspace-cleaner/controllers/internal-workspace-instant-hard-deletion.controller';
 import { EmailModule } from 'src/engine/core-modules/email/email.module';
 import { MetricsModule } from 'src/engine/core-modules/metrics/metrics.module';
 import { KeyValuePairEntity } from 'src/engine/core-modules/key-value-pair/key-value-pair.entity';
@@ -30,9 +33,11 @@ import { WorkspaceDeletionMonitoringService } from 'src/engine/workspace-manager
 import { WorkspaceDeletionPhaseExecutorService } from 'src/engine/workspace-manager/workspace-cleaner/services/workspace-deletion-phase-executor.service';
 import { WorkspaceDeletionPhaseRunnersService } from 'src/engine/workspace-manager/workspace-cleaner/services/workspace-deletion-phase-runners.service';
 import { WorkspaceDeletionTraceService } from 'src/engine/workspace-manager/workspace-cleaner/services/workspace-deletion-trace.service';
+import { InternalWorkspaceInstantHardDeletionService } from 'src/engine/workspace-manager/workspace-cleaner/services/internal-workspace-instant-hard-deletion.service';
 import { WorkspaceDeletionQueueAdapter } from 'src/engine/workspace-manager/workspace-cleaner/services/workspace-deletion-queue.adapter';
 
 @Module({
+  controllers: [InternalWorkspaceInstantHardDeletionController],
   imports: [
     TypeOrmModule.forFeature([
       WorkspaceEntity,
@@ -67,6 +72,9 @@ import { WorkspaceDeletionQueueAdapter } from 'src/engine/workspace-manager/work
     WorkspaceDeletionPhaseRunnersService,
     WorkspaceDeletionTraceService,
     WorkspaceDeletionQueueAdapter,
+    InternalWorkspaceInstantHardDeletionService,
+    InternalMetadataTokenGuard,
+    NoPermissionGuard,
     provideWorkspaceScopedRepository(BillingSubscriptionEntity),
   ],
   exports: [

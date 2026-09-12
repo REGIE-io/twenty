@@ -70,6 +70,38 @@ export class WorkspaceDeletionLifecycleStore {
     return this.mapFirstRow(result);
   }
 
+  async requestInstantHardDeletion(
+    workspaceId: string,
+    kind: WorkspaceDeletionKind,
+    now: Date,
+  ): Promise<WorkspaceDeletionLifecycle | null> {
+    const result = await this.dataSource.query<WorkspaceDeletionQueryResult>(
+      `UPDATE "core"."workspace"
+          SET "activationStatus" = $2,
+              "deletionKind" = $3,
+              "deletionPhase" = $4,
+              "deletionRequestedAt" = $5,
+              "deletionLastProgressAt" = $5,
+              "deletionAttemptCount" = 0,
+              "deletionLastErrorCode" = NULL,
+              "deletionLastErrorMessage" = NULL
+        WHERE id = $1
+          AND "activationStatus" IN ($6, $7)
+      RETURNING ${WORKSPACE_DELETION_RETURNING}`,
+      [
+        workspaceId,
+        WorkspaceActivationStatus.PENDING_DELETION,
+        kind,
+        WorkspaceDeletionPhase.MEMBERS,
+        now,
+        WorkspaceActivationStatus.ACTIVE,
+        WorkspaceActivationStatus.SUSPENDED,
+      ],
+    );
+
+    return this.mapFirstRow(result);
+  }
+
   async claimDeletion(
     workspaceId: string,
     now: Date,
