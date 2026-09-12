@@ -49,6 +49,7 @@ describe('WorkspaceDeletionPhaseExecutorService', () => {
         },
       ),
       recordFailure: jest.fn(),
+      isDeletionComplete: jest.fn().mockResolvedValue(true),
     } as unknown as WorkspaceDeletionLifecycleStore;
     const runners = makeRunners();
 
@@ -81,6 +82,7 @@ describe('WorkspaceDeletionPhaseExecutorService', () => {
     const failure = new Error('injected schema timeout');
     const store = {
       checkpointPhase: jest.fn(),
+      isDeletionComplete: jest.fn(),
       recordFailure: jest.fn().mockResolvedValue({
         ...claim(WorkspaceDeletionPhase.SCHEMA),
         deletionLastErrorCode: 'ERROR',
@@ -112,6 +114,7 @@ describe('WorkspaceDeletionPhaseExecutorService', () => {
     const store = {
       checkpointPhase: jest.fn().mockResolvedValue(null),
       recordFailure: jest.fn(),
+      isDeletionComplete: jest.fn(),
     } as unknown as WorkspaceDeletionLifecycleStore;
     const runners = makeRunners();
 
@@ -124,5 +127,51 @@ describe('WorkspaceDeletionPhaseExecutorService', () => {
     ).resolves.toEqual({ status: 'fenced' });
     expect(runners.MEMBERS).toHaveBeenCalledTimes(1);
     expect(runners.METADATA).not.toHaveBeenCalled();
+  });
+
+  it('does not report completion when the core row runner leaves the workspace row present', async () => {
+    const store = {
+      checkpointPhase: jest.fn(),
+      isDeletionComplete: jest.fn().mockResolvedValue(false),
+      recordFailure: jest
+        .fn()
+        .mockResolvedValue(claim(WorkspaceDeletionPhase.CORE_ROW)),
+    } as unknown as WorkspaceDeletionLifecycleStore;
+    const runners = makeRunners();
+
+    await expect(
+      new WorkspaceDeletionPhaseExecutorService(store).execute(
+        claim(WorkspaceDeletionPhase.CORE_ROW),
+        runners,
+        3,
+      ),
+    ).resolves.toMatchObject({ status: 'retryable-failure' });
+    expect(store.isDeletionComplete).toHaveBeenCalledWith(workspaceId);
+    expect(store.recordFailure).toHaveBeenCalledWith(
+      workspaceId,
+      WorkspaceDeletionPhase.CORE_ROW,
+      2,
+      'CORE_ROW_STILL_PRESENT',
+      'Core workspace row still exists after the CORE_ROW phase',
+      3,
+    );
+  });
+
+  it('reports completion only after the core workspace row is absent', async () => {
+    const store = {
+      checkpointPhase: jest.fn(),
+      isDeletionComplete: jest.fn().mockResolvedValue(true),
+      recordFailure: jest.fn(),
+    } as unknown as WorkspaceDeletionLifecycleStore;
+    const runners = makeRunners();
+
+    await expect(
+      new WorkspaceDeletionPhaseExecutorService(store).execute(
+        claim(WorkspaceDeletionPhase.CORE_ROW),
+        runners,
+        3,
+      ),
+    ).resolves.toEqual({ status: 'completed' });
+    expect(store.recordFailure).not.toHaveBeenCalled();
   });
 });

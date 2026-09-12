@@ -5,11 +5,13 @@ import { DataSource } from 'typeorm';
 import { WorkspaceActivationStatus } from 'twenty-shared/workspace';
 
 import { AddWorkspaceDeletionLifecycleFastInstanceCommand } from 'src/database/commands/upgrade-version-command/2-32/2-32-instance-command-fast-1789196612599-add-workspace-deletion-lifecycle';
+import { PostgresAdvisoryLockService } from 'src/database/typeorm/postgres-advisory-lock.service';
 import {
   WorkspaceDeletionKind,
   WorkspaceDeletionPhase,
 } from 'src/engine/core-modules/workspace/types/workspace-deletion-lifecycle.type';
 import { WorkspaceDeletionLifecycleStore } from 'src/engine/workspace-manager/workspace-cleaner/services/workspace-deletion-lifecycle.store';
+import { WorkspaceDeletionMonitoringService } from 'src/engine/workspace-manager/workspace-cleaner/services/workspace-deletion-monitoring.service';
 
 jest.useRealTimers();
 
@@ -19,6 +21,32 @@ describe('workspace deletion lifecycle PostgreSQL contracts', () => {
   let firstStore: WorkspaceDeletionLifecycleStore;
   let secondStore: WorkspaceDeletionLifecycleStore;
   let workspaceId: string;
+  let workspaceIds: string[];
+
+  const insertWorkspace = async (id: string) => {
+    workspaceIds.push(id);
+    await firstDataSource.query(
+      `INSERT INTO "core"."workspace" (
+        id,
+        subdomain,
+        "activationStatus",
+        "workspaceCustomApplicationId",
+        "defaultRoleId",
+        "databaseSchema",
+        "deletedAt"
+      )
+      SELECT $1, $2, 'SUSPENDED', application.id, role.id, $3, $4
+      FROM "core"."application" application
+      CROSS JOIN "core"."role" role
+      LIMIT 1`,
+      [
+        id,
+        `deletion-test-${id}`,
+        `workspace_${id.replace(/-/g, '')}`,
+        new Date('2026-09-01T00:00:00.000Z'),
+      ],
+    );
+  };
 
   const requestAndClaim = async ({
     requestedAt = new Date('2026-09-02T00:00:00.000Z'),
@@ -90,27 +118,8 @@ describe('workspace deletion lifecycle PostgreSQL contracts', () => {
 
   beforeEach(async () => {
     workspaceId = crypto.randomUUID();
-    await firstDataSource.query(
-      `INSERT INTO "core"."workspace" (
-        id,
-        subdomain,
-        "activationStatus",
-        "workspaceCustomApplicationId",
-        "defaultRoleId",
-        "databaseSchema",
-        "deletedAt"
-      )
-      SELECT $1, $2, 'SUSPENDED', application.id, role.id, $3, $4
-      FROM "core"."application" application
-      CROSS JOIN "core"."role" role
-      LIMIT 1`,
-      [
-        workspaceId,
-        `deletion-test-${workspaceId}`,
-        `workspace_${workspaceId.replace(/-/g, '')}`,
-        new Date('2026-09-01T00:00:00.000Z'),
-      ],
-    );
+    workspaceIds = [];
+    await insertWorkspace(workspaceId);
   });
 
   afterEach(async () => {
@@ -119,8 +128,8 @@ describe('workspace deletion lifecycle PostgreSQL contracts', () => {
     }
 
     await firstDataSource.query(
-      'DELETE FROM "core"."workspace" WHERE id = $1',
-      [workspaceId],
+      'DELETE FROM "core"."workspace" WHERE id = ANY($1::uuid[])',
+      [workspaceIds],
     );
   });
 
@@ -170,6 +179,44 @@ describe('workspace deletion lifecycle PostgreSQL contracts', () => {
       activationStatus: WorkspaceActivationStatus.ONGOING_DELETION,
       deletionPhase: WorkspaceDeletionPhase.MEMBERS,
       deletionAttemptCount: 1,
+    });
+  });
+
+  it('serializes one workspace with an advisory lock while allowing another workspace', async () => {
+    const firstLock = new PostgresAdvisoryLockService(firstDataSource);
+    const secondLock = new PostgresAdvisoryLockService(secondDataSource);
+    let release!: () => void;
+    let entered!: () => void;
+    const held = new Promise<void>((resolve) => (release = resolve));
+    const firstEntered = new Promise<void>((resolve) => (entered = resolve));
+
+    const firstExecution = firstLock.tryWithLock(
+      `workspace-deletion:${workspaceId}`,
+      async () => {
+        entered();
+        await held;
+        return 'first';
+      },
+    );
+    await firstEntered;
+
+    await expect(
+      secondLock.tryWithLock(
+        `workspace-deletion:${workspaceId}`,
+        async () => 'duplicate',
+      ),
+    ).resolves.toEqual({ acquired: false });
+    await expect(
+      secondLock.tryWithLock(
+        `workspace-deletion:${crypto.randomUUID()}`,
+        async () => 'independent',
+      ),
+    ).resolves.toEqual({ acquired: true, value: 'independent' });
+
+    release();
+    await expect(firstExecution).resolves.toEqual({
+      acquired: true,
+      value: 'first',
     });
   });
 
@@ -384,6 +431,128 @@ describe('workspace deletion lifecycle PostgreSQL contracts', () => {
         activationStatus: WorkspaceActivationStatus.ONGOING_DELETION,
         deletionAttemptCount: 1,
       }),
+    ]);
+  });
+
+  it('considers deletion complete only when the core workspace row is absent', async () => {
+    await expect(firstStore.isDeletionComplete(workspaceId)).resolves.toBe(
+      false,
+    );
+    await requestAndClaim();
+    await firstDataSource.query(
+      `UPDATE "core"."workspace" SET "deletionPhase" = $2 WHERE id = $1`,
+      [workspaceId, WorkspaceDeletionPhase.CORE_ROW],
+    );
+    await expect(firstStore.isDeletionComplete(workspaceId)).resolves.toBe(
+      false,
+    );
+
+    await firstDataSource.query(
+      'DELETE FROM "core"."workspace" WHERE id = $1',
+      [workspaceId],
+    );
+    await expect(firstStore.isDeletionComplete(workspaceId)).resolves.toBe(
+      true,
+    );
+  });
+
+  it('produces the expected PostgreSQL-backed monitoring rows', async () => {
+    const now = new Date('2026-09-12T12:00:00.000Z');
+    const stalledId = crypto.randomUUID();
+    const retryableId = crypto.randomUUID();
+    const failedId = crypto.randomUUID();
+
+    await Promise.all([
+      insertWorkspace(stalledId),
+      insertWorkspace(retryableId),
+      insertWorkspace(failedId),
+    ]);
+    await firstStore.requestDeletion(
+      workspaceId,
+      WorkspaceDeletionKind.E2E,
+      new Date('2026-09-12T11:55:00.000Z'),
+    );
+    await firstStore.requestDeletion(
+      stalledId,
+      WorkspaceDeletionKind.E2E,
+      new Date('2026-09-12T11:40:00.000Z'),
+    );
+    await firstStore.claimDeletion(
+      stalledId,
+      new Date('2026-09-12T11:58:00.000Z'),
+      120_000,
+    );
+    await firstStore.requestDeletion(
+      retryableId,
+      WorkspaceDeletionKind.E2E,
+      new Date('2026-09-12T11:45:00.000Z'),
+    );
+    await firstStore.claimDeletion(
+      retryableId,
+      new Date('2026-09-12T11:59:00.000Z'),
+      120_000,
+    );
+    await firstStore.recordFailure(
+      retryableId,
+      WorkspaceDeletionPhase.MEMBERS,
+      1,
+      'REDIS_TIMEOUT',
+      'cache unavailable',
+      3,
+    );
+    await firstStore.requestDeletion(
+      failedId,
+      WorkspaceDeletionKind.E2E,
+      new Date('2026-09-12T11:30:00.000Z'),
+    );
+    await firstStore.claimDeletion(
+      failedId,
+      new Date('2026-09-12T11:50:00.000Z'),
+      120_000,
+    );
+    await firstStore.recordFailure(
+      failedId,
+      WorkspaceDeletionPhase.MEMBERS,
+      1,
+      'DNS_TIMEOUT',
+      'DNS provider unavailable',
+      1,
+    );
+
+    const report = await new WorkspaceDeletionMonitoringService(
+      firstStore,
+    ).report(now, 120_000);
+    const rows = report.rows.filter((row) =>
+      workspaceIds.includes(row.workspaceId),
+    );
+
+    expect(
+      rows.map(({ workspaceId: id, state, ageMs, idleMs }) => ({
+        workspaceId: id,
+        state,
+        ageMs,
+        idleMs,
+      })),
+    ).toEqual([
+      {
+        workspaceId: failedId,
+        state: 'terminal-failure',
+        ageMs: 1_800_000,
+        idleMs: 600_000,
+      },
+      {
+        workspaceId: stalledId,
+        state: 'stalled',
+        ageMs: 1_200_000,
+        idleMs: 120_000,
+      },
+      {
+        workspaceId: retryableId,
+        state: 'retryable-failure',
+        ageMs: 900_000,
+        idleMs: 60_000,
+      },
+      { workspaceId, state: 'pending', ageMs: 300_000, idleMs: 300_000 },
     ]);
   });
 });
