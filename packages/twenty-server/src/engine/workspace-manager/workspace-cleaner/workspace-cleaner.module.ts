@@ -19,6 +19,7 @@ import { CleanSuspendedWorkspacesCommand } from 'src/engine/workspace-manager/wo
 import { CleanSuspendedWorkspacesCronCommand } from 'src/engine/workspace-manager/workspace-cleaner/commands/clean-suspended-workspaces.cron.command';
 import { PurgeRegieE2eWorkspacesCommand } from 'src/engine/workspace-manager/workspace-cleaner/commands/purge-regie-e2e-workspaces.command';
 import { DestroyWorkspaceCommand } from 'src/engine/workspace-manager/workspace-cleaner/commands/destroy-workspace.command';
+import { RegieE2eWorkspaceDeletionDiscoveryCronCommand } from 'src/engine/workspace-manager/workspace-cleaner/commands/regie-e2e-workspace-deletion-discovery.cron.command';
 import { CleanerWorkspaceService } from 'src/engine/workspace-manager/workspace-cleaner/services/cleaner.workspace-service';
 import { RegieE2eWorkspaceSweeperService } from 'src/engine/workspace-manager/workspace-cleaner/services/regie-e2e-workspace-sweeper.service';
 import { RegieE2eWorkspaceDeletionDiscoveryService } from 'src/engine/workspace-manager/workspace-cleaner/services/regie-e2e-workspace-deletion-discovery.service';
@@ -27,6 +28,9 @@ import { WorkspaceDeletionLifecycleStore } from 'src/engine/workspace-manager/wo
 import { WorkspaceDeletionCoordinatorService } from 'src/engine/workspace-manager/workspace-cleaner/services/workspace-deletion-coordinator.service';
 import { WorkspaceDeletionMonitoringService } from 'src/engine/workspace-manager/workspace-cleaner/services/workspace-deletion-monitoring.service';
 import { WorkspaceDeletionPhaseExecutorService } from 'src/engine/workspace-manager/workspace-cleaner/services/workspace-deletion-phase-executor.service';
+import { WorkspaceDeletionPhaseRunnersService } from 'src/engine/workspace-manager/workspace-cleaner/services/workspace-deletion-phase-runners.service';
+import { WorkspaceDeletionTraceService } from 'src/engine/workspace-manager/workspace-cleaner/services/workspace-deletion-trace.service';
+import { WorkspaceDeletionQueueAdapter } from 'src/engine/workspace-manager/workspace-cleaner/services/workspace-deletion-queue.adapter';
 
 @Module({
   imports: [
@@ -46,6 +50,7 @@ import { WorkspaceDeletionPhaseExecutorService } from 'src/engine/workspace-mana
   ],
   providers: [
     DestroyWorkspaceCommand,
+    RegieE2eWorkspaceDeletionDiscoveryCronCommand,
     CleanSuspendedWorkspacesCronCommand,
     CleanSuspendedWorkspacesCommand,
     PurgeRegieE2eWorkspacesCommand,
@@ -59,6 +64,9 @@ import { WorkspaceDeletionPhaseExecutorService } from 'src/engine/workspace-mana
     WorkspaceDeletionPhaseExecutorService,
     WorkspaceDeletionCoordinatorService,
     WorkspaceDeletionMonitoringService,
+    WorkspaceDeletionPhaseRunnersService,
+    WorkspaceDeletionTraceService,
+    WorkspaceDeletionQueueAdapter,
     provideWorkspaceScopedRepository(BillingSubscriptionEntity),
   ],
   exports: [
@@ -70,6 +78,9 @@ import { WorkspaceDeletionPhaseExecutorService } from 'src/engine/workspace-mana
     WorkspaceDeletionPhaseExecutorService,
     WorkspaceDeletionCoordinatorService,
     WorkspaceDeletionMonitoringService,
+    WorkspaceDeletionPhaseRunnersService,
+    WorkspaceDeletionTraceService,
+    WorkspaceDeletionQueueAdapter,
     CleanSuspendedWorkspacesCronCommand,
     CleanOnboardingWorkspacesCronCommand,
   ],

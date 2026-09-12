@@ -12,7 +12,6 @@ import { MessageQueue } from 'src/engine/core-modules/message-queue/message-queu
 import { TwentyConfigService } from 'src/engine/core-modules/twenty-config/twenty-config.service';
 import { WorkspaceEntity } from 'src/engine/core-modules/workspace/workspace.entity';
 import { CleanerWorkspaceService } from 'src/engine/workspace-manager/workspace-cleaner/services/cleaner.workspace-service';
-import { RegieE2eWorkspaceSweeperService } from 'src/engine/workspace-manager/workspace-cleaner/services/regie-e2e-workspace-sweeper.service';
 
 const CLEAN_SUSPENDED_WORKSPACES_LOCK_NAME = 'clean-suspended-workspaces-job';
 
@@ -22,7 +21,6 @@ export class CleanSuspendedWorkspacesBatchJob {
 
   constructor(
     private readonly cleanerWorkspaceService: CleanerWorkspaceService,
-    private readonly regieE2eWorkspaceSweeperService: RegieE2eWorkspaceSweeperService,
     @InjectRepository(WorkspaceEntity)
     private readonly workspaceRepository: Repository<WorkspaceEntity>,
     private readonly twentyConfigService: TwentyConfigService,
@@ -43,7 +41,6 @@ export class CleanSuspendedWorkspacesBatchJob {
         await this.cleanerWorkspaceService.batchWarnOrCleanSuspendedWorkspaces({
           workspaceIds,
         });
-        await this.regieE2eWorkspaceSweeperService.purgeQuarantinedWorkspaces();
       },
     );
 

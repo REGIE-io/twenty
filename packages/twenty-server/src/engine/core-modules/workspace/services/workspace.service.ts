@@ -537,29 +537,17 @@ export class WorkspaceService {
 
     assert(workspace, 'Workspace not found');
 
-    const userWorkspaces = await this.userWorkspaceRepository.find({
-      where: {
-        workspaceId: id,
-      },
-      withDeleted: true,
-    });
-
-    for (const userWorkspace of userWorkspaces) {
-      await this.handleRemoveWorkspaceMember(
-        id,
-        userWorkspace.userId,
-        softDelete,
-      );
-    }
-    this.logger.log(`workspace ${id} user workspaces deleted`);
-
-    await this.workspaceCacheStorageService.flush(workspace.id);
-    await this.flatEntityMapsCacheService.flushFlatEntityMaps({
-      workspaceId: workspace.id,
-    });
-    this.logger.log(`workspace ${id} cache flushed`);
-
     if (softDelete) {
+      const userWorkspaces = await this.userWorkspaceRepository.find({
+        where: { workspaceId: id },
+        withDeleted: true,
+      });
+
+      for (const userWorkspace of userWorkspaces) {
+        await this.handleRemoveWorkspaceMember(id, userWorkspace.userId, true);
+      }
+      await this.hardDeleteWorkspaceCaches(id);
+
       if (this.billingService.isBillingEnabled()) {
         await this.billingSubscriptionService.cancelSubscription(workspace.id);
       }
@@ -572,27 +560,71 @@ export class WorkspaceService {
       return workspace;
     }
 
+    await this.hardDeleteWorkspaceMembers(id);
+    await this.hardDeleteWorkspaceMetadata(id);
+    await this.hardDeleteWorkspaceSchema(id);
+    await this.hardDeleteWorkspaceCaches(id);
+    await this.hardDeleteWorkspaceExternalResources(id);
+    await this.hardDeleteWorkspaceCoreRow(id);
+
+    return workspace;
+  }
+
+  async hardDeleteWorkspaceMembers(id: string): Promise<void> {
+    const userWorkspaces = await this.userWorkspaceRepository.find({
+      where: { workspaceId: id },
+      withDeleted: true,
+    });
+
+    for (const userWorkspace of userWorkspaces) {
+      await this.handleRemoveWorkspaceMember(id, userWorkspace.userId, false);
+    }
+    this.logger.log(`workspace ${id} user workspaces deleted`);
+  }
+
+  async hardDeleteWorkspaceMetadata(id: string): Promise<void> {
+    const workspace = await this.workspaceRepository.findOne({
+      where: { id },
+      withDeleted: true,
+    });
+
+    if (!workspace) {
+      return;
+    }
     if (this.billingService.isBillingEnabled()) {
       await this.billingSubscriptionService.assertSubscriptionCanceledOrNone(
-        workspace.id,
+        id,
       );
     }
-
     await this.deleteWorkspaceSyncableMetadataEntities(workspace);
+  }
 
-    await this.workspaceDataSourceService.deleteWorkspaceDBSchema(workspace.id);
+  async hardDeleteWorkspaceSchema(id: string): Promise<void> {
+    await this.workspaceDataSourceService.deleteWorkspaceDBSchema(id);
+    await this.phoneSearchWorkspaceCleanupService.cleanupWorkspace(id);
+  }
 
-    await this.phoneSearchWorkspaceCleanupService.cleanupWorkspace(
-      workspace.id,
-    );
-
-    await this.workspaceCacheStorageService.flush(workspace.id);
+  async hardDeleteWorkspaceCaches(id: string): Promise<void> {
+    await this.workspaceCacheStorageService.flush(id);
     await this.flatEntityMapsCacheService.flushFlatEntityMaps({
-      workspaceId: workspace.id,
+      workspaceId: id,
     });
+    this.logger.log(`workspace ${id} cache flushed`);
+  }
+
+  async hardDeleteWorkspaceExternalResources(id: string): Promise<void> {
+    const workspace = await this.workspaceRepository.findOne({
+      where: { id },
+      withDeleted: true,
+    });
+
+    if (!workspace) {
+      return;
+    }
     await this.messageQueueService.add<FileWorkspaceFolderDeletionJobData>(
       FileWorkspaceFolderDeletionJob.name,
       { workspaceId: id },
+      { id: `workspace-delete-files:${id}` },
     );
 
     const emailingDomains = await this.coreDataSource
@@ -605,6 +637,7 @@ export class WorkspaceService {
         workspaceId: id,
         domains: emailingDomains.map((emailingDomain) => emailingDomain.domain),
       },
+      { id: `workspace-delete-email-domains:${id}` },
     );
 
     if (workspace.customDomain) {
@@ -613,13 +646,13 @@ export class WorkspaceService {
       );
       this.logger.log(`workspace ${id} custom domain deleted`);
     }
+  }
 
+  async hardDeleteWorkspaceCoreRow(id: string): Promise<void> {
     await this.workspaceRepository.delete(id);
     await this.coreEntityCacheService.invalidate('workspaceEntity', id);
 
     this.logger.log(`workspace ${id} hard deleted`);
-
-    return workspace;
   }
 
   private async deleteWorkspaceSyncableMetadataEntities(
