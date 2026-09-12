@@ -20,6 +20,36 @@ describe('workspace deletion lifecycle PostgreSQL contracts', () => {
   let secondStore: WorkspaceDeletionLifecycleStore;
   let workspaceId: string;
 
+  const requestAndClaim = async ({
+    requestedAt = new Date('2026-09-02T00:00:00.000Z'),
+    claimedAt = new Date('2026-09-02T00:01:00.000Z'),
+  } = {}) => {
+    await firstStore.requestDeletion(
+      workspaceId,
+      WorkspaceDeletionKind.E2E,
+      requestedAt,
+    );
+
+    return firstStore.claimDeletion(workspaceId, claimedAt, 30_000);
+  };
+
+  const readLifecycleRow = async () => {
+    const [row] = await firstDataSource.query(
+      `SELECT
+        "activationStatus",
+        "deletionPhase",
+        "deletionLastProgressAt",
+        "deletionAttemptCount",
+        "deletionLastErrorCode",
+        "deletionLastErrorMessage"
+      FROM "core"."workspace"
+      WHERE id = $1`,
+      [workspaceId],
+    );
+
+    return row;
+  };
+
   beforeAll(async () => {
     const ssl =
       process.env.PG_DATABASE_SSL === 'true'
@@ -171,6 +201,147 @@ describe('workspace deletion lifecycle PostgreSQL contracts', () => {
       workspaceId,
       activationStatus: WorkspaceActivationStatus.ONGOING_DELETION,
       deletionPhase: WorkspaceDeletionPhase.MEMBERS,
+      deletionAttemptCount: 2,
+    });
+  });
+
+  it('persists only the next phase and rejects a replayed checkpoint', async () => {
+    const checkpointedAt = new Date('2026-09-02T00:02:00.000Z');
+
+    await requestAndClaim();
+
+    await expect(
+      firstStore.checkpointPhase(
+        workspaceId,
+        WorkspaceDeletionPhase.MEMBERS,
+        1,
+        checkpointedAt,
+      ),
+    ).resolves.toMatchObject({
+      workspaceId,
+      activationStatus: WorkspaceActivationStatus.ONGOING_DELETION,
+      deletionPhase: WorkspaceDeletionPhase.METADATA,
+      deletionLastProgressAt: checkpointedAt,
+      deletionAttemptCount: 1,
+    });
+    await expect(
+      firstStore.checkpointPhase(
+        workspaceId,
+        WorkspaceDeletionPhase.MEMBERS,
+        1,
+        new Date('2026-09-02T00:03:00.000Z'),
+      ),
+    ).resolves.toBeNull();
+    await expect(readLifecycleRow()).resolves.toMatchObject({
+      deletionPhase: WorkspaceDeletionPhase.METADATA,
+      deletionLastProgressAt: checkpointedAt,
+    });
+  });
+
+  it('persists terminal failure without losing the failed phase', async () => {
+    await requestAndClaim();
+    await firstDataSource.query(
+      `UPDATE "core"."workspace" SET "deletionPhase" = $2 WHERE id = $1`,
+      [workspaceId, WorkspaceDeletionPhase.SCHEMA],
+    );
+
+    await expect(
+      firstStore.recordFailure(
+        workspaceId,
+        WorkspaceDeletionPhase.SCHEMA,
+        1,
+        'QUERY_TIMEOUT',
+        'injected schema timeout',
+        1,
+      ),
+    ).resolves.toMatchObject({
+      workspaceId,
+      activationStatus: WorkspaceActivationStatus.DELETION_FAILED,
+      deletionPhase: WorkspaceDeletionPhase.SCHEMA,
+      deletionAttemptCount: 1,
+      deletionLastErrorCode: 'QUERY_TIMEOUT',
+      deletionLastErrorMessage: 'injected schema timeout',
+    });
+  });
+
+  it('retries terminal failure at the same persisted phase', async () => {
+    const retriedAt = new Date('2026-09-02T01:00:00.000Z');
+
+    await firstStore.requestDeletion(
+      workspaceId,
+      WorkspaceDeletionKind.E2E,
+      new Date('2026-09-02T00:00:00.000Z'),
+    );
+    await firstDataSource.query(
+      `UPDATE "core"."workspace"
+          SET "activationStatus" = $2,
+              "deletionPhase" = $3,
+              "deletionAttemptCount" = 3,
+              "deletionLastErrorCode" = 'DNS_TIMEOUT',
+              "deletionLastErrorMessage" = 'injected DNS timeout'
+        WHERE id = $1`,
+      [
+        workspaceId,
+        WorkspaceActivationStatus.DELETION_FAILED,
+        WorkspaceDeletionPhase.EXTERNAL_CLEANUP,
+      ],
+    );
+
+    await expect(
+      firstStore.retryFailedDeletion(workspaceId, retriedAt),
+    ).resolves.toMatchObject({
+      workspaceId,
+      activationStatus: WorkspaceActivationStatus.PENDING_DELETION,
+      deletionPhase: WorkspaceDeletionPhase.EXTERNAL_CLEANUP,
+      deletionLastProgressAt: retriedAt,
+      deletionAttemptCount: 3,
+      deletionLastErrorCode: null,
+      deletionLastErrorMessage: null,
+    });
+  });
+
+  it('fences a stale worker from checkpointing or recording failure after reclamation', async () => {
+    const firstClaimedAt = new Date('2026-09-02T00:01:00.000Z');
+    const reclaimedAt = new Date('2026-09-02T00:01:30.000Z');
+
+    await requestAndClaim({ claimedAt: firstClaimedAt });
+    await secondStore.claimDeletion(workspaceId, reclaimedAt, 30_000);
+
+    await expect(
+      firstStore.checkpointPhase(
+        workspaceId,
+        WorkspaceDeletionPhase.MEMBERS,
+        1,
+        new Date('2026-09-02T00:01:31.000Z'),
+      ),
+    ).resolves.toBeNull();
+    await expect(
+      firstStore.recordFailure(
+        workspaceId,
+        WorkspaceDeletionPhase.MEMBERS,
+        1,
+        'STALE_WORKER_ERROR',
+        'the old worker must not win',
+        3,
+      ),
+    ).resolves.toBeNull();
+    await expect(readLifecycleRow()).resolves.toMatchObject({
+      activationStatus: WorkspaceActivationStatus.ONGOING_DELETION,
+      deletionPhase: WorkspaceDeletionPhase.MEMBERS,
+      deletionAttemptCount: 2,
+      deletionLastErrorCode: null,
+      deletionLastErrorMessage: null,
+    });
+
+    await expect(
+      secondStore.checkpointPhase(
+        workspaceId,
+        WorkspaceDeletionPhase.MEMBERS,
+        2,
+        new Date('2026-09-02T00:01:32.000Z'),
+      ),
+    ).resolves.toMatchObject({
+      deletionPhase: WorkspaceDeletionPhase.METADATA,
       deletionAttemptCount: 2,
     });
   });

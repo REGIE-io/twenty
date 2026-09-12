@@ -101,6 +101,33 @@ export class WorkspaceDeletionLifecycleStore {
     return this.mapFirstRow(result);
   }
 
+  async checkpointPhase(
+    _workspaceId: string,
+    _completedPhase: WorkspaceDeletionPhase,
+    _expectedAttempt: number,
+    _now: Date,
+  ): Promise<WorkspaceDeletionLifecycle | null> {
+    throw new Error('Persisted deletion phase checkpoints are not implemented');
+  }
+
+  async recordFailure(
+    _workspaceId: string,
+    _failedPhase: WorkspaceDeletionPhase,
+    _expectedAttempt: number,
+    _errorCode: string,
+    _errorMessage: string,
+    _maxAttempts: number,
+  ): Promise<WorkspaceDeletionLifecycle | null> {
+    throw new Error('Persisted deletion failures are not implemented');
+  }
+
+  async retryFailedDeletion(
+    _workspaceId: string,
+    _now: Date,
+  ): Promise<WorkspaceDeletionLifecycle | null> {
+    throw new Error('Persisted deletion retries are not implemented');
+  }
+
   private mapFirstRow(
     result: WorkspaceDeletionQueryResult,
   ): WorkspaceDeletionLifecycle | null {
