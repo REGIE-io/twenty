@@ -55,8 +55,17 @@ describe('WorkspaceService phone-search cleanup ordering', () => {
     setServiceProperty('flatEntityMapsCacheService', {
       flushFlatEntityMaps: jest.fn().mockResolvedValue(undefined),
     });
-    setServiceProperty('messageQueueService', {
-      add: jest.fn().mockResolvedValue(undefined),
+    setServiceProperty('fileService', {
+      deleteWorkspaceFolder: jest.fn().mockImplementation(async () => {
+        steps.push('file-cleanup');
+      }),
+    });
+    setServiceProperty('emailingDomainService', {
+      cleanupEmailingDomainsForWorkspace: jest
+        .fn()
+        .mockImplementation(async () => {
+          steps.push('emailing-domain-cleanup');
+        }),
     });
     setServiceProperty('coreDataSource', {
       getRepository: jest.fn().mockReturnValue({
@@ -73,6 +82,8 @@ describe('WorkspaceService phone-search cleanup ordering', () => {
     expect(steps).toEqual([
       'tenant-schema-delete',
       'phone-search-cleanup',
+      'file-cleanup',
+      'emailing-domain-cleanup',
       'core-workspace-delete',
     ]);
   });

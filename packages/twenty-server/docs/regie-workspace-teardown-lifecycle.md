@@ -660,6 +660,23 @@ Run contract tests across both PRs:
 
 ### Capacity and live-development acceptance test
 
+Before enabling cron registration, run the opt-in direct acceptance lane against
+the isolated integration stack:
+
+```bash
+NODE_OPTIONS=--max-old-space-size=12288 \
+RUN_WORKSPACE_DELETION_DIRECT_ACCEPTANCE=true yarn jest \
+  --config jest-integration.config.ts \
+  test/integration/workspace-deletion/workspace-deletion-direct-acceptance.integration-spec.ts \
+  --runInBand
+```
+
+This calls the discovery job once without registering its repeatable cron. The
+normal queue adapter and single-concurrency workspace-cleanup worker remain in
+the path. The lane refuses to start if unrelated eligible or outstanding
+deletions exist, creates 15 recovery and 15 fresh fixtures plus unmarked
+controls, and emits a machine-readable timing and signal summary.
+
 Before enabling the ten-minute schedule, create a scoped set of disposable,
 persistently marked development workspaces and allow them to cross the test
 quarantine boundary.
