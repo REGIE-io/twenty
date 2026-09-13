@@ -24,10 +24,13 @@ jest.setTimeout(15 * 60_000);
 
 const RUN_ACCEPTANCE =
   process.env.RUN_WORKSPACE_DELETION_DIRECT_ACCEPTANCE === 'true';
+const USE_EXISTING_ELIGIBLE_WORKSPACES =
+  process.env.WORKSPACE_DELETION_ACCEPTANCE_USE_EXISTING === 'true';
 const describeAcceptance = RUN_ACCEPTANCE ? describe : describe.skip;
 const RECOVERY_COUNT = 15;
 const FRESH_COUNT = 15;
 const EXPECTED_DELETION_COUNT = RECOVERY_COUNT + FRESH_COUNT;
+const MINIMUM_EXISTING_ELIGIBLE_COUNT = EXPECTED_DELETION_COUNT + 2;
 
 type Fixture = {
   workspaceId: string;
@@ -94,6 +97,10 @@ describeAcceptance('direct workspace deletion acceptance', () => {
   });
 
   afterAll(async () => {
+    if (USE_EXISTING_ELIGIBLE_WORKSPACES) {
+      return;
+    }
+
     for (const fixture of [...fixtures, ...controls]) {
       await cleanupFixture(fixture);
     }
@@ -139,116 +146,173 @@ describeAcceptance('direct workspace deletion acceptance', () => {
       );
     }
 
-    const unrelatedEligible = await global.testDataSource.query<
-      Array<{ workspaceId: string }>
+    const existingEligible = await global.testDataSource.query<
+      Array<{ workspaceId: string; deletedAt: Date }>
     >(
-      `SELECT workspace.id AS "workspaceId"
+      `SELECT workspace.id AS "workspaceId",
+              workspace."deletedAt" AS "deletedAt"
          FROM core."keyValuePair" marker
          JOIN core.workspace workspace ON workspace.id = marker."workspaceId"
         WHERE marker.key = $1
           AND marker.type = 'USER_VARIABLE'
           AND marker.value ->> 'ephemeral' = 'true'
           AND marker.value ->> 'organizationId' LIKE 'org\\_e2e\\_%' ESCAPE '\\'
+          AND marker.value ->> 'workspaceSlug' = workspace.subdomain
           AND workspace.subdomain LIKE 'org-e2e-%'
-          AND workspace."deletedAt" <= $2`,
+          AND workspace."deletedAt" <= $2
+        ORDER BY workspace."deletedAt" ASC, workspace.id ASC`,
       [REGIE_E2E_WORKSPACE_MARKER_KEY, cutoff],
     );
 
-    if (unrelatedEligible.length > 0) {
+    if (
+      USE_EXISTING_ELIGIBLE_WORKSPACES &&
+      existingEligible.length < MINIMUM_EXISTING_ELIGIBLE_COUNT
+    ) {
       throw new Error(
-        `Refusing direct acceptance run: ${unrelatedEligible.length} unrelated eligible workspace(s) already exist`,
+        `Refusing existing-workspace acceptance run: expected at least ${MINIMUM_EXISTING_ELIGIBLE_COUNT} eligible workspaces but found ${existingEligible.length}`,
+      );
+    }
+
+    if (!USE_EXISTING_ELIGIBLE_WORKSPACES && existingEligible.length > 0) {
+      throw new Error(
+        `Refusing direct acceptance run: ${existingEligible.length} unrelated eligible workspace(s) already exist`,
       );
     }
 
     const unrelatedOutstanding =
       await lifecycleStore.findOutstandingDeletions();
+    const intendedExistingTargetIds = new Set(
+      existingEligible
+        .slice(0, EXPECTED_DELETION_COUNT)
+        .map(({ workspaceId }) => workspaceId),
+    );
+    const hasUnrelatedOutstanding = unrelatedOutstanding.some(
+      ({ workspaceId }) => !intendedExistingTargetIds.has(workspaceId),
+    );
 
-    if (unrelatedOutstanding.length > 0) {
+    if (
+      unrelatedOutstanding.length > 0 &&
+      (!USE_EXISTING_ELIGIBLE_WORKSPACES || hasUnrelatedOutstanding)
+    ) {
       throw new Error(
         `Refusing direct acceptance run: ${unrelatedOutstanding.length} unrelated outstanding deletion(s) already exist`,
       );
     }
 
     try {
-      for (let index = 0; index < EXPECTED_DELETION_COUNT; index += 1) {
+      if (USE_EXISTING_ELIGIBLE_WORKSPACES) {
         fixtures.push(
-          await provision({ runId, index, ephemeral: true, e2eSlug: true }),
+          ...existingEligible
+            .slice(0, EXPECTED_DELETION_COUNT)
+            .map(({ workspaceId }) => ({
+              workspaceId,
+              schemaName: getWorkspaceSchemaName(workspaceId),
+            })),
+        );
+        controls.push(
+          ...existingEligible
+            .slice(EXPECTED_DELETION_COUNT)
+            .map(({ workspaceId }) => ({
+              workspaceId,
+              schemaName: getWorkspaceSchemaName(workspaceId),
+            })),
+        );
+      } else {
+        for (let index = 0; index < EXPECTED_DELETION_COUNT; index += 1) {
+          fixtures.push(
+            await provision({ runId, index, ephemeral: true, e2eSlug: true }),
+          );
+        }
+
+        controls.push(
+          await provision({
+            runId,
+            index: EXPECTED_DELETION_COUNT,
+            ephemeral: false,
+            e2eSlug: false,
+          }),
+        );
+        controls.push(
+          await provision({
+            runId,
+            index: EXPECTED_DELETION_COUNT + 1,
+            ephemeral: false,
+            e2eSlug: true,
+          }),
         );
       }
 
-      controls.push(
-        await provision({
-          runId,
-          index: EXPECTED_DELETION_COUNT,
-          ephemeral: false,
-          e2eSlug: false,
-        }),
-      );
-      controls.push(
-        await provision({
-          runId,
-          index: EXPECTED_DELETION_COUNT + 1,
-          ephemeral: false,
-          e2eSlug: true,
-        }),
-      );
-
-      const recoveryFixtures = fixtures.slice(0, RECOVERY_COUNT);
-      const freshFixtures = fixtures.slice(RECOVERY_COUNT);
+      // Existing rows are ordered oldest first. Keep the oldest 15 untouched so
+      // discovery admits them, and stage the next 15 as stale recovery work.
+      const recoveryFixtures = USE_EXISTING_ELIGIBLE_WORKSPACES
+        ? fixtures.slice(FRESH_COUNT)
+        : fixtures.slice(0, RECOVERY_COUNT);
+      const freshFixtures = USE_EXISTING_ELIGIBLE_WORKSPACES
+        ? fixtures.slice(0, FRESH_COUNT)
+        : fixtures.slice(RECOVERY_COUNT);
       const recoveryIds = recoveryFixtures.map(
         ({ workspaceId }) => workspaceId,
       );
       const freshIds = freshFixtures.map(({ workspaceId }) => workspaceId);
       const controlIds = controls.map(({ workspaceId }) => workspaceId);
 
-      await global.testDataSource.query(
-        `UPDATE core.workspace
-            SET "activationStatus" = 'SUSPENDED',
-                "deletedAt" = $2
-          WHERE id = ANY($1::uuid[])`,
-        [freshIds, new Date(cutoff.getTime() - 120_000)],
-      );
-      await global.testDataSource.query(
-        `UPDATE core.workspace
-            SET "activationStatus" = 'SUSPENDED',
-                "deletedAt" = $2
-          WHERE id = ANY($1::uuid[])`,
-        [recoveryIds, new Date(cutoff.getTime() - 60_000)],
-      );
-      await global.testDataSource.query(
-        `UPDATE core.workspace
-            SET "activationStatus" = 'SUSPENDED',
-                "deletedAt" = $2
-          WHERE id = $1`,
-        [controls[1].workspaceId, new Date(cutoff.getTime() - 180_000)],
-      );
+      if (!USE_EXISTING_ELIGIBLE_WORKSPACES) {
+        await global.testDataSource.query(
+          `UPDATE core.workspace
+              SET "activationStatus" = 'SUSPENDED',
+                  "deletedAt" = $2
+            WHERE id = ANY($1::uuid[])`,
+          [freshIds, new Date(cutoff.getTime() - 120_000)],
+        );
+        await global.testDataSource.query(
+          `UPDATE core.workspace
+              SET "activationStatus" = 'SUSPENDED',
+                  "deletedAt" = $2
+            WHERE id = ANY($1::uuid[])`,
+          [recoveryIds, new Date(cutoff.getTime() - 60_000)],
+        );
+        await global.testDataSource.query(
+          `UPDATE core.workspace
+              SET "activationStatus" = 'SUSPENDED',
+                  "deletedAt" = $2
+            WHERE id = $1`,
+          [controls[1].workspaceId, new Date(cutoff.getTime() - 180_000)],
+        );
+      }
 
       const staleRequestTime = new Date(now.getTime() - 60_000);
 
-      for (const { workspaceId } of recoveryFixtures) {
-        await expect(
-          lifecycleStore.requestDeletion(
-            workspaceId,
-            WorkspaceDeletionKind.E2E,
-            staleRequestTime,
-          ),
-        ).resolves.not.toBeNull();
+      if (unrelatedOutstanding.length === 0) {
+        for (const { workspaceId } of recoveryFixtures) {
+          await expect(
+            lifecycleStore.requestDeletion(
+              workspaceId,
+              WorkspaceDeletionKind.E2E,
+              staleRequestTime,
+            ),
+          ).resolves.not.toBeNull();
+        }
       }
 
       const startedAt = Date.now();
       const completedAtByWorkspace = new Map<string, number>();
-      const discovery = await discoveryJob.handle(now);
       const deadline = startedAt + 10 * 60_000;
-
-      expect(discovery).toEqual({
-        recovered: RECOVERY_COUNT,
-        admitted: FRESH_COUNT,
-      });
+      let recovered = 0;
+      let admitted = 0;
+      let discoveryRounds = 0;
 
       while (
         completedAtByWorkspace.size < EXPECTED_DELETION_COUNT &&
         Date.now() < deadline
       ) {
+        const discovery = await discoveryJob.handle(new Date());
+
+        recovered += discovery.recovered;
+        admitted += discovery.admitted;
+        discoveryRounds += 1;
+
+        await waitForAllJobsToFinish();
+
         const remaining = await global.testDataSource.query<
           Array<{ id: string }>
         >('SELECT id FROM core.workspace WHERE id = ANY($1::uuid[])', [
@@ -266,11 +330,25 @@ describeAcceptance('direct workspace deletion acceptance', () => {
         }
 
         if (remaining.length > 0) {
-          await new Promise((resolve) => setTimeout(resolve, 250));
+          if (discovery.recovered === 0 && discovery.admitted === 0) {
+            await new Promise((resolve) => setTimeout(resolve, 31_000));
+          }
         }
       }
 
       await waitForAllJobsToFinish();
+
+      if (unrelatedOutstanding.length === 0) {
+        expect({ recovered, admitted }).toEqual({
+          recovered: RECOVERY_COUNT,
+          admitted: FRESH_COUNT,
+        });
+      } else {
+        expect({ recovered, admitted }).toEqual({
+          recovered: EXPECTED_DELETION_COUNT,
+          admitted: 0,
+        });
+      }
 
       const elapsedMs = [...completedAtByWorkspace.values()]
         .map((completedAt) => completedAt - startedAt)
@@ -377,8 +455,17 @@ describeAcceptance('direct workspace deletion acceptance', () => {
         JSON.stringify({
           event: 'workspace_deletion_direct_acceptance_finished',
           runId,
-          recovered: discovery.recovered,
-          admitted: discovery.admitted,
+          inputMode: USE_EXISTING_ELIGIBLE_WORKSPACES
+            ? 'existing-eligible'
+            : 'generated-fixtures',
+          initialEligibleCount: existingEligible.length,
+          preservedEligibleControlCount: USE_EXISTING_ELIGIBLE_WORKSPACES
+            ? controls.length
+            : undefined,
+          initialOutstandingCount: unrelatedOutstanding.length,
+          discoveryRounds,
+          recovered,
+          admitted,
           completed: completedAtByWorkspace.size,
           totalDurationMs: Date.now() - startedAt,
           meanQueueCompletionMs: Math.round(meanMs),

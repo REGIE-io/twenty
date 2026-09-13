@@ -12,7 +12,7 @@ describe('WorkspaceDeletionLifecycleStore', () => {
   const workspaceId = '20202020-0000-4000-8000-000000000001';
   const now = new Date('2026-09-02T00:00:00.000Z');
 
-  it('requests deletion only from the quarantined state', async () => {
+  it('requests deletion from a soft-deleted active or suspended workspace', async () => {
     const query = jest.fn().mockResolvedValue([[], 0]);
     const store = new WorkspaceDeletionLifecycleStore({
       query,
@@ -23,7 +23,9 @@ describe('WorkspaceDeletionLifecycleStore', () => {
     ).resolves.toBeNull();
 
     expect(query).toHaveBeenCalledWith(
-      expect.stringContaining('AND "activationStatus" = $6'),
+      expect.stringMatching(
+        /AND "deletedAt" IS NOT NULL\s+AND "activationStatus" IN \(\$6, \$7\)/,
+      ),
       [
         workspaceId,
         WorkspaceActivationStatus.PENDING_DELETION,
@@ -31,6 +33,7 @@ describe('WorkspaceDeletionLifecycleStore', () => {
         WorkspaceDeletionPhase.MEMBERS,
         now,
         WorkspaceActivationStatus.SUSPENDED,
+        WorkspaceActivationStatus.ACTIVE,
       ],
     );
   });

@@ -55,7 +55,8 @@ export class WorkspaceDeletionLifecycleStore {
               "deletionLastErrorCode" = NULL,
               "deletionLastErrorMessage" = NULL
         WHERE id = $1
-          AND "activationStatus" = $6
+          AND "deletedAt" IS NOT NULL
+          AND "activationStatus" IN ($6, $7)
       RETURNING ${WORKSPACE_DELETION_RETURNING}`,
       [
         workspaceId,
@@ -64,6 +65,7 @@ export class WorkspaceDeletionLifecycleStore {
         WorkspaceDeletionPhase.MEMBERS,
         now,
         WorkspaceActivationStatus.SUSPENDED,
+        WorkspaceActivationStatus.ACTIVE,
       ],
     );
 

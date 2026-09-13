@@ -2,11 +2,18 @@ import { Queue } from 'bullmq';
 import IORedis from 'ioredis';
 
 import { MessageQueue } from 'src/engine/core-modules/message-queue/message-queue.constants';
+import { WORKSPACE_DELETION_JOB_TIMEOUT_MS } from 'src/engine/workspace-manager/workspace-cleaner/constants/workspace-deletion-timeouts.constant';
 
 const POLL_INTERVAL_MS = 25;
 const REQUIRED_CONSECUTIVE_QUIET_CHECKS = 2;
-const STALL_TIMEOUT_MS = 15_000;
-const HARD_TIMEOUT_MS = 120_000;
+const IS_DIRECT_WORKSPACE_DELETION_ACCEPTANCE =
+  process.env.RUN_WORKSPACE_DELETION_DIRECT_ACCEPTANCE === 'true';
+const STALL_TIMEOUT_MS = IS_DIRECT_WORKSPACE_DELETION_ACCEPTANCE
+  ? WORKSPACE_DELETION_JOB_TIMEOUT_MS + 5_000
+  : 15_000;
+const HARD_TIMEOUT_MS = IS_DIRECT_WORKSPACE_DELETION_ACCEPTANCE
+  ? 10 * 60_000
+  : 120_000;
 const PENDING_JOB_STATES = [
   'waiting',
   'active',
