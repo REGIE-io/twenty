@@ -75,6 +75,13 @@ export enum KeyValuePairType {
   },
 )
 @Index('IDX_KEY_VALUE_PAIR_APPLICATION_ID', ['applicationId'])
+@Index('IDX_REGIE_E2E_MARKER_DISCOVERY', ['workspaceId'], {
+  where:
+    `"key" = 'regie-internal:e2e-workspace-marker' ` +
+    `AND "type" = 'USER_VARIABLE' ` +
+    `AND "value" ->> 'ephemeral' = 'true' ` +
+    `AND "value" ->> 'organizationId' LIKE 'org\\_e2e\\_%' ESCAPE '\\'`,
+})
 export class KeyValuePairEntity {
   @Field(() => UUIDScalarType)
   @PrimaryGeneratedColumn('uuid')

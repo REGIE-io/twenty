@@ -1,9 +1,13 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 
+import { TypeORMModule } from 'src/database/typeorm/typeorm.module';
 import { BillingModule } from 'src/engine/core-modules/billing/billing.module';
 import { BillingSubscriptionEntity } from 'src/engine/core-modules/billing/entities/billing-subscription.entity';
 import { WorkspaceDomainsModule } from 'src/engine/core-modules/domain/workspace-domains/workspace-domains.module';
+import { InternalMetadataTokenGuard } from 'src/engine/core-modules/workspace/internal/guards/internal-metadata-token.guard';
+import { NoPermissionGuard } from 'src/engine/guards/no-permission.guard';
+import { InternalWorkspaceInstantHardDeletionController } from 'src/engine/workspace-manager/workspace-cleaner/controllers/internal-workspace-instant-hard-deletion.controller';
 import { EmailModule } from 'src/engine/core-modules/email/email.module';
 import { MetricsModule } from 'src/engine/core-modules/metrics/metrics.module';
 import { KeyValuePairEntity } from 'src/engine/core-modules/key-value-pair/key-value-pair.entity';
@@ -19,11 +23,24 @@ import { CleanSuspendedWorkspacesCommand } from 'src/engine/workspace-manager/wo
 import { CleanSuspendedWorkspacesCronCommand } from 'src/engine/workspace-manager/workspace-cleaner/commands/clean-suspended-workspaces.cron.command';
 import { PurgeRegieE2eWorkspacesCommand } from 'src/engine/workspace-manager/workspace-cleaner/commands/purge-regie-e2e-workspaces.command';
 import { DestroyWorkspaceCommand } from 'src/engine/workspace-manager/workspace-cleaner/commands/destroy-workspace.command';
+import { RegieE2eWorkspaceDeletionDiscoveryCronCommand } from 'src/engine/workspace-manager/workspace-cleaner/commands/regie-e2e-workspace-deletion-discovery.cron.command';
 import { CleanerWorkspaceService } from 'src/engine/workspace-manager/workspace-cleaner/services/cleaner.workspace-service';
 import { RegieE2eWorkspaceSweeperService } from 'src/engine/workspace-manager/workspace-cleaner/services/regie-e2e-workspace-sweeper.service';
+import { RegieE2eWorkspaceDeletionDiscoveryService } from 'src/engine/workspace-manager/workspace-cleaner/services/regie-e2e-workspace-deletion-discovery.service';
+import { WorkspaceDeletionLifecycleService } from 'src/engine/workspace-manager/workspace-cleaner/services/workspace-deletion-lifecycle.service';
+import { WorkspaceDeletionLifecycleStore } from 'src/engine/workspace-manager/workspace-cleaner/services/workspace-deletion-lifecycle.store';
+import { WorkspaceDeletionCoordinatorService } from 'src/engine/workspace-manager/workspace-cleaner/services/workspace-deletion-coordinator.service';
+import { WorkspaceDeletionMonitoringService } from 'src/engine/workspace-manager/workspace-cleaner/services/workspace-deletion-monitoring.service';
+import { WorkspaceDeletionPhaseExecutorService } from 'src/engine/workspace-manager/workspace-cleaner/services/workspace-deletion-phase-executor.service';
+import { WorkspaceDeletionPhaseRunnersService } from 'src/engine/workspace-manager/workspace-cleaner/services/workspace-deletion-phase-runners.service';
+import { WorkspaceDeletionTraceService } from 'src/engine/workspace-manager/workspace-cleaner/services/workspace-deletion-trace.service';
+import { InternalWorkspaceInstantHardDeletionService } from 'src/engine/workspace-manager/workspace-cleaner/services/internal-workspace-instant-hard-deletion.service';
+import { WorkspaceDeletionQueueAdapter } from 'src/engine/workspace-manager/workspace-cleaner/services/workspace-deletion-queue.adapter';
 
 @Module({
+  controllers: [InternalWorkspaceInstantHardDeletionController],
   imports: [
+    TypeORMModule,
     TypeOrmModule.forFeature([
       WorkspaceEntity,
       UserWorkspaceEntity,
@@ -40,6 +57,7 @@ import { RegieE2eWorkspaceSweeperService } from 'src/engine/workspace-manager/wo
   ],
   providers: [
     DestroyWorkspaceCommand,
+    RegieE2eWorkspaceDeletionDiscoveryCronCommand,
     CleanSuspendedWorkspacesCronCommand,
     CleanSuspendedWorkspacesCommand,
     PurgeRegieE2eWorkspacesCommand,
@@ -47,11 +65,33 @@ import { RegieE2eWorkspaceSweeperService } from 'src/engine/workspace-manager/wo
     CleanOnboardingWorkspacesCronCommand,
     CleanerWorkspaceService,
     RegieE2eWorkspaceSweeperService,
+    RegieE2eWorkspaceDeletionDiscoveryService,
+    WorkspaceDeletionLifecycleService,
+    WorkspaceDeletionLifecycleStore,
+    WorkspaceDeletionPhaseExecutorService,
+    WorkspaceDeletionCoordinatorService,
+    WorkspaceDeletionMonitoringService,
+    WorkspaceDeletionPhaseRunnersService,
+    WorkspaceDeletionTraceService,
+    WorkspaceDeletionQueueAdapter,
+    InternalWorkspaceInstantHardDeletionService,
+    InternalMetadataTokenGuard,
+    NoPermissionGuard,
     provideWorkspaceScopedRepository(BillingSubscriptionEntity),
   ],
   exports: [
+    MetricsModule,
     CleanerWorkspaceService,
     RegieE2eWorkspaceSweeperService,
+    RegieE2eWorkspaceDeletionDiscoveryService,
+    WorkspaceDeletionLifecycleService,
+    WorkspaceDeletionLifecycleStore,
+    WorkspaceDeletionPhaseExecutorService,
+    WorkspaceDeletionCoordinatorService,
+    WorkspaceDeletionMonitoringService,
+    WorkspaceDeletionPhaseRunnersService,
+    WorkspaceDeletionTraceService,
+    WorkspaceDeletionQueueAdapter,
     CleanSuspendedWorkspacesCronCommand,
     CleanOnboardingWorkspacesCronCommand,
   ],

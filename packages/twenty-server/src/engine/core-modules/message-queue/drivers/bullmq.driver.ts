@@ -181,6 +181,9 @@ export class BullMQDriver
       ...(isDefined(options?.lockDuration)
         ? { lockDuration: options.lockDuration }
         : {}),
+      ...(isDefined(options?.lockRenewTime)
+        ? { lockRenewTime: options.lockRenewTime }
+        : {}),
       ...(isDefined(options?.maxStalledCount)
         ? { maxStalledCount: options.maxStalledCount }
         : {}),
@@ -340,6 +343,7 @@ export class BullMQDriver
       priority:
         options?.priority ?? MESSAGE_QUEUE_WORKER_CONFIG[queueName].priority,
       attempts: 1 + (options?.retryLimit || 0),
+      backoff: options?.retryBackoff,
       removeOnComplete: {
         age: QUEUE_RETENTION.completedMaxAge,
         count: QUEUE_RETENTION.completedMaxCount,
@@ -364,9 +368,16 @@ export class BullMQDriver
       );
     }
 
-    // This ensures only one waiting job can be queued for a specific option.id
+    // This ensures only one in-flight job can be queued for a specific option.id
     if (options?.id && !options?.allowDuplicatedPrefixes) {
-      const waitingJobs = await this.queueMap[queueName].getJobs(['waiting']);
+      const waitingJobs = await this.queueMap[queueName].getJobs([
+        'active',
+        'waiting',
+        'waiting-children',
+        'paused',
+        'prioritized',
+        'delayed',
+      ]);
 
       const isJobAlreadyWaiting = waitingJobs.some(
         (job) => job.id?.slice(0, -(V4_LENGTH + 1)) === options.id,

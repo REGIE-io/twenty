@@ -19,6 +19,7 @@ import {
 } from 'typeorm';
 
 import { ADD_WORKSPACE_DISCOVERABILITY_TO_WORKSPACE_UPGRADE_COMMAND_NAME } from 'src/database/commands/upgrade-version-command/2-19/add-workspace-discoverability-to-workspace-upgrade-command-name.constant';
+import { ADD_WORKSPACE_DELETION_LIFECYCLE_UPGRADE_COMMAND_NAME } from 'src/database/commands/upgrade-version-command/2-32/add-workspace-deletion-lifecycle-upgrade-command-name.constant';
 import { UUIDScalarType } from 'src/engine/api/graphql/workspace-schema-builder/graphql-types/scalars';
 import { ApiKeyEntity } from 'src/engine/core-modules/api-key/api-key.entity';
 import { AppTokenEntity } from 'src/engine/core-modules/app-token/app-token.entity';
@@ -34,6 +35,10 @@ import { WorkspaceSSOIdentityProviderEntity } from 'src/engine/core-modules/sso/
 import { WasIntroducedInUpgrade } from 'src/engine/core-modules/upgrade/decorators/was-introduced-in-upgrade.decorator';
 import { UserWorkspaceEntity } from 'src/engine/core-modules/user-workspace/user-workspace.entity';
 import { WorkspaceDiscoverability } from 'src/engine/core-modules/workspace/types/workspace-discoverability.type';
+import {
+  WorkspaceDeletionKind,
+  WorkspaceDeletionPhase,
+} from 'src/engine/core-modules/workspace/types/workspace-deletion-lifecycle.type';
 import { AgentEntity } from 'src/engine/metadata-modules/ai/ai-agent/entities/agent.entity';
 import { type ModelId } from 'src/engine/metadata-modules/ai/ai-models/types/model-id.type';
 import { RoleDTO } from 'src/engine/metadata-modules/role/dtos/role.dto';
@@ -71,6 +76,10 @@ registerEnumType(WorkspaceDiscoverability, {
   'workspace_requires_database_schema',
   `"activationStatus" IN ('PENDING_CREATION', 'ONGOING_CREATION') OR ("databaseSchema" IS NOT NULL AND "databaseSchema" <> '')`,
 )
+@Index('IDX_WORKSPACE_DELETION_RECOVERY', [
+  'activationStatus',
+  'deletionLastProgressAt',
+])
 @Entity({ name: 'workspace', schema: 'core' })
 @ObjectType('Workspace')
 export class WorkspaceEntity {
@@ -196,6 +205,58 @@ export class WorkspaceEntity {
   })
   @Index('IDX_WORKSPACE_ACTIVATION_STATUS')
   activationStatus: WorkspaceActivationStatus;
+
+  @WasIntroducedInUpgrade({
+    upgradeCommandName: ADD_WORKSPACE_DELETION_LIFECYCLE_UPGRADE_COMMAND_NAME,
+  })
+  @Column({
+    type: 'enum',
+    enumName: 'workspace_deletionKind_enum',
+    enum: WorkspaceDeletionKind,
+    nullable: true,
+  })
+  deletionKind: WorkspaceDeletionKind | null;
+
+  @WasIntroducedInUpgrade({
+    upgradeCommandName: ADD_WORKSPACE_DELETION_LIFECYCLE_UPGRADE_COMMAND_NAME,
+  })
+  @Column({
+    type: 'enum',
+    enumName: 'workspace_deletionPhase_enum',
+    enum: WorkspaceDeletionPhase,
+    nullable: true,
+  })
+  deletionPhase: WorkspaceDeletionPhase | null;
+
+  @WasIntroducedInUpgrade({
+    upgradeCommandName: ADD_WORKSPACE_DELETION_LIFECYCLE_UPGRADE_COMMAND_NAME,
+  })
+  @Column({ type: 'timestamptz', nullable: true })
+  deletionRequestedAt: Date | null;
+
+  @WasIntroducedInUpgrade({
+    upgradeCommandName: ADD_WORKSPACE_DELETION_LIFECYCLE_UPGRADE_COMMAND_NAME,
+  })
+  @Column({ type: 'timestamptz', nullable: true })
+  deletionLastProgressAt: Date | null;
+
+  @WasIntroducedInUpgrade({
+    upgradeCommandName: ADD_WORKSPACE_DELETION_LIFECYCLE_UPGRADE_COMMAND_NAME,
+  })
+  @Column({ type: 'integer', default: 0 })
+  deletionAttemptCount: number;
+
+  @WasIntroducedInUpgrade({
+    upgradeCommandName: ADD_WORKSPACE_DELETION_LIFECYCLE_UPGRADE_COMMAND_NAME,
+  })
+  @Column({ type: 'varchar', length: 100, nullable: true })
+  deletionLastErrorCode: string | null;
+
+  @WasIntroducedInUpgrade({
+    upgradeCommandName: ADD_WORKSPACE_DELETION_LIFECYCLE_UPGRADE_COMMAND_NAME,
+  })
+  @Column({ type: 'varchar', length: 1000, nullable: true })
+  deletionLastErrorMessage: string | null;
 
   @Column({ type: 'timestamptz', nullable: true })
   suspendedAt: Date | null;

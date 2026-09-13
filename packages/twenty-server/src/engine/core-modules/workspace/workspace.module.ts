@@ -13,6 +13,7 @@ import { CustomDomainManagerModule } from 'src/engine/core-modules/domain/custom
 import { SubdomainManagerModule } from 'src/engine/core-modules/domain/subdomain-manager/subdomain-manager.module';
 import { WorkspaceDomainsModule } from 'src/engine/core-modules/domain/workspace-domains/workspace-domains.module';
 import { EnterpriseModule } from 'src/engine/core-modules/enterprise/enterprise.module';
+import { EmailingDomainModule } from 'src/engine/core-modules/emailing-domain/emailing-domain.module';
 import { FeatureFlagModule } from 'src/engine/core-modules/feature-flag/feature-flag.module';
 import { FileModule } from 'src/engine/core-modules/file/file.module';
 import { MetricsModule } from 'src/engine/core-modules/metrics/metrics.module';
@@ -54,6 +55,8 @@ import { WorkspaceCacheStorageModule } from 'src/engine/workspace-cache-storage/
 import { WorkspaceDataSourceModule } from 'src/engine/workspace-datasource/workspace-datasource.module';
 import { WorkspaceManagerModule } from 'src/engine/workspace-manager/workspace-manager.module';
 import { WorkspaceMigrationModule } from 'src/engine/workspace-manager/workspace-migration/workspace-migration.module';
+import { WorkspaceDeletionMaintenanceService } from 'src/engine/workspace-manager/workspace-cleaner/services/workspace-deletion-maintenance.service';
+import { WorkspaceFieldMetadataDeletionService } from 'src/engine/workspace-manager/workspace-cleaner/services/workspace-field-metadata-deletion.service';
 
 @Module({
   imports: [
@@ -90,6 +93,7 @@ import { WorkspaceMigrationModule } from 'src/engine/workspace-manager/workspace
     ApplicationModule,
     PreInstalledAppsModule,
     EnterpriseModule,
+    EmailingDomainModule,
     WorkspaceMigrationModule,
     CoreEntityCacheModule,
     UpgradeModule,
@@ -107,6 +111,8 @@ import { WorkspaceMigrationModule } from 'src/engine/workspace-manager/workspace
   providers: [
     WorkspaceResolver,
     WorkspaceService,
+    WorkspaceDeletionMaintenanceService,
+    WorkspaceFieldMetadataDeletionService,
     WorkspaceGaugeService,
     WorkspaceEntityCacheProviderService,
     InternalWorkspaceMemberProvisioningService,
