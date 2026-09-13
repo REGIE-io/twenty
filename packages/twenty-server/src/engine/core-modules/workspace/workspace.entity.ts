@@ -76,6 +76,10 @@ registerEnumType(WorkspaceDiscoverability, {
   'workspace_requires_database_schema',
   `"activationStatus" IN ('PENDING_CREATION', 'ONGOING_CREATION') OR ("databaseSchema" IS NOT NULL AND "databaseSchema" <> '')`,
 )
+@Index('IDX_WORKSPACE_DELETION_RECOVERY', [
+  'activationStatus',
+  'deletionLastProgressAt',
+])
 @Entity({ name: 'workspace', schema: 'core' })
 @ObjectType('Workspace')
 export class WorkspaceEntity {

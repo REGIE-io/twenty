@@ -1,6 +1,8 @@
 import { type PostgresAdvisoryLockService } from 'src/database/typeorm/postgres-advisory-lock.service';
-import { type WorkspaceDeletionPhaseRunners } from 'src/engine/workspace-manager/workspace-cleaner/services/workspace-deletion-phase-executor.service';
-import { type WorkspaceDeletionPhaseExecutorService } from 'src/engine/workspace-manager/workspace-cleaner/services/workspace-deletion-phase-executor.service';
+import {
+  type WorkspaceDeletionPhaseExecutorService,
+  type WorkspaceDeletionPhaseRunners,
+} from 'src/engine/workspace-manager/workspace-cleaner/services/workspace-deletion-phase-executor.service';
 import { WorkspaceDeletionCoordinatorService } from 'src/engine/workspace-manager/workspace-cleaner/services/workspace-deletion-coordinator.service';
 import { type WorkspaceDeletionLifecycleStore } from 'src/engine/workspace-manager/workspace-cleaner/services/workspace-deletion-lifecycle.store';
 
