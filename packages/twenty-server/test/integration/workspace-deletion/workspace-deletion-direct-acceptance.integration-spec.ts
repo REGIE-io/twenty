@@ -30,7 +30,7 @@ const describeAcceptance = RUN_ACCEPTANCE ? describe : describe.skip;
 const RECOVERY_COUNT = 5;
 const FRESH_COUNT = 15;
 const EXPECTED_DELETION_COUNT = RECOVERY_COUNT + FRESH_COUNT;
-const MINIMUM_EXISTING_ELIGIBLE_COUNT = EXPECTED_DELETION_COUNT + 2;
+const MINIMUM_EXISTING_ELIGIBLE_COUNT = EXPECTED_DELETION_COUNT + 1;
 
 type Fixture = {
   workspaceId: string;

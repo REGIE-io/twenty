@@ -223,7 +223,7 @@ describe('RegieE2eWorkspaceDeletionDiscoveryService', () => {
       { cutoff: new Date('2026-09-11T12:00:00.000Z') },
     );
     expect(queryBuilder.andWhere).toHaveBeenCalledWith(
-      'workspace.deletionRequestedAt IS NULL',
+      'workspace."deletionRequestedAt" IS NULL',
     );
     expect(enqueuer.enqueue).toHaveBeenCalledWith({
       workspaceId: workspace.id,

@@ -154,7 +154,7 @@ export class RegieE2eWorkspaceDeletionDiscoveryService {
       .andWhere("marker.value ->> 'workspaceSlug' = workspace.subdomain")
       .andWhere("workspace.subdomain LIKE 'org-e2e-%'")
       .andWhere('workspace.deletedAt <= :cutoff', { cutoff })
-      .andWhere('workspace.deletionRequestedAt IS NULL')
+      .andWhere('workspace."deletionRequestedAt" IS NULL')
       .orderBy('workspace.deletedAt', 'ASC')
       .addOrderBy('workspace.id', 'ASC')
       .limit(admissionLimit)
