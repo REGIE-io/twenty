@@ -1,9 +1,7 @@
 import * as Sentry from '@sentry/node';
 
-import {
-  REGIE_E2E_PURGE_BATCH_SIZE,
-  REGIE_E2E_PURGE_GRACE_PERIOD_MS,
-} from 'src/engine/core-modules/auth/constants/regie-e2e-workspace-marker.constant';
+import { REGIE_E2E_PURGE_GRACE_PERIOD_MS } from 'src/engine/core-modules/auth/constants/regie-e2e-workspace-marker.constant';
+import { type TwentyConfigService } from 'src/engine/core-modules/twenty-config/twenty-config.service';
 import { RegieE2eWorkspaceDeletionDiscoveryJob } from 'src/engine/workspace-manager/workspace-cleaner/crons/regie-e2e-workspace-deletion-discovery.job';
 import { type RegieE2eWorkspaceDeletionDiscoveryService } from 'src/engine/workspace-manager/workspace-cleaner/services/regie-e2e-workspace-deletion-discovery.service';
 import { type WorkspaceDeletionQueueAdapter } from 'src/engine/workspace-manager/workspace-cleaner/services/workspace-deletion-queue.adapter';
@@ -14,6 +12,12 @@ jest.mock('@sentry/node', () => ({
 }));
 
 describe('RegieE2eWorkspaceDeletionDiscoveryJob', () => {
+  const config = {
+    get: jest.fn((key: string) =>
+      key === 'REGIE_E2E_WORKSPACE_DELETION_RECOVERY_LIMIT' ? 5 : 15,
+    ),
+  } as unknown as TwentyConfigService;
+
   beforeEach(() => {
     jest.clearAllMocks();
     jest.mocked(Sentry.isInitialized).mockReturnValue(false);
@@ -29,6 +33,7 @@ describe('RegieE2eWorkspaceDeletionDiscoveryJob', () => {
     const job = new RegieE2eWorkspaceDeletionDiscoveryJob(
       discovery as unknown as RegieE2eWorkspaceDeletionDiscoveryService,
       adapter as WorkspaceDeletionQueueAdapter,
+      config,
     );
 
     await expect(job.handle(now)).resolves.toEqual({
@@ -39,7 +44,8 @@ describe('RegieE2eWorkspaceDeletionDiscoveryJob', () => {
       now,
       gracePeriodMs: REGIE_E2E_PURGE_GRACE_PERIOD_MS,
       staleAfterMs: 30_000,
-      limit: REGIE_E2E_PURGE_BATCH_SIZE,
+      recoveryLimit: 5,
+      admissionLimit: 15,
     });
   });
 
@@ -59,6 +65,7 @@ describe('RegieE2eWorkspaceDeletionDiscoveryJob', () => {
     const job = new RegieE2eWorkspaceDeletionDiscoveryJob(
       discovery as unknown as RegieE2eWorkspaceDeletionDiscoveryService,
       {} as WorkspaceDeletionQueueAdapter,
+      config,
     );
 
     const handling = job.handle(new Date('2026-09-12T12:00:00.000Z'));
@@ -86,6 +93,7 @@ describe('RegieE2eWorkspaceDeletionDiscoveryJob', () => {
     const job = new RegieE2eWorkspaceDeletionDiscoveryJob(
       discovery as unknown as RegieE2eWorkspaceDeletionDiscoveryService,
       {} as WorkspaceDeletionQueueAdapter,
+      config,
     );
 
     await expect(job.handle()).rejects.toBe(failure);

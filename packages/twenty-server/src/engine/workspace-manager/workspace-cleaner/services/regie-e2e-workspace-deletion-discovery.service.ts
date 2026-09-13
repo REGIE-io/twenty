@@ -43,12 +43,14 @@ export class RegieE2eWorkspaceDeletionDiscoveryService {
       now,
       gracePeriodMs,
       staleAfterMs,
-      limit,
+      recoveryLimit,
+      admissionLimit,
     }: {
       now: Date;
       gracePeriodMs: number;
       staleAfterMs: number;
-      limit: number;
+      recoveryLimit: number;
+      admissionLimit: number;
     },
   ): Promise<{ recovered: number; admitted: number }> {
     this.trace.record({
@@ -61,7 +63,8 @@ export class RegieE2eWorkspaceDeletionDiscoveryService {
         now,
         gracePeriodMs,
         staleAfterMs,
-        limit,
+        recoveryLimit,
+        admissionLimit,
       });
       const attributes = { deletionKind: WorkspaceDeletionKind.E2E };
 
@@ -115,18 +118,20 @@ export class RegieE2eWorkspaceDeletionDiscoveryService {
       now,
       gracePeriodMs,
       staleAfterMs,
-      limit,
+      recoveryLimit,
+      admissionLimit,
     }: {
       now: Date;
       gracePeriodMs: number;
       staleAfterMs: number;
-      limit: number;
+      recoveryLimit: number;
+      admissionLimit: number;
     },
   ): Promise<{ candidates: number; recovered: number; admitted: number }> {
     const recovery = await this.lifecycleStore.findRecoveryCandidates(
       now,
       staleAfterMs,
-      limit,
+      recoveryLimit,
     );
 
     for (const candidate of recovery) {
@@ -146,11 +151,13 @@ export class RegieE2eWorkspaceDeletionDiscoveryService {
       .andWhere(
         "marker.value ->> 'organizationId' LIKE 'org\\_e2e\\_%' ESCAPE '\\'",
       )
+      .andWhere("marker.value ->> 'workspaceSlug' = workspace.subdomain")
       .andWhere("workspace.subdomain LIKE 'org-e2e-%'")
       .andWhere('workspace.deletedAt <= :cutoff', { cutoff })
+      .andWhere('workspace.deletionRequestedAt IS NULL')
       .orderBy('workspace.deletedAt', 'ASC')
       .addOrderBy('workspace.id', 'ASC')
-      .limit(limit)
+      .limit(admissionLimit)
       .getMany();
 
     let admitted = 0;

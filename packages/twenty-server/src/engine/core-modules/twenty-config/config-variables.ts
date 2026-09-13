@@ -1557,6 +1557,26 @@ export class ConfigVariables {
   REGIE_E2E_WORKSPACE_DELETION_CRON_ENABLED = false;
 
   @ConfigVariablesMetadata({
+    group: ConfigVariablesGroup.ADVANCED_SETTINGS,
+    description:
+      'Maximum stale Regie E2E workspace deletions recovered by each discovery run.',
+    type: ConfigVariableType.NUMBER,
+  })
+  @CastToPositiveNumber()
+  @IsOptional()
+  REGIE_E2E_WORKSPACE_DELETION_RECOVERY_LIMIT = 5;
+
+  @ConfigVariablesMetadata({
+    group: ConfigVariablesGroup.ADVANCED_SETTINGS,
+    description:
+      'Maximum fresh Regie E2E workspace deletions admitted by each discovery run.',
+    type: ConfigVariableType.NUMBER,
+  })
+  @CastToPositiveNumber()
+  @IsOptional()
+  REGIE_E2E_WORKSPACE_DELETION_ADMISSION_LIMIT = 15;
+
+  @ConfigVariablesMetadata({
     group: ConfigVariablesGroup.RATE_LIMITING,
     description: 'Maximum number of records affected by mutations',
     type: ConfigVariableType.NUMBER,

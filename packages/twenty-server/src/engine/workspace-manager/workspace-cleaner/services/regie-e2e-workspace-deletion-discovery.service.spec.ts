@@ -20,7 +20,8 @@ describe('RegieE2eWorkspaceDeletionDiscoveryService', () => {
   const now = new Date('2026-09-12T12:00:00.000Z');
   const gracePeriodMs = 24 * 60 * 60 * 1000;
   const staleAfterMs = 30_000;
-  const limit = 15;
+  const recoveryLimit = 5;
+  const admissionLimit = 15;
   const workspace = {
     id: '20202020-0000-4000-8000-000000000001',
     subdomain: 'org-e2e-run-1',
@@ -111,7 +112,8 @@ describe('RegieE2eWorkspaceDeletionDiscoveryService', () => {
       now: at,
       gracePeriodMs,
       staleAfterMs,
-      limit,
+      recoveryLimit,
+      admissionLimit,
     });
 
   it('re-enqueues recovery before admitting fresh work', async () => {
@@ -128,6 +130,11 @@ describe('RegieE2eWorkspaceDeletionDiscoveryService', () => {
       workspaceId: stranded.workspaceId,
       jobId: `workspace-delete-${stranded.workspaceId}`,
     });
+    expect(lifecycleStore.findRecoveryCandidates).toHaveBeenCalledWith(
+      now,
+      staleAfterMs,
+      recoveryLimit,
+    );
     expect(lifecycleStore.requestDeletion).toHaveBeenCalledWith(
       workspace.id,
       WorkspaceDeletionKind.E2E,
@@ -215,12 +222,15 @@ describe('RegieE2eWorkspaceDeletionDiscoveryService', () => {
       'workspace.deletedAt <= :cutoff',
       { cutoff: new Date('2026-09-11T12:00:00.000Z') },
     );
+    expect(queryBuilder.andWhere).toHaveBeenCalledWith(
+      'workspace.deletionRequestedAt IS NULL',
+    );
     expect(enqueuer.enqueue).toHaveBeenCalledWith({
       workspaceId: workspace.id,
       jobId: `workspace-delete-${workspace.id}`,
     });
     expect(enqueuer.enqueue.mock.calls[0][0]).not.toHaveProperty('purgeAfter');
-    expect(queryBuilder.limit).toHaveBeenCalledWith(15);
+    expect(queryBuilder.limit).toHaveBeenCalledWith(admissionLimit);
   });
 
   it('refuses a candidate whose persistent identity does not match', async () => {

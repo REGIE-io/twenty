@@ -27,7 +27,7 @@ const RUN_ACCEPTANCE =
 const USE_EXISTING_ELIGIBLE_WORKSPACES =
   process.env.WORKSPACE_DELETION_ACCEPTANCE_USE_EXISTING === 'true';
 const describeAcceptance = RUN_ACCEPTANCE ? describe : describe.skip;
-const RECOVERY_COUNT = 15;
+const RECOVERY_COUNT = 5;
 const FRESH_COUNT = 15;
 const EXPECTED_DELETION_COUNT = RECOVERY_COUNT + FRESH_COUNT;
 const MINIMUM_EXISTING_ELIGIBLE_COUNT = EXPECTED_DELETION_COUNT + 2;
@@ -106,7 +106,7 @@ describeAcceptance('direct workspace deletion acceptance', () => {
     }
   });
 
-  it('deletes 15 recovery and 15 fresh workspaces through the real queue without cron registration', async () => {
+  it('deletes 5 recovery and 15 fresh workspaces through the real queue without cron registration', async () => {
     const runId = crypto.randomUUID().replace(/-/g, '').slice(0, 8);
     const now = new Date();
     const cutoff = new Date(now.getTime() - REGIE_E2E_PURGE_GRACE_PERIOD_MS);
