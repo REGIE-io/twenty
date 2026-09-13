@@ -122,7 +122,15 @@ describeAcceptance('direct workspace deletion acceptance', () => {
     const config = getAppProviderByClassName<TwentyConfigService>(
       'TwentyConfigService',
     );
-    const traceSpy = jest.spyOn(trace, 'record');
+    const timedTraces: Array<{
+      trace: Parameters<WorkspaceDeletionTraceService['record']>[0];
+      recordedAt: number;
+    }> = [];
+    const originalRecord = trace.record.bind(trace);
+    const traceSpy = jest.spyOn(trace, 'record').mockImplementation((entry) => {
+      timedTraces.push({ trace: entry, recordedAt: Date.now() });
+      originalRecord(entry);
+    });
     const metricSpy = jest.spyOn(metrics, 'incrementCounterForEvent');
 
     if (config.get('REGIE_E2E_WORKSPACE_DELETION_CRON_ENABLED')) {
@@ -297,6 +305,41 @@ describeAcceptance('direct workspace deletion acceptance', () => {
       const failedMetrics = metricSpy.mock.calls.filter(
         ([entry]) => entry.key === MetricsKeys.WorkspaceDeletionFailed,
       );
+      const startedAtByWorkspace = new Map(
+        timedTraces
+          .filter(
+            ({ trace: entry }) =>
+              entry.event === 'workspace_deletion_started' &&
+              entry.workspaceId !== undefined &&
+              targetIds.has(entry.workspaceId),
+          )
+          .map(({ trace: entry, recordedAt }) => [
+            entry.workspaceId as string,
+            recordedAt,
+          ]),
+      );
+      const deletionDurationsMs = timedTraces
+        .filter(
+          ({ trace: entry }) =>
+            entry.event === 'workspace_deletion_finished' &&
+            entry.workspaceId !== undefined &&
+            targetIds.has(entry.workspaceId),
+        )
+        .map(({ trace: entry, recordedAt }) =>
+          Math.max(
+            0,
+            recordedAt - startedAtByWorkspace.get(entry.workspaceId!)!,
+          ),
+        );
+      const meanDeletionDurationMs =
+        deletionDurationsMs.reduce((total, duration) => total + duration, 0) /
+        deletionDurationsMs.length;
+      const deletionDurationStandardDeviationMs = Math.sqrt(
+        deletionDurationsMs.reduce(
+          (total, duration) => total + (duration - meanDeletionDurationMs) ** 2,
+          0,
+        ) / deletionDurationsMs.length,
+      );
       const report = await monitoring.report(new Date(), 30_000);
       const catalogRows = await global.testDataSource.query<
         Array<{ schemaName: string | null }>
@@ -338,11 +381,20 @@ describeAcceptance('direct workspace deletion acceptance', () => {
           admitted: discovery.admitted,
           completed: completedAtByWorkspace.size,
           totalDurationMs: Date.now() - startedAt,
-          meanCompletionMs: Math.round(meanMs),
-          standardDeviationMs: Math.round(standardDeviationMs),
-          twoStandardDeviationsMs: Math.round(meanMs + 2 * standardDeviationMs),
+          meanQueueCompletionMs: Math.round(meanMs),
+          queueCompletionStandardDeviationMs: Math.round(standardDeviationMs),
+          queueCompletionTwoStandardDeviationsMs: Math.round(
+            meanMs + 2 * standardDeviationMs,
+          ),
           p95CompletionMs: p95Ms,
           maxCompletionMs: elapsedMs.at(-1),
+          meanDeletionDurationMs: Math.round(meanDeletionDurationMs),
+          deletionDurationStandardDeviationMs: Math.round(
+            deletionDurationStandardDeviationMs,
+          ),
+          deletionDurationTwoStandardDeviationsMs: Math.round(
+            meanDeletionDurationMs + 2 * deletionDurationStandardDeviationMs,
+          ),
           completedTraceCount: finishedTraces.length,
           failedTraceCount: failedTraces.length,
           completedMetricCount: completedMetrics.length,
