@@ -11,14 +11,14 @@ describe('WorkspaceDeletionQueueAdapter', () => {
 
     await adapter.enqueue({
       workspaceId: 'workspace-id',
-      jobId: 'workspace-delete:workspace-id',
+      jobId: 'workspace-delete-workspace-id',
     });
 
     expect(queue.add).toHaveBeenCalledWith(
       WorkspaceDeletionJob.name,
       { workspaceId: 'workspace-id' },
       {
-        id: 'workspace-delete:workspace-id',
+        id: 'workspace-delete-workspace-id',
         retryLimit: 2,
         retryBackoff: {
           type: 'exponential',

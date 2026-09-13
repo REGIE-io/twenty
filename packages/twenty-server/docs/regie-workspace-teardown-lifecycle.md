@@ -286,7 +286,8 @@ Discovery jobs only:
 3. atomically set `PENDING_DELETION` when hard deletion is required; and
 4. enqueue one deterministic job per workspace.
 
-Use a deterministic job ID such as `workspace-delete:<workspaceId>`. Duplicate
+Use a deterministic BullMQ-safe job ID such as `workspace-delete-<workspaceId>`.
+Duplicate
 discovery runs must not create concurrent teardown jobs for the same workspace.
 
 One worker job processes one workspace. Use a workspace-scoped advisory lock,

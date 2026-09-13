@@ -624,7 +624,7 @@ export class WorkspaceService {
     await this.messageQueueService.add<FileWorkspaceFolderDeletionJobData>(
       FileWorkspaceFolderDeletionJob.name,
       { workspaceId: id },
-      { id: `workspace-delete-files:${id}` },
+      { id: `workspace-delete-files-${id}` },
     );
 
     const emailingDomains = await this.coreDataSource
@@ -637,7 +637,7 @@ export class WorkspaceService {
         workspaceId: id,
         domains: emailingDomains.map((emailingDomain) => emailingDomain.domain),
       },
-      { id: `workspace-delete-email-domains:${id}` },
+      { id: `workspace-delete-email-domains-${id}` },
     );
 
     if (workspace.customDomain) {

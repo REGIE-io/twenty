@@ -212,7 +212,7 @@ export class RegieE2eWorkspaceDeletionDiscoveryService {
   ): Promise<void> {
     return enqueuer.enqueue({
       workspaceId,
-      jobId: `workspace-delete:${workspaceId}`,
+      jobId: `workspace-delete-${workspaceId}`,
     });
   }
 

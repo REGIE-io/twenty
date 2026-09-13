@@ -80,7 +80,7 @@ export class InternalWorkspaceInstantHardDeletionService {
     ) {
       await this.queue.enqueue({
         workspaceId,
-        jobId: `workspace-delete:${workspaceId}`,
+        jobId: `workspace-delete-${workspaceId}`,
       });
     }
 

@@ -74,7 +74,7 @@ describe('InternalWorkspaceInstantHardDeletionService', () => {
     );
     expect(queue.enqueue).toHaveBeenCalledWith({
       workspaceId,
-      jobId: `workspace-delete:${workspaceId}`,
+      jobId: `workspace-delete-${workspaceId}`,
     });
   });
 

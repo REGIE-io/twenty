@@ -52,7 +52,7 @@ describe('BullMQ workspace deletion guarantees', () => {
   it('does not enqueue a duplicate while the same logical workspace job is active or delayed', async () => {
     const { driver, queue } = makeDriver();
     const existingJob = {
-      id: 'workspace-delete:workspace-id-00000000-0000-4000-8000-000000000001',
+      id: 'workspace-delete-workspace-id-00000000-0000-4000-8000-000000000001',
     };
 
     queue.getJobs.mockImplementation(async (statuses: string[]) =>
@@ -65,7 +65,7 @@ describe('BullMQ workspace deletion guarantees', () => {
       queueName,
       'WorkspaceDeletionJob',
       { workspaceId: 'workspace-id' },
-      { id: 'workspace-delete:workspace-id' },
+      { id: 'workspace-delete-workspace-id' },
     );
 
     expect(queue.getJobs).toHaveBeenCalledWith(
@@ -77,7 +77,7 @@ describe('BullMQ workspace deletion guarantees', () => {
   it('passes exponential backoff and jitter to BullMQ', async () => {
     const { driver, queue } = makeDriver();
     const options = {
-      id: 'workspace-delete:workspace-id',
+      id: 'workspace-delete-workspace-id',
       retryLimit: 2,
       retryBackoff: { type: 'exponential', delay: 5_000, jitter: 0.25 },
     } as QueueJobOptions & {

@@ -126,7 +126,7 @@ describe('RegieE2eWorkspaceDeletionDiscoveryService', () => {
     });
     expect(enqueuer.enqueue).toHaveBeenNthCalledWith(1, {
       workspaceId: stranded.workspaceId,
-      jobId: `workspace-delete:${stranded.workspaceId}`,
+      jobId: `workspace-delete-${stranded.workspaceId}`,
     });
     expect(lifecycleStore.requestDeletion).toHaveBeenCalledWith(
       workspace.id,
@@ -135,7 +135,7 @@ describe('RegieE2eWorkspaceDeletionDiscoveryService', () => {
     );
     expect(enqueuer.enqueue).toHaveBeenNthCalledWith(2, {
       workspaceId: workspace.id,
-      jobId: `workspace-delete:${workspace.id}`,
+      jobId: `workspace-delete-${workspace.id}`,
     });
   });
 
@@ -217,7 +217,7 @@ describe('RegieE2eWorkspaceDeletionDiscoveryService', () => {
     );
     expect(enqueuer.enqueue).toHaveBeenCalledWith({
       workspaceId: workspace.id,
-      jobId: `workspace-delete:${workspace.id}`,
+      jobId: `workspace-delete-${workspace.id}`,
     });
     expect(enqueuer.enqueue.mock.calls[0][0]).not.toHaveProperty('purgeAfter');
     expect(queryBuilder.limit).toHaveBeenCalledWith(15);
