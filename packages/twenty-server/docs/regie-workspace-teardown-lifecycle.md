@@ -290,6 +290,15 @@ Use a deterministic BullMQ-safe job ID such as `workspace-delete-<workspaceId>`.
 Duplicate
 discovery runs must not create concurrent teardown jobs for the same workspace.
 
+The initial discovery policy allows up to 15 recovery jobs and 15 fresh jobs
+per pass. Recovery is enqueued first, so a pass has a deliberate maximum of 30
+workspace jobs. At queue concurrency one and the measured approximately
+seven-second full-database teardown time, that is roughly three and a half
+minutes of serial work and leaves more than six minutes of headroom before the
+next ten-minute discovery pass. The live 30-workspace acceptance run must
+validate that this remains true with external cleanup and production-shaped
+load.
+
 One worker job processes one workspace. Use a workspace-scoped advisory lock,
 not a single global cleanup lock. Start with queue concurrency one to measure
 database impact. Increase it only when load tests and production metrics show

@@ -858,6 +858,9 @@ enum WorkspaceActivationStatus {
   ACTIVE
   INACTIVE
   SUSPENDED
+  PENDING_DELETION
+  ONGOING_DELETION
+  DELETION_FAILED
 }
 
 type User {
@@ -2162,6 +2165,31 @@ enum WorkspaceCompanyEnrichmentOutcome {
   transientError
 }
 
+type VerificationRecord {
+  type: String!
+  key: String!
+  value: String!
+  priority: Float
+  status: String
+}
+
+type EmailingDomain {
+  id: UUID!
+  createdAt: DateTime!
+  updatedAt: DateTime!
+  domain: String!
+  status: EmailingDomainStatus!
+  verificationRecords: [VerificationRecord!]
+  verifiedAt: DateTime
+}
+
+enum EmailingDomainStatus {
+  PENDING
+  VERIFIED
+  FAILED
+  TEMPORARY_FAILURE
+}
+
 type Field {
   id: UUID!
   universalIdentifier: String!
@@ -2586,31 +2614,6 @@ type PublicDomain {
   isValidated: Boolean!
   applicationId: UUID
   createdAt: DateTime!
-}
-
-type VerificationRecord {
-  type: String!
-  key: String!
-  value: String!
-  priority: Float
-  status: String
-}
-
-type EmailingDomain {
-  id: UUID!
-  createdAt: DateTime!
-  updatedAt: DateTime!
-  domain: String!
-  status: EmailingDomainStatus!
-  verificationRecords: [VerificationRecord!]
-  verifiedAt: DateTime
-}
-
-enum EmailingDomainStatus {
-  PENDING
-  VERIFIED
-  FAILED
-  TEMPORARY_FAILURE
 }
 
 type MessageChannel {
@@ -3316,12 +3319,12 @@ type Query {
   ): Field!
   getViewGroups(viewId: String): [ViewGroup!]!
   getViewGroup(id: String!): ViewGroup
+  getEmailingDomains: [EmailingDomain!]!
   getRoles: [Role!]!
   previewMessageCampaignAudience(input: PreviewMessageCampaignAudienceInput!): CampaignAudiencePreviewDTO!
   messageSuppressions(input: FindMessageSuppressionsInput!): MessageSuppressionList!
   unsubscribeTopics: [UnsubscribeTopic!]!
   myMessageChannels(connectedAccountId: UUID): [MessageChannel!]!
-  getEmailingDomains: [EmailingDomain!]!
   myConnectedAccounts: [ConnectedAccountPublicDTO!]!
   getToolIndex: [ToolIndexEntry!]!
   getToolInputSchema(toolName: String!): JSON
@@ -3606,6 +3609,9 @@ type Mutation {
   updateManyViewGroups(inputs: [UpdateViewGroupInput!]!): [ViewGroup!]!
   deleteViewGroup(input: DeleteViewGroupInput!): ViewGroup!
   destroyViewGroup(input: DestroyViewGroupInput!): ViewGroup!
+  createEmailingDomain(input: CreateEmailingDomainInput!): EmailingDomain!
+  deleteEmailingDomain(id: String!): Boolean!
+  verifyEmailingDomain(id: String!): EmailingDomain!
   updateWorkspaceMemberRole(workspaceMemberId: UUID!, roleId: UUID!): WorkspaceMember!
   createOneRole(createRoleInput: CreateRoleInput!): Role!
   updateOneRole(updateRoleInput: UpdateRoleInput!): Role!
@@ -3626,9 +3632,6 @@ type Mutation {
   createEmailGroupChannel(input: CreateEmailGroupChannelInput!): CreateEmailGroupChannelOutput!
   updateEmailGroupChannel(input: UpdateEmailGroupChannelInput!): MessageChannel!
   deleteEmailGroupChannel(id: UUID!): MessageChannel!
-  createEmailingDomain(input: CreateEmailingDomainInput!): EmailingDomain!
-  deleteEmailingDomain(id: String!): Boolean!
-  verifyEmailingDomain(id: String!): EmailingDomain!
   deleteConnectedAccount(id: UUID!): ConnectedAccountPublicDTO!
   runAgent(input: RunAgentInput!): RunAgentResult!
   createWebhook(input: CreateWebhookInput!): Webhook!
@@ -4585,6 +4588,10 @@ input DestroyViewGroupInput {
   id: UUID!
 }
 
+input CreateEmailingDomainInput {
+  domain: String!
+}
+
 input CreateRoleInput {
   id: String
   label: String!
@@ -4740,10 +4747,6 @@ input CreateEmailGroupChannelInput {
 input UpdateEmailGroupChannelInput {
   id: UUID!
   displayName: String
-}
-
-input CreateEmailingDomainInput {
-  domain: String!
 }
 
 input RunAgentInput {

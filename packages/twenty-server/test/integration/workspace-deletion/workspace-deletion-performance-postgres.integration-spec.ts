@@ -290,13 +290,27 @@ describe('workspace deletion production-shaped PostgreSQL performance contracts'
         AND workspace."deletedAt" <= $1
       ORDER BY workspace."deletedAt" ASC, workspace.id ASC
       LIMIT 15`;
-    const candidates = await dataSource.query(sql, [
+    const candidates = await dataSource.query<Array<{ id: string }>>(sql, [
       new Date('2026-09-02T00:00:00.000Z'),
     ]);
-    const plan = await dataSource.query(
-      `EXPLAIN (ANALYZE, FORMAT JSON) ${sql}`,
-      [new Date('2026-09-02T00:00:00.000Z')],
-    );
+    const queryRunner = dataSource.createQueryRunner();
+
+    await queryRunner.connect();
+    await queryRunner.query('SET enable_seqscan TO off');
+
+    let plan;
+
+    try {
+      // The fixture is intentionally small, so PostgreSQL may prefer a sequential
+      // scan even when the production discovery index is usable. Disable sequential
+      // scans only for this explain to assert index eligibility deterministically.
+      plan = await queryRunner.query(`EXPLAIN (ANALYZE, FORMAT JSON) ${sql}`, [
+        new Date('2026-09-02T00:00:00.000Z'),
+      ]);
+    } finally {
+      await queryRunner.query('RESET enable_seqscan');
+      await queryRunner.release();
+    }
     const serializedPlan = JSON.stringify(plan);
 
     expect(candidates.map(({ id }) => id)).toEqual(oldestFirst.slice(0, 15));

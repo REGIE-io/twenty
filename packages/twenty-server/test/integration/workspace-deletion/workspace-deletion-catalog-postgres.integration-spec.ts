@@ -73,7 +73,7 @@ describe('workspace deletion PostgreSQL catalog cleanup', () => {
   };
 
   it('removes every object in the workspace schema and workspace-owned core rows', async () => {
-    const runId = crypto.randomUUID().replaceAll('-', '').slice(0, 10);
+    const runId = crypto.randomUUID().replace(/-/g, '').slice(0, 10);
     const organizationId = `org_e2e_catalog_${runId}`;
     const workspaceSlug = `org-e2e-catalog-${runId}`;
     const provisioning =

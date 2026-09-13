@@ -13,6 +13,7 @@ import { CustomDomainManagerModule } from 'src/engine/core-modules/domain/custom
 import { SubdomainManagerModule } from 'src/engine/core-modules/domain/subdomain-manager/subdomain-manager.module';
 import { WorkspaceDomainsModule } from 'src/engine/core-modules/domain/workspace-domains/workspace-domains.module';
 import { EnterpriseModule } from 'src/engine/core-modules/enterprise/enterprise.module';
+import { EmailingDomainModule } from 'src/engine/core-modules/emailing-domain/emailing-domain.module';
 import { FeatureFlagModule } from 'src/engine/core-modules/feature-flag/feature-flag.module';
 import { FileModule } from 'src/engine/core-modules/file/file.module';
 import { MetricsModule } from 'src/engine/core-modules/metrics/metrics.module';
@@ -92,6 +93,7 @@ import { WorkspaceFieldMetadataDeletionService } from 'src/engine/workspace-mana
     ApplicationModule,
     PreInstalledAppsModule,
     EnterpriseModule,
+    EmailingDomainModule,
     WorkspaceMigrationModule,
     CoreEntityCacheModule,
     UpgradeModule,

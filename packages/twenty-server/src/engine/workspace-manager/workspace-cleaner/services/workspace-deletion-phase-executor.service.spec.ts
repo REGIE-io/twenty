@@ -32,7 +32,7 @@ describe('WorkspaceDeletionPhaseExecutorService', () => {
   const makeRunners = () =>
     Object.fromEntries(
       WORKSPACE_DELETION_PHASES.map((phase) => [phase, jest.fn()]),
-    ) as WorkspaceDeletionPhaseRunners;
+    ) as unknown as WorkspaceDeletionPhaseRunners;
 
   it('starts at the persisted phase and runs only the remaining phases', async () => {
     const completed: WorkspaceDeletionPhase[] = [];

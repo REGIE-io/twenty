@@ -19,21 +19,12 @@ import { DnsManagerService } from 'src/engine/core-modules/dns-manager/services/
 import { CustomDomainManagerService } from 'src/engine/core-modules/domain/custom-domain-manager/services/custom-domain-manager.service';
 import { SubdomainManagerService } from 'src/engine/core-modules/domain/subdomain-manager/services/subdomain-manager.service';
 import { EmailingDomainEntity } from 'src/engine/core-modules/emailing-domain/emailing-domain.entity';
-import {
-  EmailingDomainWorkspaceCleanupJob,
-  type EmailingDomainWorkspaceCleanupJobData,
-} from 'src/engine/core-modules/emailing-domain/jobs/emailing-domain-workspace-cleanup.job';
+import { EmailingDomainService } from 'src/engine/core-modules/emailing-domain/services/emailing-domain.service';
 import { ExceptionHandlerService } from 'src/engine/core-modules/exception-handler/exception-handler.service';
 import { FeatureFlagService } from 'src/engine/core-modules/feature-flag/services/feature-flag.service';
 import { PhoneSearchWorkspaceCleanupService } from 'src/engine/core-modules/phone-search-index/services/phone-search-workspace-cleanup.service';
 import { FileCorePictureService } from 'src/engine/core-modules/file/file-core-picture/services/file-core-picture.service';
-import {
-  FileWorkspaceFolderDeletionJob,
-  type FileWorkspaceFolderDeletionJobData,
-} from 'src/engine/core-modules/file/jobs/file-workspace-folder-deletion.job';
-import { InjectMessageQueue } from 'src/engine/core-modules/message-queue/decorators/message-queue.decorator';
-import { MessageQueue } from 'src/engine/core-modules/message-queue/message-queue.constants';
-import { MessageQueueService } from 'src/engine/core-modules/message-queue/services/message-queue.service';
+import { FileService } from 'src/engine/core-modules/file/services/file.service';
 import { SdkClientGenerationService } from 'src/engine/core-modules/sdk-client/sdk-client-generation.service';
 import { TwentyConfigService } from 'src/engine/core-modules/twenty-config/twenty-config.service';
 import { UpgradeMigrationService } from 'src/engine/core-modules/upgrade/services/upgrade-migration.service';
@@ -133,9 +124,9 @@ export class WorkspaceService {
     private readonly workspaceDataSourceService: WorkspaceDataSourceService,
     private readonly customDomainManagerService: CustomDomainManagerService,
     private readonly fileCorePictureService: FileCorePictureService,
+    private readonly fileService: FileService,
+    private readonly emailingDomainService: EmailingDomainService,
     private readonly aiModelRegistryService: AiModelRegistryService,
-    @InjectMessageQueue(MessageQueue.deleteCascadeQueue)
-    private readonly messageQueueService: MessageQueueService,
     @InjectDataSource()
     private readonly coreDataSource: DataSource,
     private readonly coreEntityCacheService: CoreEntityCacheService,
@@ -621,23 +612,15 @@ export class WorkspaceService {
     if (!workspace) {
       return;
     }
-    await this.messageQueueService.add<FileWorkspaceFolderDeletionJobData>(
-      FileWorkspaceFolderDeletionJob.name,
-      { workspaceId: id },
-      { id: `workspace-delete-files-${id}` },
-    );
+    await this.fileService.deleteWorkspaceFolder(id);
 
     const emailingDomains = await this.coreDataSource
       .getRepository(EmailingDomainEntity)
       .find({ where: { workspaceId: id } });
 
-    await this.messageQueueService.add<EmailingDomainWorkspaceCleanupJobData>(
-      EmailingDomainWorkspaceCleanupJob.name,
-      {
-        workspaceId: id,
-        domains: emailingDomains.map((emailingDomain) => emailingDomain.domain),
-      },
-      { id: `workspace-delete-email-domains-${id}` },
+    await this.emailingDomainService.cleanupEmailingDomainsForWorkspace(
+      id,
+      emailingDomains.map((emailingDomain) => emailingDomain.domain),
     );
 
     if (workspace.customDomain) {

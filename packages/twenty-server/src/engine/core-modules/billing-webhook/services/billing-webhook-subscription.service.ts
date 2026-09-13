@@ -232,6 +232,9 @@ export class BillingWebhookSubscriptionService {
           case WorkspaceActivationStatus.CREATED:
           case WorkspaceActivationStatus.ONGOING_CREATION:
           case WorkspaceActivationStatus.INACTIVE:
+          case WorkspaceActivationStatus.PENDING_DELETION:
+          case WorkspaceActivationStatus.ONGOING_DELETION:
+          case WorkspaceActivationStatus.DELETION_FAILED:
             break;
           default:
             assertUnreachable(refreshedWorkspace.activationStatus);

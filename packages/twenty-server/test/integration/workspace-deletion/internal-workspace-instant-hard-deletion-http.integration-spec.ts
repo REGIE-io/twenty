@@ -32,7 +32,7 @@ describe('internal instant hard deletion HTTP safety boundary', () => {
     ephemeral: boolean;
     marker?: boolean;
   }) => {
-    const runId = crypto.randomUUID().replaceAll('-', '').slice(0, 10);
+    const runId = crypto.randomUUID().replace(/-/g, '').slice(0, 10);
     const workspaceId = crypto.randomUUID();
     const organizationId = ephemeral ? `org_e2e_http_${runId}` : undefined;
     const workspaceSlug = ephemeral
@@ -52,7 +52,7 @@ describe('internal instant hard deletion HTTP safety boundary', () => {
       [
         workspaceId,
         workspaceSlug,
-        `workspace_${workspaceId.replaceAll('-', '')}`,
+        `workspace_${workspaceId.replace(/-/g, '')}`,
       ],
     );
 
