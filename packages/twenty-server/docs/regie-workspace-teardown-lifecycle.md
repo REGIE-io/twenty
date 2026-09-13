@@ -695,6 +695,17 @@ Acceptance requires direct evidence that:
 Inspect at least one deliberately interrupted deletion and prove that it resumes
 from the persisted phase after a worker restart.
 
+The restored-development-database acceptance run on 2026-09-13 validated the
+5 + 15 bound at queue concurrency one. One discovery round recovered 5 stale
+deletions, admitted 15 fresh deletions, and completely removed all 20 targets
+in 442.076 seconds, leaving 157.924 seconds before the next ten-minute pass.
+Mean per-workspace deletion duration was 22.096 seconds with a 0.702-second
+population standard deviation (mean + 2σ: 23.501 seconds). The run produced 20
+completion traces and counters, no failure signal, no outstanding lifecycle
+state, and preserved its eligible control. RDS CPU averaged 43.24% and peaked
+at 53.74%; connections peaked at 4, and latency and disk-queue metrics remained
+low. The cron remained disabled throughout the direct run.
+
 ## Backfill and recovery of existing workspaces
 
 Deployment must include an explicit recovery pass for state created before the
