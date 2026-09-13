@@ -243,7 +243,7 @@ describeAcceptance('direct workspace deletion acceptance', () => {
       }
 
       // Existing rows are ordered oldest first. Keep the oldest 15 untouched so
-      // discovery admits them, and stage the next 15 as stale recovery work.
+      // discovery admits them, and stage the next 5 as stale recovery work.
       const recoveryFixtures = USE_EXISTING_ELIGIBLE_WORKSPACES
         ? fixtures.slice(FRESH_COUNT)
         : fixtures.slice(0, RECOVERY_COUNT);
