@@ -18,6 +18,7 @@ import { WorkspaceEntity } from 'src/engine/core-modules/workspace/workspace.ent
 import { WorkspaceModule } from 'src/engine/core-modules/workspace/workspace.module';
 import { provideWorkspaceScopedRepository } from 'src/engine/twenty-orm/workspace-scoped-repository/provide-workspace-scoped-repository';
 import { CleanOnboardingWorkspacesCommand } from 'src/engine/workspace-manager/workspace-cleaner/commands/clean-onboarding-workspaces.command';
+import { BackfillRegieE2eWorkspaceQuarantineCommand } from 'src/engine/workspace-manager/workspace-cleaner/commands/backfill-regie-e2e-workspace-quarantine.command';
 import { CleanOnboardingWorkspacesCronCommand } from 'src/engine/workspace-manager/workspace-cleaner/commands/clean-onboarding-workspaces.cron.command';
 import { CleanSuspendedWorkspacesCommand } from 'src/engine/workspace-manager/workspace-cleaner/commands/clean-suspended-workspaces.command';
 import { CleanSuspendedWorkspacesCronCommand } from 'src/engine/workspace-manager/workspace-cleaner/commands/clean-suspended-workspaces.cron.command';
@@ -26,6 +27,7 @@ import { DestroyWorkspaceCommand } from 'src/engine/workspace-manager/workspace-
 import { RegieE2eWorkspaceDeletionDiscoveryCronCommand } from 'src/engine/workspace-manager/workspace-cleaner/commands/regie-e2e-workspace-deletion-discovery.cron.command';
 import { CleanerWorkspaceService } from 'src/engine/workspace-manager/workspace-cleaner/services/cleaner.workspace-service';
 import { RegieE2eWorkspaceSweeperService } from 'src/engine/workspace-manager/workspace-cleaner/services/regie-e2e-workspace-sweeper.service';
+import { RegieE2eWorkspaceQuarantineBackfillWorkspaceService } from 'src/engine/workspace-manager/workspace-cleaner/services/regie-e2e-workspace-quarantine-backfill.workspace-service';
 import { RegieE2eWorkspaceDeletionDiscoveryService } from 'src/engine/workspace-manager/workspace-cleaner/services/regie-e2e-workspace-deletion-discovery.service';
 import { WorkspaceDeletionLifecycleService } from 'src/engine/workspace-manager/workspace-cleaner/services/workspace-deletion-lifecycle.service';
 import { WorkspaceDeletionLifecycleStore } from 'src/engine/workspace-manager/workspace-cleaner/services/workspace-deletion-lifecycle.store';
@@ -56,6 +58,7 @@ import { WorkspaceDeletionQueueAdapter } from 'src/engine/workspace-manager/work
     WorkspaceDomainsModule,
   ],
   providers: [
+    BackfillRegieE2eWorkspaceQuarantineCommand,
     DestroyWorkspaceCommand,
     RegieE2eWorkspaceDeletionDiscoveryCronCommand,
     CleanSuspendedWorkspacesCronCommand,
@@ -65,6 +68,7 @@ import { WorkspaceDeletionQueueAdapter } from 'src/engine/workspace-manager/work
     CleanOnboardingWorkspacesCronCommand,
     CleanerWorkspaceService,
     RegieE2eWorkspaceSweeperService,
+    RegieE2eWorkspaceQuarantineBackfillWorkspaceService,
     RegieE2eWorkspaceDeletionDiscoveryService,
     WorkspaceDeletionLifecycleService,
     WorkspaceDeletionLifecycleStore,

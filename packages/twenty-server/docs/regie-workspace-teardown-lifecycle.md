@@ -765,17 +765,46 @@ Deployment must include an explicit recovery pass for state created before the
 new lifecycle:
 
 1. Identify PR #137-era workspaces with valid persistent markers.
-2. Identify older candidates using the reviewed one-time boundary and safety
-   evidence; do not weaken the ongoing automatic marker rule.
+2. Identify older candidates using the same immutable safety evidence as
+   automatic discovery: `ephemeral: true`, an `org_e2e_` organization ID, an
+   `org-e2e-` workspace slug, and an exact marker-slug/workspace-subdomain
+   match. Do not infer E2E identity from a slug alone or weaken the ongoing
+   automatic marker rule.
 3. Inspect the two workspaces that timed out on their final core-row deletion
    and determine whether the row still exists.
 4. For surviving partial workspaces, infer the earliest safe resumable phase
    from direct database/schema evidence and store it.
-5. Mark untouched eligible workspaces `PENDING_DELETION`.
+5. Quarantine untouched eligible workspaces with the normal soft-deletion
+   operation. Automatic discovery marks them `PENDING_DELETION` only after the
+   ordinary 24-hour grace period; the backfill does not bypass that policy.
 6. Run the new worker at concurrency one and verify each result by readback.
 
-The backfill must support dry-run output with counts and identifiers, require an
-explicit apply mode, and be safe to repeat.
+The Twenty command is `workspace:backfill-regie-e2e-quarantine`. Omission of
+`--apply` is always a dry run, and its structured output includes counts and
+identifiers. Use a reviewed comma-separated set for the first pass:
+
+```bash
+yarn command:prod workspace:backfill-regie-e2e-quarantine \
+  --organization-ids org_e2e_example_one,org_e2e_example_two
+yarn command:prod workspace:backfill-regie-e2e-quarantine \
+  --organization-ids org_e2e_example_one,org_e2e_example_two --apply
+```
+
+Read back those exact workspace rows and verify that unselected and non-E2E
+controls did not change. After the limited pass is verified, dry-run and apply
+the complete persistent-marker set explicitly:
+
+```bash
+yarn command:prod workspace:backfill-regie-e2e-quarantine --all
+yarn command:prod workspace:backfill-regie-e2e-quarantine --all --apply
+```
+
+`--all` cannot be combined with `--organization-ids`, and an apply refuses the
+entire limited pass if any requested organization lacks exactly one safe
+marker/workspace match. Already-quarantined workspaces are reported and left
+unchanged, so both modes are safe to repeat. After the grace period, compare
+the reaper candidate inventory with the applied identifiers before enabling or
+manually invoking discovery.
 
 ## Pull request and rollout order
 
