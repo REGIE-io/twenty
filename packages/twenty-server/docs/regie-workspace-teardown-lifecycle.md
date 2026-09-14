@@ -806,6 +806,21 @@ unchanged, so both modes are safe to repeat. After the grace period, compare
 the reaper candidate inventory with the applied identifiers before enabling or
 manually invoking discovery.
 
+The restored development copy validation on 2026-09-14 exercised this exact
+sequence. Limited mode quarantined 2 selected workspaces without changing the
+other 28 active marker-safe workspaces or any of 3,147 non-E2E controls. All
+mode then quarantined the other 28 and repeated as a no-op, leaving 66 total
+marker-safe quarantines. The reaper was run with a test-only future clock so the
+production 24-hour policy itself remained unchanged. An intentional harness
+interruption left the first 15 recoverable; the next worker start resumed and
+completed them. The remaining 51 were admitted in bounded rounds of
+15/15/15/6 at concurrency one. Final independent readback found none of the 66
+workspace rows, schemas, memberships, object metadata, field metadata, or key
+values; no outstanding lifecycle state; and the same 3,147 non-E2E workspace
+rows, including all 1,438 pre-existing soft-deleted controls. The pre-reaper
+state is recoverable from RDS snapshot
+`twenty-pr138-post-backfill-pre-reaper-20260914-1915`.
+
 ## Pull request and rollout order
 
 ### PR 1: Twenty

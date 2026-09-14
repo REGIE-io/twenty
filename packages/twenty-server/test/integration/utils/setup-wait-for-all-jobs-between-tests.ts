@@ -3,7 +3,10 @@ import {
   waitForAllJobsToFinish,
 } from 'test/integration/utils/wait-for-all-jobs-to-finish.util';
 
-const WAIT_FOR_JOBS_HOOK_TIMEOUT_MS = 150_000;
+const WAIT_FOR_JOBS_HOOK_TIMEOUT_MS =
+  process.env.RUN_WORKSPACE_DELETION_BACKFILL_REAPER_ACCEPTANCE === 'true'
+    ? 10 * 60_000
+    : 150_000;
 
 beforeAll(async () => {
   await waitForAllJobsToFinish();
