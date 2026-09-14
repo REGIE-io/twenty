@@ -21,9 +21,12 @@ The target architecture uses the state already persisted by Twenty and Go:
 - Monitoring follows the detached work through completion rather than declaring
   success when it is merely enqueued.
 
-This requires two coordinated pull requests. The Twenty PR is additive and is
-deployed first. The Go PR begins driving the extended lifecycle only after the
-Twenty API and persistence model are available.
+The current two-PR delivery is explicitly phase one: it makes automatic
+teardown reliable for persistently marked E2E/transient workspaces. Ordinary
+suspended-workspace maintenance remains on its existing batch path. The Twenty
+PR owns execution; the companion Go PR supplies disabled/5/15 deployment
+configuration plus CloudWatch alarms and a dashboard. It does not yet add Go
+control-plane deletion states, readback, or reconciliation.
 
 ## Why this work is necessary
 
@@ -146,7 +149,7 @@ The existing states do not describe a destructive operation's current phase.
 PR #137 currently selects `SUSPENDED` rows and calls `deleteWorkspace()`
 directly, bypassing a persisted deletion transition.
 
-### Go control-plane state
+### Future Go control-plane state (not implemented in phase one)
 
 Go persists the tenant/workspace connection in
 `crm_tenant_workspace_connections`. Its current states are:
@@ -174,7 +177,7 @@ the detailed execution phase because only Twenty can know whether its members,
 metadata, schema, caches, files, domains, and final workspace row have been
 processed.
 
-### Target state relationship
+### Target state relationship after the deferred Go lifecycle work
 
 ```text
 Go control plane                         Twenty workspace
@@ -232,6 +235,11 @@ Candidate discovery atomically transitions an eligible workspace into
 `PENDING_DELETION`. A worker atomically claims it by changing it to
 `ONGOING_DELETION`. A stale claim can be reclaimed using
 `deletionLastProgressAt`, matching the existing stale creation-lock pattern.
+If a claimed phase fails before the retry budget is exhausted, failure
+recording atomically returns it to `PENDING_DELETION` while preserving the
+current phase, attempt count, and error context. BullMQ's five-second retry can
+therefore claim it immediately; it does not wait for the 30-second stale-worker
+boundary or falsely complete as `not-claimable`.
 
 After the retry budget is exhausted, transition to `DELETION_FAILED`. A
 reconciler or operator can move it back to `PENDING_DELETION` without rebuilding
@@ -241,7 +249,7 @@ Implement the schema change through the repository's current upgrade-command
 mechanism described in `UPGRADE_COMMANDS.md`; do not add a legacy TypeORM
 migration.
 
-#### Go changes
+#### Deferred Go lifecycle changes (not in PR #2202)
 
 Extend the control-plane connection constraint and TypeScript types with:
 
@@ -265,11 +273,16 @@ internal teardown phases independently.
 
 ### 2. Separate discovery from per-workspace execution
 
-Replace the combined PR #137 batch with three independent discovery jobs:
+The target architecture separates the combined PR #137 batch into three
+independent discovery jobs:
 
 1. Inactivity warning and soft-deletion discovery.
 2. Ordinary hard-deletion discovery.
 3. Regie E2E hard-deletion discovery, scheduled every ten minutes.
+
+Phase one implements only item 3. Inactivity warning and ordinary suspended
+workspace cleanup remain on the existing multi-workspace batch path. They are
+not removed or claimed as reliable per-workspace teardown by these PRs.
 
 Before admitting fresh hard-deletion candidates, recovery first reclaims stale
 `ONGOING_DELETION` workspaces so partial teardown resumes before more
@@ -479,25 +492,27 @@ logs and traces; aggregate metrics by deletion kind, phase, status, and error
 code.
 
 Sentry check-ins for a discovery cron must cover discovery, not just enqueueing
-another batch. Per-workspace failures must create actionable error events. Add
-CloudWatch alarms for:
+another batch. Per-workspace failures must create actionable error events.
+Phase one emits a structured backlog snapshot after every successful discovery
+and explicit unhealthy events for stalled work, terminal failures, and backlog
+older than twenty minutes. The companion Go PR derives CloudWatch metrics from
+those worker logs and creates alarms for missing discovery heartbeat, deletion
+failure, stalled backlog, terminal backlog, and old backlog, plus an operator
+dashboard. This path does not depend on an OpenTelemetry exporter being
+configured.
 
-- no completed E2E teardown during a period with eligible backlog;
-- backlog age or size above threshold;
-- elevated `DELETION_FAILED` transitions;
-- workspace deletion job failures/stalls; and
-- phase duration approaching its deadline.
-
-Add a periodic reconciler which processes recovery work before admitting fresh
+The Twenty phase-one reconciler processes recovery work before admitting fresh
 hard-deletion candidates and:
 
 1. re-enqueues stale `PENDING_DELETION` rows;
 2. reclaims stale `ONGOING_DELETION` rows;
 3. confirms that a missing Twenty row is complete;
-4. moves matching Go connections from `deprovisioning` to `disabled`;
-5. moves exhausted failures to the explicit failed states; and
-6. reports safe pre-marker orphans which still require a one-time reviewed
+4. moves exhausted failures to the explicit failed state; and
+5. reports safe pre-marker orphans which still require a one-time reviewed
    backfill rule.
+
+Moving matching Go connections through explicit deprovisioning states is a
+deferred control-plane follow-up.
 
 ## API contract between Go and Twenty
 
@@ -747,18 +762,25 @@ perform a scoped development recovery before enabling ten-minute discovery.
 
 ### PR 2: Go
 
-Scope:
+Phase-one scope in PR #2202:
 
-- additive control-plane status migration;
-- state types and store transitions;
-- inactive behavior for all deprovisioning states;
-- idempotent Twenty deletion request client;
-- durable deletion status reconciliation;
-- lifecycle metrics and operator readback; and
-- contract coverage against the Twenty API.
+- pass the feature flag and separate 5-recovery/15-admission limits to Twenty's
+  server and worker task definitions;
+- keep automatic discovery disabled by default and explicitly disabled in dev;
+- derive CloudWatch metrics from Twenty's structured worker events;
+- alarm on missing heartbeat, deletion failure, stalled backlog, terminal
+  backlog, and old backlog; and
+- provide a workspace-deletion operations dashboard.
 
-Deploy only after the Twenty contract is live. Then enable Go-driven
-deprovisioning and verify state convergence.
+Deferred Go lifecycle scope:
+
+- additive control-plane deprovisioning states and inactive behavior;
+- an idempotent Twenty deletion request client;
+- durable status readback and reconciliation; and
+- Go lifecycle metrics and contract coverage.
+
+Deploy the phase-one configuration only after the Twenty implementation is
+live. Enabling the cron remains a separate explicit configuration change.
 
 ### Final cutover
 
@@ -770,7 +792,7 @@ After both PRs are healthy:
 4. Retire the combined `CleanSuspendedWorkspacesBatchJob` path from PR #137.
 5. Keep the safety marker, quarantine rule, and bounded candidate selection.
 
-## Definition of done
+## Phase-one definition of done
 
 This work is complete when:
 
@@ -781,6 +803,8 @@ This work is complete when:
 - interruption at every phase is demonstrably recoverable;
 - database timeouts have determinate rollback behavior;
 - successful teardown throughput exceeds workspace creation throughput;
-- Go and Twenty converge to terminal state after retries;
 - current and historical safe E2E backlog is decreasing; and
 - no unmarked or non-E2E workspace can enter the automated E2E deletion path.
+
+Go/Twenty terminal-state convergence remains part of the deferred control-plane
+lifecycle follow-up, not a claim of these two PRs.

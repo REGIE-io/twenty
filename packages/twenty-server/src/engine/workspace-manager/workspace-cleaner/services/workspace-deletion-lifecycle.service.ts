@@ -107,7 +107,7 @@ export class WorkspaceDeletionLifecycleService {
       activationStatus:
         workspace.deletionAttemptCount >= maxAttempts
           ? WorkspaceActivationStatus.DELETION_FAILED
-          : workspace.activationStatus,
+          : WorkspaceActivationStatus.PENDING_DELETION,
       deletionLastErrorCode: errorCode,
       deletionLastErrorMessage: errorMessage,
     };

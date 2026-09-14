@@ -184,8 +184,9 @@ export class WorkspaceDeletionLifecycleStore {
     const result = await this.dataSource.query<WorkspaceDeletionQueryResult>(
       `UPDATE "core"."workspace"
           SET "activationStatus" = CASE
-                WHEN "deletionAttemptCount" >= $6 THEN $7
-                ELSE "activationStatus"
+                WHEN "deletionAttemptCount" >= $6
+                  THEN $7::"core"."workspace_activationStatus_enum"
+                ELSE $9::"core"."workspace_activationStatus_enum"
               END,
               "deletionLastErrorCode" = $4,
               "deletionLastErrorMessage" = $5
@@ -203,6 +204,7 @@ export class WorkspaceDeletionLifecycleStore {
         maxAttempts,
         WorkspaceActivationStatus.DELETION_FAILED,
         expectedAttempt,
+        WorkspaceActivationStatus.PENDING_DELETION,
       ],
     );
 

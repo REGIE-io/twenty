@@ -37,7 +37,7 @@ describe('WorkspaceDeletionMonitoringService', () => {
         },
         {
           workspaceId: 'retryable-id',
-          activationStatus: WorkspaceActivationStatus.ONGOING_DELETION,
+          activationStatus: WorkspaceActivationStatus.PENDING_DELETION,
           deletionKind: WorkspaceDeletionKind.E2E,
           deletionPhase: WorkspaceDeletionPhase.CACHE,
           deletionRequestedAt: new Date('2026-09-12T11:45:00.000Z'),

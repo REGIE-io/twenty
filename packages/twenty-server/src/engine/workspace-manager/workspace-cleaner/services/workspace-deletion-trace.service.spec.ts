@@ -43,4 +43,23 @@ describe('WorkspaceDeletionTraceService', () => {
 
     expect(error).toHaveBeenCalledWith(JSON.stringify(failedTrace));
   });
+
+  it('writes unhealthy backlog signals at error level for CloudWatch filters', () => {
+    const error = jest.spyOn(Logger.prototype, 'error').mockImplementation();
+    const trace = new WorkspaceDeletionTraceService();
+    const backlogTrace: WorkspaceDeletionTrace = {
+      event: 'workspace_deletion_backlog_terminal',
+      outstanding: 2,
+      pending: 0,
+      running: 0,
+      stalled: 0,
+      retryableFailures: 1,
+      terminalFailures: 1,
+      oldestAgeMs: 1_200_000,
+    };
+
+    trace.record(backlogTrace);
+
+    expect(error).toHaveBeenCalledWith(JSON.stringify(backlogTrace));
+  });
 });

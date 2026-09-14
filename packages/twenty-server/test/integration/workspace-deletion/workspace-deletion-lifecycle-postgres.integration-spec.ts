@@ -331,6 +331,40 @@ describe('workspace deletion lifecycle PostgreSQL contracts', () => {
     });
   });
 
+  it('makes a fast retryable failure claimable at the BullMQ backoff without waiting for stale recovery', async () => {
+    const claimedAt = new Date('2026-09-02T00:01:00.000Z');
+
+    await requestAndClaim({ claimedAt });
+
+    await expect(
+      firstStore.recordFailure(
+        workspaceId,
+        WorkspaceDeletionPhase.MEMBERS,
+        1,
+        'FAST_FAILURE',
+        'failed before the stale boundary',
+        3,
+      ),
+    ).resolves.toMatchObject({
+      activationStatus: WorkspaceActivationStatus.PENDING_DELETION,
+      deletionPhase: WorkspaceDeletionPhase.MEMBERS,
+      deletionAttemptCount: 1,
+      deletionLastErrorCode: 'FAST_FAILURE',
+    });
+
+    await expect(
+      secondStore.claimDeletion(
+        workspaceId,
+        new Date(claimedAt.getTime() + 5_000),
+        30_000,
+      ),
+    ).resolves.toMatchObject({
+      activationStatus: WorkspaceActivationStatus.ONGOING_DELETION,
+      deletionPhase: WorkspaceDeletionPhase.MEMBERS,
+      deletionAttemptCount: 2,
+    });
+  });
+
   it('retries terminal failure at the same persisted phase', async () => {
     const retriedAt = new Date('2026-09-02T01:00:00.000Z');
 

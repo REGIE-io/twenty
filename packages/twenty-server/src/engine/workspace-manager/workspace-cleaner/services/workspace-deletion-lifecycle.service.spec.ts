@@ -143,6 +143,35 @@ describe('WorkspaceDeletionLifecycleService', () => {
     );
   });
 
+  it('makes a retryable failure immediately claimable at the same phase', () => {
+    const failed = service.recordFailure(
+      makeOngoingWorkspace({
+        deletionPhase: WorkspaceDeletionPhase.SCHEMA,
+        deletionAttemptCount: 1,
+      }),
+      'QUERY_TIMEOUT',
+      'injected schema timeout',
+      3,
+    );
+
+    expect(failed.activationStatus).toBe(
+      WorkspaceActivationStatus.PENDING_DELETION,
+    );
+    expect(
+      service.claimDeletion(
+        failed,
+        new Date(claimedAt.getTime() + 5_000),
+        staleAfterMs,
+      ),
+    ).toEqual(
+      expect.objectContaining({
+        activationStatus: WorkspaceActivationStatus.ONGOING_DELETION,
+        deletionPhase: WorkspaceDeletionPhase.SCHEMA,
+        deletionAttemptCount: 2,
+      }),
+    );
+  });
+
   it('allows a failed deletion to be retried without losing its checkpoint', () => {
     const failed = makeOngoingWorkspace({
       activationStatus: WorkspaceActivationStatus.DELETION_FAILED,
@@ -182,9 +211,7 @@ describe('WorkspaceDeletionLifecycleService', () => {
           );
           workspace = service.claimDeletion(
             workspace,
-            new Date(
-              workspace.deletionLastProgressAt!.getTime() + staleAfterMs,
-            ),
+            new Date(workspace.deletionLastProgressAt!.getTime() + 5_000),
             staleAfterMs,
           );
           injectedFailure = true;

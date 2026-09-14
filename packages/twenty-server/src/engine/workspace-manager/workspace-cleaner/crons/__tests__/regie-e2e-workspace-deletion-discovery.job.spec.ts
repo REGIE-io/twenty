@@ -4,7 +4,9 @@ import { REGIE_E2E_PURGE_GRACE_PERIOD_MS } from 'src/engine/core-modules/auth/co
 import { type TwentyConfigService } from 'src/engine/core-modules/twenty-config/twenty-config.service';
 import { RegieE2eWorkspaceDeletionDiscoveryJob } from 'src/engine/workspace-manager/workspace-cleaner/crons/regie-e2e-workspace-deletion-discovery.job';
 import { type RegieE2eWorkspaceDeletionDiscoveryService } from 'src/engine/workspace-manager/workspace-cleaner/services/regie-e2e-workspace-deletion-discovery.service';
+import { type WorkspaceDeletionMonitoringService } from 'src/engine/workspace-manager/workspace-cleaner/services/workspace-deletion-monitoring.service';
 import { type WorkspaceDeletionQueueAdapter } from 'src/engine/workspace-manager/workspace-cleaner/services/workspace-deletion-queue.adapter';
+import { type WorkspaceDeletionTraceService } from 'src/engine/workspace-manager/workspace-cleaner/services/workspace-deletion-trace.service';
 
 jest.mock('@sentry/node', () => ({
   captureCheckIn: jest.fn(),
@@ -17,6 +19,21 @@ describe('RegieE2eWorkspaceDeletionDiscoveryJob', () => {
       key === 'REGIE_E2E_WORKSPACE_DELETION_RECOVERY_LIMIT' ? 5 : 15,
     ),
   } as unknown as TwentyConfigService;
+  const healthySummary = {
+    outstanding: 0,
+    pending: 0,
+    running: 0,
+    stalled: 0,
+    retryableFailures: 0,
+    terminalFailures: 0,
+    oldestAgeMs: 0,
+  };
+  const monitoring = {
+    report: jest.fn().mockResolvedValue({ rows: [], summary: healthySummary }),
+  } as unknown as WorkspaceDeletionMonitoringService;
+  const trace = {
+    record: jest.fn(),
+  } as unknown as WorkspaceDeletionTraceService;
 
   beforeEach(() => {
     jest.clearAllMocks();
@@ -34,6 +51,8 @@ describe('RegieE2eWorkspaceDeletionDiscoveryJob', () => {
       discovery as unknown as RegieE2eWorkspaceDeletionDiscoveryService,
       adapter as WorkspaceDeletionQueueAdapter,
       config,
+      monitoring,
+      trace,
     );
 
     await expect(job.handle(now)).resolves.toEqual({
@@ -47,6 +66,49 @@ describe('RegieE2eWorkspaceDeletionDiscoveryJob', () => {
       recoveryLimit: 5,
       admissionLimit: 15,
     });
+    expect(trace.record).toHaveBeenCalledWith({
+      event: 'workspace_deletion_backlog_snapshot',
+      ...healthySummary,
+    });
+  });
+
+  it('emits operational alarm events for stalled, terminal, and old backlog', async () => {
+    const discovery = {
+      discover: jest.fn().mockResolvedValue({ recovered: 0, admitted: 0 }),
+    };
+    const unhealthySummary = {
+      ...healthySummary,
+      outstanding: 3,
+      stalled: 1,
+      terminalFailures: 1,
+      oldestAgeMs: 20 * 60_000,
+    };
+    const unhealthyMonitoring = {
+      report: jest
+        .fn()
+        .mockResolvedValue({ rows: [], summary: unhealthySummary }),
+    };
+    const job = new RegieE2eWorkspaceDeletionDiscoveryJob(
+      discovery as unknown as RegieE2eWorkspaceDeletionDiscoveryService,
+      {} as WorkspaceDeletionQueueAdapter,
+      config,
+      unhealthyMonitoring as unknown as WorkspaceDeletionMonitoringService,
+      trace,
+    );
+
+    await job.handle(new Date('2026-09-12T12:00:00.000Z'));
+
+    for (const event of [
+      'workspace_deletion_backlog_snapshot',
+      'workspace_deletion_backlog_stalled',
+      'workspace_deletion_backlog_terminal',
+      'workspace_deletion_backlog_old',
+    ]) {
+      expect(trace.record).toHaveBeenCalledWith({
+        event,
+        ...unhealthySummary,
+      });
+    }
   });
 
   it('keeps the Sentry check-in open until discovery itself completes', async () => {
@@ -66,6 +128,8 @@ describe('RegieE2eWorkspaceDeletionDiscoveryJob', () => {
       discovery as unknown as RegieE2eWorkspaceDeletionDiscoveryService,
       {} as WorkspaceDeletionQueueAdapter,
       config,
+      monitoring,
+      trace,
     );
 
     const handling = job.handle(new Date('2026-09-12T12:00:00.000Z'));
@@ -94,6 +158,8 @@ describe('RegieE2eWorkspaceDeletionDiscoveryJob', () => {
       discovery as unknown as RegieE2eWorkspaceDeletionDiscoveryService,
       {} as WorkspaceDeletionQueueAdapter,
       config,
+      monitoring,
+      trace,
     );
 
     await expect(job.handle()).rejects.toBe(failure);

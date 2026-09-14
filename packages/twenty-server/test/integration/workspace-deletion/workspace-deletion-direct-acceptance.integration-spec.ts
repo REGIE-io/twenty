@@ -363,6 +363,7 @@ describeAcceptance('direct workspace deletion acceptance', () => {
         ) / elapsedMs.length;
       const standardDeviationMs = Math.sqrt(variance);
       const p95Ms = elapsedMs[Math.ceil(elapsedMs.length * 0.95) - 1];
+      const maxCompletionMs = elapsedMs[elapsedMs.length - 1] ?? 0;
       const targetIds = new Set(fixtures.map(({ workspaceId }) => workspaceId));
       const traces = traceSpy.mock.calls.map(([entry]) => entry);
       const finishedTraces = traces.filter(
@@ -474,7 +475,7 @@ describeAcceptance('direct workspace deletion acceptance', () => {
             meanMs + 2 * standardDeviationMs,
           ),
           p95CompletionMs: p95Ms,
-          maxCompletionMs: elapsedMs.at(-1),
+          maxCompletionMs,
           meanDeletionDurationMs: Math.round(meanDeletionDurationMs),
           deletionDurationStandardDeviationMs: Math.round(
             deletionDurationStandardDeviationMs,
@@ -491,7 +492,7 @@ describeAcceptance('direct workspace deletion acceptance', () => {
       );
 
       expect(completedAtByWorkspace.size).toBe(EXPECTED_DELETION_COUNT);
-      expect(elapsedMs.at(-1)).toBeLessThan(10 * 60_000);
+      expect(maxCompletionMs).toBeLessThan(10 * 60_000);
       expect(finishedTraces).toHaveLength(EXPECTED_DELETION_COUNT);
       expect(failedTraces).toHaveLength(0);
       expect(completedMetrics).toHaveLength(EXPECTED_DELETION_COUNT);

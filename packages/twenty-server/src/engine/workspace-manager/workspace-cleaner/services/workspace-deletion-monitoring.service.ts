@@ -128,7 +128,9 @@ export class WorkspaceDeletionMonitoringService implements OnModuleInit {
     if (
       lifecycle.activationStatus === WorkspaceActivationStatus.PENDING_DELETION
     ) {
-      return 'pending';
+      return lifecycle.deletionLastErrorCode === null
+        ? 'pending'
+        : 'retryable-failure';
     }
     if (this.elapsed(now, lifecycle.deletionLastProgressAt) >= staleAfterMs) {
       return 'stalled';

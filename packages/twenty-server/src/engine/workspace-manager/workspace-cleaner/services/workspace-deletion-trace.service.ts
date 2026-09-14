@@ -9,7 +9,11 @@ export type WorkspaceDeletionTrace = {
     | 'workspace_deletion_finished'
     | 'workspace_deletion_failed'
     | 'workspace_deletion_phase_started'
-    | 'workspace_deletion_phase_finished';
+    | 'workspace_deletion_phase_finished'
+    | 'workspace_deletion_backlog_snapshot'
+    | 'workspace_deletion_backlog_stalled'
+    | 'workspace_deletion_backlog_terminal'
+    | 'workspace_deletion_backlog_old';
   workspaceId?: string;
   deletionKind?: string;
   phase?: string;
@@ -20,6 +24,13 @@ export type WorkspaceDeletionTrace = {
   admitted?: number;
   errorCode?: string;
   errorMessage?: string;
+  outstanding?: number;
+  pending?: number;
+  running?: number;
+  stalled?: number;
+  retryableFailures?: number;
+  terminalFailures?: number;
+  oldestAgeMs?: number;
 };
 
 @Injectable()
@@ -29,7 +40,11 @@ export class WorkspaceDeletionTraceService {
   record(trace: WorkspaceDeletionTrace): void {
     const serializedTrace = JSON.stringify(trace);
 
-    if (trace.event.endsWith('_failed')) {
+    if (
+      trace.event.endsWith('_failed') ||
+      (trace.event.startsWith('workspace_deletion_backlog_') &&
+        trace.event !== 'workspace_deletion_backlog_snapshot')
+    ) {
       this.logger.error(serializedTrace);
 
       return;
