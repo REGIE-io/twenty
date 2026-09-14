@@ -43,6 +43,7 @@ run_json="$(aws ecs run-task \
   --network-configuration "$network_configuration" \
   --overrides "$overrides" \
   --started-by "twenty-deploy-${GITHUB_RUN_ID:-manual}" \
+  --tags key=RegieManagedBy,value=twenty-publish \
   --output json)"
 
 if jq -e '.failures | length > 0' <<<"$run_json" >/dev/null; then
