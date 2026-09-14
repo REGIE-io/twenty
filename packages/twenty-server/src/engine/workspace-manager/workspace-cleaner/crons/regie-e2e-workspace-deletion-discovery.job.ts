@@ -31,8 +31,12 @@ export class RegieE2eWorkspaceDeletionDiscoveryJob {
     REGIE_E2E_WORKSPACE_DELETION_CRON_PATTERN,
   )
   async handle(
-    now = new Date(),
+    _data?: unknown,
   ): Promise<{ recovered: number; admitted: number }> {
+    return this.runAt(new Date());
+  }
+
+  async runAt(now: Date): Promise<{ recovered: number; admitted: number }> {
     const result = await this.discovery.discover(this.queue, {
       now,
       gracePeriodMs: REGIE_E2E_PURGE_GRACE_PERIOD_MS,

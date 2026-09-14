@@ -55,7 +55,7 @@ describe('RegieE2eWorkspaceDeletionDiscoveryJob', () => {
       trace,
     );
 
-    await expect(job.handle(now)).resolves.toEqual({
+    await expect(job.runAt(now)).resolves.toEqual({
       recovered: 2,
       admitted: 3,
     });
@@ -96,7 +96,7 @@ describe('RegieE2eWorkspaceDeletionDiscoveryJob', () => {
       trace,
     );
 
-    await job.handle(new Date('2026-09-12T12:00:00.000Z'));
+    await job.runAt(new Date('2026-09-12T12:00:00.000Z'));
 
     for (const event of [
       'workspace_deletion_backlog_snapshot',
@@ -109,6 +109,28 @@ describe('RegieE2eWorkspaceDeletionDiscoveryJob', () => {
         ...unhealthySummary,
       });
     }
+  });
+
+  it('uses the process clock instead of treating BullMQ job data as a date', async () => {
+    const discovery = {
+      discover: jest.fn().mockResolvedValue({ recovered: 0, admitted: 0 }),
+    };
+    const job = new RegieE2eWorkspaceDeletionDiscoveryJob(
+      discovery as unknown as RegieE2eWorkspaceDeletionDiscoveryService,
+      {} as WorkspaceDeletionQueueAdapter,
+      config,
+      monitoring,
+      trace,
+    );
+
+    await expect(job.handle({})).resolves.toEqual({
+      recovered: 0,
+      admitted: 0,
+    });
+    expect(discovery.discover).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ now: expect.any(Date) }),
+    );
   });
 
   it('keeps the Sentry check-in open until discovery itself completes', async () => {

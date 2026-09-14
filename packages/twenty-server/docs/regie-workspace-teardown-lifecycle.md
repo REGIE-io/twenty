@@ -691,6 +691,16 @@ the path. The lane refuses to start if unrelated eligible or outstanding
 deletions exist, creates 5 recovery and 15 fresh fixtures plus unmarked
 controls, and emits a machine-readable timing and signal summary.
 
+To exercise the real BullMQ scheduler instead, enable the production cron flag
+and add `WORKSPACE_DELETION_ACCEPTANCE_VIA_CRON=true` to the same command. In
+this mode the lane registers the exact `*/10 * * * *` schedule, waits for its
+first firing, removes the repeatable job immediately after discovery succeeds,
+and starts the ten-minute completion budget at that discovery event. It never
+invokes the discovery processor directly. Existing-database mode also accepts
+`WORKSPACE_DELETION_ACCEPTANCE_USE_EXISTING=true`; it recovers persisted E2E
+lifecycle rows first, admits only enough marker-safe candidates to reach the
+20-workspace bound, and preserves at least one eligible control.
+
 Before enabling the ten-minute schedule, create a scoped set of disposable,
 persistently marked development workspaces and allow them to cross the test
 quarantine boundary.
@@ -720,6 +730,34 @@ completion traces and counters, no failure signal, no outstanding lifecycle
 state, and preserved its eligible control. RDS CPU averaged 43.24% and peaked
 at 53.74%; connections peaked at 4, and latency and disk-queue metrics remained
 low. The cron remained disabled throughout the direct run.
+
+The cron-driven restored-database run on 2026-09-14 validated the production
+scheduling path and restart recovery. Its first scheduled firing exposed and
+then gained regression coverage for the BullMQ processor payload: the queue
+passes job data to `handle`, so a deterministic test-time `Date` parameter must
+instead live on a separate `runAt` method. A subsequent cold database operation
+was cancelled by PostgreSQL with `57014`; the worker was stopped only after the
+server-side statement had ended, leaving two partial core-row operations and
+three member-phase operations durably recoverable. On the next scheduled pass,
+discovery recovered those 5 rows, admitted 15 new rows, and completely removed
+all 20 targets in 474.559 seconds after discovery, leaving 125.441 seconds
+before the next ten-minute pass. Mean per-workspace deletion duration was
+23.732 seconds with a 10.387-second population standard deviation (mean + 2σ:
+44.506 seconds). The final pass emitted 20 completion traces and counters, no
+workspace failure signal, and left no outstanding lifecycle state while
+preserving 36 eligible controls. RDS CPU averaged 44.34% and peaked at 52.67%;
+connections peaked at 4, and read latency, write latency, and disk queue
+remained low.
+
+The same run validated the companion CloudWatch filters with discovery
+heartbeat, completion, discovery-failure, stalled-backlog, and old-backlog
+events and observed the corresponding test alarms change state. Because the
+local Jest worker did not use the ECS `awslogs` driver, successful-run log
+events were replayed into the temporary validation log group and marked
+`validationReplay`; production log transport itself was not claimed by this
+test. A real event was submitted through Twenty's production Sentry exception
+driver and flushed successfully; readback still requires a read-only Sentry API
+token. The repeatable cron was removed after its successful firing.
 
 ## Backfill and recovery of existing workspaces
 

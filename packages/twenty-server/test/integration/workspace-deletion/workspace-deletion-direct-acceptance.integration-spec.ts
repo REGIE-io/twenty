@@ -9,8 +9,14 @@ import { type InternalWorkspaceProvisioningService } from 'src/engine/core-modul
 import { MetricsService } from 'src/engine/core-modules/metrics/metrics.service';
 import { MetricsKeys } from 'src/engine/core-modules/metrics/types/metrics-keys.type';
 import { type TwentyConfigService } from 'src/engine/core-modules/twenty-config/twenty-config.service';
+import { MessageQueue } from 'src/engine/core-modules/message-queue/message-queue.constants';
+import { MessageQueueService } from 'src/engine/core-modules/message-queue/services/message-queue.service';
+import { getQueueToken } from 'src/engine/core-modules/message-queue/utils/get-queue-token.util';
 import { WorkspaceDeletionKind } from 'src/engine/core-modules/workspace/types/workspace-deletion-lifecycle.type';
-import { type RegieE2eWorkspaceDeletionDiscoveryJob } from 'src/engine/workspace-manager/workspace-cleaner/crons/regie-e2e-workspace-deletion-discovery.job';
+import {
+  REGIE_E2E_WORKSPACE_DELETION_CRON_PATTERN,
+  RegieE2eWorkspaceDeletionDiscoveryJob,
+} from 'src/engine/workspace-manager/workspace-cleaner/crons/regie-e2e-workspace-deletion-discovery.job';
 import { type WorkspaceDeletionLifecycleStore } from 'src/engine/workspace-manager/workspace-cleaner/services/workspace-deletion-lifecycle.store';
 import { type WorkspaceDeletionMonitoringService } from 'src/engine/workspace-manager/workspace-cleaner/services/workspace-deletion-monitoring.service';
 import { WorkspaceDeletionTraceService } from 'src/engine/workspace-manager/workspace-cleaner/services/workspace-deletion-trace.service';
@@ -20,24 +26,25 @@ import { getAppProviderByClassName } from 'test/integration/utils/get-app-provid
 import { waitForAllJobsToFinish } from 'test/integration/utils/wait-for-all-jobs-to-finish.util';
 
 jest.useRealTimers();
-jest.setTimeout(15 * 60_000);
+jest.setTimeout(25 * 60_000);
 
 const RUN_ACCEPTANCE =
   process.env.RUN_WORKSPACE_DELETION_DIRECT_ACCEPTANCE === 'true';
 const USE_EXISTING_ELIGIBLE_WORKSPACES =
   process.env.WORKSPACE_DELETION_ACCEPTANCE_USE_EXISTING === 'true';
+const RUN_THROUGH_CRON =
+  process.env.WORKSPACE_DELETION_ACCEPTANCE_VIA_CRON === 'true';
 const describeAcceptance = RUN_ACCEPTANCE ? describe : describe.skip;
 const RECOVERY_COUNT = 5;
 const FRESH_COUNT = 15;
 const EXPECTED_DELETION_COUNT = RECOVERY_COUNT + FRESH_COUNT;
-const MINIMUM_EXISTING_ELIGIBLE_COUNT = EXPECTED_DELETION_COUNT + 1;
 
 type Fixture = {
   workspaceId: string;
   schemaName: string;
 };
 
-describeAcceptance('direct workspace deletion acceptance', () => {
+describeAcceptance('workspace deletion acceptance', () => {
   const fixtures: Fixture[] = [];
   const controls: Fixture[] = [];
 
@@ -106,7 +113,7 @@ describeAcceptance('direct workspace deletion acceptance', () => {
     }
   });
 
-  it('deletes 5 recovery and 15 fresh workspaces through the real queue without cron registration', async () => {
+  it('deletes 5 recovery and 15 fresh workspaces through the real queue', async () => {
     const runId = crypto.randomUUID().replace(/-/g, '').slice(0, 8);
     const now = new Date();
     const cutoff = new Date(now.getTime() - REGIE_E2E_PURGE_GRACE_PERIOD_MS);
@@ -118,6 +125,9 @@ describeAcceptance('direct workspace deletion acceptance', () => {
       getAppProviderByClassName<RegieE2eWorkspaceDeletionDiscoveryJob>(
         'RegieE2eWorkspaceDeletionDiscoveryJob',
       );
+    const cronQueue = global.app.get<MessageQueueService>(
+      getQueueToken(MessageQueue.cronQueue),
+    );
     const monitoring =
       getAppProviderByClassName<WorkspaceDeletionMonitoringService>(
         'WorkspaceDeletionMonitoringService',
@@ -140,9 +150,12 @@ describeAcceptance('direct workspace deletion acceptance', () => {
     });
     const metricSpy = jest.spyOn(metrics, 'incrementCounterForEvent');
 
-    if (config.get('REGIE_E2E_WORKSPACE_DELETION_CRON_ENABLED')) {
+    if (
+      config.get('REGIE_E2E_WORKSPACE_DELETION_CRON_ENABLED') !==
+      RUN_THROUGH_CRON
+    ) {
       throw new Error(
-        'Refusing direct acceptance run while workspace deletion cron registration is enabled',
+        `Refusing acceptance run: cron configuration does not match requested mode ${RUN_THROUGH_CRON}`,
       );
     }
 
@@ -164,58 +177,70 @@ describeAcceptance('direct workspace deletion acceptance', () => {
       [REGIE_E2E_WORKSPACE_MARKER_KEY, cutoff],
     );
 
-    if (
-      USE_EXISTING_ELIGIBLE_WORKSPACES &&
-      existingEligible.length < MINIMUM_EXISTING_ELIGIBLE_COUNT
-    ) {
-      throw new Error(
-        `Refusing existing-workspace acceptance run: expected at least ${MINIMUM_EXISTING_ELIGIBLE_COUNT} eligible workspaces but found ${existingEligible.length}`,
-      );
-    }
-
     if (!USE_EXISTING_ELIGIBLE_WORKSPACES && existingEligible.length > 0) {
       throw new Error(
         `Refusing direct acceptance run: ${existingEligible.length} unrelated eligible workspace(s) already exist`,
       );
     }
 
-    const unrelatedOutstanding =
-      await lifecycleStore.findOutstandingDeletions();
-    const intendedExistingTargetIds = new Set(
-      existingEligible
-        .slice(0, EXPECTED_DELETION_COUNT)
-        .map(({ workspaceId }) => workspaceId),
-    );
-    const hasUnrelatedOutstanding = unrelatedOutstanding.some(
-      ({ workspaceId }) => !intendedExistingTargetIds.has(workspaceId),
+    const outstandingAtStart = await lifecycleStore.findOutstandingDeletions();
+    const hasUnsafeOutstanding = outstandingAtStart.some(
+      ({ deletionKind }) => deletionKind !== WorkspaceDeletionKind.E2E,
     );
 
     if (
-      unrelatedOutstanding.length > 0 &&
-      (!USE_EXISTING_ELIGIBLE_WORKSPACES || hasUnrelatedOutstanding)
+      outstandingAtStart.length > 0 &&
+      (!USE_EXISTING_ELIGIBLE_WORKSPACES || hasUnsafeOutstanding)
     ) {
       throw new Error(
-        `Refusing direct acceptance run: ${unrelatedOutstanding.length} unrelated outstanding deletion(s) already exist`,
+        `Refusing acceptance run: ${outstandingAtStart.length} unsafe outstanding deletion(s) already exist`,
+      );
+    }
+    if (outstandingAtStart.length > EXPECTED_DELETION_COUNT) {
+      throw new Error(
+        `Refusing acceptance run: ${outstandingAtStart.length} outstanding deletions exceed the ${EXPECTED_DELETION_COUNT}-workspace assertion`,
+      );
+    }
+    if (RUN_THROUGH_CRON && outstandingAtStart.length > RECOVERY_COUNT) {
+      throw new Error(
+        `Refusing one-pass cron acceptance run: ${outstandingAtStart.length} outstanding deletions exceed the recovery limit ${RECOVERY_COUNT}`,
       );
     }
 
     try {
       if (USE_EXISTING_ELIGIBLE_WORKSPACES) {
+        const outstandingIds = new Set(
+          outstandingAtStart.map(({ workspaceId }) => workspaceId),
+        );
+        const freshCandidates = existingEligible.filter(
+          ({ workspaceId }) => !outstandingIds.has(workspaceId),
+        );
+        const freshTargetCount =
+          EXPECTED_DELETION_COUNT - outstandingAtStart.length;
+
+        if (freshCandidates.length < freshTargetCount + 1) {
+          throw new Error(
+            `Refusing existing-workspace acceptance run: expected at least ${freshTargetCount + 1} fresh eligible workspaces but found ${freshCandidates.length}`,
+          );
+        }
+
         fixtures.push(
-          ...existingEligible
-            .slice(0, EXPECTED_DELETION_COUNT)
+          ...outstandingAtStart.map(({ workspaceId }) => ({
+            workspaceId,
+            schemaName: getWorkspaceSchemaName(workspaceId),
+          })),
+          ...freshCandidates
+            .slice(0, freshTargetCount)
             .map(({ workspaceId }) => ({
               workspaceId,
               schemaName: getWorkspaceSchemaName(workspaceId),
             })),
         );
         controls.push(
-          ...existingEligible
-            .slice(EXPECTED_DELETION_COUNT)
-            .map(({ workspaceId }) => ({
-              workspaceId,
-              schemaName: getWorkspaceSchemaName(workspaceId),
-            })),
+          ...freshCandidates.slice(freshTargetCount).map(({ workspaceId }) => ({
+            workspaceId,
+            schemaName: getWorkspaceSchemaName(workspaceId),
+          })),
         );
       } else {
         for (let index = 0; index < EXPECTED_DELETION_COUNT; index += 1) {
@@ -242,14 +267,23 @@ describeAcceptance('direct workspace deletion acceptance', () => {
         );
       }
 
-      // Existing rows are ordered oldest first. Keep the oldest 15 untouched so
-      // discovery admits them, and stage the next 5 as stale recovery work.
-      const recoveryFixtures = USE_EXISTING_ELIGIBLE_WORKSPACES
-        ? fixtures.slice(FRESH_COUNT)
-        : fixtures.slice(0, RECOVERY_COUNT);
-      const freshFixtures = USE_EXISTING_ELIGIBLE_WORKSPACES
-        ? fixtures.slice(0, FRESH_COUNT)
-        : fixtures.slice(RECOVERY_COUNT);
+      let recoveryFixtures: Fixture[];
+      let freshFixtures: Fixture[];
+
+      if (USE_EXISTING_ELIGIBLE_WORKSPACES) {
+        if (outstandingAtStart.length > 0) {
+          recoveryFixtures = fixtures.slice(0, outstandingAtStart.length);
+          freshFixtures = fixtures.slice(outstandingAtStart.length);
+        } else {
+          // Existing rows are ordered oldest first. Keep the oldest 15 untouched
+          // for fresh admission, then stage five stale recovery rows.
+          recoveryFixtures = fixtures.slice(FRESH_COUNT);
+          freshFixtures = fixtures.slice(0, FRESH_COUNT);
+        }
+      } else {
+        recoveryFixtures = fixtures.slice(0, RECOVERY_COUNT);
+        freshFixtures = fixtures.slice(RECOVERY_COUNT);
+      }
       const recoveryIds = recoveryFixtures.map(
         ({ workspaceId }) => workspaceId,
       );
@@ -282,7 +316,7 @@ describeAcceptance('direct workspace deletion acceptance', () => {
 
       const staleRequestTime = new Date(now.getTime() - 60_000);
 
-      if (unrelatedOutstanding.length === 0) {
+      if (outstandingAtStart.length === 0) {
         for (const { workspaceId } of recoveryFixtures) {
           await expect(
             lifecycleStore.requestDeletion(
@@ -294,22 +328,70 @@ describeAcceptance('direct workspace deletion acceptance', () => {
         }
       }
 
-      const startedAt = Date.now();
+      let startedAt = Date.now();
       const completedAtByWorkspace = new Map<string, number>();
-      const deadline = startedAt + 10 * 60_000;
+      let completionDeadline = startedAt + 10 * 60_000;
       let recovered = 0;
       let admitted = 0;
       let discoveryRounds = 0;
 
+      if (RUN_THROUGH_CRON) {
+        const cronDeadline = startedAt + 11 * 60_000;
+
+        await cronQueue.addCron({
+          jobName: RegieE2eWorkspaceDeletionDiscoveryJob.name,
+          data: undefined,
+          options: {
+            repeat: { pattern: REGIE_E2E_WORKSPACE_DELETION_CRON_PATTERN },
+          },
+        });
+
+        while (
+          !timedTraces.some(
+            ({ trace: entry }) =>
+              entry.event === 'workspace_deletion_discovery_finished',
+          ) &&
+          Date.now() < cronDeadline
+        ) {
+          await new Promise((resolve) => setTimeout(resolve, 250));
+        }
+
+        await cronQueue.removeCron({
+          jobName: RegieE2eWorkspaceDeletionDiscoveryJob.name,
+        });
+
+        const completedDiscovery = timedTraces.find(
+          ({ trace: entry }) =>
+            entry.event === 'workspace_deletion_discovery_finished',
+        );
+
+        if (completedDiscovery === undefined) {
+          throw new Error(
+            'Workspace deletion discovery cron did not fire before the acceptance deadline',
+          );
+        }
+
+        const discoveryTrace = completedDiscovery.trace;
+
+        startedAt = completedDiscovery.recordedAt;
+        completionDeadline = startedAt + 10 * 60_000;
+        recovered = discoveryTrace.recovered ?? 0;
+        admitted = discoveryTrace.admitted ?? 0;
+        discoveryRounds = 1;
+      }
+
       while (
         completedAtByWorkspace.size < EXPECTED_DELETION_COUNT &&
-        Date.now() < deadline
+        Date.now() < completionDeadline
       ) {
-        const discovery = await discoveryJob.handle(new Date());
+        let discovery = { recovered: 0, admitted: 0 };
 
-        recovered += discovery.recovered;
-        admitted += discovery.admitted;
-        discoveryRounds += 1;
+        if (!RUN_THROUGH_CRON) {
+          discovery = await discoveryJob.runAt(new Date());
+          recovered += discovery.recovered;
+          admitted += discovery.admitted;
+          discoveryRounds += 1;
+        }
 
         await waitForAllJobsToFinish();
 
@@ -338,17 +420,16 @@ describeAcceptance('direct workspace deletion acceptance', () => {
 
       await waitForAllJobsToFinish();
 
-      if (unrelatedOutstanding.length === 0) {
-        expect({ recovered, admitted }).toEqual({
-          recovered: RECOVERY_COUNT,
-          admitted: FRESH_COUNT,
-        });
-      } else {
-        expect({ recovered, admitted }).toEqual({
-          recovered: EXPECTED_DELETION_COUNT,
-          admitted: 0,
-        });
-      }
+      expect({ recovered, admitted }).toEqual({
+        recovered:
+          outstandingAtStart.length === 0
+            ? RECOVERY_COUNT
+            : outstandingAtStart.length,
+        admitted:
+          outstandingAtStart.length === 0
+            ? FRESH_COUNT
+            : EXPECTED_DELETION_COUNT - outstandingAtStart.length,
+      });
 
       const elapsedMs = [...completedAtByWorkspace.values()]
         .map((completedAt) => completedAt - startedAt)
@@ -463,7 +544,7 @@ describeAcceptance('direct workspace deletion acceptance', () => {
           preservedEligibleControlCount: USE_EXISTING_ELIGIBLE_WORKSPACES
             ? controls.length
             : undefined,
-          initialOutstandingCount: unrelatedOutstanding.length,
+          initialOutstandingCount: outstandingAtStart.length,
           discoveryRounds,
           recovered,
           admitted,
@@ -514,6 +595,11 @@ describeAcceptance('direct workspace deletion acceptance', () => {
       ]);
       expect(controlRows.map(({ id }) => id).sort()).toEqual(controlIds.sort());
     } finally {
+      if (RUN_THROUGH_CRON) {
+        await cronQueue.removeCron({
+          jobName: RegieE2eWorkspaceDeletionDiscoveryJob.name,
+        });
+      }
       traceSpy.mockRestore();
       metricSpy.mockRestore();
     }
