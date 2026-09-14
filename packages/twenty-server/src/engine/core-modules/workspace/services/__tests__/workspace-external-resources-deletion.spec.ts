@@ -3,9 +3,9 @@ import { type DataSource } from 'typeorm';
 import { type DnsManagerService } from 'src/engine/core-modules/dns-manager/services/dns-manager.service';
 import { type EmailingDomainService } from 'src/engine/core-modules/emailing-domain/services/emailing-domain.service';
 import { type FileService } from 'src/engine/core-modules/file/services/file.service';
-import { WorkspaceService } from 'src/engine/core-modules/workspace/services/workspace.service';
+import { WorkspaceDeletionPhaseOperationsService } from 'src/engine/core-modules/workspace/services/workspace-deletion-phase-operations.service';
 
-describe('WorkspaceService external resource deletion', () => {
+describe('WorkspaceDeletionPhaseOperationsService external resource deletion', () => {
   const workspaceId = '20202020-0000-4000-8000-000000000001';
 
   const makeService = () => {
@@ -32,8 +32,8 @@ describe('WorkspaceService external resource deletion', () => {
     };
     const dnsManagerService = { deleteHostnameSilently: jest.fn() };
     const service = Object.create(
-      WorkspaceService.prototype,
-    ) as WorkspaceService;
+      WorkspaceDeletionPhaseOperationsService.prototype,
+    ) as WorkspaceDeletionPhaseOperationsService;
 
     Reflect.set(service, 'workspaceRepository', workspaceRepository);
     Reflect.set(
@@ -81,7 +81,7 @@ describe('WorkspaceService external resource deletion', () => {
       },
     );
 
-    const deletion = service.hardDeleteWorkspaceExternalResources(workspaceId);
+    const deletion = service.deleteExternalResources(workspaceId);
 
     await emailingDomainCleanupStarted;
     expect(fileService.deleteWorkspaceFolder).toHaveBeenCalledWith(workspaceId);
@@ -109,9 +109,9 @@ describe('WorkspaceService external resource deletion', () => {
       failure,
     );
 
-    await expect(
-      service.hardDeleteWorkspaceExternalResources(workspaceId),
-    ).rejects.toBe(failure);
+    await expect(service.deleteExternalResources(workspaceId)).rejects.toBe(
+      failure,
+    );
     expect(dnsManagerService.deleteHostnameSilently).not.toHaveBeenCalled();
   });
 });

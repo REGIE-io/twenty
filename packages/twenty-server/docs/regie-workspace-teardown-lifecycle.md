@@ -4,6 +4,9 @@ Status: proposed follow-up to [Twenty PR #137](https://github.com/REGIE-io/twent
 
 Owners: Twenty workspace lifecycle and Regie CRM control plane
 
+Deployment and live-validation handoff:
+[`regie-workspace-teardown-operations.md`](./regie-workspace-teardown-operations.md)
+
 ## Summary
 
 Workspace teardown must become a persisted, resumable lifecycle rather than an
@@ -341,7 +344,7 @@ Each phase must accept the state left by a previous attempt:
 - Deleting absent metadata succeeds.
 - Dropping an absent workspace schema succeeds.
 - Flushing absent cache keys succeeds.
-- File/domain cleanup uses deterministic job IDs and is safe to enqueue again.
+- E2E file/domain cleanup runs synchronously inside its phase and is idempotent.
 - DNS cleanup treats an already-absent hostname as success.
 - An absent final workspace row means the teardown completed.
 
@@ -354,6 +357,14 @@ single transaction cannot correctly include Redis, object storage, DNS, or
 queue side effects. This is a small persisted saga, not one global database
 transaction.
 
+The phase executor reaches destructive work only through
+`WorkspaceDeletionPhaseOperationsService`. The established
+`WorkspaceService.deleteWorkspace()` implementation remains unchanged for
+ordinary suspended customer workspaces: it retains its existing metadata
+strategy, async file/email-domain jobs, and direct final-row deletion. This
+explicit call boundary, rather than the E2E cron flag alone, prevents phase-one
+maintenance behavior from leaking into the always-active legacy cleaner.
+
 For the final row deletion, use a server-side timeout that cancels and rolls
 back the statement before the client's wait timeout. This prevents the current
 ambiguous outcome where the client stops waiting without knowing whether the
@@ -363,30 +374,28 @@ database committed.
 
 #### Field metadata deletion
 
-The current code builds relation-aware chunks of approximately 50
-`fieldMetadata` IDs and executes them sequentially because
-`relationTargetFieldMetadataId` is a self-reference. A representative E2E
-workspace had 609 fields and required 13 sequential statements, many taking
-approximately 1.5 seconds.
-
-Validate replacing the loop with a workspace-scoped statement:
+The legacy customer cleanup path continues to build relation-aware chunks of
+approximately 50 `fieldMetadata` IDs. The E2E lifecycle path instead reads IDs
+and self-references directly from PostgreSQL, constructs complete undirected
+relation components, and packs those components into batches of at most 50
+rows (with an indivisible oversized component allowed as one batch). Each batch
+uses a workspace-scoped statement:
 
 ```sql
 DELETE FROM core."fieldMetadata"
-WHERE "workspaceId" = $1;
+WHERE "workspaceId" = $1 AND "id" = ANY($2::uuid[]);
 ```
 
-Deleting all fields for the workspace in one statement should remove both
-sides of an internal relation together. Before adopting it, tests must prove:
+Each batch commits independently. If a later statement fails, a retry reads the
+remaining rows from PostgreSQL and continues without relying on stale cache
+state or repeating already committed batches. Tests prove:
 
 - paired relation fields are removed together;
 - no valid cross-workspace reference is broken;
 - dependent metadata foreign keys behave correctly; and
-- the existing `workspaceId` index is used.
-
-If a single statement remains too disruptive, chunk by complete relation
-component rather than an arbitrary size and execute a bounded number of chunks
-per phase attempt.
+- batches stay bounded without splitting a relation component;
+- a failure after one commit resumes from database state; and
+- unrelated workspace fields are excluded by every delete.
 
 #### E2E discovery
 
@@ -552,6 +561,17 @@ absent or complete, Go transitions to `disabled`.
 Twenty's autonomous E2E reconciler continues to support orphaned workspaces
 which cannot be reached from a live Go connection row.
 
+The phase-one internal endpoint is deliberately named
+`instant-hard-deletion`. It is an operational exception to quarantine: an
+`ACTIVE` or `SUSPENDED` E2E workspace does not need `deletedAt` before the
+request can enter the deletion lifecycle. The endpoint remains internal-token
+authenticated and requires the exact persistent E2E marker, organization ID,
+slug, and marker/workspace identity match. Integration coverage proves that an
+active workspace with that complete identity is accepted and that unmarked,
+malformed, mismatched, and non-E2E workspaces are rejected. Scheduled discovery
+does not use this exception and continues to derive its 24-hour eligibility
+from `deletedAt`.
+
 ## Test strategy
 
 Testing must reproduce the ways the current implementation failed. Happy-path
@@ -589,8 +609,8 @@ Seed production-shaped workspaces with:
 - unrelated real-tenant rows which must remain untouched.
 
 Verify that workspace-scoped field deletion removes all and only the target
-workspace's fields in one statement or in the chosen bounded relation-aware
-strategy. Verify transaction rollback when any dependent deletion fails.
+workspace's fields in bounded relation-aware batches. Verify committed-batch
+progress and restart from the remaining database rows when a later batch fails.
 
 Seed at least the current backlog order of magnitude for the marker query.
 Assert that it returns only the oldest 15 eligible rows, refuses malformed
@@ -871,7 +891,9 @@ After both PRs are healthy:
 1. Enable E2E discovery every ten minutes.
 2. Run the reviewed one-time legacy backfill.
 3. Monitor backlog slope and database health through multiple cycles.
-4. Retire the combined `CleanSuspendedWorkspacesBatchJob` path from PR #137.
+4. In a separate follow-up, remove only the PR #137 E2E sweep from the combined
+   path after the new cron has proven healthy; ordinary suspended cleanup stays
+   on its established batch path in phase one.
 5. Keep the safety marker, quarantine rule, and bounded candidate selection.
 
 ## Phase-one definition of done

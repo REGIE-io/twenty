@@ -29,6 +29,7 @@ import { UpgradeModule } from 'src/engine/core-modules/upgrade/upgrade.module';
 import { CoreEntityCacheModule } from 'src/engine/core-entity-cache/core-entity-cache.module';
 import { WorkspaceEntityCacheProviderService } from 'src/engine/core-modules/workspace/services/workspace-entity-cache-provider.service';
 import { WorkspaceService } from 'src/engine/core-modules/workspace/services/workspace.service';
+import { WorkspaceDeletionPhaseOperationsService } from 'src/engine/core-modules/workspace/services/workspace-deletion-phase-operations.service';
 import { InternalMetadataTokenGuard } from 'src/engine/core-modules/workspace/internal/guards/internal-metadata-token.guard';
 import { CreateCalendarChannelService } from 'src/engine/core-modules/auth/services/create-calendar-channel.service';
 import { CreateMessageChannelService } from 'src/engine/core-modules/auth/services/create-message-channel.service';
@@ -107,10 +108,15 @@ import { WorkspaceFieldMetadataDeletionService } from 'src/engine/workspace-mana
     InternalWorkspaceMemberProvisioningController,
     InternalConnectedAccountProvisioningController,
   ],
-  exports: [WorkspaceService, CheckCustomDomainValidRecordsCronCommand],
+  exports: [
+    WorkspaceService,
+    WorkspaceDeletionPhaseOperationsService,
+    CheckCustomDomainValidRecordsCronCommand,
+  ],
   providers: [
     WorkspaceResolver,
     WorkspaceService,
+    WorkspaceDeletionPhaseOperationsService,
     WorkspaceDeletionMaintenanceService,
     WorkspaceFieldMetadataDeletionService,
     WorkspaceGaugeService,

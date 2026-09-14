@@ -3,6 +3,8 @@ import crypto from 'crypto';
 import { DataSource } from 'typeorm';
 
 import { AddWorkspaceDeletionLifecycleFastInstanceCommand } from 'src/database/commands/upgrade-version-command/2-32/2-32-instance-command-fast-1789196612599-add-workspace-deletion-lifecycle';
+import { WorkspaceDeletionMaintenanceService } from 'src/engine/workspace-manager/workspace-cleaner/services/workspace-deletion-maintenance.service';
+import { WorkspaceFieldMetadataDeletionService } from 'src/engine/workspace-manager/workspace-cleaner/services/workspace-field-metadata-deletion.service';
 
 jest.useRealTimers();
 
@@ -68,7 +70,7 @@ describe('workspace deletion production-shaped PostgreSQL performance contracts'
     await dataSource.destroy();
   });
 
-  it('deletes 600 paired relation fields in one statement without touching another workspace', async () => {
+  it('deletes 600 paired relation fields in committed relation-safe batches without touching another workspace', async () => {
     const targetId = crypto.randomUUID();
     const otherId = crypto.randomUUID();
     await insertWorkspace(targetId, new Date('2026-09-01T00:00:00.000Z'));
@@ -144,32 +146,24 @@ describe('workspace deletion production-shaped PostgreSQL performance contracts'
       [JSON.stringify(relations)],
     );
 
-    const queryRunner = dataSource.createQueryRunner();
-
-    await queryRunner.connect();
-    await queryRunner.startTransaction();
-    const plan = await queryRunner.query(
-      `EXPLAIN (ANALYZE, FORMAT JSON)
-       DELETE FROM "core"."fieldMetadata" WHERE "workspaceId" = $1`,
-      [targetId],
+    const service = new WorkspaceFieldMetadataDeletionService(
+      dataSource,
+      new WorkspaceDeletionMaintenanceService(dataSource),
     );
-    const [targetCount] = await queryRunner.query(
+
+    await expect(service.delete(targetId)).resolves.toBe(600);
+
+    const [targetCount] = await dataSource.query(
       `SELECT count(*)::int count FROM "core"."fieldMetadata" WHERE "workspaceId" = $1`,
       [targetId],
     );
-    const [otherCount] = await queryRunner.query(
+    const [otherCount] = await dataSource.query(
       `SELECT count(*)::int count FROM "core"."fieldMetadata" WHERE "workspaceId" = $1`,
       [otherId],
     );
-    await queryRunner.rollbackTransaction();
-    await queryRunner.release();
 
     expect(targetCount.count).toBe(0);
     expect(otherCount.count).toBe(10);
-    expect(plan[0]['QUERY PLAN'][0]['Execution Time']).toEqual(
-      expect.any(Number),
-    );
-    expect(JSON.stringify(plan)).toContain('IDX_FIELD_METADATA_WORKSPACE_ID');
   });
 
   it('cancels lock contention on the server and rolls back before the statement deadline', async () => {

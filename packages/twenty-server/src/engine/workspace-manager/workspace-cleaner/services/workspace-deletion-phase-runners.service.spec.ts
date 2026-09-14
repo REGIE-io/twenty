@@ -1,6 +1,6 @@
 import { type MetricsService } from 'src/engine/core-modules/metrics/metrics.service';
 import { WorkspaceDeletionPhase } from 'src/engine/core-modules/workspace/types/workspace-deletion-lifecycle.type';
-import { type WorkspaceService } from 'src/engine/core-modules/workspace/services/workspace.service';
+import { type WorkspaceDeletionPhaseOperationsService } from 'src/engine/core-modules/workspace/services/workspace-deletion-phase-operations.service';
 import { WORKSPACE_DELETION_PHASE_TIMEOUT_MS } from 'src/engine/workspace-manager/workspace-cleaner/constants/workspace-deletion-timeouts.constant';
 import { WorkspaceDeletionPhaseRunnersService } from 'src/engine/workspace-manager/workspace-cleaner/services/workspace-deletion-phase-runners.service';
 import { type WorkspaceDeletionTraceService } from 'src/engine/workspace-manager/workspace-cleaner/services/workspace-deletion-trace.service';
@@ -8,18 +8,18 @@ import { type WorkspaceDeletionTraceService } from 'src/engine/workspace-manager
 describe('WorkspaceDeletionPhaseRunnersService', () => {
   it('maps every persisted phase to one concrete idempotent workspace operation', async () => {
     const workspaceId = '20202020-0000-4000-8000-000000000001';
-    const workspaceService = {
-      hardDeleteWorkspaceMembers: jest.fn(),
-      hardDeleteWorkspaceMetadata: jest.fn(),
-      hardDeleteWorkspaceSchema: jest.fn(),
-      hardDeleteWorkspaceCaches: jest.fn(),
-      hardDeleteWorkspaceExternalResources: jest.fn(),
-      hardDeleteWorkspaceCoreRow: jest.fn(),
-    } as unknown as WorkspaceService;
+    const operations = {
+      deleteMembers: jest.fn(),
+      deleteMetadata: jest.fn(),
+      deleteSchema: jest.fn(),
+      deleteCaches: jest.fn(),
+      deleteExternalResources: jest.fn(),
+      deleteCoreRow: jest.fn(),
+    } as unknown as WorkspaceDeletionPhaseOperationsService;
     const trace = { record: jest.fn() };
     const metrics = { recordHistogram: jest.fn() };
     const service = Reflect.construct(WorkspaceDeletionPhaseRunnersService, [
-      workspaceService,
+      operations,
       trace as unknown as WorkspaceDeletionTraceService,
       metrics as unknown as MetricsService,
     ]);
@@ -29,24 +29,14 @@ describe('WorkspaceDeletionPhaseRunnersService', () => {
       await runners[phase](workspaceId);
     }
 
-    expect(workspaceService.hardDeleteWorkspaceMembers).toHaveBeenCalledWith(
+    expect(operations.deleteMembers).toHaveBeenCalledWith(workspaceId);
+    expect(operations.deleteMetadata).toHaveBeenCalledWith(workspaceId);
+    expect(operations.deleteSchema).toHaveBeenCalledWith(workspaceId);
+    expect(operations.deleteCaches).toHaveBeenCalledWith(workspaceId);
+    expect(operations.deleteExternalResources).toHaveBeenCalledWith(
       workspaceId,
     );
-    expect(workspaceService.hardDeleteWorkspaceMetadata).toHaveBeenCalledWith(
-      workspaceId,
-    );
-    expect(workspaceService.hardDeleteWorkspaceSchema).toHaveBeenCalledWith(
-      workspaceId,
-    );
-    expect(workspaceService.hardDeleteWorkspaceCaches).toHaveBeenCalledWith(
-      workspaceId,
-    );
-    expect(
-      workspaceService.hardDeleteWorkspaceExternalResources,
-    ).toHaveBeenCalledWith(workspaceId);
-    expect(workspaceService.hardDeleteWorkspaceCoreRow).toHaveBeenCalledWith(
-      workspaceId,
-    );
+    expect(operations.deleteCoreRow).toHaveBeenCalledWith(workspaceId);
     expect(trace.record).toHaveBeenCalledWith({
       event: 'workspace_deletion_phase_started',
       workspaceId,
@@ -72,13 +62,13 @@ describe('WorkspaceDeletionPhaseRunnersService', () => {
   it('records failed phase duration and progress without swallowing the error', async () => {
     const workspaceId = '20202020-0000-4000-8000-000000000001';
     const failure = new Error('metadata statement timeout');
-    const workspaceService = {
-      hardDeleteWorkspaceMetadata: jest.fn().mockRejectedValue(failure),
-    } as unknown as WorkspaceService;
+    const operations = {
+      deleteMetadata: jest.fn().mockRejectedValue(failure),
+    } as unknown as WorkspaceDeletionPhaseOperationsService;
     const trace = { record: jest.fn() };
     const metrics = { recordHistogram: jest.fn() };
     const service = Reflect.construct(WorkspaceDeletionPhaseRunnersService, [
-      workspaceService,
+      operations,
       trace as unknown as WorkspaceDeletionTraceService,
       metrics as unknown as MetricsService,
     ]);
@@ -106,18 +96,18 @@ describe('WorkspaceDeletionPhaseRunnersService', () => {
 
   it('fails a phase at its overall deadline even when the underlying operation eventually resolves', async () => {
     const operationDurationMs = WORKSPACE_DELETION_PHASE_TIMEOUT_MS + 55_000;
-    const workspaceService = {
-      hardDeleteWorkspaceMetadata: jest.fn(
+    const operations = {
+      deleteMetadata: jest.fn(
         () =>
           new Promise<void>((resolve) =>
             setTimeout(resolve, operationDurationMs),
           ),
       ),
-    } as unknown as WorkspaceService;
+    } as unknown as WorkspaceDeletionPhaseOperationsService;
     const trace = { record: jest.fn() };
     const metrics = { recordHistogram: jest.fn() };
     const service = Reflect.construct(WorkspaceDeletionPhaseRunnersService, [
-      workspaceService,
+      operations,
       trace as unknown as WorkspaceDeletionTraceService,
       metrics as unknown as MetricsService,
     ]);

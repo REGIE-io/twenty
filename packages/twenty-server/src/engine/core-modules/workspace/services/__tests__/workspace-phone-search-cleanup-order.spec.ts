@@ -1,7 +1,9 @@
+import { EmailingDomainWorkspaceCleanupJob } from 'src/engine/core-modules/emailing-domain/jobs/emailing-domain-workspace-cleanup.job';
+import { FileWorkspaceFolderDeletionJob } from 'src/engine/core-modules/file/jobs/file-workspace-folder-deletion.job';
 import { WorkspaceService } from 'src/engine/core-modules/workspace/services/workspace.service';
 
-describe('WorkspaceService phone-search cleanup ordering', () => {
-  it('drops the tenant schema, cleans derived phone data, then deletes the core workspace', async () => {
+describe('WorkspaceService legacy hard deletion', () => {
+  it('keeps ordinary suspended cleanup on the established async external-cleanup path', async () => {
     const steps: string[] = [];
     const service = Object.create(
       WorkspaceService.prototype,
@@ -9,26 +11,22 @@ describe('WorkspaceService phone-search cleanup ordering', () => {
     const setServiceProperty = (name: string, value: unknown) => {
       Reflect.set(service, name, value);
     };
-
-    setServiceProperty('workspaceRepository', {
+    const workspaceRepository = {
       findOne: jest.fn().mockResolvedValue({
         id: 'workspace-id',
         customDomain: null,
       }),
-    });
-    setServiceProperty('workspaceDeletionMaintenanceService', {
-      runInTransaction: jest.fn(
-        async (
-          _timeouts: unknown,
-          operation: (manager: object) => Promise<void>,
-        ) =>
-          operation({
-            delete: jest.fn().mockImplementation(async () => {
-              steps.push('core-workspace-delete');
-            }),
-          }),
-      ),
-    });
+      delete: jest.fn().mockImplementation(async () => {
+        steps.push('core-workspace-delete');
+      }),
+    };
+    const messageQueueService = {
+      add: jest.fn().mockImplementation(async (jobName: string) => {
+        steps.push(jobName);
+      }),
+    };
+
+    setServiceProperty('workspaceRepository', workspaceRepository);
     setServiceProperty('userWorkspaceRepository', {
       find: jest.fn().mockResolvedValue([]),
     });
@@ -55,18 +53,7 @@ describe('WorkspaceService phone-search cleanup ordering', () => {
     setServiceProperty('flatEntityMapsCacheService', {
       flushFlatEntityMaps: jest.fn().mockResolvedValue(undefined),
     });
-    setServiceProperty('fileService', {
-      deleteWorkspaceFolder: jest.fn().mockImplementation(async () => {
-        steps.push('file-cleanup');
-      }),
-    });
-    setServiceProperty('emailingDomainService', {
-      cleanupEmailingDomainsForWorkspace: jest
-        .fn()
-        .mockImplementation(async () => {
-          steps.push('emailing-domain-cleanup');
-        }),
-    });
+    setServiceProperty('messageQueueService', messageQueueService);
     setServiceProperty('coreDataSource', {
       getRepository: jest.fn().mockReturnValue({
         find: jest.fn().mockResolvedValue([]),
@@ -82,9 +69,10 @@ describe('WorkspaceService phone-search cleanup ordering', () => {
     expect(steps).toEqual([
       'tenant-schema-delete',
       'phone-search-cleanup',
-      'file-cleanup',
-      'emailing-domain-cleanup',
+      FileWorkspaceFolderDeletionJob.name,
+      EmailingDomainWorkspaceCleanupJob.name,
       'core-workspace-delete',
     ]);
+    expect(workspaceRepository.delete).toHaveBeenCalledWith('workspace-id');
   });
 });

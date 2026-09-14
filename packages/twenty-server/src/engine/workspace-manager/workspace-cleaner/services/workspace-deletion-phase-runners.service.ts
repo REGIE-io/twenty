@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 
-import { WorkspaceService } from 'src/engine/core-modules/workspace/services/workspace.service';
+import { WorkspaceDeletionPhaseOperationsService } from 'src/engine/core-modules/workspace/services/workspace-deletion-phase-operations.service';
 import { MetricsService } from 'src/engine/core-modules/metrics/metrics.service';
 import { MetricsKeys } from 'src/engine/core-modules/metrics/types/metrics-keys.type';
 import { WorkspaceDeletionPhase } from 'src/engine/core-modules/workspace/types/workspace-deletion-lifecycle.type';
@@ -12,7 +12,7 @@ import { WorkspaceDeletionTraceService } from 'src/engine/workspace-manager/work
 @Injectable()
 export class WorkspaceDeletionPhaseRunnersService {
   constructor(
-    private readonly workspaceService: WorkspaceService,
+    private readonly operations: WorkspaceDeletionPhaseOperationsService,
     private readonly trace: WorkspaceDeletionTraceService,
     private readonly metrics: MetricsService,
   ) {}
@@ -21,29 +21,27 @@ export class WorkspaceDeletionPhaseRunnersService {
     return {
       [WorkspaceDeletionPhase.MEMBERS]: (workspaceId) =>
         this.run(WorkspaceDeletionPhase.MEMBERS, workspaceId, () =>
-          this.workspaceService.hardDeleteWorkspaceMembers(workspaceId),
+          this.operations.deleteMembers(workspaceId),
         ),
       [WorkspaceDeletionPhase.METADATA]: (workspaceId) =>
         this.run(WorkspaceDeletionPhase.METADATA, workspaceId, () =>
-          this.workspaceService.hardDeleteWorkspaceMetadata(workspaceId),
+          this.operations.deleteMetadata(workspaceId),
         ),
       [WorkspaceDeletionPhase.SCHEMA]: (workspaceId) =>
         this.run(WorkspaceDeletionPhase.SCHEMA, workspaceId, () =>
-          this.workspaceService.hardDeleteWorkspaceSchema(workspaceId),
+          this.operations.deleteSchema(workspaceId),
         ),
       [WorkspaceDeletionPhase.CACHE]: (workspaceId) =>
         this.run(WorkspaceDeletionPhase.CACHE, workspaceId, () =>
-          this.workspaceService.hardDeleteWorkspaceCaches(workspaceId),
+          this.operations.deleteCaches(workspaceId),
         ),
       [WorkspaceDeletionPhase.EXTERNAL_CLEANUP]: (workspaceId) =>
         this.run(WorkspaceDeletionPhase.EXTERNAL_CLEANUP, workspaceId, () =>
-          this.workspaceService.hardDeleteWorkspaceExternalResources(
-            workspaceId,
-          ),
+          this.operations.deleteExternalResources(workspaceId),
         ),
       [WorkspaceDeletionPhase.CORE_ROW]: (workspaceId) =>
         this.run(WorkspaceDeletionPhase.CORE_ROW, workspaceId, () =>
-          this.workspaceService.hardDeleteWorkspaceCoreRow(workspaceId),
+          this.operations.deleteCoreRow(workspaceId),
         ),
     };
   }
