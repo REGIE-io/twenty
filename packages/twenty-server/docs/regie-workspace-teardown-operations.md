@@ -122,6 +122,12 @@ RUN_WORKSPACE_DELETION_BACKFILL_REAPER_ACCEPTANCE=true yarn jest \
   --runInBand
 ```
 
+The restored-backlog lane allows up to three times the deletion-job timeout
+without a visible BullMQ state change, while retaining a ten-minute hard limit
+for each bounded round. A production-sized metadata phase can otherwise outlive
+the shorter direct-fixture stall check even while it is making database
+progress.
+
 Normal discovery admits no more than 5 recoveries plus 15 fresh rows. Each
 workspace logs `workspace_deletion_started`, phase started/finished pairs, and
 one `workspace_deletion_finished` with `result: completed`. A successful final
@@ -139,6 +145,36 @@ Observed restored-copy drain: an interrupted first 15 were recovered on worker
 restart; the remaining 51 were admitted as 15/15/15/6; all 66 targets and all
 owned rows were removed; all 3,147 controls, including 1,438 pre-existing
 soft-deleted controls, remained.
+
+The 2026-09-14 full pre-harness restoration repeated the complete path from
+snapshot `twenty-pr138-dev-copy-pre-harness-20260913-1734`. It found 86 exact
+marker-safe workspaces: 56 already quarantined and 30 requiring backfill. The
+limited canary changed exactly 2, all-mode changed the remaining 28, and the
+repeat dry-run reported 0 candidates and 86 already quarantined. The first
+upgrade pass surfaced one workspace query timeout and exited non-zero after
+1,738 successes; an idempotent retry completed all 1,739 workspaces with no
+failures.
+
+The reaper then removed all 86 targets. During the run, terminating the active
+PostgreSQL backend in `METADATA` produced a retryable `QUERYFAILEDERROR`; attempt
+2 resumed from `METADATA` and completed. A separate `SIGKILL` left another row
+at `METADATA`, attempt 1; a compiled production worker reclaimed the stalled
+BullMQ job and completed the surviving batch without manual database or queue
+repair. The final acceptance segment drained 41 rows as 15/15/11 and reported
+zero remaining schemas, memberships, object metadata, field metadata, or key
+values. The 3,147-workspace control fingerprint remained
+`233dd26483ae522cadfbf265ce8ea6d5`, with no outstanding lifecycle or deletion
+queue rows.
+
+On the restored `db.t4g.large`, the 42-minute reaper/chaos window started with
+5.033 GB FreeableMemory, ranged from 4.978 to 5.035 GB, and ended at 4.980 GB.
+The quiet sample five minutes later recovered to 5.008 GB. SwapUsage remained
+exactly zero. Database connections peaked at 11 only while a worker process
+existed and its pool was released on shutdown; CPU peaked at 55.01% and
+DiskQueueDepth at 1.17. This larger instance is not an absolute capacity proxy
+for the production `db.t4g.medium`, but the bounded range, released backends,
+and zero swap show none of the monotonic memory/connection ratchet associated
+with the previous hourly sweeper.
 
 After the lifecycle-only relation-safe batching change, the PostgreSQL lane was
 rerun against the same restored copy. It deleted 600 paired fields in committed
