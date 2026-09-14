@@ -137,21 +137,24 @@ jobs:
           CANARY_COMMAND="$(jq -cn --arg script "$CANARY_JS" '["node", "-e", $script]')"
           CANARY_START_MS="$(( $(date +%s) * 1000 ))"
 
-          .github/scripts/run-ecs-one-off-task.sh \
+          CANARY_TASK_OUTPUT="$(.github/scripts/run-ecs-one-off-task.sh \
             "$ECS_CLUSTER" \
             "$WORKER_SERVICE" \
             worker \
             "$CANARY_COMMAND" \
-            300
+            300)"
+          echo "$CANARY_TASK_OUTPUT"
+          CANARY_TASK_ARN="$(tail -n 1 <<<"$CANARY_TASK_OUTPUT")"
+          CANARY_TASK_ID="${CANARY_TASK_ARN##*/}"
+          CANARY_LOG_STREAM_PREFIX="worker/worker/$CANARY_TASK_ID"
 
           canary_seen=false
           for _ in $(seq 1 30); do
             if aws logs filter-log-events \
               --log-group-name /ecs/twenty-worker \
+              --log-stream-name-prefix "$CANARY_LOG_STREAM_PREFIX" \
               --start-time "$CANARY_START_MS" \
-              --filter-pattern "\"$CANARY_ID\"" \
-              --limit 1 \
-              --query 'events[0].message' \
+              --query 'events[].message' \
               --output text \
               | grep -F "$CANARY_ID"; then
               canary_seen=true
