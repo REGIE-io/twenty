@@ -13,7 +13,7 @@ describe('parseRegieSource', () => {
 
   it('rejects an unrecognised value', () => {
     expect(parseRegieSource('marketing')).toBeUndefined();
-    expect(parseRegieSource('TYPED_BY_HAND')).toBeUndefined();
+    expect(parseRegieSource('MANUAL')).toBeUndefined();
     expect(parseRegieSource('')).toBeUndefined();
   });
 
@@ -30,7 +30,7 @@ describe('parseRegieSource', () => {
 
   it('exposes exactly the eight product sources', () => {
     const expected: RegieSource[] = [
-      'typed_by_hand',
+      'manual',
       'csv',
       'enrichment',
       'research',

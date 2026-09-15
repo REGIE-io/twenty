@@ -7,7 +7,7 @@
 // Keep this list in lockstep with the mirror in the Regie monorepo (@regie/types). The
 // two are joined only by the header string, so a value added here must be added there.
 export const REGIE_SOURCES = [
-  'typed_by_hand',
+  'manual',
   'csv',
   'enrichment',
   'research',
