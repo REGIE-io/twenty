@@ -1,11 +1,9 @@
 name: CI Twenty Apps
 
 on:
-  push:
-    branches:
-      - main
   pull_request:
-  merge_group:
+    branches: [main, develop, stage]
+    types: [labeled]
   workflow_dispatch:
     inputs:
       application:
@@ -18,12 +16,12 @@ permissions:
   contents: read
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}-${{ github.event.label.name == 'run-ci' && 'run' || github.event.label.name || 'dispatch' }}
+  cancel-in-progress: true
 
 jobs:
   discover:
-    if: github.event_name != 'merge_group'
+    if: github.event_name == 'workflow_dispatch' || github.event.label.name == 'run-ci'
     uses: ./.github/workflows/discover-apps.yaml
     with:
       scope: internal-and-public
@@ -105,11 +103,53 @@ jobs:
           mode: ${{ matrix.server-source == 'local' && 'installation-and-integration-test' || 'integration-test-only' }}
 
   ci-twenty-apps-status-check:
-    if: always() && !cancelled()
+    name: CI Twenty Apps Result
+    if: >-
+      always() &&
+      !cancelled() &&
+      (github.event_name == 'workflow_dispatch' || github.event.label.name == 'run-ci')
     timeout-minutes: 5
     runs-on: ubuntu-latest
+    permissions:
+      statuses: write
     needs: [discover, ci, integration]
     steps:
-      - name: Fail job if any needs failed
-        if: contains(needs.*.result, 'failure')
+      - name: Evaluate required jobs
+        id: evaluate
+        env:
+          RESULTS: ${{ toJSON(needs) }}
+        run: |
+          if jq -e 'to_entries | any(.value.result == "cancelled")' <<< "$RESULTS" > /dev/null; then
+            STATE=cancelled
+            DESCRIPTION="Run cancelled; leaving the previous verdict"
+          elif jq -e 'to_entries | any(.value.result == "failure")' <<< "$RESULTS" > /dev/null; then
+            STATE=failure
+            DESCRIPTION="One or more required Twenty Apps CI jobs failed"
+          else
+            STATE=success
+            DESCRIPTION="All required Twenty Apps CI jobs passed"
+          fi
+          echo "state=$STATE" >> "$GITHUB_OUTPUT"
+          echo "description=$DESCRIPTION" >> "$GITHUB_OUTPUT"
+
+      - name: Publish required status
+        if: >-
+          github.event_name == 'pull_request' &&
+          steps.evaluate.outcome == 'success' &&
+          steps.evaluate.outputs.state != 'cancelled'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          STATE: ${{ steps.evaluate.outputs.state }}
+          DESCRIPTION: ${{ steps.evaluate.outputs.description }}
+          SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          gh api --method POST "repos/${{ github.repository }}/statuses/$SHA" \
+            -f state="$STATE" \
+            -f context="ci-twenty-apps-status-check" \
+            -f description="$DESCRIPTION" \
+            -f target_url="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}" \
+            > /dev/null
+
+      - name: Fail when a required job did not pass
+        if: steps.evaluate.outputs.state == 'failure'
         run: exit 1
