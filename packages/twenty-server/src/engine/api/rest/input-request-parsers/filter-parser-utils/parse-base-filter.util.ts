@@ -14,6 +14,11 @@ export enum FilterComparators {
   endsWith = 'endsWith',
   like = 'like',
   ilike = 'ilike',
+  // REST spelling of the GraphQL `match` operator, so a filter string can search a record's
+  // search vector. Nothing downstream needed changing: REST and GraphQL share
+  // getOperatorsForFieldType, which already admits `match` on TS_VECTOR, and the same
+  // computeWhereConditionParts compiles it.
+  match = 'match',
 
   // Not handled rigth now
   // regex = 'regex',

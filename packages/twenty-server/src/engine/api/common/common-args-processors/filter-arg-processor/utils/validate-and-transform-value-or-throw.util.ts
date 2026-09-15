@@ -56,6 +56,7 @@ export const validateAndTransformValueOrThrow = (
     case 'startsWith':
     case 'endsWith':
     case 'containsIlike':
+    case 'match':
       validateStringOperatorValueOrThrow(value, operator, fieldName);
 
       return value;
