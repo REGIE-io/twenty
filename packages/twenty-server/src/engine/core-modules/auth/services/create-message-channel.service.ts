@@ -10,6 +10,7 @@ import {
   MessageChannelType,
   MessageChannelVisibility,
 } from 'twenty-shared/types';
+import { isDefined } from 'twenty-shared/utils';
 import { GlobalWorkspaceOrmManager } from 'src/engine/twenty-orm/global-workspace-datasource/global-workspace-orm.manager';
 import { buildSystemAuthContext } from 'src/engine/twenty-orm/utils/build-system-auth-context.util';
 import { MessageChannelEntity } from 'src/engine/metadata-modules/message-channel/entities/message-channel.entity';
@@ -20,6 +21,7 @@ export type CreateMessageChannelInput = {
   handle: string;
   messageVisibility?: MessageChannelVisibility;
   skipMessageChannelConfiguration?: boolean;
+  isContactAutoCreationEnabled?: boolean;
   transactionManager: EntityManager;
 };
 
@@ -38,6 +40,7 @@ export class CreateMessageChannelService {
       handle,
       messageVisibility,
       skipMessageChannelConfiguration,
+      isContactAutoCreationEnabled,
       transactionManager,
     } = input;
 
@@ -55,6 +58,9 @@ export class CreateMessageChannelService {
           type: MessageChannelType.EMAIL,
           handle,
           visibility: messageVisibility || MessageChannelVisibility.METADATA,
+          ...(isDefined(isContactAutoCreationEnabled)
+            ? { isContactAutoCreationEnabled }
+            : {}),
           syncStatus: skipMessageChannelConfiguration
             ? MessageChannelSyncStatus.ONGOING
             : MessageChannelSyncStatus.NOT_SYNCED,

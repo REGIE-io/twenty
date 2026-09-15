@@ -6,6 +6,7 @@ import { BillingSubscriptionEntity } from 'src/engine/core-modules/billing/entit
 import { WorkspaceDomainsModule } from 'src/engine/core-modules/domain/workspace-domains/workspace-domains.module';
 import { EmailModule } from 'src/engine/core-modules/email/email.module';
 import { MetricsModule } from 'src/engine/core-modules/metrics/metrics.module';
+import { KeyValuePairEntity } from 'src/engine/core-modules/key-value-pair/key-value-pair.entity';
 import { UserWorkspaceEntity } from 'src/engine/core-modules/user-workspace/user-workspace.entity';
 import { UserVarsModule } from 'src/engine/core-modules/user/user-vars/user-vars.module';
 import { UserModule } from 'src/engine/core-modules/user/user.module';
@@ -16,8 +17,10 @@ import { CleanOnboardingWorkspacesCommand } from 'src/engine/workspace-manager/w
 import { CleanOnboardingWorkspacesCronCommand } from 'src/engine/workspace-manager/workspace-cleaner/commands/clean-onboarding-workspaces.cron.command';
 import { CleanSuspendedWorkspacesCommand } from 'src/engine/workspace-manager/workspace-cleaner/commands/clean-suspended-workspaces.command';
 import { CleanSuspendedWorkspacesCronCommand } from 'src/engine/workspace-manager/workspace-cleaner/commands/clean-suspended-workspaces.cron.command';
+import { PurgeRegieE2eWorkspacesCommand } from 'src/engine/workspace-manager/workspace-cleaner/commands/purge-regie-e2e-workspaces.command';
 import { DestroyWorkspaceCommand } from 'src/engine/workspace-manager/workspace-cleaner/commands/destroy-workspace.command';
 import { CleanerWorkspaceService } from 'src/engine/workspace-manager/workspace-cleaner/services/cleaner.workspace-service';
+import { RegieE2eWorkspaceSweeperService } from 'src/engine/workspace-manager/workspace-cleaner/services/regie-e2e-workspace-sweeper.service';
 
 @Module({
   imports: [
@@ -25,6 +28,7 @@ import { CleanerWorkspaceService } from 'src/engine/workspace-manager/workspace-
       WorkspaceEntity,
       UserWorkspaceEntity,
       BillingSubscriptionEntity,
+      KeyValuePairEntity,
     ]),
     WorkspaceModule,
     UserVarsModule,
@@ -38,13 +42,16 @@ import { CleanerWorkspaceService } from 'src/engine/workspace-manager/workspace-
     DestroyWorkspaceCommand,
     CleanSuspendedWorkspacesCronCommand,
     CleanSuspendedWorkspacesCommand,
+    PurgeRegieE2eWorkspacesCommand,
     CleanOnboardingWorkspacesCommand,
     CleanOnboardingWorkspacesCronCommand,
     CleanerWorkspaceService,
+    RegieE2eWorkspaceSweeperService,
     provideWorkspaceScopedRepository(BillingSubscriptionEntity),
   ],
   exports: [
     CleanerWorkspaceService,
+    RegieE2eWorkspaceSweeperService,
     CleanSuspendedWorkspacesCronCommand,
     CleanOnboardingWorkspacesCronCommand,
   ],

@@ -1,4 +1,10 @@
-import { IsDateString, IsEmail, IsOptional, IsString } from 'class-validator';
+import {
+  IsBoolean,
+  IsDateString,
+  IsEmail,
+  IsOptional,
+  IsString,
+} from 'class-validator';
 
 export class InternalWorkspaceProvisioningDto {
   @IsString()
@@ -14,6 +20,14 @@ export class InternalWorkspaceProvisioningDto {
   @IsOptional()
   @IsEmail()
   serviceUserEmail?: string;
+
+  @IsOptional()
+  @IsBoolean()
+  ephemeral?: boolean;
+
+  @IsOptional()
+  @IsString()
+  organizationId?: string;
 }
 
 export class InternalWorkspaceApiKeyDto {
@@ -24,4 +38,12 @@ export class InternalWorkspaceApiKeyDto {
   @IsOptional()
   @IsDateString()
   expiresAt?: string;
+}
+
+export class InternalWorkspaceE2eMarkerDto {
+  @IsString()
+  organizationId: string;
+
+  @IsString()
+  workspaceSlug: string;
 }

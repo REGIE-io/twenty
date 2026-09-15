@@ -6,6 +6,7 @@ import {
   MessageParticipantRole,
 } from 'twenty-shared/types';
 import { isDefined } from 'twenty-shared/utils';
+import { isNonEmptyString } from '@sniptt/guards';
 
 import { type MessageChannelEntity } from 'src/engine/metadata-modules/message-channel/entities/message-channel.entity';
 import { InjectMessageQueue } from 'src/engine/core-modules/message-queue/decorators/message-queue.decorator';
@@ -24,6 +25,10 @@ import {
 } from 'src/modules/messaging/message-import-manager/drivers/gmail/types/gmail-message.type';
 import { MessagingMessageFolderAssociationService } from 'src/modules/messaging/message-import-manager/services/messaging-message-folder-association.service';
 import { MessagingMessageService } from 'src/modules/messaging/message-import-manager/services/messaging-message.service';
+import {
+  MessagingReplyWebhookDispatchService,
+  type SyncedMessageForWebhook,
+} from 'src/modules/messaging/message-import-manager/services/messaging-reply-webhook-dispatch.service';
 import { type MessageChannelMessageAssociationFolderAssociation } from 'src/modules/messaging/message-import-manager/types/message-channel-message-association-folder-association.type';
 import { type MessageWithParticipants } from 'src/modules/messaging/message-import-manager/types/message';
 import { isGroupEmail } from 'src/modules/messaging/message-import-manager/utils/is-group-email';
@@ -39,6 +44,7 @@ export class MessagingSaveMessagesAndEnqueueContactCreationService {
     private readonly messageParticipantService: MessagingMessageParticipantService,
     private readonly messageFolderAssociationService: MessagingMessageFolderAssociationService,
     private readonly globalWorkspaceOrmManager: GlobalWorkspaceOrmManager,
+    private readonly replyWebhookDispatchService: MessagingReplyWebhookDispatchService,
   ) {}
 
   async saveMessagesAndEnqueueContactCreation(
@@ -62,6 +68,7 @@ export class MessagingSaveMessagesAndEnqueueContactCreationService {
           return this.globalWorkspaceOrmManager.runInWorkspaceTransaction(
             async (transactionScope) => {
               const {
+                createdMessages,
                 messageExternalIdsAndIdsMap,
                 messageExternalIdToMessageChannelMessageAssociationIdMap,
                 messageExternalIdToMessageThreadIdMap,
@@ -164,6 +171,7 @@ export class MessagingSaveMessagesAndEnqueueContactCreationService {
 
               return {
                 participantsWithMessageId,
+                createdMessages,
                 messageExternalIdsAndIdsMap,
                 messageExternalIdToMessageThreadIdMap,
               };
@@ -189,6 +197,60 @@ export class MessagingSaveMessagesAndEnqueueContactCreationService {
           source: FieldActorSource.EMAIL,
         },
       );
+    }
+
+    if (savedMessagesResult) {
+      // Emitted after the transaction commits so the message, its participants and its
+      // channel association all exist when a receiver calls back for the full record.
+      // Only newly created, non-draft messages: re-syncs re-see the same externalIds but
+      // createdMessages holds only this run's inserts, so a message is announced exactly
+      // once. Both directions go out, under a different event name each.
+      const createdMessageIds = new Set(
+        savedMessagesResult.createdMessages
+          .map((message) => message.id)
+          .filter(isDefined),
+      );
+
+      const syncedMessages: SyncedMessageForWebhook[] = messagesToSave
+        .filter((message) => !message.isDraft)
+        .flatMap((message) => {
+          const messageId = savedMessagesResult.messageExternalIdsAndIdsMap.get(
+            message.externalId,
+          );
+
+          if (!isDefined(messageId) || !createdMessageIds.has(messageId)) {
+            return [];
+          }
+
+          return [
+            {
+              messageId,
+              messageExternalId: message.externalId,
+              headerMessageId: message.headerMessageId,
+              threadId:
+                savedMessagesResult.messageExternalIdToMessageThreadIdMap.get(
+                  message.externalId,
+                ) ?? null,
+              to: message.participants
+                .filter(
+                  (participant) =>
+                    participant.role === MessageParticipantRole.TO,
+                )
+                .map((participant) => participant.handle)
+                .filter(isNonEmptyString),
+              direction: message.direction,
+              receivedAt: message.receivedAt,
+            },
+          ];
+        });
+
+      await this.replyWebhookDispatchService.dispatchSyncedMessageWebhooks({
+        workspaceId,
+        channelId: messageChannel.id,
+        connectedAccountId: connectedAccount.id,
+        handle: connectedAccount.handle,
+        messages: syncedMessages,
+      });
     }
 
     if (!isDefined(savedMessagesResult)) {

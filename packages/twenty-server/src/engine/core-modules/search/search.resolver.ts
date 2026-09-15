@@ -7,9 +7,12 @@ import { CoreResolver } from 'src/engine/api/graphql/graphql-config/decorators/c
 import { PreventNestToAutoLogGraphqlErrorsFilter } from 'src/engine/core-modules/graphql/filters/prevent-nest-to-auto-log-graphql-errors.filter';
 import { ResolverValidationPipe } from 'src/engine/core-modules/graphql/pipes/resolver-validation.pipe';
 import { SearchArgs } from 'src/engine/core-modules/search/dtos/search-args';
+import { SearchPeopleByPhoneArgs } from 'src/engine/core-modules/search/dtos/search-people-by-phone.args';
+import { PhoneSearchResultConnectionDTO } from 'src/engine/core-modules/search/dtos/phone-search-result.dto';
 import { SearchResultConnectionDTO } from 'src/engine/core-modules/search/dtos/search-result-connection.dto';
 import { SearchApiExceptionFilter } from 'src/engine/core-modules/search/filters/search-api-exception.filter';
 import { SearchService } from 'src/engine/core-modules/search/services/search.service';
+import { PhoneSearchService } from 'src/engine/core-modules/search/services/phone-search.service';
 import { WorkspaceEntity } from 'src/engine/core-modules/workspace/workspace.entity';
 import { AuthWorkspace } from 'src/engine/decorators/auth/auth-workspace.decorator';
 import { CustomPermissionGuard } from 'src/engine/guards/custom-permission.guard';
@@ -28,8 +31,30 @@ import { PermissionsGraphqlApiExceptionFilter } from 'src/engine/metadata-module
 export class SearchResolver {
   constructor(
     private readonly searchService: SearchService,
+    private readonly phoneSearchService: PhoneSearchService,
     private readonly workspaceManyOrAllFlatEntityMapsCacheService: WorkspaceManyOrAllFlatEntityMapsCacheService,
   ) {}
+
+  @Query(() => PhoneSearchResultConnectionDTO)
+  async searchPeopleByPhone(
+    @AuthWorkspace() workspace: WorkspaceEntity,
+    @Args() args: SearchPeopleByPhoneArgs,
+  ) {
+    const { flatObjectMetadataMaps, flatFieldMetadataMaps } =
+      await this.workspaceManyOrAllFlatEntityMapsCacheService.getOrRecomputeManyOrAllFlatEntityMaps(
+        {
+          workspaceId: workspace.id,
+          flatMapsKeys: ['flatObjectMetadataMaps', 'flatFieldMetadataMaps'],
+        },
+      );
+
+    return this.phoneSearchService.searchPeopleByPhone({
+      workspace,
+      args,
+      flatObjectMetadataMaps,
+      flatFieldMetadataMaps,
+    });
+  }
 
   @Query(() => SearchResultConnectionDTO)
   async search(

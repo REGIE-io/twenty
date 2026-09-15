@@ -17,6 +17,7 @@ import { FeatureFlagModule } from 'src/engine/core-modules/feature-flag/feature-
 import { FileModule } from 'src/engine/core-modules/file/file.module';
 import { MetricsModule } from 'src/engine/core-modules/metrics/metrics.module';
 import { OnboardingModule } from 'src/engine/core-modules/onboarding/onboarding.module';
+import { PhoneSearchIndexModule } from 'src/engine/core-modules/phone-search-index/phone-search-index.module';
 import { SdkClientModule } from 'src/engine/core-modules/sdk-client/sdk-client.module';
 import { UserWorkspaceEntity } from 'src/engine/core-modules/user-workspace/user-workspace.entity';
 import { UserWorkspaceModule } from 'src/engine/core-modules/user-workspace/user-workspace.module';
@@ -29,8 +30,10 @@ import { WorkspaceEntityCacheProviderService } from 'src/engine/core-modules/wor
 import { WorkspaceService } from 'src/engine/core-modules/workspace/services/workspace.service';
 import { InternalMetadataTokenGuard } from 'src/engine/core-modules/workspace/internal/guards/internal-metadata-token.guard';
 import { CreateCalendarChannelService } from 'src/engine/core-modules/auth/services/create-calendar-channel.service';
+import { CreateMessageChannelService } from 'src/engine/core-modules/auth/services/create-message-channel.service';
 import { CalendarChannelEntity } from 'src/engine/metadata-modules/calendar-channel/entities/calendar-channel.entity';
 import { ConnectedAccountEntity } from 'src/engine/metadata-modules/connected-account/entities/connected-account.entity';
+import { MessageChannelEntity } from 'src/engine/metadata-modules/message-channel/entities/message-channel.entity';
 import { ConnectedAccountTokenEncryptionModule } from 'src/engine/metadata-modules/connected-account/services/connected-account-token-encryption.module';
 import { RefreshTokensManagerModule } from 'src/modules/connected-account/refresh-tokens-manager/connected-account-refresh-tokens-manager.module';
 import { InternalConnectedAccountProvisioningController } from 'src/engine/core-modules/workspace/internal/internal-connected-account-provisioning.controller';
@@ -62,6 +65,7 @@ import { WorkspaceMigrationModule } from 'src/engine/workspace-manager/workspace
       UserWorkspaceEntity,
       ConnectedAccountEntity,
       CalendarChannelEntity,
+      MessageChannelEntity,
     ]),
     MetricsModule,
     BillingModule,
@@ -91,6 +95,7 @@ import { WorkspaceMigrationModule } from 'src/engine/workspace-manager/workspace
     UpgradeModule,
     SdkClientModule,
     CompanyEnrichmentModule,
+    PhoneSearchIndexModule,
     RefreshTokensManagerModule,
     ConnectedAccountTokenEncryptionModule,
   ],
@@ -107,6 +112,7 @@ import { WorkspaceMigrationModule } from 'src/engine/workspace-manager/workspace
     InternalWorkspaceMemberProvisioningService,
     InternalConnectedAccountProvisioningService,
     CreateCalendarChannelService,
+    CreateMessageChannelService,
     InternalMetadataTokenGuard,
     BillingDisabledGuard,
     CheckCustomDomainValidRecordsCronCommand,
