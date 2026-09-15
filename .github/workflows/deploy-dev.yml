@@ -15,7 +15,7 @@ permissions:
 
 env:
   AWS_REGION: us-east-1
-  AWS_ACCOUNT_ID: "240037737452"
+  AWS_ACCOUNT_ID: '240037737452'
   ECR_NAMESPACE: momentum
   ECR_REPO: twenty
   ECS_CLUSTER: main
@@ -73,6 +73,15 @@ jobs:
             server \
             '["yarn","command:prod","upgrade"]' \
             1800
+
+          # A zero exit from `upgrade` is not sufficient: cursor bookkeeping can leave
+          # provisioned workspaces behind without recording a command failure.
+          .github/scripts/run-ecs-one-off-task.sh \
+            "$ECS_CLUSTER" \
+            "$SERVER_SERVICE" \
+            server \
+            '["yarn","command:prod","upgrade:status","--failed-only","--fail-on-unhealthy"]' \
+            900
 
           # Trigger the rollout on both services.
           for svc in "$SERVER_SERVICE" "$WORKER_SERVICE"; do

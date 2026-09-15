@@ -15,7 +15,7 @@ permissions:
 
 env:
   AWS_REGION: us-east-1
-  AWS_ACCOUNT_ID: "939603205566"
+  AWS_ACCOUNT_ID: '939603205566'
   ECR_NAMESPACE: momentum
   ECR_REPO: twenty
   ECS_CLUSTER: main
@@ -63,6 +63,22 @@ jobs:
             --push \
             --progress=plain \
             .
+
+          # Service tasks disable startup migrations. Upgrade exactly once from the
+          # image just pushed, then require both the instance and every provisioned
+          # workspace cursor to be healthy before rolling either long-lived service.
+          .github/scripts/run-ecs-one-off-task.sh \
+            "$ECS_CLUSTER" \
+            "$SERVER_SERVICE" \
+            server \
+            '["yarn","command:prod","upgrade"]' \
+            1800
+          .github/scripts/run-ecs-one-off-task.sh \
+            "$ECS_CLUSTER" \
+            "$SERVER_SERVICE" \
+            server \
+            '["yarn","command:prod","upgrade:status","--failed-only","--fail-on-unhealthy"]' \
+            900
 
           # Trigger the rollout on both services.
           for svc in "$SERVER_SERVICE" "$WORKER_SERVICE"; do

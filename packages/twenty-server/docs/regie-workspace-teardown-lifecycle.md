@@ -876,10 +876,11 @@ Scope:
 - dry-run backfill/recovery command.
 
 Merge and deploy this PR while automatic discovery remains disabled. The
-deployment must run `yarn command:prod upgrade` first and abort if it fails,
-then roll and stabilize the server and worker, and finally verify the
-CloudWatch canary. Migrations, service rollout, and observability validation do
-not enable the cleanup cron.
+deployment must run `yarn command:prod upgrade` and then
+`yarn command:prod upgrade:status --failed-only --fail-on-unhealthy`, aborting
+before rollout if either fails. It then rolls and stabilizes the server and
+worker and finally verifies the CloudWatch canary. Migrations, service rollout,
+and observability validation do not enable the cleanup cron.
 
 Deferred Go lifecycle scope:
 
