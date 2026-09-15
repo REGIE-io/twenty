@@ -1,6 +1,13 @@
 import { ArgsType, Field, Int } from '@nestjs/graphql';
 
-import { IsArray, IsInt, IsOptional, IsString, Max } from 'class-validator';
+import {
+  IsArray,
+  IsBoolean,
+  IsInt,
+  IsOptional,
+  IsString,
+  Max,
+} from 'class-validator';
 
 import { ObjectRecordFilterInput } from 'src/engine/core-modules/search/dtos/object-record-filter-input';
 
@@ -32,4 +39,11 @@ export class SearchArgs {
   @Field(() => [String], { nullable: true })
   @IsOptional()
   excludedObjectNameSingulars?: string[];
+
+  // Exact-token lookups (phone numbers, emails) never need the ILIKE pass, and on a
+  // big workspace that pass is a full table scan.
+  @IsBoolean()
+  @Field(() => Boolean, { nullable: true })
+  @IsOptional()
+  skipIlikeFallback?: boolean;
 }
