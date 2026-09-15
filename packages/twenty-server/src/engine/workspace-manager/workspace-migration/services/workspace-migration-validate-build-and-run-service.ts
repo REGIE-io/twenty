@@ -23,6 +23,7 @@ import { getFlatEntityMapsExceptionContext } from 'src/engine/metadata-modules/f
 import { transpileFlatEntityOperationArrayToRecord } from 'src/engine/metadata-modules/flat-entity/utils/transpile-flat-entity-operation-array-to-record.util';
 import { MetadataSideEffectEngineService } from 'src/engine/metadata-modules/metadata-side-effect/services/metadata-side-effect-engine.service';
 import { MetadataEventEmitter } from 'src/engine/subscriptions/metadata-event/metadata-event-emitter';
+import { TWENTY_STANDARD_APPLICATION } from 'src/engine/workspace-manager/twenty-standard-application/constants/twenty-standard-applications';
 import { WorkspaceMigrationV2Exception } from 'src/engine/workspace-manager/workspace-migration.exception';
 import {
   enrichCreateWorkspaceMigrationActionsWithIds,
@@ -40,6 +41,14 @@ import {
   WorkspaceMigrationOrchestratorSuccessfulResult,
 } from 'src/engine/workspace-manager/workspace-migration/types/workspace-migration-orchestrator.type';
 import { WorkspaceMigrationRunnerService } from 'src/engine/workspace-manager/workspace-migration/workspace-migration-runner/services/workspace-migration-runner.service';
+import { type AllUniversalWorkspaceMigrationAction } from 'src/engine/workspace-manager/workspace-migration/workspace-migration-builder/types/workspace-migration-action-common';
+import { type WorkspaceMigration } from 'src/engine/workspace-manager/workspace-migration/workspace-migration-builder/types/workspace-migration.type';
+
+export type WorkspaceMigrationIdentityReassignment = {
+  metadataName: 'objectMetadata' | 'fieldMetadata' | 'index';
+  sourceUniversalIdentifier: string;
+  targetUniversalIdentifier: string;
+};
 
 type ValidateBuildAndRunWorkspaceMigrationFromMatriceArgs = {
   workspaceId: string;
@@ -278,6 +287,121 @@ export class WorkspaceMigrationValidateBuildAndRunService {
     };
   }
 
+  public async validateAndRunWorkspaceMigrationIdentityReassignment({
+    workspaceId,
+    applicationUniversalIdentifier,
+    identityReassignments,
+    dryRun = false,
+  }: {
+    workspaceId: string;
+    applicationUniversalIdentifier: string;
+    identityReassignments: WorkspaceMigrationIdentityReassignment[];
+    dryRun?: boolean;
+  }): Promise<{ hasSchemaMetadataChanged: boolean }> {
+    const metadataNames = [
+      ...new Set(identityReassignments.map(({ metadataName }) => metadataName)),
+    ];
+    const { flatApplicationMaps, allRelatedFlatEntityMaps } =
+      await this.workspaceMigrationFlatEntityMapsService.getOrRecomputeAllRelatedFlatEntityMaps(
+        {
+          workspaceId,
+          callerMetadataNames: metadataNames,
+        },
+      );
+    const targetApplicationId =
+      flatApplicationMaps.idByUniversalIdentifier[
+        applicationUniversalIdentifier
+      ];
+    const targetApplication = isDefined(targetApplicationId)
+      ? flatApplicationMaps.byId[targetApplicationId]
+      : undefined;
+
+    if (!isDefined(targetApplication)) {
+      throw new Error(
+        `Cannot reassign metadata identity: application ${applicationUniversalIdentifier} does not exist in workspace ${workspaceId}`,
+      );
+    }
+
+    const actions: AllUniversalWorkspaceMigrationAction[] = [];
+
+    for (const identityReassignment of identityReassignments) {
+      const flatEntityMaps =
+        identityReassignment.metadataName === 'objectMetadata'
+          ? allRelatedFlatEntityMaps.flatObjectMetadataMaps
+          : identityReassignment.metadataName === 'fieldMetadata'
+            ? allRelatedFlatEntityMaps.flatFieldMetadataMaps
+            : allRelatedFlatEntityMaps.flatIndexMaps;
+
+      if (!isDefined(flatEntityMaps)) {
+        throw new Error(
+          `Cannot reassign ${identityReassignment.metadataName}: metadata cache is unavailable`,
+        );
+      }
+
+      const sourceEntity =
+        flatEntityMaps.byUniversalIdentifier[
+          identityReassignment.sourceUniversalIdentifier
+        ];
+      const targetEntity =
+        flatEntityMaps.byUniversalIdentifier[
+          identityReassignment.targetUniversalIdentifier
+        ];
+
+      if (!isDefined(sourceEntity)) {
+        throw new Error(
+          `Cannot reassign ${identityReassignment.metadataName}: source universal identifier ${identityReassignment.sourceUniversalIdentifier} does not exist`,
+        );
+      }
+
+      if (isDefined(targetEntity) && targetEntity.id !== sourceEntity.id) {
+        throw new Error(
+          `Cannot reassign ${identityReassignment.metadataName} ${sourceEntity.id}: target universal identifier ${identityReassignment.targetUniversalIdentifier} is already held by ${targetEntity.id}`,
+        );
+      }
+
+      if (
+        sourceEntity.universalIdentifier ===
+          identityReassignment.targetUniversalIdentifier &&
+        sourceEntity.applicationId === targetApplication.id
+      ) {
+        continue;
+      }
+
+      actions.push({
+        type: 'update',
+        metadataName: identityReassignment.metadataName,
+        universalIdentifier: identityReassignment.targetUniversalIdentifier,
+        update: {},
+        identityReassignment: {
+          sourceUniversalIdentifier:
+            identityReassignment.sourceUniversalIdentifier,
+          targetApplicationUniversalIdentifier: applicationUniversalIdentifier,
+        },
+      } as AllUniversalWorkspaceMigrationAction);
+    }
+
+    if (dryRun || actions.length === 0) {
+      return { hasSchemaMetadataChanged: false };
+    }
+
+    const workspaceMigration: WorkspaceMigration = {
+      actions,
+      applicationUniversalIdentifier,
+    };
+    const { hasSchemaMetadataChanged, metadataEvents } =
+      await this.workspaceMigrationRunnerService.run({
+        workspaceId,
+        workspaceMigration,
+      });
+
+    this.metadataEventEmitter.emitMetadataEvents({
+      metadataEvents,
+      workspaceId,
+    });
+
+    return { hasSchemaMetadataChanged };
+  }
+
   public async validateBuildAndRunWorkspaceMigration({
     allFlatEntityOperationByMetadataName,
     workspaceId,
@@ -313,6 +437,48 @@ export class WorkspaceMigrationValidateBuildAndRunService {
     return await this.validateBuildAndRunWorkspaceMigrationFromRecordInternal({
       ...args,
       skipSideEffectExpandEngine: false,
+    });
+  }
+
+  /**
+   * Runs metadata authored by twenty-standard through the literal From/To
+   * migration path. Standard metadata already declares its system relations,
+   * so expanding custom-object side effects here would create duplicates and
+   * would require unrelated standard objects to exist during an upgrade.
+   */
+  public async validateBuildAndRunTwentyStandardWorkspaceMigration({
+    allFlatEntityOperationByMetadataName,
+    workspaceId,
+    applicationUniversalIdentifier,
+    dryRun,
+  }: Omit<
+    ValidateBuildAndRunWorkspaceMigrationFromMatriceArgs,
+    'isSystemBuild'
+  >): Promise<
+    | WorkspaceMigrationOrchestratorFailedResult
+    | (WorkspaceMigrationOrchestratorSuccessfulResult & {
+        hasSchemaMetadataChanged: boolean;
+      })
+  > {
+    if (
+      applicationUniversalIdentifier !==
+      TWENTY_STANDARD_APPLICATION.universalIdentifier
+    ) {
+      throw new Error(
+        'Twenty-standard workspace migrations can only target the twenty-standard application',
+      );
+    }
+
+    return await this.validateBuildAndRunWorkspaceMigrationFromRecordInternal({
+      allFlatEntityOperationRecordByMetadataName:
+        transpileFlatEntityOperationArrayToRecord(
+          allFlatEntityOperationByMetadataName,
+        ),
+      workspaceId,
+      isSystemBuild: true,
+      applicationUniversalIdentifier,
+      dryRun,
+      skipSideEffectExpandEngine: true,
     });
   }
 

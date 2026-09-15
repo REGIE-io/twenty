@@ -769,6 +769,12 @@ exports[`STANDARD_OBJECTS universal identifiers should never change without an e
       "position": {
         "universalIdentifier": "a6c6ffb5-1a46-5f3d-b0e3-14c071e3a972",
       },
+      "regieListMemberships": {
+        "universalIdentifier": "313685a7-6f52-5ef2-99dc-aa966e431c7c",
+      },
+      "regieSyncSources": {
+        "universalIdentifier": "84f633eb-20ab-58de-9693-87479f95ce50",
+      },
       "searchVector": {
         "universalIdentifier": "d043190d-3335-5463-b98d-eecbf7b41c65",
       },
@@ -2147,6 +2153,12 @@ exports[`STANDARD_OBJECTS universal identifiers should never change without an e
       "position": {
         "universalIdentifier": "e7dcf2c0-dc89-525e-93a7-720034d8ec0e",
       },
+      "regieListMemberships": {
+        "universalIdentifier": "0dc5455c-a756-508e-bc58-f22df4f009bd",
+      },
+      "regieSyncSources": {
+        "universalIdentifier": "af136084-47c2-5d46-96a5-cb212d00313e",
+      },
       "searchVector": {
         "universalIdentifier": "efe6cbc6-1c6e-5a6e-91c9-17142d3bd947",
       },
@@ -2283,6 +2295,209 @@ exports[`STANDARD_OBJECTS universal identifiers should never change without an e
       },
     },
   },
+  "regieListMembership": {
+    "fields": {
+      "account": {
+        "universalIdentifier": "5799e304-6741-50b8-b0f4-a0e6bcac7580",
+      },
+      "createdAt": {
+        "universalIdentifier": "bd285e6c-ca5b-560d-9c3e-2edf00c632be",
+      },
+      "createdBy": {
+        "universalIdentifier": "a45163c8-1346-5e5d-beac-e657945b0478",
+      },
+      "deletedAt": {
+        "universalIdentifier": "23bcf7af-fbf5-5241-b789-92cf718a1698",
+      },
+      "id": {
+        "universalIdentifier": "a177053c-bc31-5647-866b-b8f8d6987b6e",
+      },
+      "list": {
+        "universalIdentifier": "b67fa1a1-fc15-51ca-b9fc-5db220eed5d1",
+      },
+      "membershipKey": {
+        "universalIdentifier": "d1939416-c177-56ce-80fa-32154a4203de",
+      },
+      "person": {
+        "universalIdentifier": "24a28614-723c-518c-afb9-b0031fbbdd39",
+      },
+      "position": {
+        "universalIdentifier": "e49e945f-057e-5339-9f44-7340e3f8c6a5",
+      },
+      "searchVector": {
+        "universalIdentifier": "1f465b44-6567-5513-b5fb-770e66c99a4b",
+      },
+      "source": {
+        "universalIdentifier": "57f48b28-ecdc-5ec4-b270-3ddc503fe1e5",
+      },
+      "task": {
+        "universalIdentifier": "b2031df0-6fa4-5730-a4f9-b4b208a600e0",
+      },
+      "updatedAt": {
+        "universalIdentifier": "01ea9a5d-bca6-500d-9a1a-9d0a623b8eae",
+      },
+      "updatedBy": {
+        "universalIdentifier": "a878fb51-fd1a-5c2e-94fe-27ae331bc95b",
+      },
+    },
+    "indexes": {
+      "membershipKeyUniqueIndex": {
+        "universalIdentifier": "91c12587-2226-469d-b260-2d22f0242ffc",
+      },
+    },
+    "universalIdentifier": "6d0e5620-3204-5095-8e7a-23662008be61",
+  },
+  "regieStaticList": {
+    "fields": {
+      "createdAt": {
+        "universalIdentifier": "dd29d4b4-b624-5c01-bae7-1f544263d891",
+      },
+      "createdBy": {
+        "universalIdentifier": "79d22da9-ab5a-52ef-8ef1-a7dd8d4a40c2",
+      },
+      "deletedAt": {
+        "universalIdentifier": "be11ed35-fb4e-51c8-9aa0-6a4b51dbd1d1",
+      },
+      "id": {
+        "universalIdentifier": "c3d848b2-732f-5e3f-9a44-adc947668dbc",
+      },
+      "members": {
+        "universalIdentifier": "615c5b12-c501-5fc9-85cb-3c447cd82aaf",
+      },
+      "name": {
+        "universalIdentifier": "33bb4ed2-9a4f-55ac-b89b-01601c780839",
+      },
+      "populationAdded": {
+        "universalIdentifier": "1cbc6632-4261-5cda-a4e4-b1506f53b992",
+      },
+      "populationFailed": {
+        "universalIdentifier": "e61c3c11-243f-55bf-9c06-6670f8e3e019",
+      },
+      "populationProcessed": {
+        "universalIdentifier": "46de5fc6-5d1f-5e7e-8bbf-b531134d562b",
+      },
+      "populationSkipped": {
+        "universalIdentifier": "17ed01a9-6137-5df4-815c-ad87126b0dbd",
+      },
+      "populationStatus": {
+        "universalIdentifier": "37ebacbb-24ef-52b7-a113-a170ca454823",
+      },
+      "position": {
+        "universalIdentifier": "30e1b704-e00e-5b0e-9302-c31e96f3dd68",
+      },
+      "searchVector": {
+        "universalIdentifier": "ff311ce0-b5fd-5107-8c67-93371a7b2cbb",
+      },
+      "snapshotFilter": {
+        "universalIdentifier": "11e26714-c2ea-5340-b2a1-2e774566a702",
+      },
+      "snapshotStartedAt": {
+        "universalIdentifier": "f6f0f1e2-8803-510a-baa6-4c0a90d42e18",
+      },
+      "sourceFilterRevision": {
+        "universalIdentifier": "b4c10af6-6f54-5b35-b3d7-ea0836d8b1ca",
+      },
+      "sourceRef": {
+        "universalIdentifier": "eca2c47d-a69a-504b-b292-6d96f6f10de3",
+      },
+      "sourceType": {
+        "universalIdentifier": "c944cbe4-5441-55f3-9dd8-341739d0bd22",
+      },
+      "targetType": {
+        "universalIdentifier": "456078a1-0760-5ef9-8ea6-f489011c06cf",
+      },
+      "updatedAt": {
+        "universalIdentifier": "5b68e0a1-8f32-5abb-a763-745b013ea618",
+      },
+      "updatedBy": {
+        "universalIdentifier": "2cd4570e-c7ad-507d-9f41-dd97c1e50594",
+      },
+    },
+    "indexes": {},
+    "universalIdentifier": "a862d0b5-b52e-57d2-8513-d78adb125c59",
+  },
+  "regieSyncSource": {
+    "fields": {
+      "company": {
+        "universalIdentifier": "86643cbe-404f-5dd2-a60f-7e49aa56feaf",
+      },
+      "connectionGeneration": {
+        "universalIdentifier": "3754e8c8-ce1b-5121-a446-bfa51ea08da0",
+      },
+      "createdAt": {
+        "universalIdentifier": "e4188938-db4a-5d69-89f6-a2815ed44496",
+      },
+      "createdBy": {
+        "universalIdentifier": "8e2bae61-5b17-5c8a-99c7-226b552e7265",
+      },
+      "deletedAt": {
+        "universalIdentifier": "bb7f6f2a-74ee-5b23-bc26-7f74117090bf",
+      },
+      "deliveryState": {
+        "universalIdentifier": "60a1aa93-4be4-5de7-bbad-d56d69c20c10",
+      },
+      "externalObjectApiName": {
+        "universalIdentifier": "af53ddda-ab12-509b-b72a-8ad3a03a9910",
+      },
+      "externalRecordId": {
+        "universalIdentifier": "427ca381-dea0-5075-a816-e1019d624a89",
+      },
+      "id": {
+        "universalIdentifier": "a7e6e344-17f8-5b86-93fd-7919735ef08a",
+      },
+      "isWriteTarget": {
+        "universalIdentifier": "42608cbd-88d6-5ca6-b046-49f467134572",
+      },
+      "lastAttemptAt": {
+        "universalIdentifier": "fc62fe6c-0188-59a4-9033-bddf0497bb50",
+      },
+      "lastError": {
+        "universalIdentifier": "293256bc-a9ea-5ef7-8353-9d4f825cd2dd",
+      },
+      "lastSyncedAt": {
+        "universalIdentifier": "1bec6b6c-dda5-5f77-bf86-6f86df109cc3",
+      },
+      "lifecycleState": {
+        "universalIdentifier": "1c4b0893-6156-53b4-971d-23398c205ae3",
+      },
+      "localObjectType": {
+        "universalIdentifier": "9c9c6278-0244-5b90-a5c6-5ba1412634a0",
+      },
+      "person": {
+        "universalIdentifier": "2c438f30-bb62-55ec-9705-442c3fc12e3f",
+      },
+      "position": {
+        "universalIdentifier": "40248e5d-e3a0-5122-a8fc-31eb66a0269e",
+      },
+      "searchVector": {
+        "universalIdentifier": "e395e036-1066-5f91-a284-37b9cfc405ff",
+      },
+      "sourceKey": {
+        "universalIdentifier": "4cc2a1f9-4ce4-5a2c-8fae-b020412f286d",
+      },
+      "syncSystem": {
+        "universalIdentifier": "f4c05d31-83bd-585e-837b-2b5c2777884b",
+      },
+      "task": {
+        "universalIdentifier": "0ad7058e-0cf5-5eb7-bba4-e391af13ad7d",
+      },
+      "updatedAt": {
+        "universalIdentifier": "d708ce06-24c5-50f2-b9c3-98be9c44861c",
+      },
+      "updatedBy": {
+        "universalIdentifier": "922d5192-15c1-5d82-899e-cce7840b25ee",
+      },
+    },
+    "indexes": {
+      "externalRecordLookupIndex": {
+        "universalIdentifier": "e7ac8c38-1037-490e-877e-74c2c0d7f88e",
+      },
+      "sourceKeyUniqueIndex": {
+        "universalIdentifier": "bf033fce-8a4f-4b85-ab0a-85193899e8cf",
+      },
+    },
+    "universalIdentifier": "26af918e-1362-58a3-872c-c5c3d8ba9e9a",
+  },
   "task": {
     "fields": {
       "assignee": {
@@ -2311,6 +2526,12 @@ exports[`STANDARD_OBJECTS universal identifiers should never change without an e
       },
       "position": {
         "universalIdentifier": "5556cb7b-1909-589e-9eac-8f0e870107bc",
+      },
+      "regieListMemberships": {
+        "universalIdentifier": "b7b58806-9578-533d-95b7-9288adad50c8",
+      },
+      "regieSyncSources": {
+        "universalIdentifier": "a09021df-1bd3-54c4-a79e-d85f8e3d7795",
       },
       "searchVector": {
         "universalIdentifier": "a8ba04f2-c94c-5cc6-a3c9-3f38e195136b",
