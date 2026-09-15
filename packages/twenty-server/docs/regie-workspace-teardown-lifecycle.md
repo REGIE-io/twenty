@@ -843,7 +843,24 @@ state is recoverable from RDS snapshot
 
 ## Pull request and rollout order
 
-### PR 1: Twenty
+### Completed: Go PR #2202
+
+PR #2202 has been merged and applied with automatic discovery disabled. It:
+
+- passes the feature flag and separate 5-recovery/15-admission limits to
+  Twenty's server and worker task definitions;
+- keeps automatic discovery disabled;
+- derives CloudWatch metrics from Twenty's structured worker events;
+- alarms on missing heartbeat, deletion failure, stalled backlog, terminal
+  backlog, and old backlog; and
+- provides a workspace-deletion operations dashboard.
+
+Go PR #2221 makes the scoped IAM permissions for Twenty one-off deployment
+tasks authoritative in Pulumi. Equivalent hardening has already been applied
+manually, so #2221 does not block #138, but it must merge before another Pulumi
+apply can overwrite that manual state.
+
+### Next: Twenty PR #138
 
 Scope:
 
@@ -858,21 +875,11 @@ Scope:
 - metrics, structured logs, and reconciler; and
 - dry-run backfill/recovery command.
 
-Deploy this PR with automatic discovery disabled or still at the conservative
-cadence. Run migrations, inspect query plans, exercise the failure tests, and
-perform a scoped development recovery before enabling ten-minute discovery.
-
-### PR 2: Go
-
-Phase-one scope in PR #2202:
-
-- pass the feature flag and separate 5-recovery/15-admission limits to Twenty's
-  server and worker task definitions;
-- keep automatic discovery disabled by default and explicitly disabled in dev;
-- derive CloudWatch metrics from Twenty's structured worker events;
-- alarm on missing heartbeat, deletion failure, stalled backlog, terminal
-  backlog, and old backlog; and
-- provide a workspace-deletion operations dashboard.
+Merge and deploy this PR while automatic discovery remains disabled. The
+deployment must run `yarn command:prod upgrade` first and abort if it fails,
+then roll and stabilize the server and worker, and finally verify the
+CloudWatch canary. Migrations, service rollout, and observability validation do
+not enable the cleanup cron.
 
 Deferred Go lifecycle scope:
 
@@ -881,8 +888,8 @@ Deferred Go lifecycle scope:
 - durable status readback and reconciliation; and
 - Go lifecycle metrics and contract coverage.
 
-Deploy the phase-one configuration only after the Twenty implementation is
-live. Enabling the cron remains a separate explicit configuration change.
+Enabling the cron remains a separate explicit configuration change after this
+sequence and its validation are complete.
 
 ### Final cutover
 

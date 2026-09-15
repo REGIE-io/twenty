@@ -6,10 +6,10 @@ development-database runs and the conditions that must stop a rollout.
 
 ## Scope and safety boundary
 
-PR #138 owns discovery and resumable deletion inside Twenty. PR #2202 supplies
-the server/worker environment (`cron enabled`, recovery limit 5, admission
-limit 15), CloudWatch log metrics, alarms, and the dashboard. It does not own
-workspace state or Go lifecycle reconciliation.
+PR #138 owns discovery and resumable deletion inside Twenty. Merged and applied
+PR #2202 supplies the server/worker environment (`cron disabled`, recovery
+limit 5, admission limit 15), CloudWatch log metrics, alarms, and the dashboard.
+It does not own workspace state or Go lifecycle reconciliation.
 
 Only a workspace with all of the following can enter automatic E2E discovery:
 
@@ -28,25 +28,28 @@ unchanged `WorkspaceService.deleteWorkspace()` batch path.
 
 ## Deployment order
 
-1. Merge and build Twenty #138 while #2202 still has the cron disabled.
-2. Before starting the new Twenty image, run its one-off upgrade task:
+1. PR #2202 is already merged and applied with recovery `5`, admission `15`,
+   and the cleanup cron disabled.
+2. The IAM hardening in PR #2221 has been applied manually. PR #2221 makes
+   that state authoritative and must merge before another Pulumi apply, but the
+   live equivalent permissions mean it does not block #138.
+3. Merge and build Twenty #138.
+4. Before starting the new Twenty image, the deployment runs its one-off
+   upgrade task:
 
    ```bash
    yarn command:prod upgrade
    ```
 
-   This is the normal Twenty upgrade-command mechanism. A new image must not
-   start discovery until this command has completed successfully.
-3. Deploy the Twenty server and worker. Confirm both are healthy with cron
-   still disabled.
-4. Deploy #2202. Confirm both task definitions contain recovery `5`, admission
-   `15`, and cron `false` before applying any enablement change.
-5. Validate a limited quarantine/backfill, direct reaper execution, logging,
-   alarms, and Sentry. Only then set the cron flag to `true` in a separate
-   reviewed Pulumi change.
+   This is the normal Twenty upgrade-command mechanism. The deployment aborts
+   if it fails, before either long-lived service is rolled.
+5. Roll the Twenty server and worker and wait for both services to stabilize.
+6. Run and verify the native ECS-to-CloudWatch observability canary.
+7. Leave the cleanup cron disabled. Validate limited quarantine/backfill,
+   direct reaper execution, logging, alarms, and Sentry before enabling it in a
+   separate reviewed Pulumi change.
 
-Do not deploy #2202 with the cron enabled ahead of #138 or its upgrade command.
-The schema addition is forward-compatible, but changing the restored test copy
+The schema addition is forward-compatible, but changing a restored test copy
 is a one-way migration unless it is restored from its snapshot.
 
 ## Database preflight
