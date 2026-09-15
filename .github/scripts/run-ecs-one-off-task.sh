@@ -37,10 +37,16 @@ overrides="$(jq -cn \
   '{containerOverrides: [{
     name: $container,
     command: $command,
-    environment: [{
-      name: "DISABLE_CRON_JOBS_REGISTRATION",
-      value: "true"
-    }]
+    environment: [
+      {
+        name: "DISABLE_CRON_JOBS_REGISTRATION",
+        value: "true"
+      },
+      {
+        name: "NODE_OPTIONS",
+        value: "--max-old-space-size=6144"
+      }
+    ]
   }]}')"
 
 run_json="$(aws ecs run-task \
