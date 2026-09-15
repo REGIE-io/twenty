@@ -39,3 +39,11 @@ export class InternalWorkspaceApiKeyDto {
   @IsDateString()
   expiresAt?: string;
 }
+
+export class InternalWorkspaceE2eMarkerDto {
+  @IsString()
+  organizationId: string;
+
+  @IsString()
+  workspaceSlug: string;
+}

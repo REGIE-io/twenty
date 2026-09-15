@@ -54,6 +54,9 @@ import { provideWorkspaceScopedRepository } from 'src/engine/twenty-orm/workspac
     UnsubscribeHostnameService,
     EmailingDomainResolver,
     EmailingDomainDriverFactory,
+    // Compatibility consumer for the ordinary suspended-workspace deletion
+    // path. The E2E lifecycle is synchronous, but WorkspaceService still
+    // enqueues this job and its queue must continue to drain.
     EmailingDomainWorkspaceCleanupJob,
     AwsSesClientProvider,
     AwsSesHandleErrorService,

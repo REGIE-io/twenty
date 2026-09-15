@@ -40,6 +40,11 @@ type CreateWorkspaceApiKeyInput = {
   expiresAt?: string;
 };
 
+type BackfillE2eWorkspaceMarkerInput = {
+  organizationId?: string;
+  workspaceSlug?: string;
+};
+
 @Injectable()
 export class InternalWorkspaceProvisioningService {
   constructor(
@@ -194,6 +199,77 @@ export class InternalWorkspaceProvisioningService {
     };
   }
 
+  async backfillE2eWorkspaceMarker(
+    workspaceId: string,
+    input: BackfillE2eWorkspaceMarkerInput,
+  ) {
+    const workspace =
+      await this.workspaceService.findOneWorkspaceByIdIncludingDeleted(
+        workspaceId,
+      );
+
+    if (!workspace) {
+      throw new NotFoundException('Workspace was not found');
+    }
+
+    const workspaceSlug = this.requiredTrimmed(
+      input.workspaceSlug,
+      'workspaceSlug',
+    );
+    const marker = this.buildE2eMarker(
+      {
+        ephemeral: true,
+        organizationId: input.organizationId,
+      },
+      workspaceSlug,
+    );
+
+    if (!marker || workspace.subdomain !== workspaceSlug) {
+      throw new BadRequestException(
+        'workspaceSlug must exactly match the current workspace subdomain',
+      );
+    }
+
+    const existingMarker = await this.getE2eWorkspaceMarker(workspace.id);
+
+    if (existingMarker) {
+      if (
+        existingMarker.ephemeral !== marker.ephemeral ||
+        existingMarker.organizationId !== marker.organizationId ||
+        existingMarker.workspaceSlug !== marker.workspaceSlug
+      ) {
+        throw new BadRequestException(
+          'Workspace already has a conflicting E2E marker',
+        );
+      }
+
+      return {
+        ok: true,
+        workspaceId: workspace.id,
+        organizationId: marker.organizationId,
+        workspaceSlug: marker.workspaceSlug,
+        backfilled: false,
+        purgeEligible: true,
+      };
+    }
+
+    await this.keyValuePairService.set({
+      workspaceId: workspace.id,
+      key: REGIE_E2E_WORKSPACE_MARKER_KEY,
+      value: marker,
+      type: KeyValuePairType.USER_VARIABLE,
+    });
+
+    return {
+      ok: true,
+      workspaceId: workspace.id,
+      organizationId: marker.organizationId,
+      workspaceSlug: marker.workspaceSlug,
+      backfilled: true,
+      purgeEligible: true,
+    };
+  }
+
   private buildE2eMarker(
     input: CreateWorkspaceInput,
     workspaceSlug: string,
@@ -226,14 +302,7 @@ export class InternalWorkspaceProvisioningService {
   }
 
   private async hasValidE2eWorkspaceMarker(workspace: WorkspaceEntity) {
-    const [markerEntry] = await this.keyValuePairService.get({
-      workspaceId: workspace.id,
-      key: REGIE_E2E_WORKSPACE_MARKER_KEY,
-      type: KeyValuePairType.USER_VARIABLE,
-    });
-    const marker = (
-      markerEntry as unknown as { value?: RegieE2eWorkspaceMarker } | undefined
-    )?.value;
+    const marker = await this.getE2eWorkspaceMarker(workspace.id);
 
     return !(
       marker?.ephemeral !== true ||
@@ -243,6 +312,19 @@ export class InternalWorkspaceProvisioningService {
       marker.workspaceSlug !== workspace.subdomain ||
       !workspace.subdomain.startsWith(REGIE_E2E_WORKSPACE_SLUG_PREFIX)
     );
+  }
+
+  private async getE2eWorkspaceMarker(workspaceId: string) {
+    const [markerEntry] = await this.keyValuePairService.get({
+      workspaceId,
+      key: REGIE_E2E_WORKSPACE_MARKER_KEY,
+      type: KeyValuePairType.USER_VARIABLE,
+    });
+    const marker = (
+      markerEntry as unknown as { value?: RegieE2eWorkspaceMarker } | undefined
+    )?.value;
+
+    return marker;
   }
 
   private getServiceUserEmail(email?: string): string {

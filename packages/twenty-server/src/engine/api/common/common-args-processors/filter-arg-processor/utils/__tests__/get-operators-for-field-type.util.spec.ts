@@ -32,6 +32,12 @@ describe('getOperatorsForFieldType', () => {
     expect(result).toContain('isEmptyArray');
   });
 
+  it('should allow match on TS_VECTOR so a list query can filter on the search vector', () => {
+    const result = getOperatorsForFieldType(FieldMetadataType.TS_VECTOR);
+
+    expect(result).toEqual(['eq', 'neq', 'is', 'match']);
+  });
+
   it.each([FieldMetadataType.SELECT, FieldMetadataType.RATING])(
     'should allow enum operators and ordering operators for %s',
     (fieldType) => {

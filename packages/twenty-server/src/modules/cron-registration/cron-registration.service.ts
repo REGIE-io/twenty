@@ -3,6 +3,7 @@ import { Injectable, Logger, OnApplicationBootstrap } from '@nestjs/common';
 import { InjectMessageQueue } from 'src/engine/core-modules/message-queue/decorators/message-queue.decorator';
 import { MessageQueue } from 'src/engine/core-modules/message-queue/message-queue.constants';
 import { MessageQueueService } from 'src/engine/core-modules/message-queue/services/message-queue.service';
+import { TwentyConfigService } from 'src/engine/core-modules/twenty-config/twenty-config.service';
 import { CRONS_TO_REGISTER } from 'src/modules/cron-registration/cron-registration.constants';
 
 /**
@@ -23,10 +24,21 @@ export class CronRegistrationService implements OnApplicationBootstrap {
   constructor(
     @InjectMessageQueue(MessageQueue.cronQueue)
     private readonly messageQueueService: MessageQueueService,
+    private readonly twentyConfigService: TwentyConfigService,
   ) {}
 
   async onApplicationBootstrap(): Promise<void> {
     for (const cron of CRONS_TO_REGISTER) {
+      if (
+        cron.enabledConfigKey !== undefined &&
+        !this.twentyConfigService.get(cron.enabledConfigKey)
+      ) {
+        await this.messageQueueService.removeCron({ jobName: cron.jobName });
+        this.logger.log(`Disabled cron ${cron.jobName}`);
+
+        continue;
+      }
+
       await this.messageQueueService.addCron({
         jobName: cron.jobName,
         data: undefined,

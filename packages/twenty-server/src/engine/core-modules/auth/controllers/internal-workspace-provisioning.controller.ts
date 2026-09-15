@@ -14,6 +14,7 @@ import {
 
 import {
   InternalWorkspaceApiKeyDto,
+  InternalWorkspaceE2eMarkerDto,
   InternalWorkspaceProvisioningDto,
 } from 'src/engine/core-modules/auth/dto/internal-workspace-provisioning.dto';
 import { InternalWorkspaceProvisioningService } from 'src/engine/core-modules/auth/services/internal-workspace-provisioning.service';
@@ -61,6 +62,19 @@ export class InternalWorkspaceProvisioningController {
   ) {
     return await this.internalWorkspaceProvisioningService.deleteWorkspace(
       workspaceId,
+    );
+  }
+
+  @Post(':workspaceId/e2e-marker')
+  @HttpCode(HttpStatus.OK)
+  async backfillE2eWorkspaceMarker(
+    @Param('workspaceId', new ParseUUIDPipe({ version: '4' }))
+    workspaceId: string,
+    @Body() body: InternalWorkspaceE2eMarkerDto,
+  ) {
+    return await this.internalWorkspaceProvisioningService.backfillE2eWorkspaceMarker(
+      workspaceId,
+      body,
     );
   }
 

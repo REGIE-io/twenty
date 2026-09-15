@@ -155,6 +155,9 @@ export class UpgradeSequenceRunnerService {
         });
 
         await this.upgradeAwareEntityMetadataAdapter.refresh();
+        workspaceCursors = await this.fetchWorkspaceCursors(
+          allProvisionedWorkspaceIds,
+        );
 
         cursor++;
         continue;
@@ -409,28 +412,54 @@ export class UpgradeSequenceRunnerService {
     allProvisionedWorkspaceIds: string[];
     options: ParsedUpgradeCommandOptions;
   }): Promise<WorkspaceIteratorReport> {
-    const workspaceIds = this.deriveWorkspaceIdsToProcess({
+    const requestedWorkspaceIds = this.deriveWorkspaceIdsToProcess({
       allProvisionedWorkspaceIds,
       options,
     });
+    const pendingCommandsByWorkspaceId = new Map<
+      string,
+      WorkspaceUpgradeStep[]
+    >();
+
+    for (const workspaceId of requestedWorkspaceIds) {
+      const workspaceCursor = workspaceCursors.get(workspaceId);
+
+      if (!workspaceCursor) {
+        throw new Error(
+          `No upgrade migration found for workspace ${workspaceId}. This should never occur.`,
+        );
+      }
+
+      const pendingCommands =
+        this.upgradeSequenceReaderService.getPendingWorkspaceCommands({
+          workspaceCommands: workspaceCommandsSegment,
+          workspaceCursor,
+        });
+
+      if (pendingCommands.length > 0) {
+        pendingCommandsByWorkspaceId.set(workspaceId, pendingCommands);
+      }
+    }
+
+    const workspaceIds = [...pendingCommandsByWorkspaceId.keys()];
+
+    if (workspaceIds.length === 0) {
+      return { fail: [], success: [], interrupted: false };
+    }
 
     return this.workspaceIteratorService.iterate({
       workspaceIds,
       dryRun: options.dryRun,
       callback: async (context) => {
-        const workspaceCursor = workspaceCursors.get(context.workspaceId);
+        const pendingCommands = pendingCommandsByWorkspaceId.get(
+          context.workspaceId,
+        );
 
-        if (!workspaceCursor) {
+        if (!pendingCommands) {
           throw new Error(
-            `No upgrade migration found for workspace ${context.workspaceId}. This should never occur.`,
+            `No pending upgrade commands found for workspace ${context.workspaceId}. This should never occur.`,
           );
         }
-
-        const pendingCommands =
-          this.upgradeSequenceReaderService.getPendingWorkspaceCommands({
-            workspaceCommands: workspaceCommandsSegment,
-            workspaceCursor,
-          });
 
         await this.workspaceCommandRunnerService.runWorkspaceCommands({
           iteratorContext: context,

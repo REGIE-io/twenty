@@ -56,7 +56,12 @@ export const getOperatorsForFieldType = (
     case FieldMetadataType.RICH_TEXT:
       return RICH_TEXT_FILTER_OPERATORS;
 
+    // `match` filters the search vector without the ILIKE fallback `search` carries, so the
+    // GIN index stays usable and an ordinary list query can search while keeping its own
+    // sort, cursor and totalCount.
     case FieldMetadataType.TS_VECTOR:
+      return ['eq', 'neq', 'is', 'match'];
+
     case FieldMetadataType.ACTOR:
     case FieldMetadataType.ADDRESS:
     case FieldMetadataType.CURRENCY:

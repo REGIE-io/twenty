@@ -8,7 +8,7 @@ import { Process } from 'src/engine/core-modules/message-queue/decorators/proces
 import { Processor } from 'src/engine/core-modules/message-queue/decorators/processor.decorator';
 import { MessageQueue } from 'src/engine/core-modules/message-queue/message-queue.constants';
 import { SecureHttpClientService } from 'src/engine/core-modules/secure-http-client/secure-http-client.service';
-import { type CallMessageReceivedWebhookJobData } from 'src/modules/messaging/message-import-manager/types/message-received-webhook-payload.type';
+import { type CallMessageSyncWebhookJobData } from 'src/modules/messaging/message-import-manager/types/message-received-webhook-payload.type';
 
 const WEBHOOK_TIMEOUT_MS = 5_000;
 
@@ -34,7 +34,7 @@ export class CallMessageReceivedWebhookJob {
   }
 
   @Process(CallMessageReceivedWebhookJob.name)
-  async handle(data: CallMessageReceivedWebhookJobData): Promise<void> {
+  async handle(data: CallMessageSyncWebhookJobData): Promise<void> {
     const { targetUrl, secret, payload, workspaceId } = data;
 
     const headers: Record<string, string> = {
@@ -69,7 +69,7 @@ export class CallMessageReceivedWebhookJob {
       // Rethrow so BullMQ retries per the retryLimit set at enqueue time. A receiver
       // that stays down past the retries is caught by the reconciliation pull.
       this.logger.warn(
-        `message.received webhook ${data.webhookId} failed for message ${payload.messageId}: ${
+        `${payload.eventName} webhook ${data.webhookId} failed for message ${payload.messageId}: ${
           error instanceof Error ? error.message : 'unknown error'
         }`,
       );

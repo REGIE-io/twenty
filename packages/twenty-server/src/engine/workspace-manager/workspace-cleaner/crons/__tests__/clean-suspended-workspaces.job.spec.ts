@@ -1,85 +1,35 @@
-import { type Repository } from 'typeorm';
-
-import { type PostgresAdvisoryLockService } from 'src/database/typeorm/postgres-advisory-lock.service';
-import { WorkspaceEntity } from 'src/engine/core-modules/workspace/workspace.entity';
+import { type MessageQueueService } from 'src/engine/core-modules/message-queue/services/message-queue.service';
 import { CleanSuspendedWorkspacesJob } from 'src/engine/workspace-manager/workspace-cleaner/crons/clean-suspended-workspaces.job';
-import { type CleanerWorkspaceService } from 'src/engine/workspace-manager/workspace-cleaner/services/cleaner.workspace-service';
-import { type RegieE2eWorkspaceSweeperService } from 'src/engine/workspace-manager/workspace-cleaner/services/regie-e2e-workspace-sweeper.service';
+import { CleanSuspendedWorkspacesBatchJob } from 'src/engine/workspace-manager/workspace-cleaner/jobs/clean-suspended-workspaces-batch.job';
 
 jest.mock(
-  'src/engine/workspace-manager/workspace-cleaner/services/cleaner.workspace-service',
+  'src/engine/workspace-manager/workspace-cleaner/jobs/clean-suspended-workspaces-batch.job',
   () => ({
-    CleanerWorkspaceService: class {},
+    CleanSuspendedWorkspacesBatchJob: class {},
   }),
 );
 
 describe('CleanSuspendedWorkspacesJob', () => {
-  const workspaceRepository = {
-    find: jest.fn(),
-  };
-  const cleanerWorkspaceService = {
-    batchWarnOrCleanSuspendedWorkspaces: jest.fn(),
-  };
-  const regieE2eWorkspaceSweeperService = {
-    purgeQuarantinedWorkspaces: jest.fn(),
-  };
-  const postgresAdvisoryLockService = {
-    tryWithLock: jest.fn(),
+  const messageQueueService = {
+    add: jest.fn(),
   };
 
   const createJob = () =>
     new CleanSuspendedWorkspacesJob(
-      cleanerWorkspaceService as unknown as CleanerWorkspaceService,
-      regieE2eWorkspaceSweeperService as unknown as RegieE2eWorkspaceSweeperService,
-      workspaceRepository as unknown as Repository<WorkspaceEntity>,
-      postgresAdvisoryLockService as unknown as PostgresAdvisoryLockService,
+      messageQueueService as unknown as MessageQueueService,
     );
 
   beforeEach(() => {
     jest.clearAllMocks();
-    workspaceRepository.find.mockResolvedValue([{ id: 'workspace-id' }]);
+    messageQueueService.add.mockResolvedValue(undefined);
   });
 
-  it('skips cleanup when another execution holds the lock', async () => {
-    postgresAdvisoryLockService.tryWithLock.mockResolvedValue({
-      acquired: false,
-    });
-
+  it('enqueues suspended workspace cleanup outside the cron queue', async () => {
     await createJob().handle();
 
-    expect(workspaceRepository.find).not.toHaveBeenCalled();
-    expect(
-      cleanerWorkspaceService.batchWarnOrCleanSuspendedWorkspaces,
-    ).not.toHaveBeenCalled();
-    expect(
-      regieE2eWorkspaceSweeperService.purgeQuarantinedWorkspaces,
-    ).not.toHaveBeenCalled();
-  });
-
-  it('cleans suspended workspaces while holding the lock', async () => {
-    postgresAdvisoryLockService.tryWithLock.mockImplementation(
-      async (_lockName, callback) => ({
-        acquired: true,
-        value: await callback(),
-      }),
+    expect(messageQueueService.add).toHaveBeenCalledWith(
+      CleanSuspendedWorkspacesBatchJob.name,
+      {},
     );
-
-    await createJob().handle();
-
-    expect(workspaceRepository.find).toHaveBeenCalledWith({
-      select: ['id'],
-      where: {
-        activationStatus: 'SUSPENDED',
-      },
-      withDeleted: true,
-    });
-    expect(
-      cleanerWorkspaceService.batchWarnOrCleanSuspendedWorkspaces,
-    ).toHaveBeenCalledWith({
-      workspaceIds: ['workspace-id'],
-    });
-    expect(
-      regieE2eWorkspaceSweeperService.purgeQuarantinedWorkspaces,
-    ).toHaveBeenCalledTimes(1);
   });
 });
