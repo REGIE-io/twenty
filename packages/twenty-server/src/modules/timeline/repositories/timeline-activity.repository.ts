@@ -68,6 +68,9 @@ export class TimelineActivityRepository {
             timelineActivity[timelineActivityPropertyName] ===
               payload.recordId &&
             timelineActivity.workspaceMemberId === payload.workspaceMemberId &&
+            // Never coalesce two writes from different Regie sources into one row:
+            // history is read by source, so a merged row would lose one of them.
+            (timelineActivity.source ?? null) === (payload.source ?? null) &&
             (!isDefined(payload.linkedRecordId) ||
               timelineActivity.linkedRecordId === payload.linkedRecordId) &&
             timelineActivity.name === payload.name,
@@ -125,6 +128,7 @@ export class TimelineActivityRepository {
       workspaceMemberId: In(
         payloads.map((payload) => payload.workspaceMemberId || null),
       ),
+      source: In(payloads.map((payload) => payload.source ?? null)),
       createdAt: MoreThan(tenMinutesAgo),
     };
 
@@ -161,6 +165,7 @@ export class TimelineActivityRepository {
         name: payload.name,
         properties: payload.properties,
         workspaceMemberId: payload.workspaceMemberId,
+        source: payload.source ?? null,
         [timelineActivityPropertyName]: payload.recordId,
         linkedRecordCachedName: payload.linkedRecordCachedName ?? '',
         linkedRecordId: payload.linkedRecordId,

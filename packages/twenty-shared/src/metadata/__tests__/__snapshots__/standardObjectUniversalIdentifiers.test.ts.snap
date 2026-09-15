@@ -2617,6 +2617,9 @@ exports[`STANDARD_OBJECTS universal identifiers should never change without an e
       "searchVector": {
         "universalIdentifier": "23a0482b-f41b-5e13-9b3e-356c5aaa90a3",
       },
+      "source": {
+        "universalIdentifier": "20202020-e02a-4bef-9914-72d42eb8f6c6",
+      },
       "targetCompany": {
         "universalIdentifier": "500e6797-19a2-5f11-b239-259b58765533",
       },

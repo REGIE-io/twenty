@@ -1,6 +1,7 @@
 import { Injectable, type NestMiddleware } from '@nestjs/common';
 
 import { type NextFunction, type Request, type Response } from 'express';
+import { parseRegieSource } from 'twenty-shared/constants';
 import { isDefined } from 'twenty-shared/utils';
 
 import {
@@ -34,10 +35,23 @@ export class WorkspaceAuthContextMiddleware implements NestMiddleware {
   }
 
   private buildAuthContext(req: Request): WorkspaceAuthContext {
+    // Regie threads the write's source, and for user-driven writes the acting member,
+    // as headers. Only an API-key caller (Regie's backend) is trusted to name a member
+    // on another member's behalf; a browser session can never spoof one this way.
+    const regieSource = parseRegieSource(req.headers['x-regie-source']);
+
     if (isDefined(req.apiKey)) {
+      const regieMemberIdHeader = req.headers['x-regie-member-id'];
+      const regieMemberId =
+        typeof regieMemberIdHeader === 'string'
+          ? regieMemberIdHeader
+          : undefined;
+
       return buildApiKeyAuthContext({
         workspace: req.workspace!,
         apiKey: req.apiKey,
+        regieSource,
+        workspaceMemberId: regieMemberId,
       });
     }
 
@@ -54,6 +68,7 @@ export class WorkspaceAuthContextMiddleware implements NestMiddleware {
         workspaceMemberId: req.workspaceMemberId,
         workspaceMember: req.workspaceMember,
         application: req.application,
+        regieSource,
       });
     }
 
