@@ -64,6 +64,16 @@ jobs:
             --progress=plain \
             .
 
+          # The ECS services intentionally disable migrations at startup because more than one
+          # server task may start concurrently. Run Twenty's advisory-lock-protected upgrade once,
+          # from the image just pushed, before rolling either long-lived service.
+          .github/scripts/run-ecs-one-off-task.sh \
+            "$ECS_CLUSTER" \
+            "$SERVER_SERVICE" \
+            server \
+            '["yarn","command:prod","upgrade"]' \
+            1800
+
           # Trigger the rollout on both services.
           for svc in "$SERVER_SERVICE" "$WORKER_SERVICE"; do
             echo "Forcing new deployment on $svc"
@@ -119,3 +129,43 @@ jobs:
               --output json
             exit 1
           fi
+
+          # Prove the worker task's native awslogs path reaches CloudWatch. This task performs no
+          # database or queue work; the unique event is read back from the real worker log group.
+          CANARY_ID="${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}-${GITHUB_SHA:0:10}"
+          CANARY_JS="console.log(JSON.stringify({event:'workspace_deletion_observability_canary',canaryId:'${CANARY_ID}'}))"
+          CANARY_COMMAND="$(jq -cn --arg script "$CANARY_JS" '["node", "-e", $script]')"
+          CANARY_START_MS="$(( $(date +%s) * 1000 ))"
+
+          CANARY_TASK_OUTPUT="$(.github/scripts/run-ecs-one-off-task.sh \
+            "$ECS_CLUSTER" \
+            "$WORKER_SERVICE" \
+            worker \
+            "$CANARY_COMMAND" \
+            300)"
+          echo "$CANARY_TASK_OUTPUT"
+          CANARY_TASK_ARN="$(tail -n 1 <<<"$CANARY_TASK_OUTPUT")"
+          CANARY_TASK_ID="${CANARY_TASK_ARN##*/}"
+          CANARY_LOG_STREAM_PREFIX="worker/worker/$CANARY_TASK_ID"
+
+          canary_seen=false
+          for _ in $(seq 1 30); do
+            if aws logs filter-log-events \
+              --log-group-name /ecs/twenty-worker \
+              --log-stream-name-prefix "$CANARY_LOG_STREAM_PREFIX" \
+              --start-time "$CANARY_START_MS" \
+              --query 'events[].message' \
+              --output text \
+              | grep -F "$CANARY_ID"; then
+              canary_seen=true
+              break
+            fi
+            sleep 10
+          done
+
+          if [[ "$canary_seen" != "true" ]]; then
+            echo "Worker observability canary did not arrive in /ecs/twenty-worker" >&2
+            exit 1
+          fi
+
+          echo "Verified native ECS worker log delivery to /ecs/twenty-worker"

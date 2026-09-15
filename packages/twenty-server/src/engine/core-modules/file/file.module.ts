@@ -40,6 +40,9 @@ import { FileService } from './services/file.service';
   providers: [
     FileService,
     FileByIdGuard,
+    // Compatibility consumer for the ordinary suspended-workspace deletion
+    // path. The E2E lifecycle is synchronous, but WorkspaceService still
+    // enqueues this job and its queue must continue to drain.
     FileWorkspaceFolderDeletionJob,
     FileDeletionJob,
     provideWorkspaceScopedRepository(FileEntity),
