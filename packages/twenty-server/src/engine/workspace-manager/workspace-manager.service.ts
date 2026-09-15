@@ -3,9 +3,11 @@ import { InjectRepository } from '@nestjs/typeorm';
 
 import { Repository } from 'typeorm';
 import { STANDARD_OBJECTS } from 'twenty-shared/metadata';
+import { FieldMetadataType } from 'twenty-shared/types';
 import { isDefined } from 'twenty-shared/utils';
 
 import { ApplicationService } from 'src/engine/core-modules/application/application.service';
+import { PhoneSearchFieldLifecycleCoordinatorService } from 'src/engine/core-modules/phone-search-index/services/phone-search-field-lifecycle-coordinator.service';
 import { PhoneSearchTriggerManagerService } from 'src/engine/core-modules/phone-search-index/services/phone-search-trigger-manager.service';
 import { FlatApplication } from 'src/engine/core-modules/application/types/flat-application.type';
 import { UserWorkspaceEntity } from 'src/engine/core-modules/user-workspace/user-workspace.entity';
@@ -40,6 +42,7 @@ export class WorkspaceManagerService {
     private readonly applicationService: ApplicationService,
     private readonly workspaceCacheService: WorkspaceCacheService,
     private readonly phoneSearchTriggerManagerService: PhoneSearchTriggerManagerService,
+    private readonly phoneSearchFieldLifecycleCoordinatorService: PhoneSearchFieldLifecycleCoordinatorService,
   ) {}
 
   public async init({
@@ -80,9 +83,10 @@ export class WorkspaceManagerService {
         },
       );
 
-    const { flatObjectMetadataMaps } =
+    const { flatObjectMetadataMaps, flatFieldMetadataMaps } =
       await this.workspaceCacheService.getOrRecompute(workspaceId, [
         'flatObjectMetadataMaps',
+        'flatFieldMetadataMaps',
       ]);
     const person =
       flatObjectMetadataMaps.byUniversalIdentifier[
@@ -100,6 +104,29 @@ export class WorkspaceManagerService {
     await this.phoneSearchTriggerManagerService.install({
       workspaceId,
       objectMetadataId: person.id,
+    });
+    const personPhoneFields = Object.values(
+      flatFieldMetadataMaps.byUniversalIdentifier,
+    )
+      .filter(isDefined)
+      .filter(
+        (field) =>
+          field.objectMetadataUniversalIdentifier ===
+            person.universalIdentifier &&
+          field.type === FieldMetadataType.PHONES,
+      );
+
+    // Standard-application synchronization uses the direct from/to migration
+    // path, which does not emit the field lifecycle delta used by ordinary
+    // metadata mutations. Explicitly create the durable initial projection for
+    // fresh workspaces after the trigger exists and before initialization
+    // returns. This is idempotent if workspace initialization is retried.
+    await this.phoneSearchFieldLifecycleCoordinatorService.afterMigration({
+      workspaceId,
+      objectMetadataId: person.id,
+      created: personPhoneFields,
+      updated: [],
+      deleted: [],
     });
 
     const dataSourceMetadataCreationEnd = performance.now();
