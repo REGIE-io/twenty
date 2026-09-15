@@ -35,14 +35,16 @@ unchanged `WorkspaceService.deleteWorkspace()` batch path.
    live equivalent permissions mean it does not block #138.
 3. Merge and build Twenty #138.
 4. Before starting the new Twenty image, the deployment runs its one-off
-   upgrade task:
+   upgrade task followed by the strict status gate:
 
    ```bash
    yarn command:prod upgrade
+   yarn command:prod upgrade:status --failed-only --fail-on-unhealthy
    ```
 
    This is the normal Twenty upgrade-command mechanism. The deployment aborts
-   if it fails, before either long-lived service is rolled.
+   if either command fails, before either long-lived service is rolled.
+
 5. Roll the Twenty server and worker and wait for both services to stabilize.
 6. Run and verify the native ECS-to-CloudWatch observability canary.
 7. Leave the cleanup cron disabled. Validate limited quarantine/backfill,

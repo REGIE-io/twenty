@@ -66,11 +66,30 @@ export class InitializePersonPhoneSearchLookupCommand extends ProvisionedWorkspa
       await runner.connect();
       await runner.startTransaction();
       await runner.query("SET LOCAL lock_timeout = '2s'");
-      const existing = (await runner.query(
-        `SELECT id FROM core."phoneSearchIndexOperation" WHERE "workspaceId" = $1 AND "objectMetadataId" = $2 AND status IN ('PENDING','RUNNING','RETRYABLE')`,
-        [workspaceId, person.id],
-      )) as Array<{ id: string }>;
-      if (!existing.length) {
+      const initializedFields = (await runner.query(
+        `SELECT "fieldMetadataId"
+           FROM core."phoneSearchFieldState"
+          WHERE "workspaceId" = $1
+            AND "objectMetadataId" = $2
+            AND "fieldMetadataId" = ANY($3::uuid[])
+            AND "syncStatus" = 'READY'
+            AND "activeProjectionGeneration" IS NOT NULL
+            AND "buildingProjectionGeneration" IS NULL`,
+        [workspaceId, person.id, fields.map((field) => field.id)],
+      )) as Array<{ fieldMetadataId: string }>;
+      const initializedFieldIds = new Set(
+        initializedFields.map(({ fieldMetadataId }) => fieldMetadataId),
+      );
+      const isAlreadyInitialized = fields.every((field) =>
+        initializedFieldIds.has(field.id),
+      );
+      const existing = isAlreadyInitialized
+        ? []
+        : ((await runner.query(
+            `SELECT id FROM core."phoneSearchIndexOperation" WHERE "workspaceId" = $1 AND "objectMetadataId" = $2 AND status IN ('PENDING','RUNNING','RETRYABLE')`,
+            [workspaceId, person.id],
+          )) as Array<{ id: string }>);
+      if (!isAlreadyInitialized && !existing.length) {
         for (const field of fields) {
           await runner.query(
             `INSERT INTO core."phoneSearchFieldState" ("workspaceId", "objectMetadataId", "fieldMetadataId", "fieldUniversalIdentifier", "physicalFieldName", "syncStatus", "isQueryEnabled", "buildingProjectionGeneration") VALUES ($1, $2, $3, $4, $5, 'INDEXING', $6, 1) ON CONFLICT ("workspaceId", "objectMetadataId", "fieldMetadataId") DO NOTHING`,

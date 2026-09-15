@@ -34,7 +34,20 @@ network_configuration="$(jq -c '
 overrides="$(jq -cn \
   --arg container "$container" \
   --argjson command "$command_json" \
-  '{containerOverrides: [{name: $container, command: $command}]}')"
+  '{containerOverrides: [{
+    name: $container,
+    command: $command,
+    environment: [
+      {
+        name: "DISABLE_CRON_JOBS_REGISTRATION",
+        value: "true"
+      },
+      {
+        name: "NODE_OPTIONS",
+        value: "--max-old-space-size=6144"
+      }
+    ]
+  }]}')"
 
 run_json="$(aws ecs run-task \
   --cluster "$cluster" \
