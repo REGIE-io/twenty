@@ -38,6 +38,7 @@ import {
   REGIE_E2E_WORKSPACE_DELETION_CRON_PATTERN,
   RegieE2eWorkspaceDeletionDiscoveryJob,
 } from 'src/engine/workspace-manager/workspace-cleaner/crons/regie-e2e-workspace-deletion-discovery.job';
+import { CleanSuspendedWorkspacesJob } from 'src/engine/workspace-manager/workspace-cleaner/crons/clean-suspended-workspaces.job';
 import { type ConfigVariables } from 'src/engine/core-modules/twenty-config/config-variables';
 
 export type CronToRegister = {
@@ -45,6 +46,18 @@ export type CronToRegister = {
   pattern: string;
   enabledConfigKey?: keyof ConfigVariables;
 };
+
+export type CronToRemoveWhenDisabled = {
+  jobName: string;
+  enabledConfigKey: keyof ConfigVariables;
+};
+
+export const CRONS_TO_REMOVE_WHEN_DISABLED: CronToRemoveWhenDisabled[] = [
+  {
+    jobName: CleanSuspendedWorkspacesJob.name,
+    enabledConfigKey: 'CLEAN_SUSPENDED_WORKSPACES_CRON_ENABLED',
+  },
+];
 
 /**
  * The messaging crons, held back from CRONS_TO_REGISTER on purpose.

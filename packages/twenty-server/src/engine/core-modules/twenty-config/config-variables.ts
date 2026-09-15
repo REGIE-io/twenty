@@ -1550,6 +1550,15 @@ export class ConfigVariables {
   @ConfigVariablesMetadata({
     group: ConfigVariablesGroup.ADVANCED_SETTINGS,
     description:
+      'Register the legacy hourly suspended-workspace cleanup cron. Disable after migrating scheduled cleanup to a replacement lifecycle.',
+    type: ConfigVariableType.BOOLEAN,
+  })
+  @IsOptional()
+  CLEAN_SUSPENDED_WORKSPACES_CRON_ENABLED = true;
+
+  @ConfigVariablesMetadata({
+    group: ConfigVariablesGroup.ADVANCED_SETTINGS,
+    description:
       'Register the ten-minute Regie E2E workspace deletion discovery and recovery cron. Keep disabled until the deletion lifecycle has been validated in the target environment.',
     type: ConfigVariableType.BOOLEAN,
   })
