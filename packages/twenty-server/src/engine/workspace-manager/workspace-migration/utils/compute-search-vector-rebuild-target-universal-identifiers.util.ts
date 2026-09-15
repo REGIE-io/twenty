@@ -21,9 +21,18 @@ export const computeSearchVectorRebuildTargetUniversalIdentifiers = ({
   const emptyFlatSearchFieldMetadataMaps: MetadataUniversalFlatEntityMaps<'searchFieldMetadata'> =
     { byUniversalIdentifier: {} };
 
-  const renamedFieldSearchFieldMetadataUniversalIdentifiers =
+  // A rename changes the column name the expression reads. An options change matters for
+  // the same reason but only for the dropdown projections, which write option values
+  // and labels into the expression itself: relabelling "Gold" would otherwise leave the old
+  // label in the index with nothing reporting a problem. Standard fields never put options
+  // in the expression, so this trigger costs them nothing.
+  const reprojectedFieldSearchFieldMetadataUniversalIdentifiers =
     orchestratorActionsReport.fieldMetadata.update
-      .filter((updateAction) => isDefined(updateAction.update.name))
+      .filter(
+        (updateAction) =>
+          isDefined(updateAction.update.name) ||
+          isDefined(updateAction.update.options),
+      )
       .flatMap(
         (updateAction) =>
           findFlatEntityByUniversalIdentifier({
@@ -54,7 +63,7 @@ export const computeSearchVectorRebuildTargetUniversalIdentifiers = ({
             universalIdentifier: deleteAction.universalIdentifier,
           })?.tsVectorFieldMetadataUniversalIdentifier,
       ),
-      ...renamedFieldSearchFieldMetadataUniversalIdentifiers.map(
+      ...reprojectedFieldSearchFieldMetadataUniversalIdentifiers.map(
         (searchFieldMetadataUniversalIdentifier) =>
           findFlatEntityByUniversalIdentifier({
             flatEntityMaps: toFlatSearchFieldMetadataMaps,

@@ -6,12 +6,12 @@ exports[`Filter input validation - TEXT Gql filter input - failure TEXT field ty
 
 exports[`Filter input validation - TEXT Rest filter input - failure TEXT field type - should fail with filter : "textField[iregex]:\\"^test$\\"" 1`] = `
 [
-  "'filter' invalid for 'textField[iregex]:"^test$"', comparator iregex not in eq, neq, in, containsAny, is, gt, gte, lt, lte, startsWith, endsWith, like, ilike",
+  "'filter' invalid for 'textField[iregex]:"^test$"', comparator iregex not in eq, neq, in, containsAny, is, gt, gte, lt, lte, startsWith, endsWith, like, ilike, match",
 ]
 `;
 
 exports[`Filter input validation - TEXT Rest filter input - failure TEXT field type - should fail with filter : "textField[regex]:\\"^test$\\"" 1`] = `
 [
-  "'filter' invalid for 'textField[regex]:"^test$"', comparator regex not in eq, neq, in, containsAny, is, gt, gte, lt, lte, startsWith, endsWith, like, ilike",
+  "'filter' invalid for 'textField[regex]:"^test$"', comparator regex not in eq, neq, in, containsAny, is, gt, gte, lt, lte, startsWith, endsWith, like, ilike, match",
 ]
 `;

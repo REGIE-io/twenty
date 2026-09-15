@@ -8,6 +8,7 @@ import {
   type FieldNumberVariant,
   type NullablePartial,
   type NumberDataType,
+  type AdditionalSearchMarker,
   type RelationOnDeleteAction,
   type RelationType,
   type SerializedRelation,
@@ -120,6 +121,9 @@ type SettingsExpectedResult =
     }
   | {
       displayedMaxRows?: number | undefined;
+      // TEXT settings also carry the namespaced additional-search marker, which is what
+      // makes a custom field eligible for the object's search vector.
+      additionalSearch?: AdditionalSearchMarker | undefined;
       __JsonbPropertyBrand__?: undefined;
     }
   | null;
