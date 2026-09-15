@@ -3,7 +3,7 @@ import { InjectDataSource } from '@nestjs/typeorm';
 
 import { type AllMetadataName } from 'twenty-shared/metadata';
 import { isDefined } from 'twenty-shared/utils';
-import { DataSource } from 'typeorm';
+import { DataSource, type QueryRunner } from 'typeorm';
 
 import { LoggerService } from 'src/engine/core-modules/logger/logger.service';
 import { WORKSPACE_MIGRATION_DURATION_MS_BUCKET_BOUNDARIES } from 'src/engine/core-modules/metrics/constants/workspace-migration-duration-ms-bucket-boundaries.constant';
@@ -207,6 +207,8 @@ export class WorkspaceMigrationRunnerService {
   run = async (args: {
     workspaceMigration: WorkspaceMigration;
     workspaceId: string;
+    beforeActions?: (queryRunner: QueryRunner) => Promise<void>;
+    beforeCommit?: (queryRunner: QueryRunner) => Promise<void>;
   }): Promise<{
     allFlatEntityMaps: AllFlatEntityMaps;
     metadataEvents: MetadataEvent[];
@@ -242,9 +244,13 @@ export class WorkspaceMigrationRunnerService {
   private executeRun = async ({
     workspaceMigration: { actions, applicationUniversalIdentifier },
     workspaceId,
+    beforeActions,
+    beforeCommit,
   }: {
     workspaceMigration: WorkspaceMigration;
     workspaceId: string;
+    beforeActions?: (queryRunner: QueryRunner) => Promise<void>;
+    beforeCommit?: (queryRunner: QueryRunner) => Promise<void>;
   }): Promise<{
     allFlatEntityMaps: AllFlatEntityMaps;
     metadataEvents: MetadataEvent[];
@@ -361,6 +367,7 @@ export class WorkspaceMigrationRunnerService {
 
     try {
       await queryRunner.query(`SET LOCAL lock_timeout = '8s'`);
+      await beforeActions?.(queryRunner);
 
       let actionIndex = 0;
 
@@ -487,6 +494,11 @@ export class WorkspaceMigrationRunnerService {
 
         actionIndex += 1;
       }
+
+      // Keep projection state in the same database transaction as its metadata
+      // and schema change. This prevents a renamed PHONES column being visible
+      // while the trigger still reads its previous physical name.
+      await beforeCommit?.(queryRunner);
 
       const commitStart = performance.now();
 

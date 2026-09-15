@@ -15,6 +15,7 @@ import {
 type UpgradeStatusOptions = {
   workspaceId?: Set<string>;
   failedOnly?: boolean;
+  failOnUnhealthy?: boolean;
 };
 
 type GroupedWorkspaceUpgradeStatuses = {
@@ -55,6 +56,15 @@ export class UpgradeStatusCommand extends CommandRunner {
       'Hide up-to-date entries, only display failed and behind commands',
   })
   parseFailedOnly(): boolean {
+    return true;
+  }
+
+  @Option({
+    flags: '--fail-on-unhealthy',
+    description:
+      'Exit non-zero when the instance or any selected workspace is behind or failed',
+  })
+  parseFailOnUnhealthy(): boolean {
     return true;
   }
 
@@ -104,10 +114,27 @@ export class UpgradeStatusCommand extends CommandRunner {
 
       // oxlint-disable-next-line no-console
       console.log(lines.join('\n'));
+
+      if (
+        options.failOnUnhealthy &&
+        (instanceStatus.health !== UpgradeHealthEnum.UP_TO_DATE ||
+          groupedWorkspaceUpgradeStatuses.behind.length > 0 ||
+          groupedWorkspaceUpgradeStatuses.failed.length > 0)
+      ) {
+        throw new Error(
+          `Upgrade is not healthy: instance=${instanceStatus.health}, ` +
+            `workspaces=${groupedWorkspaceUpgradeStatuses.behind.length} behind, ` +
+            `${groupedWorkspaceUpgradeStatuses.failed.length} failed`,
+        );
+      }
     } catch (error) {
       this.logger.error(
         chalk.red(`Failed to retrieve upgrade status: ${error.message}`),
       );
+
+      if (options.failOnUnhealthy) {
+        throw error;
+      }
     }
   }
 

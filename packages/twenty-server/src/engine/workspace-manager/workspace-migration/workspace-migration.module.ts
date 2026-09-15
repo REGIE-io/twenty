@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 
 import { MetricsModule } from 'src/engine/core-modules/metrics/metrics.module';
+import { PhoneSearchIndexModule } from 'src/engine/core-modules/phone-search-index/phone-search-index.module';
 import { MetadataSideEffectModule } from 'src/engine/metadata-modules/metadata-side-effect/metadata-side-effect.module';
 import { WorkspaceCacheModule } from 'src/engine/workspace-cache/workspace-cache.module';
 import { WorkspaceMigrationBuildOrchestratorService } from 'src/engine/workspace-manager/workspace-migration/services/workspace-migration-build-orchestrator.service';
@@ -16,6 +17,7 @@ import { WorkspaceMigrationRunnerModule } from 'src/engine/workspace-manager/wor
     WorkspaceCacheModule,
     MetadataSideEffectModule,
     MetricsModule,
+    PhoneSearchIndexModule,
   ],
   providers: [
     WorkspaceMigrationValidateBuildAndRunService,

@@ -6,6 +6,8 @@ The objective is zero-downtime application deployment with exactly one database 
 
 For how upgrade commands are authored and how their cursors work, see [UPGRADE_COMMANDS.md](./UPGRADE_COMMANDS.md).
 
+For the complete schema-authoring and fleet-convergence workflow, see [REGIE_WORKSPACE_SCHEMA_CHANGE_GUIDE.md](./REGIE_WORKSPACE_SCHEMA_CHANGE_GUIDE.md).
+
 ## Invariants
 
 Do not proceed unless all of these remain true:
@@ -13,6 +15,7 @@ Do not proceed unless all of these remain true:
 - Long-lived `twenty-server` and `twenty-worker` tasks set `DISABLE_DB_MIGRATIONS=true`.
 - Only a dedicated, non-load-balanced command task runs `upgrade`.
 - There is never more than one upgrade runner against an environment.
+- The `upgrade` command holds the PostgreSQL advisory lock `twenty:upgrade-sequence` for the complete sequence.
 - The runner, server, and worker resolve to the same immutable image digest.
 - `DISABLE_CRON_JOBS_REGISTRATION=true` is set on the upgrade runner. It is not required on the server, which registers the environment's scheduled jobs.
 - The compatible Go CRM consumer is deployed before Twenty reaches a schema or response shape that requires it.
@@ -181,7 +184,7 @@ aws --profile "$AWS_PROFILE" --region "$AWS_REGION" ecs list-tasks \
   --desired-status RUNNING
 ```
 
-The result must be empty. Deployment workflow concurrency and a database-backed advisory lock should ultimately enforce this invariant. Until the database lock exists, the operator check is mandatory and no shell, service replacement, or second workflow may run `upgrade` concurrently.
+The result must be empty. Deployment workflow concurrency and this pre-launch check are defense in depth. The `upgrade` command also takes the database-backed `twenty:upgrade-sequence` advisory lock. If another runner owns it, the new runner exits nonzero before reading or changing the sequence. No shell, service replacement, or second workflow may bypass that failure.
 
 ## Phase 5: Run and monitor the upgrade
 
@@ -200,6 +203,14 @@ Monitor all three sources until completion:
 2. `yarn command:prod upgrade:status` for instance and workspace health;
 3. `core.upgradeMigration` for the last recorded command and failed attempts across active and suspended workspaces.
 
+After the runner exits, execute the status gate from the same immutable image:
+
+```bash
+node dist/command/command upgrade:status --failed-only --fail-on-unhealthy
+```
+
+The command exits nonzero if the instance or any selected workspace is behind or failed. Omitting `--fail-on-unhealthy` retains the report-only behavior intended for interactive inspection.
+
 The success gate is all of:
 
 - ECS task stopped;
@@ -207,6 +218,7 @@ The success gate is all of:
 - final summary reports zero workspace failures;
 - expected workspaces reached the final cursor;
 - no `aborted`, `Command failed`, `Error in workspace`, fatal error, or out-of-memory event appears.
+- `upgrade:status --failed-only --fail-on-unhealthy` exits `0`.
 
 `stopCode=EssentialContainerExited` is expected for a finite command. Always use the container exit code and command logs for the verdict.
 

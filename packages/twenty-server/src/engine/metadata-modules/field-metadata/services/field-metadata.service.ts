@@ -1,10 +1,13 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 
+import { STANDARD_OBJECTS } from 'twenty-shared/metadata';
+import { FieldMetadataType } from 'twenty-shared/types';
 import { isDefined } from 'twenty-shared/utils';
 import { type FindOneOptions, type Repository } from 'typeorm';
 
 import { ApplicationService } from 'src/engine/core-modules/application/application.service';
+import { PhoneSearchMetadataGateService } from 'src/engine/core-modules/phone-search-index/services/phone-search-metadata-gate.service';
 import { type FlatApplication } from 'src/engine/core-modules/application/types/flat-application.type';
 import { type CreateFieldInput } from 'src/engine/metadata-modules/field-metadata/dtos/create-field.input';
 import { type DeleteOneFieldInput } from 'src/engine/metadata-modules/field-metadata/dtos/delete-field.input';
@@ -38,6 +41,7 @@ export class FieldMetadataService {
     private readonly workspaceMigrationValidateBuildAndRunService: WorkspaceMigrationValidateBuildAndRunService,
     private readonly applicationService: ApplicationService,
     private readonly workspaceCacheService: WorkspaceCacheService,
+    private readonly phoneSearchMetadataGateService?: PhoneSearchMetadataGateService,
   ) {}
 
   async findManyWithinWorkspace({
@@ -426,6 +430,25 @@ export class FieldMetadataService {
       }),
       { flatFieldMetadatas: [], indexMetadatas: [] },
     );
+
+    const person =
+      existingFlatObjectMetadataMaps.byUniversalIdentifier[
+        STANDARD_OBJECTS.person.universalIdentifier
+      ];
+    if (
+      person &&
+      flatFieldMetadatasToCreate.some(
+        (field) =>
+          field.type === FieldMetadataType.PHONES &&
+          field.objectMetadataUniversalIdentifier ===
+            person.universalIdentifier,
+      )
+    ) {
+      await this.phoneSearchMetadataGateService?.assertAvailable({
+        workspaceId,
+        objectMetadataId: person.id,
+      });
+    }
 
     const validateAndBuildResult =
       await this.workspaceMigrationValidateBuildAndRunService.validateBuildAndRunWorkspaceMigration(

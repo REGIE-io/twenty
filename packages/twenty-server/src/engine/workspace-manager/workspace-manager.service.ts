@@ -2,8 +2,11 @@ import { Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 
 import { Repository } from 'typeorm';
+import { STANDARD_OBJECTS } from 'twenty-shared/metadata';
+import { isDefined } from 'twenty-shared/utils';
 
 import { ApplicationService } from 'src/engine/core-modules/application/application.service';
+import { PhoneSearchTriggerManagerService } from 'src/engine/core-modules/phone-search-index/services/phone-search-trigger-manager.service';
 import { FlatApplication } from 'src/engine/core-modules/application/types/flat-application.type';
 import { UserWorkspaceEntity } from 'src/engine/core-modules/user-workspace/user-workspace.entity';
 import { WorkspaceEntity } from 'src/engine/core-modules/workspace/workspace.entity';
@@ -14,6 +17,7 @@ import { UserRoleService } from 'src/engine/metadata-modules/user-role/user-role
 import { InjectWorkspaceScopedRepository } from 'src/engine/twenty-orm/workspace-scoped-repository/inject-workspace-scoped-repository.decorator';
 import { WorkspaceScopedRepository } from 'src/engine/twenty-orm/workspace-scoped-repository/workspace-scoped-repository';
 import { WorkspaceDataSourceService } from 'src/engine/workspace-datasource/workspace-datasource.service';
+import { WorkspaceCacheService } from 'src/engine/workspace-cache/services/workspace-cache.service';
 import { STANDARD_ROLE } from 'src/engine/workspace-manager/twenty-standard-application/constants/standard-role.constant';
 import { TWENTY_STANDARD_UI_METADATA_NAME } from 'src/engine/workspace-manager/twenty-standard-application/constants/twenty-standard-all-metadata-name.constant';
 import { TwentyStandardApplicationService } from 'src/engine/workspace-manager/twenty-standard-application/services/twenty-standard-application.service';
@@ -34,6 +38,8 @@ export class WorkspaceManagerService {
     @InjectWorkspaceScopedRepository(RoleEntity)
     private readonly roleRepository: WorkspaceScopedRepository<RoleEntity>,
     private readonly applicationService: ApplicationService,
+    private readonly workspaceCacheService: WorkspaceCacheService,
+    private readonly phoneSearchTriggerManagerService: PhoneSearchTriggerManagerService,
   ) {}
 
   public async init({
@@ -73,6 +79,28 @@ export class WorkspaceManagerService {
           excludedMetadataNames: TWENTY_STANDARD_UI_METADATA_NAME,
         },
       );
+
+    const { flatObjectMetadataMaps } =
+      await this.workspaceCacheService.getOrRecompute(workspaceId, [
+        'flatObjectMetadataMaps',
+      ]);
+    const person =
+      flatObjectMetadataMaps.byUniversalIdentifier[
+        STANDARD_OBJECTS.person.universalIdentifier
+      ];
+
+    if (!isDefined(person)) {
+      throw new Error(
+        'Person metadata must exist before installing phone-search synchronization',
+      );
+    }
+
+    // Fresh workspaces skip historical workspace commands, so install the
+    // stable trigger as part of initialization before any record can be written.
+    await this.phoneSearchTriggerManagerService.install({
+      workspaceId,
+      objectMetadataId: person.id,
+    });
 
     const dataSourceMetadataCreationEnd = performance.now();
 

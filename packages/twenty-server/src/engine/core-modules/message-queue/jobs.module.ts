@@ -38,6 +38,9 @@ import { UserModule } from 'src/engine/core-modules/user/user.module';
 import { HandleWorkspaceMemberDeletedJob } from 'src/engine/core-modules/workspace/handle-workspace-member-deleted.job';
 import { WorkspaceEntity } from 'src/engine/core-modules/workspace/workspace.entity';
 import { WorkspaceModule } from 'src/engine/core-modules/workspace/workspace.module';
+import { PhoneSearchIndexModule } from 'src/engine/core-modules/phone-search-index/phone-search-index.module';
+import { PhoneSearchIndexJob } from 'src/engine/core-modules/phone-search-index/jobs/phone-search-index.job';
+import { PhoneSearchIndexReconcilerCronJob } from 'src/engine/core-modules/phone-search-index/jobs/phone-search-index-reconciler.cron.job';
 import { AiAgentMonitorModule } from 'src/engine/metadata-modules/ai/ai-agent-monitor/ai-agent-monitor.module';
 import { AiChatModule } from 'src/engine/metadata-modules/ai/ai-chat/ai-chat.module';
 import { LogicFunctionModule } from 'src/engine/metadata-modules/logic-function/logic-function.module';
@@ -48,6 +51,7 @@ import { SubscriptionsModule } from 'src/engine/subscriptions/subscriptions.modu
 import { CleanOnboardingWorkspacesJob } from 'src/engine/workspace-manager/workspace-cleaner/crons/clean-onboarding-workspaces.job';
 import { CleanSuspendedWorkspacesJob } from 'src/engine/workspace-manager/workspace-cleaner/crons/clean-suspended-workspaces.job';
 import { CleanWorkspaceDeletionWarningUserVarsJob } from 'src/engine/workspace-manager/workspace-cleaner/jobs/clean-workspace-deletion-warning-user-vars.job';
+import { CleanSuspendedWorkspacesBatchJob } from 'src/engine/workspace-manager/workspace-cleaner/jobs/clean-suspended-workspaces-batch.job';
 import { WorkspaceCleanerModule } from 'src/engine/workspace-manager/workspace-cleaner/workspace-cleaner.module';
 import { CalendarEventParticipantManagerModule } from 'src/modules/calendar/calendar-event-participant-manager/calendar-event-participant-manager.module';
 import { CalendarModule } from 'src/modules/calendar/calendar.module';
@@ -100,10 +104,12 @@ import { WorkflowModule } from 'src/modules/workflow/workflow.module';
     PreInstalledAppsModule,
     OnboardingModule,
     BillingReminderModule,
+    PhoneSearchIndexModule,
   ],
   providers: [
     BillingReminderCronJob,
     CleanSuspendedWorkspacesJob,
+    CleanSuspendedWorkspacesBatchJob,
     CleanOnboardingWorkspacesJob,
     EmailSenderJob,
     SendCampaignEmailJob,
@@ -117,6 +123,8 @@ import { WorkflowModule } from 'src/modules/workflow/workflow.module';
     UpgradeApplicationsJob,
     InstallOnboardingAppsJob,
     InstallPreInstalledAppsJob,
+    PhoneSearchIndexJob,
+    PhoneSearchIndexReconcilerCronJob,
   ],
 })
 export class JobsModule {

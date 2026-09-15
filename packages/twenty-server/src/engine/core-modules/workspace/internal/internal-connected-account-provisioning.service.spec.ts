@@ -2,12 +2,17 @@ import {
   CalendarChannelSyncStage,
   CalendarChannelSyncStatus,
   ConnectedAccountProvider,
+  MessageChannelSyncStage,
+  MessageChannelSyncStatus,
+  MessageChannelType,
+  MessageChannelVisibility,
 } from 'twenty-shared/types';
 
 import { ACQUIRE_ATTACH_CONNECTED_ACCOUNT_LOCK_STATEMENT } from 'src/engine/core-modules/workspace/internal/constants/internal-connected-account-provisioning.constants';
 import { InternalConnectedAccountProvisioningService } from 'src/engine/core-modules/workspace/internal/internal-connected-account-provisioning.service';
 import { CalendarChannelEntity } from 'src/engine/metadata-modules/calendar-channel/entities/calendar-channel.entity';
 import { ConnectedAccountEntity } from 'src/engine/metadata-modules/connected-account/entities/connected-account.entity';
+import { MessageChannelEntity } from 'src/engine/metadata-modules/message-channel/entities/message-channel.entity';
 
 const WORKSPACE_ID = '20202020-0000-4000-8000-000000000001';
 const USER_WORKSPACE_ID = 'user-workspace-1';
@@ -47,6 +52,20 @@ type StoredCalendarChannel = {
   throttleFailureCount: number;
 };
 
+type StoredMessageChannel = {
+  id: string;
+  workspaceId: string;
+  connectedAccountId: string;
+  type: MessageChannelType;
+  isSyncEnabled: boolean;
+  syncStage: MessageChannelSyncStage;
+  syncStatus: MessageChannelSyncStatus;
+  syncStageStartedAt: Date | null;
+  syncCursor: string;
+  throttleFailureCount: number;
+  throttleRetryAfter: Date | null;
+};
+
 const accountKey = ({
   workspaceId,
   userWorkspaceId,
@@ -60,9 +79,11 @@ const accountKey = ({
 const makeServiceHarness = () => {
   const connectedAccounts = new Map<string, StoredConnectedAccount>();
   const calendarChannels = new Map<string, StoredCalendarChannel>();
+  const messageChannels = new Map<string, StoredMessageChannel>();
 
   let connectedAccountSequence = 0;
   let calendarChannelSequence = 0;
+  let messageChannelSequence = 0;
 
   const workspaceRepository = {
     findOneBy: jest.fn(async ({ id }: { id: string }) =>
@@ -159,6 +180,32 @@ const makeServiceHarness = () => {
     ),
   };
 
+  const transactionalMessageChannelRepository = {
+    findOneBy: jest.fn(
+      async ({
+        connectedAccountId,
+        type,
+      }: {
+        connectedAccountId: string;
+        type: MessageChannelType;
+      }) =>
+        Array.from(messageChannels.values()).find(
+          (channel) =>
+            channel.connectedAccountId === connectedAccountId &&
+            channel.type === type,
+        ) ?? null,
+    ),
+    update: jest.fn(
+      async ({ id }: { id: string }, patch: Partial<StoredMessageChannel>) => {
+        const channel = messageChannels.get(id);
+
+        if (channel !== undefined) {
+          Object.assign(channel, patch);
+        }
+      },
+    ),
+  };
+
   const queryRunner = { query: jest.fn(async () => undefined) };
 
   const transactionManager = {
@@ -170,6 +217,10 @@ const makeServiceHarness = () => {
 
       if (entity === CalendarChannelEntity) {
         return transactionalCalendarChannelRepository;
+      }
+
+      if (entity === MessageChannelEntity) {
+        return transactionalMessageChannelRepository;
       }
 
       throw new Error('Unexpected repository requested inside attach');
@@ -209,6 +260,28 @@ const makeServiceHarness = () => {
     ),
   };
 
+  const messageChannelRepository = {
+    find: jest.fn(
+      async ({
+        where: { connectedAccountId, isSyncEnabled },
+      }: {
+        where: { connectedAccountId: string; isSyncEnabled: boolean };
+      }) =>
+        Array.from(messageChannels.values()).filter(
+          (channel) =>
+            channel.connectedAccountId === connectedAccountId &&
+            channel.isSyncEnabled === isSyncEnabled,
+        ),
+    ),
+    update: jest.fn(
+      async (_criteria: unknown, patch: { isSyncEnabled: boolean }) => {
+        for (const channel of messageChannels.values()) {
+          Object.assign(channel, patch);
+        }
+      },
+    ),
+  };
+
   const createCalendarChannelService = {
     createCalendarChannel: jest.fn(
       async ({
@@ -237,6 +310,36 @@ const makeServiceHarness = () => {
     ),
   };
 
+  const createMessageChannelService = {
+    createMessageChannel: jest.fn(
+      async ({
+        workspaceId,
+        connectedAccountId,
+      }: {
+        workspaceId: string;
+        connectedAccountId: string;
+      }) => {
+        const created: StoredMessageChannel = {
+          id: `message-channel-${++messageChannelSequence}`,
+          workspaceId,
+          connectedAccountId,
+          type: MessageChannelType.EMAIL,
+          isSyncEnabled: true,
+          syncStage: MessageChannelSyncStage.MESSAGE_LIST_FETCH_PENDING,
+          syncStatus: MessageChannelSyncStatus.ONGOING,
+          syncStageStartedAt: null,
+          syncCursor: '',
+          throttleFailureCount: 0,
+          throttleRetryAfter: null,
+        };
+
+        messageChannels.set(created.id, created);
+
+        return created.id;
+      },
+    ),
+  };
+
   const connectedAccountTokenEncryptionService = {
     encryptTokenPair: jest.fn(
       ({
@@ -258,20 +361,25 @@ const makeServiceHarness = () => {
     userWorkspaceRepository as never,
     connectedAccountRepository as never,
     calendarChannelRepository as never,
+    messageChannelRepository as never,
     createCalendarChannelService as never,
+    createMessageChannelService as never,
     connectedAccountTokenEncryptionService as never,
   );
 
   return {
     service,
     queryRunner,
-    stores: { connectedAccounts, calendarChannels },
+    stores: { connectedAccounts, calendarChannels, messageChannels },
     repositories: {
       calendarChannelRepository,
+      messageChannelRepository,
       transactionalCalendarChannelRepository,
+      transactionalMessageChannelRepository,
       transactionalConnectedAccountRepository,
     },
     createCalendarChannelService,
+    createMessageChannelService,
   };
 };
 
@@ -296,9 +404,32 @@ const seedChannel = (
   return channel;
 };
 
+const seedMessageChannel = (
+  stores: { messageChannels: Map<string, StoredMessageChannel> },
+  overrides: Partial<StoredMessageChannel> & { connectedAccountId: string },
+): StoredMessageChannel => {
+  const channel: StoredMessageChannel = {
+    id: 'existing-message-channel',
+    workspaceId: WORKSPACE_ID,
+    type: MessageChannelType.EMAIL,
+    isSyncEnabled: true,
+    syncStage: MessageChannelSyncStage.MESSAGE_LIST_FETCH_PENDING,
+    syncStatus: MessageChannelSyncStatus.ACTIVE,
+    syncStageStartedAt: null,
+    syncCursor: 'cursor-from-last-sync',
+    throttleFailureCount: 0,
+    throttleRetryAfter: null,
+    ...overrides,
+  };
+
+  stores.messageChannels.set(channel.id, channel);
+
+  return channel;
+};
+
 describe('InternalConnectedAccountProvisioningService', () => {
   describe('attachConnectedAccount', () => {
-    it('creates an account with encrypted tokens and a calendar channel', async () => {
+    it('creates an account with encrypted tokens and both channels', async () => {
       const { service, stores } = makeServiceHarness();
 
       const result = await service.attachConnectedAccount(ATTACH_INPUT);
@@ -306,6 +437,7 @@ describe('InternalConnectedAccountProvisioningService', () => {
       expect(result).toEqual({
         connectedAccountId: 'connected-account-1',
         calendarChannelId: 'calendar-channel-1',
+        messageChannelId: 'message-channel-1',
         created: true,
       });
       expect(Array.from(stores.connectedAccounts.values())).toEqual([
@@ -341,10 +473,12 @@ describe('InternalConnectedAccountProvisioningService', () => {
       expect(result).toEqual({
         connectedAccountId: 'connected-account-1',
         calendarChannelId: 'calendar-channel-1',
+        messageChannelId: 'message-channel-1',
         created: false,
       });
       expect(stores.connectedAccounts.size).toBe(1);
       expect(stores.calendarChannels.size).toBe(1);
+      expect(stores.messageChannels.size).toBe(1);
     });
 
     // Re-attach is how Regie hands over a reconnected grant, so the old pair must not
@@ -444,7 +578,11 @@ describe('InternalConnectedAccountProvisioningService', () => {
     });
 
     it('rejects a member who is not in the workspace', async () => {
-      const { service, createCalendarChannelService } = makeServiceHarness();
+      const {
+        service,
+        createCalendarChannelService,
+        createMessageChannelService,
+      } = makeServiceHarness();
 
       await expect(
         service.attachConnectedAccount({
@@ -456,10 +594,17 @@ describe('InternalConnectedAccountProvisioningService', () => {
       expect(
         createCalendarChannelService.createCalendarChannel,
       ).not.toHaveBeenCalled();
+      expect(
+        createMessageChannelService.createMessageChannel,
+      ).not.toHaveBeenCalled();
     });
 
-    it('creates the channel with contact auto-creation off', async () => {
-      const { service, createCalendarChannelService } = makeServiceHarness();
+    it('creates both channels with contact auto-creation off', async () => {
+      const {
+        service,
+        createCalendarChannelService,
+        createMessageChannelService,
+      } = makeServiceHarness();
 
       await service.attachConnectedAccount(ATTACH_INPUT);
 
@@ -468,6 +613,173 @@ describe('InternalConnectedAccountProvisioningService', () => {
       ).toHaveBeenCalledWith(
         expect.objectContaining({ isContactAutoCreationEnabled: false }),
       );
+      expect(
+        createMessageChannelService.createMessageChannel,
+      ).toHaveBeenCalledWith(
+        expect.objectContaining({ isContactAutoCreationEnabled: false }),
+      );
+    });
+
+    // Regie reads message bodies through the API, which METADATA redacts, and a channel
+    // left pending configuration is never picked up by the list-fetch cron.
+    it('creates the message channel ready to fetch and fully visible', async () => {
+      const { service, createMessageChannelService } = makeServiceHarness();
+
+      await service.attachConnectedAccount(ATTACH_INPUT);
+
+      expect(
+        createMessageChannelService.createMessageChannel,
+      ).toHaveBeenCalledWith(
+        expect.objectContaining({
+          handle: HANDLE,
+          messageVisibility: MessageChannelVisibility.SHARE_EVERYTHING,
+          skipMessageChannelConfiguration: true,
+        }),
+      );
+    });
+
+    it('honours an explicit message visibility', async () => {
+      const { service, createMessageChannelService } = makeServiceHarness();
+
+      await service.attachConnectedAccount({
+        ...ATTACH_INPUT,
+        messageVisibility: MessageChannelVisibility.SUBJECT,
+      });
+
+      expect(
+        createMessageChannelService.createMessageChannel,
+      ).toHaveBeenCalledWith(
+        expect.objectContaining({
+          messageVisibility: MessageChannelVisibility.SUBJECT,
+        }),
+      );
+    });
+
+    it('creates only the calendar channel when the mailbox is opted out', async () => {
+      const { service, createMessageChannelService, stores } =
+        makeServiceHarness();
+
+      const result = await service.attachConnectedAccount({
+        ...ATTACH_INPUT,
+        withMessageChannel: false,
+      });
+
+      expect(result).toEqual({
+        connectedAccountId: 'connected-account-1',
+        calendarChannelId: 'calendar-channel-1',
+        created: true,
+      });
+      expect(
+        createMessageChannelService.createMessageChannel,
+      ).not.toHaveBeenCalled();
+      expect(stores.messageChannels.size).toBe(0);
+    });
+
+    it('creates only the message channel when the calendar is opted out', async () => {
+      const { service, createCalendarChannelService, stores } =
+        makeServiceHarness();
+
+      const result = await service.attachConnectedAccount({
+        ...ATTACH_INPUT,
+        withCalendarChannel: false,
+      });
+
+      expect(result).toEqual({
+        connectedAccountId: 'connected-account-1',
+        messageChannelId: 'message-channel-1',
+        created: true,
+      });
+      expect(
+        createCalendarChannelService.createCalendarChannel,
+      ).not.toHaveBeenCalled();
+      expect(stores.calendarChannels.size).toBe(0);
+    });
+
+    it('records the account alone when both channels are opted out', async () => {
+      const { service, stores } = makeServiceHarness();
+
+      const result = await service.attachConnectedAccount({
+        ...ATTACH_INPUT,
+        withCalendarChannel: false,
+        withMessageChannel: false,
+      });
+
+      expect(result).toEqual({
+        connectedAccountId: 'connected-account-1',
+        created: true,
+      });
+      expect(stores.calendarChannels.size).toBe(0);
+      expect(stores.messageChannels.size).toBe(0);
+    });
+
+    // Left set, throttleRetryAfter alone would hold the revived channel out of the
+    // list-fetch cron, so reviving without clearing it does nothing.
+    it('revives a message channel parked on FAILED, keeping its cursor', async () => {
+      const { service, stores } = makeServiceHarness();
+
+      await service.attachConnectedAccount(ATTACH_INPUT);
+
+      const channel = seedMessageChannel(stores, {
+        id: 'message-channel-1',
+        connectedAccountId: 'connected-account-1',
+        syncStage: MessageChannelSyncStage.FAILED,
+        syncStatus: MessageChannelSyncStatus.FAILED_INSUFFICIENT_PERMISSIONS,
+        syncStageStartedAt: new Date('2026-08-31T19:55:00.000Z'),
+        throttleFailureCount: 3,
+        throttleRetryAfter: new Date('2026-08-31T20:55:00.000Z'),
+      });
+
+      await service.attachConnectedAccount(ATTACH_INPUT);
+
+      expect(channel).toMatchObject({
+        isSyncEnabled: true,
+        syncStage: MessageChannelSyncStage.MESSAGE_LIST_FETCH_PENDING,
+        syncStageStartedAt: null,
+        throttleFailureCount: 0,
+        throttleRetryAfter: null,
+        syncCursor: 'cursor-from-last-sync',
+        syncStatus: MessageChannelSyncStatus.FAILED_INSUFFICIENT_PERMISSIONS,
+      });
+    });
+
+    it('re-enables a disabled healthy message channel without disturbing its sync stage', async () => {
+      const { service, stores } = makeServiceHarness();
+
+      await service.attachConnectedAccount(ATTACH_INPUT);
+
+      const channel = seedMessageChannel(stores, {
+        id: 'message-channel-1',
+        connectedAccountId: 'connected-account-1',
+        isSyncEnabled: false,
+        syncStage: MessageChannelSyncStage.MESSAGES_IMPORT_PENDING,
+      });
+
+      await service.attachConnectedAccount(ATTACH_INPUT);
+
+      expect(channel).toMatchObject({
+        isSyncEnabled: true,
+        syncStage: MessageChannelSyncStage.MESSAGES_IMPORT_PENDING,
+        syncCursor: 'cursor-from-last-sync',
+      });
+    });
+
+    it('leaves an already-enabled healthy message channel untouched', async () => {
+      const { service, stores, repositories } = makeServiceHarness();
+
+      await service.attachConnectedAccount(ATTACH_INPUT);
+
+      seedMessageChannel(stores, {
+        id: 'message-channel-1',
+        connectedAccountId: 'connected-account-1',
+        syncStage: MessageChannelSyncStage.MESSAGE_LIST_FETCH_ONGOING,
+      });
+      repositories.transactionalMessageChannelRepository.update.mockClear();
+
+      await service.attachConnectedAccount(ATTACH_INPUT);
+
+      expect(
+        repositories.transactionalMessageChannelRepository.update,
+      ).not.toHaveBeenCalled();
     });
   });
 
@@ -484,8 +796,12 @@ describe('InternalConnectedAccountProvisioningService', () => {
 
       expect(result).toEqual({
         disabledCalendarChannelIds: ['calendar-channel-1'],
+        disabledMessageChannelIds: ['message-channel-1'],
       });
       expect(stores.calendarChannels.get('calendar-channel-1')).toMatchObject({
+        isSyncEnabled: false,
+      });
+      expect(stores.messageChannels.get('message-channel-1')).toMatchObject({
         isSyncEnabled: false,
       });
     });
@@ -500,15 +816,22 @@ describe('InternalConnectedAccountProvisioningService', () => {
         connectedAccountId: 'connected-account-1',
       });
       repositories.calendarChannelRepository.update.mockClear();
+      repositories.messageChannelRepository.update.mockClear();
 
       const result = await service.detachConnectedAccount({
         workspaceId: WORKSPACE_ID,
         connectedAccountId: 'connected-account-1',
       });
 
-      expect(result).toEqual({ disabledCalendarChannelIds: [] });
+      expect(result).toEqual({
+        disabledCalendarChannelIds: [],
+        disabledMessageChannelIds: [],
+      });
       expect(
         repositories.calendarChannelRepository.update,
+      ).not.toHaveBeenCalled();
+      expect(
+        repositories.messageChannelRepository.update,
       ).not.toHaveBeenCalled();
     });
 

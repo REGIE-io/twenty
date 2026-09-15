@@ -3,6 +3,7 @@ import { isDefined } from 'twenty-shared/utils';
 
 import { CommandShutdownService } from 'src/database/commands/command-runners/command-shutdown.service';
 import { CommandLogger } from 'src/database/commands/logger';
+import { PostgresAdvisoryLockService } from 'src/database/typeorm/postgres-advisory-lock.service';
 import { UpgradeSequenceReaderService } from 'src/engine/core-modules/upgrade/services/upgrade-sequence-reader.service';
 import { UpgradeSequenceRunnerService } from 'src/engine/core-modules/upgrade/services/upgrade-sequence-runner.service';
 import { UpgradeStatusService } from 'src/engine/core-modules/upgrade/services/upgrade-status.service';
@@ -24,6 +25,8 @@ export type ParsedUpgradeCommandOptions = {
   verbose?: boolean;
 };
 
+export const UPGRADE_SEQUENCE_ADVISORY_LOCK_NAME = 'twenty:upgrade-sequence';
+
 @Command({
   name: 'upgrade',
   description: 'Upgrade workspaces to the latest version',
@@ -36,6 +39,7 @@ export class UpgradeCommand extends CommandRunner {
     protected readonly upgradeSequenceRunnerService: UpgradeSequenceRunnerService,
     protected readonly upgradeStatusService: UpgradeStatusService,
     protected readonly commandShutdownService: CommandShutdownService,
+    protected readonly postgresAdvisoryLockService: PostgresAdvisoryLockService,
   ) {
     super();
     this.logger = new CommandLogger({
@@ -129,60 +133,14 @@ export class UpgradeCommand extends CommandRunner {
     this.commandShutdownService.listenToShutdownSignals();
 
     try {
-      const sequence = this.upgradeSequenceReaderService.getUpgradeSequence();
-
-      this.logger.log(
-        formatUpgradeLog({
-          humanMessage: `Initialized upgrade sequence: ${sequence.length} step(s)`,
-          event: 'sequence.initialized',
-          logFields: {
-            stepCount: sequence.length,
-            dryRun: options.dryRun ?? false,
-          },
-        }),
+      const lockResult = await this.postgresAdvisoryLockService.tryWithLock(
+        UPGRADE_SEQUENCE_ADVISORY_LOCK_NAME,
+        async () => this.runUpgradeSequence(options),
       );
 
-      for (const [index, step] of sequence.entries()) {
-        this.logger.verbose(
-          formatUpgradeLog({
-            humanMessage: `  [${index}] ${step.kind} — ${step.name} (${step.version})`,
-            event: 'sequence.step',
-            logFields: {
-              index,
-              kind: step.kind,
-              name: step.name,
-              version: step.version,
-            },
-          }),
-        );
-      }
-
-      const { totalSuccesses, totalFailures } =
-        await this.upgradeSequenceRunnerService.run({
-          sequence,
-          options: {
-            ...options,
-            workspaceIds: isDefined(options.workspaceId)
-              ? Array.from(options.workspaceId)
-              : undefined,
-          },
-        });
-
-      this.logger.log(
-        formatUpgradeLog({
-          humanMessage: `Upgrade summary: ${totalSuccesses} workspace(s) succeeded, ${totalFailures} workspace(s) failed`,
-          event: 'summary',
-          logFields: {
-            totalSuccesses,
-            totalFailures,
-            dryRun: options.dryRun ?? false,
-          },
-        }),
-      );
-
-      if (totalFailures > 0) {
+      if (!lockResult.acquired) {
         throw new Error(
-          `Upgrade completed with ${totalFailures} workspace failure(s)`,
+          'Another upgrade sequence is already running against this database',
         );
       }
     } catch (error) {
@@ -198,6 +156,67 @@ export class UpgradeCommand extends CommandRunner {
       throw error;
     } finally {
       await this.safeInvalidateUpgradeStatusCache();
+    }
+  }
+
+  private async runUpgradeSequence(
+    options: RawUpgradeCommandOptions,
+  ): Promise<void> {
+    const sequence = this.upgradeSequenceReaderService.getUpgradeSequence();
+
+    this.logger.log(
+      formatUpgradeLog({
+        humanMessage: `Initialized upgrade sequence: ${sequence.length} step(s)`,
+        event: 'sequence.initialized',
+        logFields: {
+          stepCount: sequence.length,
+          dryRun: options.dryRun ?? false,
+        },
+      }),
+    );
+
+    for (const [index, step] of sequence.entries()) {
+      this.logger.verbose(
+        formatUpgradeLog({
+          humanMessage: `  [${index}] ${step.kind} — ${step.name} (${step.version})`,
+          event: 'sequence.step',
+          logFields: {
+            index,
+            kind: step.kind,
+            name: step.name,
+            version: step.version,
+          },
+        }),
+      );
+    }
+
+    const { totalSuccesses, totalFailures } =
+      await this.upgradeSequenceRunnerService.run({
+        sequence,
+        options: {
+          ...options,
+          workspaceIds: isDefined(options.workspaceId)
+            ? Array.from(options.workspaceId)
+            : undefined,
+        },
+      });
+
+    this.logger.log(
+      formatUpgradeLog({
+        humanMessage: `Upgrade summary: ${totalSuccesses} workspace(s) succeeded, ${totalFailures} workspace(s) failed`,
+        event: 'summary',
+        logFields: {
+          totalSuccesses,
+          totalFailures,
+          dryRun: options.dryRun ?? false,
+        },
+      }),
+    );
+
+    if (totalFailures > 0) {
+      throw new Error(
+        `Upgrade completed with ${totalFailures} workspace failure(s)`,
+      );
     }
   }
 
