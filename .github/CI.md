@@ -12,3 +12,7 @@ when the new pull request head is ready to validate.
 
 Required statuses are published only for a real `run-ci` request. Other labels cannot
 satisfy branch protection for an untested commit.
+
+Dependabot requests the same label automatically after its metadata is captured and
+again after its trusted retarget marker is pushed to `develop`. Its auto-merge workflow
+then waits for the required statuses on that exact head.

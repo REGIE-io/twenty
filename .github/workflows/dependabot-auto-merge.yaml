@@ -186,6 +186,8 @@ jobs:
 
       - name: Retrigger CI against develop
         if: steps.validation.outputs.eligible == 'true'
+        env:
+          PAT: ${{ secrets.DEPENDABOT_AUTOMERGE_PAT }}
         run: |
           remote_sha=$(git ls-remote --heads origin \
             "refs/heads/$HEAD_BRANCH" | awk '{print $1}')
@@ -200,6 +202,11 @@ jobs:
             -m "ci: retrigger Dependabot against develop" \
             -m "Dependabot-Validation-Run: $GITHUB_RUN_ID"
           git push origin "HEAD:refs/heads/$HEAD_BRANCH"
+
+          # The marker push no longer starts CI by itself. Use the PAT rather than
+          # GITHUB_TOKEN so attaching the label emits a new pull_request event.
+          GH_TOKEN="$PAT" gh pr edit "${{ steps.pr.outputs.url }}" \
+            --add-label run-ci
 
       - name: Verify develop-pass marker
         id: retrigger
