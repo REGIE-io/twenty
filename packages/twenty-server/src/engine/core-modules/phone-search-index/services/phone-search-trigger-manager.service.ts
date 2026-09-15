@@ -18,10 +18,36 @@ export class PhoneSearchTriggerManagerService {
   }): Promise<void> {
     const schema = getWorkspaceSchemaName(workspaceId);
     const queryRunner = this.dataSource.createQueryRunner();
+    const expectedTriggerArguments = Buffer.from(
+      `${workspaceId}\0${objectMetadataId}\0`,
+    ).toString('hex');
 
     try {
       await queryRunner.connect();
       await queryRunner.startTransaction();
+      const [{ isInstalled }] = (await queryRunner.query(
+        `SELECT EXISTS (
+           SELECT 1
+             FROM pg_trigger t
+             JOIN pg_class c ON c.oid = t.tgrelid
+             JOIN pg_namespace n ON n.oid = c.relnamespace
+            WHERE n.nspname = $1
+              AND c.relname = 'person'
+              AND t.tgname = 'TRG_PERSON_PHONE_LOOKUP_SYNC'
+              AND NOT t.tgisinternal
+              AND t.tgenabled <> 'D'
+              AND t.tgfoid = to_regprocedure('public.sync_person_phone_lookup()')
+              AND t.tgtype = 29
+              AND encode(t.tgargs, 'hex') = $2
+         ) AS "isInstalled"`,
+        [schema, expectedTriggerArguments],
+      )) as Array<{ isInstalled: boolean }>;
+
+      if (isInstalled) {
+        await queryRunner.commitTransaction();
+        return;
+      }
+
       await queryRunner.query("SET LOCAL lock_timeout = '2s'");
       await queryRunner.query(
         `DROP TRIGGER IF EXISTS "TRG_PERSON_PHONE_LOOKUP_SYNC" ON "${schema}"."person"`,
