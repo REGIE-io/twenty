@@ -2,16 +2,16 @@ name: CI Front
 
 on:
   pull_request:
-  merge_group:
-  push:
-    branches: [main]
+    branches: [main, develop, stage]
+    types: [labeled]
+  workflow_dispatch:
 
 permissions:
   contents: read
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}${{ github.ref == 'refs/heads/main' && format('-{0}', github.sha) || '' }}
-  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}-${{ github.event.label.name == 'run-ci' && 'run' || github.event.label.name || 'dispatch' }}
+  cancel-in-progress: true
 
 env:
   # restore-cache action adds 'v4-' prefix and '-<branch>-<sha>' suffix to the key
@@ -20,7 +20,7 @@ env:
 
 jobs:
   changed-files-check:
-    if: github.event_name == 'pull_request'
+    if: github.event_name == 'workflow_dispatch' || github.event.label.name == 'run-ci'
     uses: ./.github/workflows/changed-files.yaml
     with:
       files: |
@@ -36,7 +36,7 @@ jobs:
     needs: changed-files-check
     if: >-
       always() &&
-      (github.event_name == 'push' ||
+      (github.event_name == 'workflow_dispatch' ||
       needs.changed-files-check.outputs.any_changed == 'true')
     timeout-minutes: 30
     runs-on: ubuntu-latest
@@ -255,11 +255,16 @@ jobs:
       #     path: packages/twenty-front/build
       #     retention-days: 1
   ci-front-status-check:
-    if: always() && !cancelled()
+    name: CI Front Result
+    if: >-
+      always() &&
+      !cancelled() &&
+      (github.event_name == 'workflow_dispatch' || github.event.label.name == 'run-ci')
     timeout-minutes: 5
     runs-on: ubuntu-latest
-    needs:
-      [
+    permissions:
+      statuses: write
+    needs: [
         changed-files-check,
         front-task,
         front-build,
@@ -269,6 +274,42 @@ jobs:
         front-sb-screenshots,
       ]
     steps:
-      - name: Fail job if any needs failed
-        if: contains(needs.*.result, 'failure')
+      - name: Evaluate required jobs
+        id: evaluate
+        env:
+          RESULTS: ${{ toJSON(needs) }}
+        run: |
+          if jq -e 'to_entries | any(.value.result == "cancelled")' <<< "$RESULTS" > /dev/null; then
+            STATE=cancelled
+            DESCRIPTION="Run cancelled; leaving the previous verdict"
+          elif jq -e 'to_entries | any(.value.result == "failure")' <<< "$RESULTS" > /dev/null; then
+            STATE=failure
+            DESCRIPTION="One or more required Front CI jobs failed"
+          else
+            STATE=success
+            DESCRIPTION="All required Front CI jobs passed"
+          fi
+          echo "state=$STATE" >> "$GITHUB_OUTPUT"
+          echo "description=$DESCRIPTION" >> "$GITHUB_OUTPUT"
+
+      - name: Publish required status
+        if: >-
+          github.event_name == 'pull_request' &&
+          steps.evaluate.outcome == 'success' &&
+          steps.evaluate.outputs.state != 'cancelled'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          STATE: ${{ steps.evaluate.outputs.state }}
+          DESCRIPTION: ${{ steps.evaluate.outputs.description }}
+          SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          gh api --method POST "repos/${{ github.repository }}/statuses/$SHA" \
+            -f state="$STATE" \
+            -f context="ci-front-status-check" \
+            -f description="$DESCRIPTION" \
+            -f target_url="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}" \
+            > /dev/null
+
+      - name: Fail when a required job did not pass
+        if: steps.evaluate.outputs.state == 'failure'
         run: exit 1
