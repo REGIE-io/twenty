@@ -19,7 +19,6 @@ jobs:
       github.event.workflow_run.conclusion == 'success' &&
       github.event.workflow_run.event == 'pull_request' &&
       github.event.workflow_run.head_repository.full_name == github.repository &&
-      github.event.workflow_run.actor.login == 'dependabot[bot]' &&
       startsWith(github.event.workflow_run.head_branch, 'dependabot/')
     runs-on: ubuntu-latest
     timeout-minutes: 5
@@ -52,8 +51,8 @@ jobs:
             echo "::error::No open Dependabot pull request for $HEAD_BRANCH."
             exit 1
           fi
-          if [ "$base" != "main" ]; then
-            echo "::error::Dependabot metadata request targets unsupported base $base."
+          if [ "$base" != "main" ] && [ "$base" != "develop" ]; then
+            echo "::error::Dependabot CI request targets unsupported base $base."
             exit 1
           fi
           if [ "$head_oid" != "$HEAD_SHA" ]; then
