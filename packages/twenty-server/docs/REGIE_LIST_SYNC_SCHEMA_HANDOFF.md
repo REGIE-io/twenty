@@ -15,15 +15,23 @@ change is deployed:
 - Go continues to read and write product records, but a later Go PR removes its
   metadata creation and reconciliation code.
 
-The source descriptors for this initial transfer are the versions currently on
-`REGIE-io/go` `origin/develop`:
+The source descriptors for this transfer are the versions on `REGIE-io/go`
+`origin/develop` at `8010850d79` (verified 2026-09-15):
 
-- `regie-lists.v2`: `regieStaticList` and `regieListMembership`;
-- `regie-sync-sources.v1`: `regieSyncSource`.
+- `regie-lists.v3`: `regieStaticList` and `regieListMembership`;
+- `regie-sync-sources.v2`: `regieSyncSource`.
 
-Do not use an older local Go checkout as the schema source. Lists v2 includes
-task targets and deliberately has only the `membershipKey` explicit index;
-Twenty creates relation indexes as relation side effects.
+Do not use an older local Go checkout as the schema source. Lists v3 includes
+task targets, durable static-create replay fields, and explicit unique indexes
+for `membershipKey` and `creationOperationKeyHash`. Sync Sources v2 adds
+opportunity and calendar-event targets. Twenty creates relation indexes as
+relation side effects.
+
+Lists v3 was introduced by `REGIE-io/go#1935` (`9d79f8151`) to make the Chat
+`create_static_list` operation retry-safe: Go stores a tenant-scoped operation
+key hash and a request hash, replays identical requests, and rejects reuse with
+different input. Sync Sources v2 came from `REGIE-io/go#1806` and its stage
+follow-up `#1832`, adding inbound Salesforce Opportunity and Event sync.
 
 ## PR sequence and ownership
 
@@ -31,14 +39,14 @@ Twenty creates relation indexes as relation side effects.
 
 Branch: `codex/schema-upgrade-runner`
 
-This prerequisite PR provides:
+This merged prerequisite PR provides:
 
 - a PostgreSQL advisory lock around the complete `upgrade` sequence;
 - `upgrade:status --fail-on-unhealthy` for an exit-code deployment gate;
 - the general workspace-schema implementation and ECS deployment guides.
 
-It does not add the Regie objects. This branch is stacked on its head and should
-be rebased or retargeted to `develop` after #122 lands.
+It does not add the Regie objects. This branch now targets `develop`, which
+contains #122.
 
 ### This Twenty PR: schema ownership and adoption
 
@@ -48,9 +56,6 @@ This PR must deliver both halves in one Twenty release:
 
 1. the compiled standard-application definitions used by fresh workspaces;
 2. a registered workspace adoption command for existing workspaces.
-
-The first WIP commit, `9f6a14ace5`, contains only the initial fresh-workspace
-metadata graph. It is not complete or deployment-ready.
 
 ### Go PR #1988: rollout contract
 
@@ -71,7 +76,7 @@ workspace. That later Go PR should:
 - remove legacy ensure endpoints and migrations only after telemetry remains
   clean.
 
-## Current WIP contents
+## Current contents
 
 The branch currently:
 
@@ -80,15 +85,14 @@ The branch currently:
 - adds standard object metadata for `regieStaticList`,
   `regieListMembership`, and `regieSyncSource`;
 - adds scalar and select fields matching the current Go descriptors;
-- adds relation pairs for lists and sync sources on `person`, `company`, and
-  `task`;
+- adds relation pairs for lists and sync sources on `person`, `company`,
+  `task`, `opportunity`, and `calendarEvent`;
 - adds the explicit unique and compound indexes from the Go descriptors;
 - registers the new objects in field, object, index, and search metadata maps.
 
-The initial typecheck was interrupted while `twenty-server:typecheck` was still
-running. It had emitted no code diagnostic at that point. The local machine has
-Node `25.9.0`, while this repository requires Node `^24.5.0`; use a conforming
-Node version on the continuation machine.
+The metadata and adoption unit suites, snapshots, and `twenty-server` typecheck
+cover the current v3/v2 graph. The local machine has Node `25.9.0`, while this
+repository requires Node `^24.5.0`; CI remains the conforming Node 24 gate.
 
 ## Work required to finish this PR
 
@@ -100,9 +104,11 @@ confirm:
 
 - names, labels, field types, select option values, nullability, and relation
   cardinality match the Go descriptors;
-- relation inverse fields exist on `person`, `company`, and `task`;
+- relation inverse fields exist on `person`, `company`, `task`, `opportunity`,
+  and `calendarEvent`;
 - `MANY_TO_ONE` relations use `CASCADE` and the expected join-column names;
 - the explicit indexes are exactly:
+  - unique `regieStaticList.creationOperationKeyHash`;
   - unique `regieListMembership.membershipKey`;
   - unique `regieSyncSource.sourceKey`;
   - non-unique `(externalRecordId, externalObjectApiName)`;
@@ -151,7 +157,7 @@ For adoption:
 - update universal identifiers and application ownership to the standard
   application;
 - re-own the inverse relation fields currently attached to `person`, `company`,
-  and `task`;
+  `task`, `opportunity`, and `calendarEvent`;
 - use the workspace migration engine rather than direct SQL metadata mutation;
 - be a safe no-op when the workspace is already current;
 - honor `--dry-run` without writing;

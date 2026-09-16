@@ -42,6 +42,8 @@ const REGIE_RELATION_PREREQUISITE_OBJECT_NAMES = [
   'person',
   'company',
   'task',
+  'opportunity',
+  'calendarEvent',
   'timelineActivity',
   'attachment',
   'noteTarget',
@@ -55,6 +57,8 @@ const REGIE_INVERSE_FIELDS = new Set([
   'company.regieSyncSources',
   'task.regieListMemberships',
   'task.regieSyncSources',
+  'opportunity.regieSyncSources',
+  'calendarEvent.regieSyncSources',
 ]);
 
 const values = <T>(record: Record<string, T | undefined>): T[] =>
@@ -206,11 +210,11 @@ const findCompatibleIndexOrThrow = ({
   return matchingIndexes[0];
 };
 
-@RegisteredWorkspaceCommand('2.32.0', 1786900000000)
+@RegisteredWorkspaceCommand('2.32.0', 1789534770000)
 @Command({
   name: 'upgrade:2-32:adopt-regie-list-sync-standard-schema',
   description:
-    'Create or adopt the Regie Lists v2 and Sync Source v1 standard workspace schema',
+    'Create or adopt the Regie Lists v3 and Sync Source v2 standard workspace schema',
 })
 export class AdoptRegieListSyncStandardSchemaCommand extends ProvisionedWorkspaceCommandRunner {
   constructor(

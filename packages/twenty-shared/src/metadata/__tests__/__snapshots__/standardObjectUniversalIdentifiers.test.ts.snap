@@ -362,6 +362,9 @@ exports[`STANDARD_OBJECTS universal identifiers should never change without an e
       "position": {
         "universalIdentifier": "3587323a-e19f-53f6-b6a5-9d2f105302ce",
       },
+      "regieSyncSources": {
+        "universalIdentifier": "9ee6c205-dff6-5e0c-94f1-efa3bc819817",
+      },
       "searchVector": {
         "universalIdentifier": "2cbd5b09-fe96-5454-b3fc-92de22702cda",
       },
@@ -1936,6 +1939,9 @@ exports[`STANDARD_OBJECTS universal identifiers should never change without an e
       "position": {
         "universalIdentifier": "fd8241af-7055-5004-9cfb-edb96f1cfbb4",
       },
+      "regieSyncSources": {
+        "universalIdentifier": "284caaef-5add-597d-9aae-0a88ca90c721",
+      },
       "searchVector": {
         "universalIdentifier": "05bbfee3-ec29-5d44-a1b0-105955b320af",
       },
@@ -2355,6 +2361,12 @@ exports[`STANDARD_OBJECTS universal identifiers should never change without an e
       "createdBy": {
         "universalIdentifier": "79d22da9-ab5a-52ef-8ef1-a7dd8d4a40c2",
       },
+      "creationOperationKeyHash": {
+        "universalIdentifier": "2aa3dd06-8095-583f-8a55-e79baa6feb53",
+      },
+      "creationRequestHash": {
+        "universalIdentifier": "2472d4b2-8cd6-5cda-8019-3964455db66e",
+      },
       "deletedAt": {
         "universalIdentifier": "be11ed35-fb4e-51c8-9aa0-6a4b51dbd1d1",
       },
@@ -2413,11 +2425,18 @@ exports[`STANDARD_OBJECTS universal identifiers should never change without an e
         "universalIdentifier": "2cd4570e-c7ad-507d-9f41-dd97c1e50594",
       },
     },
-    "indexes": {},
+    "indexes": {
+      "creationOperationKeyHashUniqueIndex": {
+        "universalIdentifier": "ec4ce5e1-0440-4786-843b-f96fcc83ffae",
+      },
+    },
     "universalIdentifier": "a862d0b5-b52e-57d2-8513-d78adb125c59",
   },
   "regieSyncSource": {
     "fields": {
+      "calendarEvent": {
+        "universalIdentifier": "89d6fa24-ee29-51b6-b2fb-33223d3b76e3",
+      },
       "company": {
         "universalIdentifier": "86643cbe-404f-5dd2-a60f-7e49aa56feaf",
       },
@@ -2462,6 +2481,9 @@ exports[`STANDARD_OBJECTS universal identifiers should never change without an e
       },
       "localObjectType": {
         "universalIdentifier": "9c9c6278-0244-5b90-a5c6-5ba1412634a0",
+      },
+      "opportunity": {
+        "universalIdentifier": "6e8f1d75-6fad-54f3-aa20-f637a97c2225",
       },
       "person": {
         "universalIdentifier": "2c438f30-bb62-55ec-9705-442c3fc12e3f",

@@ -372,6 +372,12 @@ export const STANDARD_OBJECT_FIELDS = {
     callRecordings: {
       universalIdentifier: '48d6d151-18e2-4111-b405-d85fb9d860d8',
     },
+    regieSyncSources: buildRegieStandardRelationField({
+      objectUniversalIdentifier:
+        STANDARD_OBJECT_UNIVERSAL_IDENTIFIERS.calendarEvent,
+      relationTargetObjectUniversalIdentifier:
+        STANDARD_OBJECT_UNIVERSAL_IDENTIFIERS.regieSyncSource,
+    }),
   },
   callRecording: {
     ...buildStandardObjectSystemFields(
@@ -822,6 +828,12 @@ export const STANDARD_OBJECT_FIELDS = {
           STANDARD_OBJECT_UNIVERSAL_IDENTIFIERS.timelineActivity,
       }),
     },
+    regieSyncSources: buildRegieStandardRelationField({
+      objectUniversalIdentifier:
+        STANDARD_OBJECT_UNIVERSAL_IDENTIFIERS.opportunity,
+      relationTargetObjectUniversalIdentifier:
+        STANDARD_OBJECT_UNIVERSAL_IDENTIFIERS.regieSyncSource,
+    }),
   },
   person: {
     ...buildStandardObjectSystemFields(
@@ -1223,6 +1235,16 @@ export const STANDARD_OBJECT_FIELDS = {
         STANDARD_OBJECT_UNIVERSAL_IDENTIFIERS.regieStaticList,
       name: 'populationFailed',
     }),
+    creationOperationKeyHash: buildRegieStandardField({
+      objectUniversalIdentifier:
+        STANDARD_OBJECT_UNIVERSAL_IDENTIFIERS.regieStaticList,
+      name: 'creationOperationKeyHash',
+    }),
+    creationRequestHash: buildRegieStandardField({
+      objectUniversalIdentifier:
+        STANDARD_OBJECT_UNIVERSAL_IDENTIFIERS.regieStaticList,
+      name: 'creationRequestHash',
+    }),
     members: buildRegieStandardRelationField({
       objectUniversalIdentifier:
         STANDARD_OBJECT_UNIVERSAL_IDENTIFIERS.regieStaticList,
@@ -1350,6 +1372,18 @@ export const STANDARD_OBJECT_FIELDS = {
         STANDARD_OBJECT_UNIVERSAL_IDENTIFIERS.regieSyncSource,
       relationTargetObjectUniversalIdentifier:
         STANDARD_OBJECT_UNIVERSAL_IDENTIFIERS.task,
+    }),
+    opportunity: buildRegieStandardRelationField({
+      objectUniversalIdentifier:
+        STANDARD_OBJECT_UNIVERSAL_IDENTIFIERS.regieSyncSource,
+      relationTargetObjectUniversalIdentifier:
+        STANDARD_OBJECT_UNIVERSAL_IDENTIFIERS.opportunity,
+    }),
+    calendarEvent: buildRegieStandardRelationField({
+      objectUniversalIdentifier:
+        STANDARD_OBJECT_UNIVERSAL_IDENTIFIERS.regieSyncSource,
+      relationTargetObjectUniversalIdentifier:
+        STANDARD_OBJECT_UNIVERSAL_IDENTIFIERS.calendarEvent,
     }),
   },
 } satisfies Record<string, Record<string, { universalIdentifier: string }>>;

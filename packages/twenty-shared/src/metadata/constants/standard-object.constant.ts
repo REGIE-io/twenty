@@ -1255,7 +1255,11 @@ export const STANDARD_OBJECTS = {
   regieStaticList: {
     universalIdentifier: STANDARD_OBJECT_UNIVERSAL_IDENTIFIERS.regieStaticList,
     fields: STANDARD_OBJECT_FIELDS.regieStaticList,
-    indexes: {},
+    indexes: {
+      creationOperationKeyHashUniqueIndex: {
+        universalIdentifier: 'ec4ce5e1-0440-4786-843b-f96fcc83ffae',
+      },
+    },
   },
   regieListMembership: {
     universalIdentifier:

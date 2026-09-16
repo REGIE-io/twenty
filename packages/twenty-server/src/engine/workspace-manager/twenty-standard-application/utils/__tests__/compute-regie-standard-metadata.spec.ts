@@ -114,9 +114,11 @@ describe('Regie Lists and Sync Source standard metadata build', () => {
         populationAdded: FieldMetadataType.NUMBER,
         populationSkipped: FieldMetadataType.NUMBER,
         populationFailed: FieldMetadataType.NUMBER,
+        creationOperationKeyHash: FieldMetadataType.TEXT,
+        creationRequestHash: FieldMetadataType.TEXT,
         members: FieldMetadataType.RELATION,
       },
-      21,
+      23,
     ],
     [
       'regieListMembership',
@@ -148,8 +150,10 @@ describe('Regie Lists and Sync Source standard metadata build', () => {
         person: FieldMetadataType.RELATION,
         company: FieldMetadataType.RELATION,
         task: FieldMetadataType.RELATION,
+        opportunity: FieldMetadataType.RELATION,
+        calendarEvent: FieldMetadataType.RELATION,
       },
-      23,
+      25,
     ],
   ] as const)(
     'builds every %s field with the expected type and nullability',
@@ -186,7 +190,11 @@ describe('Regie Lists and Sync Source standard metadata build', () => {
     ],
     ['regieListMembership', 'source', ['MANUAL', 'SNAPSHOT', 'CSV', 'API']],
     ['regieSyncSource', 'syncSystem', ['SALESFORCE', 'HUBSPOT']],
-    ['regieSyncSource', 'localObjectType', ['PERSON', 'COMPANY', 'TASK']],
+    [
+      'regieSyncSource',
+      'localObjectType',
+      ['PERSON', 'COMPANY', 'TASK', 'OPPORTUNITY', 'CALENDAR_EVENT'],
+    ],
     [
       'regieSyncSource',
       'lifecycleState',
@@ -240,6 +248,20 @@ describe('Regie Lists and Sync Source standard metadata build', () => {
     ['regieSyncSource', 'person', 'person', 'regieSyncSources', 'personId'],
     ['regieSyncSource', 'company', 'company', 'regieSyncSources', 'companyId'],
     ['regieSyncSource', 'task', 'task', 'regieSyncSources', 'taskId'],
+    [
+      'regieSyncSource',
+      'opportunity',
+      'opportunity',
+      'regieSyncSources',
+      'opportunityId',
+    ],
+    [
+      'regieSyncSource',
+      'calendarEvent',
+      'calendarEvent',
+      'regieSyncSources',
+      'calendarEventId',
+    ],
   ] as const)(
     'builds %s.%s and its inverse relation',
     (
@@ -279,7 +301,7 @@ describe('Regie Lists and Sync Source standard metadata build', () => {
     },
   );
 
-  it('builds exactly the three explicit Regie indexes with ordered fields', () => {
+  it('builds exactly the four explicit Regie indexes with ordered fields', () => {
     const indexes = Object.values(
       allFlatEntityMaps.flatIndexMaps.byUniversalIdentifier,
     )
@@ -301,9 +323,12 @@ describe('Regie Lists and Sync Source standard metadata build', () => {
             Object.entries(
               STANDARD_OBJECTS[
                 index.objectMetadataUniversalIdentifier ===
-                STANDARD_OBJECTS.regieListMembership.universalIdentifier
-                  ? 'regieListMembership'
-                  : 'regieSyncSource'
+                STANDARD_OBJECTS.regieStaticList.universalIdentifier
+                  ? 'regieStaticList'
+                  : index.objectMetadataUniversalIdentifier ===
+                      STANDARD_OBJECTS.regieListMembership.universalIdentifier
+                    ? 'regieListMembership'
+                    : 'regieSyncSource'
               ].fields,
             ).find(
               ([, field]) =>
@@ -314,6 +339,13 @@ describe('Regie Lists and Sync Source standard metadata build', () => {
 
     expect(shape).toEqual(
       expect.arrayContaining([
+        {
+          universalIdentifier:
+            STANDARD_OBJECTS.regieStaticList.indexes
+              .creationOperationKeyHashUniqueIndex.universalIdentifier,
+          isUnique: true,
+          fields: ['creationOperationKeyHash'],
+        },
         {
           universalIdentifier:
             STANDARD_OBJECTS.regieListMembership.indexes
@@ -337,6 +369,6 @@ describe('Regie Lists and Sync Source standard metadata build', () => {
         },
       ]),
     );
-    expect(shape).toHaveLength(3);
+    expect(shape).toHaveLength(4);
   });
 });

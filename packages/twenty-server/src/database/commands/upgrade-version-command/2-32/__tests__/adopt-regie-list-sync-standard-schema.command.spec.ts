@@ -6,7 +6,7 @@ import {
 } from 'twenty-shared/types';
 import { isDefined } from 'twenty-shared/utils';
 
-import { AdoptRegieListSyncStandardSchemaCommand } from 'src/database/commands/upgrade-version-command/2-32/2-32-workspace-command-1786900000000-adopt-regie-list-sync-standard-schema.command';
+import { AdoptRegieListSyncStandardSchemaCommand } from 'src/database/commands/upgrade-version-command/2-32/2-32-workspace-command-1789534770000-adopt-regie-list-sync-standard-schema.command';
 import { createEmptyFlatEntityMaps } from 'src/engine/metadata-modules/flat-entity/constant/create-empty-flat-entity-maps.constant';
 import { type AllFlatEntityMaps } from 'src/engine/metadata-modules/flat-entity/types/all-flat-entity-maps.type';
 import { type SyncableFlatEntity } from 'src/engine/metadata-modules/flat-entity/types/flat-entity-from.type';
@@ -94,7 +94,13 @@ const legacyMaps = (): RegieMaps => {
     .map((field) => {
       const objectName = objectNameById.get(field.objectMetadataId);
       const isInverse =
-        ['person', 'company', 'task'].includes(objectName ?? '') &&
+        [
+          'person',
+          'company',
+          'task',
+          'opportunity',
+          'calendarEvent',
+        ].includes(objectName ?? '') &&
         ['regieListMemberships', 'regieSyncSources'].includes(field.name);
 
       if (!regieObjectIds.has(field.objectMetadataId) && !isInverse)
@@ -201,6 +207,8 @@ describe('AdoptRegieListSyncStandardSchemaCommand', () => {
               'person',
               'company',
               'task',
+              'opportunity',
+              'calendarEvent',
               'timelineActivity',
               'attachment',
               'noteTarget',
@@ -222,10 +230,10 @@ describe('AdoptRegieListSyncStandardSchemaCommand', () => {
     ).toHaveLength(3);
     expect(
       allFlatEntityOperationByMetadataName.fieldMetadata.flatEntityToCreate,
-    ).toHaveLength(64);
+    ).toHaveLength(70);
     expect(
       allFlatEntityOperationByMetadataName.index.flatEntityToCreate,
-    ).toHaveLength(3);
+    ).toHaveLength(4);
     expect(
       validateBuildAndRunTwentyStandardWorkspaceMigration,
     ).toHaveBeenCalledWith(
@@ -244,7 +252,7 @@ describe('AdoptRegieListSyncStandardSchemaCommand', () => {
     };
 
     await expect(run()).rejects.toThrow(
-      'missing required standard objects person, company, task, timelineActivity, attachment, noteTarget, taskTarget. Restore or provision the workspace core standard schema, then retry the 2.32 workspace upgrade; the upgrade cursor has not advanced.',
+      'missing required standard objects person, company, task, opportunity, calendarEvent, timelineActivity, attachment, noteTarget, taskTarget. Restore or provision the workspace core standard schema, then retry the 2.32 workspace upgrade; the upgrade cursor has not advanced.',
     );
 
     expect(
@@ -270,13 +278,13 @@ describe('AdoptRegieListSyncStandardSchemaCommand', () => {
         ({ metadataName }: { metadataName: string }) =>
           metadataName === 'fieldMetadata',
       ),
-    ).toHaveLength(64);
+    ).toHaveLength(70);
     expect(
       identityReassignments.filter(
         ({ metadataName }: { metadataName: string }) =>
           metadataName === 'index',
       ),
-    ).toHaveLength(3);
+    ).toHaveLength(4);
     expect(validateBuildAndRunWorkspaceMigration).toHaveBeenCalledTimes(1);
     expect(
       validateBuildAndRunWorkspaceMigration.mock.calls[0][0]

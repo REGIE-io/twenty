@@ -3,7 +3,7 @@ import { v4 } from 'uuid';
 import { STANDARD_OBJECTS } from 'twenty-shared/metadata';
 import { isDefined } from 'twenty-shared/utils';
 
-import { AdoptRegieListSyncStandardSchemaCommand } from 'src/database/commands/upgrade-version-command/2-32/2-32-workspace-command-1786900000000-adopt-regie-list-sync-standard-schema.command';
+import { AdoptRegieListSyncStandardSchemaCommand } from 'src/database/commands/upgrade-version-command/2-32/2-32-workspace-command-1789534770000-adopt-regie-list-sync-standard-schema.command';
 import { ApplicationService } from 'src/engine/core-modules/application/application.service';
 import { FieldMetadataEntity } from 'src/engine/metadata-modules/field-metadata/field-metadata.entity';
 import { IndexMetadataEntity } from 'src/engine/metadata-modules/index-metadata/index-metadata.entity';
@@ -125,7 +125,13 @@ describe('Regie standard schema adoption (integration)', () => {
     const standardTargetObjectIds = new Set(
       objects
         .filter(({ nameSingular }) =>
-          ['person', 'company', 'task'].includes(nameSingular),
+          [
+            'person',
+            'company',
+            'task',
+            'opportunity',
+            'calendarEvent',
+          ].includes(nameSingular),
         )
         .map(({ id }) => id),
     );
@@ -146,6 +152,8 @@ describe('Regie standard schema adoption (integration)', () => {
       relations: { indexFieldMetadatas: true },
     });
     const explicitIndexUniversalIdentifiers = new Set<string>([
+      STANDARD_OBJECTS.regieStaticList.indexes
+        .creationOperationKeyHashUniqueIndex.universalIdentifier,
       STANDARD_OBJECTS.regieListMembership.indexes.membershipKeyUniqueIndex
         .universalIdentifier,
       STANDARD_OBJECTS.regieSyncSource.indexes.sourceKeyUniqueIndex
@@ -159,7 +167,7 @@ describe('Regie standard schema adoption (integration)', () => {
         explicitIndexUniversalIdentifiers.has(universalIdentifier),
       ),
     );
-    expect(originalIndexes).toHaveLength(3);
+    expect(originalIndexes).toHaveLength(4);
 
     metadataIdentityBefore = [
       ...originalObjects,

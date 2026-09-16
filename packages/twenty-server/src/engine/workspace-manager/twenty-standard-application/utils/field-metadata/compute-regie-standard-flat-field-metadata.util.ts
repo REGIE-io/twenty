@@ -96,6 +96,18 @@ export const buildRegieStaticListStandardFlatFieldMetadatas = (
     type: FieldMetadataType.NUMBER,
     label: 'Population Failed',
   }),
+  creationOperationKeyHash: createRegieStandardScalarField({
+    args,
+    fieldName: 'creationOperationKeyHash',
+    type: FieldMetadataType.TEXT,
+    label: 'Creation Operation Key Hash',
+  }),
+  creationRequestHash: createRegieStandardScalarField({
+    args,
+    fieldName: 'creationRequestHash',
+    type: FieldMetadataType.TEXT,
+    label: 'Creation Request Hash',
+  }),
   members: createStandardRelationFieldFlatMetadata({
     ...args,
     context: {
@@ -231,7 +243,7 @@ export const buildRegieSyncSourceStandardFlatFieldMetadatas = (
     fieldName: 'localObjectType',
     type: FieldMetadataType.SELECT,
     label: 'Local Object Type',
-    options: ['PERSON', 'COMPANY', 'TASK'],
+    options: ['PERSON', 'COMPANY', 'TASK', 'OPPORTUNITY', 'CALENDAR_EVENT'],
   }),
   externalObjectApiName: createRegieStandardScalarField({
     args,
@@ -340,6 +352,42 @@ export const buildRegieSyncSourceStandardFlatFieldMetadatas = (
         relationType: RelationType.MANY_TO_ONE,
         onDelete: RelationOnDeleteAction.CASCADE,
         joinColumnName: 'taskId',
+      },
+    },
+  }),
+  opportunity: createStandardRelationFieldFlatMetadata({
+    ...args,
+    context: {
+      type: FieldMetadataType.RELATION,
+      morphId: null,
+      fieldName: 'opportunity',
+      label: 'Opportunity',
+      description: 'The local opportunity for this source record',
+      icon: 'IconTargetArrow',
+      targetObjectName: 'opportunity',
+      targetFieldName: 'regieSyncSources',
+      settings: {
+        relationType: RelationType.MANY_TO_ONE,
+        onDelete: RelationOnDeleteAction.CASCADE,
+        joinColumnName: 'opportunityId',
+      },
+    },
+  }),
+  calendarEvent: createStandardRelationFieldFlatMetadata({
+    ...args,
+    context: {
+      type: FieldMetadataType.RELATION,
+      morphId: null,
+      fieldName: 'calendarEvent',
+      label: 'Calendar Event',
+      description: 'The local calendar event for this source record',
+      icon: 'IconCalendarEvent',
+      targetObjectName: 'calendarEvent',
+      targetFieldName: 'regieSyncSources',
+      settings: {
+        relationType: RelationType.MANY_TO_ONE,
+        onDelete: RelationOnDeleteAction.CASCADE,
+        joinColumnName: 'calendarEventId',
       },
     },
   }),

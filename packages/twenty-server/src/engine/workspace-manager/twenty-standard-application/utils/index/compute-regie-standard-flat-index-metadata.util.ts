@@ -5,6 +5,32 @@ import {
   createStandardIndexFlatMetadata,
 } from 'src/engine/workspace-manager/twenty-standard-application/utils/index/create-standard-index-flat-metadata.util';
 
+export const buildRegieStaticListStandardFlatIndexMetadatas = ({
+  now,
+  objectName,
+  workspaceId,
+  standardObjectMetadataRelatedEntityIds,
+  dependencyFlatEntityMaps,
+  twentyStandardApplicationId,
+}: Omit<CreateStandardIndexArgs<'regieStaticList'>, 'context'>): Record<
+  AllStandardObjectIndexName<'regieStaticList'>,
+  FlatIndexMetadata
+> => ({
+  creationOperationKeyHashUniqueIndex: createStandardIndexFlatMetadata({
+    objectName,
+    workspaceId,
+    context: {
+      indexName: 'creationOperationKeyHashUniqueIndex',
+      relatedFieldNames: ['creationOperationKeyHash'],
+      isUnique: true,
+    },
+    standardObjectMetadataRelatedEntityIds,
+    dependencyFlatEntityMaps,
+    twentyStandardApplicationId,
+    now,
+  }),
+});
+
 export const buildRegieListMembershipStandardFlatIndexMetadatas = ({
   now,
   objectName,
