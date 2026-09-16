@@ -2160,7 +2160,7 @@ export class ConfigVariables {
   })
   @CastToPositiveNumber()
   @IsOptional()
-  PG_DATABASE_PRIMARY_TIMEOUT_MS: number = 10000;
+  PG_DATABASE_PRIMARY_TIMEOUT_MS: number = 180000;
 
   @ConfigVariablesMetadata({
     group: ConfigVariablesGroup.ADVANCED_SETTINGS,
