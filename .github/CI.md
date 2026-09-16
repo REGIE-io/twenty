@@ -17,3 +17,14 @@ Dependabot requests the same label automatically after its metadata is captured.
 metadata bridge runs on both `main` and `develop`, so the trusted retarget marker gets
 an independent, rerunnable CI request. Auto-merge then waits for the required statuses
 on that exact head.
+
+## Stage promotion ancestry
+
+Every pull request targeting `stage` automatically runs `Stage ancestry`. The exact
+pull request head must already be contained in `develop`; otherwise the check fails
+even if the requested CI suites are green. This permits promotion branches built from
+integrated commits while blocking changes that bypass develop.
+
+After `.github/workflows/stage-ancestry.yaml` reaches the default branch, add the
+`Stage ancestry` context from the GitHub Actions integration to the Stage Protection
+ruleset's required status checks.
