@@ -27,6 +27,7 @@ describe('RegieE2eWorkspaceDeletionDiscoveryService', () => {
     subdomain: 'org-e2e-run-1',
   };
   const markerRow = {
+    key: 'regie-internal:e2e-workspace-marker',
     workspace,
     value: {
       ephemeral: true,
@@ -213,15 +214,11 @@ describe('RegieE2eWorkspaceDeletionDiscoveryService', () => {
     });
   });
 
-  it('recomputes the grace cutoff from deletedAt policy without putting a date on the job', async () => {
+  it('uses the deletion grace cutoff for normal markers without putting a date on the job', async () => {
     const { service, queryBuilder, enqueuer } = makeService();
 
     await discover(service, enqueuer);
 
-    expect(queryBuilder.andWhere).toHaveBeenCalledWith(
-      'workspace.deletedAt <= :cutoff',
-      { cutoff: new Date('2026-09-11T12:00:00.000Z') },
-    );
     expect(queryBuilder.andWhere).toHaveBeenCalledWith(
       'workspace."deletionRequestedAt" IS NULL',
     );
@@ -231,6 +228,58 @@ describe('RegieE2eWorkspaceDeletionDiscoveryService', () => {
     });
     expect(enqueuer.enqueue.mock.calls[0][0]).not.toHaveProperty('purgeAfter');
     expect(queryBuilder.limit).toHaveBeenCalledWith(admissionLimit);
+  });
+
+  it('admits a legacy orphan only when its exact persisted identity is authorized', async () => {
+    const legacyMarkerRow = {
+      key: 'regie-internal:legacy-e2e-orphan-marker',
+      workspace,
+      value: {
+        ephemeral: true,
+        kind: 'LEGACY_ORPHAN',
+        workspaceId: workspace.id,
+        workspaceSlug: workspace.subdomain,
+        authorizedAt: '2026-09-10T12:00:00.000Z',
+        source: 'reviewed-cross-database-backfill',
+      },
+    };
+    const { service, lifecycleStore, enqueuer } = makeService({
+      markerRows: [legacyMarkerRow],
+    });
+
+    await expect(discover(service, enqueuer)).resolves.toEqual({
+      recovered: 0,
+      admitted: 1,
+    });
+    expect(lifecycleStore.requestDeletion).toHaveBeenCalledWith(
+      workspace.id,
+      WorkspaceDeletionKind.E2E,
+      now,
+    );
+  });
+
+  it('refuses a legacy marker with a mismatched workspace ID or source', async () => {
+    const legacyMarkerRow = {
+      key: 'regie-internal:legacy-e2e-orphan-marker',
+      workspace,
+      value: {
+        ephemeral: true,
+        kind: 'LEGACY_ORPHAN',
+        workspaceId: '20202020-0000-4000-8000-000000000099',
+        workspaceSlug: workspace.subdomain,
+        authorizedAt: '2026-09-10T12:00:00.000Z',
+        source: 'unreviewed',
+      },
+    };
+    const { service, lifecycleStore, enqueuer } = makeService({
+      markerRows: [legacyMarkerRow],
+    });
+
+    await expect(discover(service, enqueuer)).resolves.toEqual({
+      recovered: 0,
+      admitted: 0,
+    });
+    expect(lifecycleStore.requestDeletion).not.toHaveBeenCalled();
   });
 
   it('refuses a candidate whose persistent identity does not match', async () => {

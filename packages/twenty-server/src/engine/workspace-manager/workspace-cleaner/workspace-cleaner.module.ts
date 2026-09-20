@@ -19,6 +19,7 @@ import { WorkspaceModule } from 'src/engine/core-modules/workspace/workspace.mod
 import { provideWorkspaceScopedRepository } from 'src/engine/twenty-orm/workspace-scoped-repository/provide-workspace-scoped-repository';
 import { CleanOnboardingWorkspacesCommand } from 'src/engine/workspace-manager/workspace-cleaner/commands/clean-onboarding-workspaces.command';
 import { BackfillRegieE2eWorkspaceQuarantineCommand } from 'src/engine/workspace-manager/workspace-cleaner/commands/backfill-regie-e2e-workspace-quarantine.command';
+import { BackfillRegieLegacyE2eOrphanMarkersCommand } from 'src/engine/workspace-manager/workspace-cleaner/commands/backfill-regie-legacy-e2e-orphan-markers.command';
 import { CleanOnboardingWorkspacesCronCommand } from 'src/engine/workspace-manager/workspace-cleaner/commands/clean-onboarding-workspaces.cron.command';
 import { CleanSuspendedWorkspacesCommand } from 'src/engine/workspace-manager/workspace-cleaner/commands/clean-suspended-workspaces.command';
 import { CleanSuspendedWorkspacesCronCommand } from 'src/engine/workspace-manager/workspace-cleaner/commands/clean-suspended-workspaces.cron.command';
@@ -29,6 +30,7 @@ import { CleanerWorkspaceService } from 'src/engine/workspace-manager/workspace-
 import { RegieE2eWorkspaceSweeperService } from 'src/engine/workspace-manager/workspace-cleaner/services/regie-e2e-workspace-sweeper.service';
 import { RegieE2eWorkspaceQuarantineBackfillWorkspaceService } from 'src/engine/workspace-manager/workspace-cleaner/services/regie-e2e-workspace-quarantine-backfill.workspace-service';
 import { RegieE2eWorkspaceDeletionDiscoveryService } from 'src/engine/workspace-manager/workspace-cleaner/services/regie-e2e-workspace-deletion-discovery.service';
+import { RegieLegacyE2eOrphanMarkerBackfillService } from 'src/engine/workspace-manager/workspace-cleaner/services/regie-legacy-e2e-orphan-marker-backfill.service';
 import { WorkspaceDeletionLifecycleService } from 'src/engine/workspace-manager/workspace-cleaner/services/workspace-deletion-lifecycle.service';
 import { WorkspaceDeletionLifecycleStore } from 'src/engine/workspace-manager/workspace-cleaner/services/workspace-deletion-lifecycle.store';
 import { WorkspaceDeletionCoordinatorService } from 'src/engine/workspace-manager/workspace-cleaner/services/workspace-deletion-coordinator.service';
@@ -59,6 +61,7 @@ import { WorkspaceDeletionQueueAdapter } from 'src/engine/workspace-manager/work
   ],
   providers: [
     BackfillRegieE2eWorkspaceQuarantineCommand,
+    BackfillRegieLegacyE2eOrphanMarkersCommand,
     DestroyWorkspaceCommand,
     RegieE2eWorkspaceDeletionDiscoveryCronCommand,
     CleanSuspendedWorkspacesCronCommand,
@@ -70,6 +73,7 @@ import { WorkspaceDeletionQueueAdapter } from 'src/engine/workspace-manager/work
     RegieE2eWorkspaceSweeperService,
     RegieE2eWorkspaceQuarantineBackfillWorkspaceService,
     RegieE2eWorkspaceDeletionDiscoveryService,
+    RegieLegacyE2eOrphanMarkerBackfillService,
     WorkspaceDeletionLifecycleService,
     WorkspaceDeletionLifecycleStore,
     WorkspaceDeletionPhaseExecutorService,

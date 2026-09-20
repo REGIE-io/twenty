@@ -1,13 +1,17 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 
-import { type Repository } from 'typeorm';
+import { Brackets, type Repository } from 'typeorm';
 
 import {
   REGIE_E2E_ORGANIZATION_ID_PREFIX,
   REGIE_E2E_WORKSPACE_MARKER_KEY,
   REGIE_E2E_WORKSPACE_SLUG_PREFIX,
+  REGIE_LEGACY_E2E_ORPHAN_MARKER_KEY,
+  REGIE_LEGACY_E2E_ORPHAN_MARKER_KIND,
+  REGIE_LEGACY_E2E_ORPHAN_MARKER_SOURCE,
   type RegieE2eWorkspaceMarker,
+  type RegieLegacyE2eOrphanMarker,
 } from 'src/engine/core-modules/auth/constants/regie-e2e-workspace-marker.constant';
 import {
   KeyValuePairEntity,
@@ -143,19 +147,56 @@ export class RegieE2eWorkspaceDeletionDiscoveryService {
       .createQueryBuilder('marker')
       .withDeleted()
       .innerJoinAndSelect('marker.workspace', 'workspace')
-      .where('marker.key = :key', { key: REGIE_E2E_WORKSPACE_MARKER_KEY })
+      .where('marker.key IN (:...keys)', {
+        keys: [
+          REGIE_E2E_WORKSPACE_MARKER_KEY,
+          REGIE_LEGACY_E2E_ORPHAN_MARKER_KEY,
+        ],
+      })
       .andWhere('marker.type = :type', {
         type: KeyValuePairType.USER_VARIABLE,
       })
       .andWhere("marker.value ->> 'ephemeral' = 'true'")
-      .andWhere(
-        "marker.value ->> 'organizationId' LIKE 'org\\_e2e\\_%' ESCAPE '\\'",
-      )
       .andWhere("marker.value ->> 'workspaceSlug' = workspace.subdomain")
       .andWhere("workspace.subdomain LIKE 'org-e2e-%'")
-      .andWhere('workspace.deletedAt <= :cutoff', { cutoff })
+      .andWhere(
+        new Brackets((query) => {
+          query
+            .where(
+              new Brackets((standardMarker) => {
+                standardMarker
+                  .where('marker.key = :standardMarkerKey', {
+                    standardMarkerKey: REGIE_E2E_WORKSPACE_MARKER_KEY,
+                  })
+                  .andWhere(
+                    "marker.value ->> 'organizationId' LIKE 'org\\_e2e\\_%' ESCAPE '\\'",
+                  )
+                  .andWhere('workspace.deletedAt <= :cutoff', { cutoff });
+              }),
+            )
+            .orWhere(
+              new Brackets((legacyMarker) => {
+                legacyMarker
+                  .where('marker.key = :legacyMarkerKey', {
+                    legacyMarkerKey: REGIE_LEGACY_E2E_ORPHAN_MARKER_KEY,
+                  })
+                  .andWhere("marker.value ->> 'kind' = :legacyMarkerKind", {
+                    legacyMarkerKind: REGIE_LEGACY_E2E_ORPHAN_MARKER_KIND,
+                  })
+                  .andWhere(
+                    "marker.value ->> 'workspaceId' = workspace.id::text",
+                  )
+                  .andWhere('marker.createdAt <= :cutoff', { cutoff });
+              }),
+            );
+        }),
+      )
+      .andWhere('workspace.deletedAt IS NOT NULL')
       .andWhere('workspace."deletionRequestedAt" IS NULL')
-      .orderBy('workspace.deletedAt', 'ASC')
+      .orderBy(
+        `CASE WHEN marker.key = '${REGIE_LEGACY_E2E_ORPHAN_MARKER_KEY}' THEN marker.createdAt ELSE workspace.deletedAt END`,
+        'ASC',
+      )
       .addOrderBy('workspace.id', 'ASC')
       .limit(admissionLimit)
       .getMany();
@@ -164,9 +205,13 @@ export class RegieE2eWorkspaceDeletionDiscoveryService {
 
     for (const markerRow of markerRows) {
       const { workspace } = markerRow;
-      const marker = markerRow.value as unknown as RegieE2eWorkspaceMarker;
+      const marker = markerRow.value as unknown as
+        | RegieE2eWorkspaceMarker
+        | RegieLegacyE2eOrphanMarker;
 
-      if (!this.isSafe(workspace.subdomain, marker)) {
+      if (
+        !this.isSafe(workspace.id, workspace.subdomain, markerRow.key, marker)
+      ) {
         this.logger.warn(
           `Refusing to admit workspace ${workspace.id} to E2E deletion`,
         );
@@ -224,15 +269,43 @@ export class RegieE2eWorkspaceDeletionDiscoveryService {
   }
 
   private isSafe(
+    workspaceId: string,
     subdomain: string,
-    marker: RegieE2eWorkspaceMarker | null,
+    markerKey: string,
+    marker: RegieE2eWorkspaceMarker | RegieLegacyE2eOrphanMarker | null,
   ): boolean {
-    return (
+    const commonIdentityIsSafe =
       marker?.ephemeral === true &&
-      typeof marker.organizationId === 'string' &&
-      marker.organizationId.startsWith(REGIE_E2E_ORGANIZATION_ID_PREFIX) &&
       marker.workspaceSlug === subdomain &&
-      subdomain.startsWith(REGIE_E2E_WORKSPACE_SLUG_PREFIX)
-    );
+      subdomain.startsWith(REGIE_E2E_WORKSPACE_SLUG_PREFIX);
+
+    if (!commonIdentityIsSafe) {
+      return false;
+    }
+
+    if (markerKey === REGIE_E2E_WORKSPACE_MARKER_KEY) {
+      const standardMarker = marker as RegieE2eWorkspaceMarker;
+
+      return (
+        typeof standardMarker.organizationId === 'string' &&
+        standardMarker.organizationId.startsWith(
+          REGIE_E2E_ORGANIZATION_ID_PREFIX,
+        )
+      );
+    }
+
+    if (markerKey === REGIE_LEGACY_E2E_ORPHAN_MARKER_KEY) {
+      const legacyMarker = marker as RegieLegacyE2eOrphanMarker;
+
+      return (
+        legacyMarker.kind === REGIE_LEGACY_E2E_ORPHAN_MARKER_KIND &&
+        legacyMarker.source === REGIE_LEGACY_E2E_ORPHAN_MARKER_SOURCE &&
+        legacyMarker.workspaceId === workspaceId &&
+        typeof legacyMarker.authorizedAt === 'string' &&
+        !Number.isNaN(Date.parse(legacyMarker.authorizedAt))
+      );
+    }
+
+    return false;
   }
 }
