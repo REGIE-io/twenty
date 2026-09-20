@@ -266,3 +266,11 @@ Declare the rollout healthy only after multiple cron cycles show:
 
 Ordinary suspended-workspace reliability and Go lifecycle readback/reconciliation
 remain explicit follow-ups; they are not provided by #138/#2202 phase one.
+
+Set `CLEAN_SUSPENDED_WORKSPACES_CRON_ENABLED=false` in an environment only when
+the legacy hourly suspended-workspace sweep must be retired there. The worker
+bootstrap and `cron:register:all` both remove its persisted BullMQ scheduler
+while the flag is false, so a process restart cannot silently restore it. This
+switch disables ordinary suspended-workspace cleanup as well as any historical
+E2E work on that path; the bounded E2E lifecycle does not replace ordinary
+customer-workspace cleanup.
