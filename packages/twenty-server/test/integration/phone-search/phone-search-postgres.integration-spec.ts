@@ -160,6 +160,31 @@ describe('person phone lookup PostgreSQL contracts', () => {
 
   afterAll(async () => dataSource.destroy());
 
+  it('keeps an already-correct Person trigger without replacing it', async () => {
+    const readTriggerId = async () => {
+      const [{ id: triggerId }] = await dataSource.query<Array<{ id: string }>>(
+        `SELECT t.oid::text AS id
+           FROM pg_trigger t
+           JOIN pg_class c ON c.oid = t.tgrelid
+           JOIN pg_namespace n ON n.oid = c.relnamespace
+          WHERE n.nspname = $1
+            AND c.relname = 'person'
+            AND t.tgname = 'TRG_PERSON_PHONE_LOOKUP_SYNC'`,
+        [schema],
+      );
+
+      return triggerId;
+    };
+    const originalTriggerId = await readTriggerId();
+
+    await new PhoneSearchTriggerManagerService(dataSource).install({
+      workspaceId,
+      objectMetadataId,
+    });
+
+    expect(await readTriggerId()).toBe(originalTriggerId);
+  });
+
   it('installs workspace ownership foreign keys with cascade deletion', async () => {
     const constraints = await dataSource.query<
       Array<{ conname: string; confdeltype: string }>

@@ -1,0 +1,195 @@
+import * as Sentry from '@sentry/node';
+
+import { REGIE_E2E_PURGE_GRACE_PERIOD_MS } from 'src/engine/core-modules/auth/constants/regie-e2e-workspace-marker.constant';
+import { type TwentyConfigService } from 'src/engine/core-modules/twenty-config/twenty-config.service';
+import { RegieE2eWorkspaceDeletionDiscoveryJob } from 'src/engine/workspace-manager/workspace-cleaner/crons/regie-e2e-workspace-deletion-discovery.job';
+import { type RegieE2eWorkspaceDeletionDiscoveryService } from 'src/engine/workspace-manager/workspace-cleaner/services/regie-e2e-workspace-deletion-discovery.service';
+import { type WorkspaceDeletionMonitoringService } from 'src/engine/workspace-manager/workspace-cleaner/services/workspace-deletion-monitoring.service';
+import { type WorkspaceDeletionQueueAdapter } from 'src/engine/workspace-manager/workspace-cleaner/services/workspace-deletion-queue.adapter';
+import { type WorkspaceDeletionTraceService } from 'src/engine/workspace-manager/workspace-cleaner/services/workspace-deletion-trace.service';
+
+jest.mock('@sentry/node', () => ({
+  captureCheckIn: jest.fn(),
+  isInitialized: jest.fn().mockReturnValue(false),
+}));
+
+describe('RegieE2eWorkspaceDeletionDiscoveryJob', () => {
+  const config = {
+    get: jest.fn((key: string) =>
+      key === 'REGIE_E2E_WORKSPACE_DELETION_RECOVERY_LIMIT' ? 5 : 15,
+    ),
+  } as unknown as TwentyConfigService;
+  const healthySummary = {
+    outstanding: 0,
+    pending: 0,
+    running: 0,
+    stalled: 0,
+    retryableFailures: 0,
+    terminalFailures: 0,
+    oldestAgeMs: 0,
+  };
+  const monitoring = {
+    report: jest.fn().mockResolvedValue({ rows: [], summary: healthySummary }),
+  } as unknown as WorkspaceDeletionMonitoringService;
+  const trace = {
+    record: jest.fn(),
+  } as unknown as WorkspaceDeletionTraceService;
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    jest.mocked(Sentry.isInitialized).mockReturnValue(false);
+    jest.mocked(Sentry.captureCheckIn).mockReturnValue('check-in-id');
+  });
+
+  it('runs recovery and fresh discovery together at the current grace boundary', async () => {
+    const discovery = {
+      discover: jest.fn().mockResolvedValue({ recovered: 2, admitted: 3 }),
+    };
+    const adapter = {};
+    const now = new Date('2026-09-12T12:00:00.000Z');
+    const job = new RegieE2eWorkspaceDeletionDiscoveryJob(
+      discovery as unknown as RegieE2eWorkspaceDeletionDiscoveryService,
+      adapter as WorkspaceDeletionQueueAdapter,
+      config,
+      monitoring,
+      trace,
+    );
+
+    await expect(job.runAt(now)).resolves.toEqual({
+      recovered: 2,
+      admitted: 3,
+    });
+    expect(discovery.discover).toHaveBeenCalledWith(adapter, {
+      now,
+      gracePeriodMs: REGIE_E2E_PURGE_GRACE_PERIOD_MS,
+      staleAfterMs: 30_000,
+      recoveryLimit: 5,
+      admissionLimit: 15,
+    });
+    expect(trace.record).toHaveBeenCalledWith({
+      event: 'workspace_deletion_backlog_snapshot',
+      ...healthySummary,
+    });
+  });
+
+  it('emits operational alarm events for stalled, terminal, and old backlog', async () => {
+    const discovery = {
+      discover: jest.fn().mockResolvedValue({ recovered: 0, admitted: 0 }),
+    };
+    const unhealthySummary = {
+      ...healthySummary,
+      outstanding: 3,
+      stalled: 1,
+      terminalFailures: 1,
+      oldestAgeMs: 20 * 60_000,
+    };
+    const unhealthyMonitoring = {
+      report: jest
+        .fn()
+        .mockResolvedValue({ rows: [], summary: unhealthySummary }),
+    };
+    const job = new RegieE2eWorkspaceDeletionDiscoveryJob(
+      discovery as unknown as RegieE2eWorkspaceDeletionDiscoveryService,
+      {} as WorkspaceDeletionQueueAdapter,
+      config,
+      unhealthyMonitoring as unknown as WorkspaceDeletionMonitoringService,
+      trace,
+    );
+
+    await job.runAt(new Date('2026-09-12T12:00:00.000Z'));
+
+    for (const event of [
+      'workspace_deletion_backlog_snapshot',
+      'workspace_deletion_backlog_stalled',
+      'workspace_deletion_backlog_terminal',
+      'workspace_deletion_backlog_old',
+    ]) {
+      expect(trace.record).toHaveBeenCalledWith({
+        event,
+        ...unhealthySummary,
+      });
+    }
+  });
+
+  it('uses the process clock instead of treating BullMQ job data as a date', async () => {
+    const discovery = {
+      discover: jest.fn().mockResolvedValue({ recovered: 0, admitted: 0 }),
+    };
+    const job = new RegieE2eWorkspaceDeletionDiscoveryJob(
+      discovery as unknown as RegieE2eWorkspaceDeletionDiscoveryService,
+      {} as WorkspaceDeletionQueueAdapter,
+      config,
+      monitoring,
+      trace,
+    );
+
+    await expect(job.handle({})).resolves.toEqual({
+      recovered: 0,
+      admitted: 0,
+    });
+    expect(discovery.discover).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ now: expect.any(Date) }),
+    );
+  });
+
+  it('keeps the Sentry check-in open until discovery itself completes', async () => {
+    jest.mocked(Sentry.isInitialized).mockReturnValue(true);
+    let finishDiscovery: (value: {
+      recovered: number;
+      admitted: number;
+    }) => void;
+    const discoveryResult = new Promise<{
+      recovered: number;
+      admitted: number;
+    }>((resolve) => {
+      finishDiscovery = resolve;
+    });
+    const discovery = { discover: jest.fn(() => discoveryResult) };
+    const job = new RegieE2eWorkspaceDeletionDiscoveryJob(
+      discovery as unknown as RegieE2eWorkspaceDeletionDiscoveryService,
+      {} as WorkspaceDeletionQueueAdapter,
+      config,
+      monitoring,
+      trace,
+    );
+
+    const handling = job.handle(new Date('2026-09-12T12:00:00.000Z'));
+
+    expect(Sentry.captureCheckIn).toHaveBeenCalledTimes(1);
+    expect(Sentry.captureCheckIn).toHaveBeenCalledWith(
+      expect.objectContaining({ status: 'in_progress' }),
+      expect.any(Object),
+    );
+
+    finishDiscovery!({ recovered: 2, admitted: 3 });
+    await expect(handling).resolves.toEqual({ recovered: 2, admitted: 3 });
+
+    expect(Sentry.captureCheckIn).toHaveBeenLastCalledWith({
+      checkInId: 'check-in-id',
+      monitorSlug: RegieE2eWorkspaceDeletionDiscoveryJob.name,
+      status: 'ok',
+    });
+  });
+
+  it('marks the discovery check-in failed when discovery rejects', async () => {
+    jest.mocked(Sentry.isInitialized).mockReturnValue(true);
+    const failure = new Error('marker query timed out');
+    const discovery = { discover: jest.fn().mockRejectedValue(failure) };
+    const job = new RegieE2eWorkspaceDeletionDiscoveryJob(
+      discovery as unknown as RegieE2eWorkspaceDeletionDiscoveryService,
+      {} as WorkspaceDeletionQueueAdapter,
+      config,
+      monitoring,
+      trace,
+    );
+
+    await expect(job.handle()).rejects.toBe(failure);
+
+    expect(Sentry.captureCheckIn).toHaveBeenLastCalledWith({
+      checkInId: 'check-in-id',
+      monitorSlug: RegieE2eWorkspaceDeletionDiscoveryJob.name,
+      status: 'error',
+    });
+  });
+});

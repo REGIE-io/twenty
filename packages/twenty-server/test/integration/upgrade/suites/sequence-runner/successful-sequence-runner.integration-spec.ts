@@ -303,6 +303,32 @@ describe('UpgradeSequenceRunnerService — execution (integration)', () => {
     ]);
   });
 
+  it('should not report already-current workspaces as successful executions', async () => {
+    const sequence = [makeFastInstance('Ic1'), makeWorkspace('Wc1')];
+
+    setMockActiveWorkspaceIds([WS_1, WS_2]);
+
+    await seedInstanceMigration(context.dataSource, {
+      name: 'Ic1',
+      status: 'completed',
+      workspaceIds: [WS_1, WS_2],
+    });
+    for (const workspaceId of [WS_1, WS_2]) {
+      await seedWorkspaceMigration(context.dataSource, {
+        name: 'Wc1',
+        status: 'completed',
+        workspaceId,
+      });
+    }
+
+    const report = await context.runner.run({
+      sequence,
+      options: DEFAULT_OPTIONS,
+    });
+
+    expect(report).toEqual({ totalSuccesses: 0, totalFailures: 0 });
+  });
+
   it('should execute the full sequence from the initial cursor on a fresh run', async () => {
     const sequence = [
       makeWorkspace('Wc0'),

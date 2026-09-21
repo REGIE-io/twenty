@@ -34,11 +34,30 @@ import {
   MESSAGING_RELAUNCH_FAILED_MESSAGE_CHANNELS_CRON_PATTERN,
   MessagingRelaunchFailedMessageChannelsCronJob,
 } from 'src/modules/messaging/message-import-manager/crons/jobs/messaging-relaunch-failed-message-channels.cron.job';
+import {
+  REGIE_E2E_WORKSPACE_DELETION_CRON_PATTERN,
+  RegieE2eWorkspaceDeletionDiscoveryJob,
+} from 'src/engine/workspace-manager/workspace-cleaner/crons/regie-e2e-workspace-deletion-discovery.job';
+import { CleanSuspendedWorkspacesJob } from 'src/engine/workspace-manager/workspace-cleaner/crons/clean-suspended-workspaces.job';
+import { type ConfigVariables } from 'src/engine/core-modules/twenty-config/config-variables';
 
 export type CronToRegister = {
   jobName: string;
   pattern: string;
+  enabledConfigKey?: keyof ConfigVariables;
 };
+
+export type CronToRemoveWhenDisabled = {
+  jobName: string;
+  enabledConfigKey: keyof ConfigVariables;
+};
+
+export const CRONS_TO_REMOVE_WHEN_DISABLED: CronToRemoveWhenDisabled[] = [
+  {
+    jobName: CleanSuspendedWorkspacesJob.name,
+    enabledConfigKey: 'CLEAN_SUSPENDED_WORKSPACES_CRON_ENABLED',
+  },
+];
 
 /**
  * The messaging crons, held back from CRONS_TO_REGISTER on purpose.
@@ -100,5 +119,10 @@ export const CRONS_TO_REGISTER: CronToRegister[] = [
   {
     jobName: CalendarRefreshSyncWindowCronJob.name,
     pattern: CALENDAR_REFRESH_SYNC_WINDOW_CRON_PATTERN,
+  },
+  {
+    jobName: RegieE2eWorkspaceDeletionDiscoveryJob.name,
+    pattern: REGIE_E2E_WORKSPACE_DELETION_CRON_PATTERN,
+    enabledConfigKey: 'REGIE_E2E_WORKSPACE_DELETION_CRON_ENABLED',
   },
 ];

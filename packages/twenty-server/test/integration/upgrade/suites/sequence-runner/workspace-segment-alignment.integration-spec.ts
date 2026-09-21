@@ -439,6 +439,65 @@ describe('UpgradeSequenceRunnerService — workspace segment alignment (integrat
     ]);
   });
 
+  it('should refresh workspace cursors after running a retroactive instance command', async () => {
+    // Sequence: Ic0 → IcRetroactive → Wc0 → Wc1
+    // Both workspaces completed the workspace segment before IcRetroactive was
+    // registered. The same upgrade run that executes IcRetroactive must reload
+    // the rows it writes for each workspace before deciding what remains.
+    const sequence = [
+      makeFastInstance('Ic0'),
+      makeFastInstance('IcRetroactive'),
+      makeWorkspace('Wc0'),
+      makeWorkspace('Wc1'),
+    ];
+
+    setMockActiveWorkspaceIds([WS_1, WS_2]);
+
+    await seedInstanceMigration(context.dataSource, {
+      name: 'Ic0',
+      status: 'completed',
+      workspaceIds: [WS_1, WS_2],
+    });
+    for (const workspaceId of [WS_1, WS_2]) {
+      await seedWorkspaceMigration(context.dataSource, {
+        name: 'Wc0',
+        status: 'completed',
+        workspaceId,
+      });
+      await seedWorkspaceMigration(context.dataSource, {
+        name: 'Wc1',
+        status: 'completed',
+        workspaceId,
+      });
+    }
+
+    const report = await context.runner.run({
+      sequence,
+      options: DEFAULT_OPTIONS,
+    });
+
+    expect(report).toEqual({ totalSuccesses: 2, totalFailures: 0 });
+
+    const executed = await testGetExecutedMigrationsInOrder(context.dataSource);
+
+    expect(executed.map(migrationRecordToKey)).toStrictEqual([
+      'Ic0:instance:completed:1',
+      `Ic0:${WS_1}:completed:1`,
+      `Ic0:${WS_2}:completed:1`,
+      `Wc0:${WS_1}:completed:1`,
+      `Wc1:${WS_1}:completed:1`,
+      `Wc0:${WS_2}:completed:1`,
+      `Wc1:${WS_2}:completed:1`,
+      'IcRetroactive:instance:completed:1',
+      `IcRetroactive:${WS_1}:completed:1`,
+      `IcRetroactive:${WS_2}:completed:1`,
+      `Wc0:${WS_1}:completed:2`,
+      `Wc1:${WS_1}:completed:2`,
+      `Wc0:${WS_2}:completed:2`,
+      `Wc1:${WS_2}:completed:2`,
+    ]);
+  });
+
   it('should reject workspace at preceding IC with failed status', async () => {
     // Sequence: Ic0 → Wc0 → Wc1
     // WS_1 is in the WC segment, WS_2 is at Ic0:failed

@@ -1,3 +1,4 @@
+import { type RegieSource } from 'twenty-shared/constants';
 import { isDefined } from 'twenty-shared/utils';
 
 import { type RawAuthContext } from 'src/engine/core-modules/auth/types/raw-auth-context.type';
@@ -11,6 +12,7 @@ type UserAuthContextInput = {
   workspaceMember: NonNullable<RawAuthContext['workspaceMember']>;
   application?: RawAuthContext['application'];
   viaApplication?: RawAuthContext['application'];
+  regieSource?: RegieSource;
 };
 
 export const buildUserAuthContext = (
@@ -23,6 +25,7 @@ export const buildUserAuthContext = (
     user: input.user,
     workspaceMemberId: input.workspaceMemberId,
     workspaceMember: input.workspaceMember,
+    ...(isDefined(input.regieSource) ? { regieSource: input.regieSource } : {}),
     ...(isDefined(input.application) ? { application: input.application } : {}),
     ...(isDefined(input.viaApplication)
       ? { viaApplication: input.viaApplication }

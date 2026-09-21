@@ -19,7 +19,10 @@ describe('RegieE2eWorkspaceSweeperService', () => {
     },
   };
 
-  const makeService = (rows: unknown[]) => {
+  const makeService = (
+    rows: unknown[],
+    deleteWorkspace: jest.Mock = jest.fn().mockResolvedValue(workspace),
+  ) => {
     const queryBuilder: Record<string, jest.Mock> = {};
 
     for (const method of [
@@ -37,9 +40,7 @@ describe('RegieE2eWorkspaceSweeperService', () => {
     const keyValuePairRepository = {
       createQueryBuilder: jest.fn().mockReturnValue(queryBuilder),
     };
-    const workspaceService = {
-      deleteWorkspace: jest.fn().mockResolvedValue(workspace),
-    };
+    const workspaceService = { deleteWorkspace };
     const service = new RegieE2eWorkspaceSweeperService(
       workspaceService as unknown as WorkspaceService,
       keyValuePairRepository as unknown as Repository<KeyValuePairEntity>,
@@ -96,5 +97,69 @@ describe('RegieE2eWorkspaceSweeperService', () => {
 
     await expect(service.purgeQuarantinedWorkspaces()).resolves.toBe(0);
     expect(workspaceService.deleteWorkspace).not.toHaveBeenCalled();
+  });
+
+  it('refuses a real workspace even when its marker claims to be ephemeral', async () => {
+    const realWorkspace = {
+      ...workspace,
+      subdomain: 'customer-production',
+    };
+    const { service, workspaceService } = makeService([
+      {
+        workspace: realWorkspace,
+        value: {
+          ephemeral: true,
+          organizationId: 'org_e2e_forged',
+          workspaceSlug: realWorkspace.subdomain,
+        },
+      },
+    ]);
+
+    await expect(service.purgeQuarantinedWorkspaces()).resolves.toBe(0);
+    expect(workspaceService.deleteWorkspace).not.toHaveBeenCalled();
+  });
+
+  it('continues reaping independent workspaces after one deletion fails', async () => {
+    const secondWorkspace = {
+      ...workspace,
+      id: '20202020-0000-4000-8000-000000000002',
+      subdomain: 'org-e2e-run-2',
+    };
+    const deleteWorkspace = jest
+      .fn()
+      .mockRejectedValueOnce(new Error('injected metadata timeout'))
+      .mockResolvedValueOnce(secondWorkspace);
+    const { service } = makeService(
+      [
+        validMarkerRow,
+        {
+          workspace: secondWorkspace,
+          value: {
+            ephemeral: true,
+            organizationId: 'org_e2e_run_2',
+            workspaceSlug: secondWorkspace.subdomain,
+          },
+        },
+      ],
+      deleteWorkspace,
+    );
+
+    await expect(service.purgeQuarantinedWorkspaces()).resolves.toBe(1);
+    expect(deleteWorkspace).toHaveBeenNthCalledWith(1, workspace.id);
+    expect(deleteWorkspace).toHaveBeenNthCalledWith(2, secondWorkspace.id);
+  });
+
+  it('retries an eligible workspace on a later reaper pass', async () => {
+    const deleteWorkspace = jest
+      .fn()
+      .mockRejectedValueOnce(new Error('injected schema timeout'))
+      .mockResolvedValueOnce(workspace);
+    const { service } = makeService([validMarkerRow], deleteWorkspace);
+
+    await expect(service.purgeQuarantinedWorkspaces()).resolves.toBe(0);
+    await expect(service.purgeQuarantinedWorkspaces()).resolves.toBe(1);
+    expect(deleteWorkspace).toHaveBeenCalledTimes(2);
+    expect(deleteWorkspace).toHaveBeenNthCalledWith(1, workspace.id);
+    expect(deleteWorkspace).toHaveBeenNthCalledWith(2, workspace.id);
   });
 });

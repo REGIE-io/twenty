@@ -79,6 +79,7 @@ export const formatTwentyOrmEventToDatabaseBatchEvent = <
           event.userId = authContext?.user?.id;
           event.userWorkspaceId = authContext?.userWorkspaceId;
           event.workspaceMemberId = authContext?.workspaceMemberId;
+          event.source = authContext?.regieSource;
           event.recordId = recordAfter.id;
           event.properties = { after: recordAfter };
 
@@ -145,6 +146,7 @@ export const formatTwentyOrmEventToDatabaseBatchEvent = <
             userId: authContext?.user?.id,
             userWorkspaceId: authContext?.userWorkspaceId,
             workspaceMemberId: authContext?.workspaceMemberId,
+            source: authContext?.regieSource,
             recordId: recordAfter.id,
             properties: {
               before: correspondingRecordBefore,
@@ -195,6 +197,7 @@ export const formatTwentyOrmEventToDatabaseBatchEvent = <
         event.userId = authContext?.user?.id;
         event.userWorkspaceId = authContext?.userWorkspaceId;
         event.workspaceMemberId = authContext?.workspaceMemberId;
+        event.source = authContext?.regieSource;
         event.recordId = recordBefore.id;
         event.properties = { before: recordBefore };
 
@@ -217,6 +220,7 @@ export const formatTwentyOrmEventToDatabaseBatchEvent = <
         event.userId = authContext?.user?.id;
         event.userWorkspaceId = authContext?.userWorkspaceId;
         event.workspaceMemberId = authContext?.workspaceMemberId;
+        event.source = authContext?.regieSource;
         event.recordId = recordAfter.id;
 
         const correspondingRecordBefore = recordsBefore?.find(

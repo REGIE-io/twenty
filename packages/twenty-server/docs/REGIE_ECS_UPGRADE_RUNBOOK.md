@@ -173,6 +173,12 @@ The successful retry used:
 
 Use that as the current minimum baseline for Regie production, not a permanent sizing guarantee. Review peak runner memory and workspace growth before later large upgrades.
 
+The checked-in deployment helper sets this `NODE_OPTIONS` value on every
+one-off container override. Do not remove or lower it without repeating a full,
+deployment-faithful upgrade rehearsal at the target environment's workspace
+count. The inherited ECS task definition must still provide at least 8 GB of
+memory; a larger V8 ceiling does not add container memory.
+
 ### Serialization gate
 
 Before launching the runner, verify there is no running task in the runner family:
