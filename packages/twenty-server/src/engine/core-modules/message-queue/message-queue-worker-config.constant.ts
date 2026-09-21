@@ -15,7 +15,8 @@ import { MessageQueue } from 'src/engine/core-modules/message-queue/message-queu
 
 export type MessageQueueWorkerConfig = {
   priority: number;
-  workerOptions: Required<MessageQueueWorkerOptions>;
+  workerOptions: Required<Omit<MessageQueueWorkerOptions, 'lockRenewTime'>> &
+    Pick<MessageQueueWorkerOptions, 'lockRenewTime'>;
 };
 
 export const MESSAGE_QUEUE_WORKER_CONFIG: Record<
@@ -108,6 +109,7 @@ export const MESSAGE_QUEUE_WORKER_CONFIG: Record<
     workerOptions: {
       concurrency: 1,
       lockDuration: 30_000,
+      lockRenewTime: 10_000,
       maxStalledCount: 1,
       boundedShutdownDrain: false,
     },

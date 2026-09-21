@@ -5,7 +5,6 @@ import { type TwentyConfigService } from 'src/engine/core-modules/twenty-config/
 import { WorkspaceEntity } from 'src/engine/core-modules/workspace/workspace.entity';
 import { CleanSuspendedWorkspacesBatchJob } from 'src/engine/workspace-manager/workspace-cleaner/jobs/clean-suspended-workspaces-batch.job';
 import { type CleanerWorkspaceService } from 'src/engine/workspace-manager/workspace-cleaner/services/cleaner.workspace-service';
-import { type RegieE2eWorkspaceSweeperService } from 'src/engine/workspace-manager/workspace-cleaner/services/regie-e2e-workspace-sweeper.service';
 
 jest.mock('src/database/typeorm/postgres-advisory-lock.service', () => ({
   PostgresAdvisoryLockService: class {},
@@ -21,10 +20,6 @@ jest.mock(
   'src/engine/workspace-manager/workspace-cleaner/services/cleaner.workspace-service',
   () => ({ CleanerWorkspaceService: class {} }),
 );
-jest.mock(
-  'src/engine/workspace-manager/workspace-cleaner/services/regie-e2e-workspace-sweeper.service',
-  () => ({ RegieE2eWorkspaceSweeperService: class {} }),
-);
 
 describe('CleanSuspendedWorkspacesBatchJob', () => {
   const workspaceRepository = {
@@ -32,9 +27,6 @@ describe('CleanSuspendedWorkspacesBatchJob', () => {
   };
   const cleanerWorkspaceService = {
     batchWarnOrCleanSuspendedWorkspaces: jest.fn(),
-  };
-  const regieE2eWorkspaceSweeperService = {
-    purgeQuarantinedWorkspaces: jest.fn(),
   };
   const twentyConfigService = {
     get: jest.fn((key: string) => {
@@ -55,7 +47,6 @@ describe('CleanSuspendedWorkspacesBatchJob', () => {
   const createJob = () =>
     new CleanSuspendedWorkspacesBatchJob(
       cleanerWorkspaceService as unknown as CleanerWorkspaceService,
-      regieE2eWorkspaceSweeperService as unknown as RegieE2eWorkspaceSweeperService,
       workspaceRepository as unknown as Repository<WorkspaceEntity>,
       twentyConfigService as unknown as TwentyConfigService,
       postgresAdvisoryLockService as unknown as PostgresAdvisoryLockService,
@@ -108,9 +99,7 @@ describe('CleanSuspendedWorkspacesBatchJob', () => {
     ).toHaveBeenCalledWith({
       workspaceIds: ['hard-delete-id', 'warning-or-soft-delete-id'],
     });
-    expect(
-      regieE2eWorkspaceSweeperService.purgeQuarantinedWorkspaces,
-    ).toHaveBeenCalledTimes(1);
+    // E2E discovery/recovery is deliberately absent from this hourly batch.
   });
 
   it('skips candidate selection when another cleanup owns the lock', async () => {
@@ -123,9 +112,6 @@ describe('CleanSuspendedWorkspacesBatchJob', () => {
     expect(workspaceRepository.find).not.toHaveBeenCalled();
     expect(
       cleanerWorkspaceService.batchWarnOrCleanSuspendedWorkspaces,
-    ).not.toHaveBeenCalled();
-    expect(
-      regieE2eWorkspaceSweeperService.purgeQuarantinedWorkspaces,
     ).not.toHaveBeenCalled();
   });
 });

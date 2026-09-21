@@ -1,0 +1,922 @@
+# Regie workspace teardown lifecycle and recovery design
+
+Status: proposed follow-up to [Twenty PR #137](https://github.com/REGIE-io/twenty/pull/137)
+
+Owners: Twenty workspace lifecycle and Regie CRM control plane
+
+Deployment and live-validation handoff:
+[`regie-workspace-teardown-operations.md`](./regie-workspace-teardown-operations.md)
+
+## Summary
+
+Workspace teardown must become a persisted, resumable lifecycle rather than an
+hourly best-effort loop. Candidate discovery, ordinary workspace lifecycle
+maintenance, and destructive teardown are independent operations and must not
+share one batch's success boundary.
+
+The target architecture uses the state already persisted by Twenty and Go:
+
+- Twenty owns the detailed execution state for deleting a Twenty workspace.
+- Go owns the tenant-to-workspace control-plane lifecycle and treats every
+  deprovisioning state as inactive.
+- Schedulers discover work; one deterministic queue job owns one workspace.
+- Every destructive phase is idempotent, checkpointed, retryable, and bounded.
+- Monitoring follows the detached work through completion rather than declaring
+  success when it is merely enqueued.
+
+The current two-PR delivery is explicitly phase one: it makes automatic
+teardown reliable for persistently marked E2E/transient workspaces. Ordinary
+suspended-workspace maintenance remains on its existing batch path. The Twenty
+PR owns execution; the companion Go PR supplies disabled/5/15 deployment
+configuration plus CloudWatch alarms and a dashboard. It does not yet add Go
+control-plane deletion states, readback, or reconciliation.
+
+## Why this work is necessary
+
+Regie creates short-lived Twenty workspaces for end-to-end tests. Teardown can
+be skipped when a test runner is cancelled, killed, or disconnected, so a
+periodic safety net is required. Historical workspaces also predate reliable
+persistent E2E markers and must be cleaned up without weakening the safety
+boundary that protects real tenants.
+
+The backlog contributes work to Postgres, Redis, and scheduled workers. Merely
+increasing infrastructure capacity does not fix the lifecycle: cleanup must be
+able to identify eligible workspaces, remove them at least as quickly as they
+are created, survive interruption, and prove that it completed.
+
+The relevant production symptoms included:
+
+- [TWENTY-J](https://regieai.sentry.io/issues/TWENTY-J), where the workflow cron
+  monitor repeatedly reported missed check-ins while worker execution was
+  unhealthy.
+- [TWENTY-3](https://regieai.sentry.io/issues/TWENTY-3), which included database
+  query timeout evidence in scheduled cleanup paths.
+- A growing set of soft-deleted E2E workspaces which were safe to reap but were
+  not being removed reliably.
+
+The workflow-cron recovery and Redis changes improved TWENTY-J, but they do not
+make workspace deletion correct. The first run of the new PR #137 cleanup path
+demonstrated that these are separate concerns.
+
+## What PR #137 changed
+
+PR #137 added three important safety improvements:
+
+1. It moved expensive suspended-workspace cleanup out of the shared cron queue
+   into `workspace-cleanup-queue`.
+2. It bounded the ordinary hard-deletion candidate selection.
+3. It added a persistent E2E marker and a marker-based sweeper which only
+   accepts appropriately marked, quarantined workspaces.
+
+Those changes reduced the risk of blocking unrelated cron work and established
+a safe identity boundary for E2E cleanup. They remain useful, but the combined
+detached batch is not a sufficient execution model.
+
+The PR #137 flow is currently:
+
+```text
+hourly cron
+  -> enqueue CleanSuspendedWorkspacesBatchJob
+       -> ordinary suspended-workspace maintenance
+       -> marker-based E2E candidate query
+       -> marker-based E2E deletion loop
+```
+
+The Sentry cron monitor surrounds only the first enqueue operation. It does not
+surround or await the detached job.
+
+## What happened on the first post-deployment run
+
+The first run after PR #137 deployed began at 2026-09-12 01:00 UTC.
+
+| Time (UTC) | Event |
+| --- | --- |
+| 01:00:01.235 | The hourly cron job began. |
+| 01:00:01.250 | Sentry recorded the cron as successful after enqueueing. |
+| 01:00:01.327 | The detached cleanup batch began. |
+| 01:00:01.366 | The batch selected five ordinary hard-deletion candidates. |
+| 01:00:37.853 | One workspace completed hard deletion. |
+| 01:02:22.678 | The ordinary cleanup loop ended after four timeout errors. |
+| 01:02:22.678 | The E2E marker candidate query began. |
+| 01:02:32.681 | That query hit the primary database's 10-second query timeout. |
+
+Only one workspace was application-confirmed as fully deleted. Of the other
+four candidates:
+
+- Two timed out during the initial workspace lookup and were probably
+  untouched by that attempt.
+- Two progressed through substantial metadata/schema cleanup and timed out on
+  the final `DELETE FROM core.workspace`. Their final row outcome was ambiguous
+  to the client, and their earlier side effects were already committed.
+
+The marker-based E2E phase did not select or confirm any additional deletions.
+No retry occurred before the next scheduled run.
+
+This run exposed six defects in the model:
+
+1. The monitor reported success before the operation began.
+2. Independent maintenance activities shared one failure boundary.
+3. One queue job looped over multiple tenants, so progress and retries were
+   coarse-grained.
+4. Workspace deletion was not resumable across its independently committed
+   phases.
+5. A client-side 10-second database timeout was applied to maintenance queries
+   and writes intended to take longer.
+6. Candidate and metadata deletion SQL did more work than necessary.
+
+## Existing persisted state and ownership
+
+This design extends existing state management rather than introducing a second
+tenant lifecycle.
+
+### Twenty workspace state
+
+Twenty persists `workspace.activationStatus`, `deletedAt`, and `suspendedAt`.
+The current activation states cover creation and access:
+
+```text
+PENDING_CREATION
+ONGOING_CREATION
+CREATED
+ACTIVE
+INACTIVE
+SUSPENDED
+```
+
+Creation already uses an atomic persisted transition from `PENDING_CREATION`
+to `ONGOING_CREATION`, detects a stale in-progress transition, resets retryable
+failures, and treats a completed terminal state idempotently. Teardown should
+follow the same pattern.
+
+The existing states do not describe a destructive operation's current phase.
+PR #137 currently selects `SUSPENDED` rows and calls `deleteWorkspace()`
+directly, bypassing a persisted deletion transition.
+
+### Future Go control-plane state (not implemented in phase one)
+
+Go persists the tenant/workspace connection in
+`crm_tenant_workspace_connections`. Its current states are:
+
+```text
+provisioning
+active
+blocked
+disabled
+```
+
+The durable provisioning reader and organization-scoped lock already make this
+the correct owner of the Regie tenant lifecycle. The existing E2E purge path
+marks the connection disabled before asking Twenty to delete the workspace.
+That ordering intentionally avoids an active control-plane row pointing at a
+missing workspace, but `disabled` cannot distinguish:
+
+- deletion requested but not started;
+- deletion in progress;
+- deletion failed and awaiting retry;
+- Twenty workspace fully removed.
+
+Go should retain high-level tenant lifecycle ownership. Twenty should retain
+the detailed execution phase because only Twenty can know whether its members,
+metadata, schema, caches, files, domains, and final workspace row have been
+processed.
+
+### Target state relationship after the deferred Go lifecycle work
+
+```text
+Go control plane                         Twenty workspace
+
+active                                   ACTIVE / SUSPENDED
+  |                                            |
+  +-- deprovisioning -----------------> PENDING_DELETION
+                                               |
+                                         ONGOING_DELETION
+                                               |
+                                      phase checkpoints
+                                               |
+                                        workspace removed
+  |                                            |
+  +-- disabled <---------------------- reconciliation
+
+Failures remain inactive:
+deprovision_failed <---------------> DELETION_FAILED
+```
+
+Pre-marker and orphaned workspaces may have no usable Go connection row.
+Twenty therefore must persist enough local deletion state to finish those
+workspaces safely without requiring Go to recreate missing control-plane data.
+
+## Revised six-point implementation plan
+
+### 1. Extend the persisted lifecycle
+
+#### Twenty changes
+
+Add deletion states to `WorkspaceActivationStatus`:
+
+- `PENDING_DELETION`
+- `ONGOING_DELETION`
+- `DELETION_FAILED`
+
+Add deletion execution fields to `core.workspace`:
+
+- `deletionKind`: `E2E`, `INACTIVE`, or `MANUAL`
+- `deletionPhase`: the next phase to execute
+- `deletionRequestedAt`
+- `deletionLastProgressAt`
+- `deletionAttemptCount`
+- `deletionLastErrorCode`
+- `deletionLastErrorMessage`, bounded and scrubbed
+
+Do not overload `deletedAt`. It continues to mean that a workspace has been
+soft-deleted and has entered its grace period. It is also the only persisted
+clock used for hard-deletion eligibility. Do not persist a separate
+`purgeAfter` timestamp: each discovery run derives eligibility from `deletedAt`
+and the reaper's current grace-period policy, so operators retain control over
+when quarantined workspaces become purgeable.
+
+Candidate discovery atomically transitions an eligible workspace into
+`PENDING_DELETION`. A worker atomically claims it by changing it to
+`ONGOING_DELETION`. A stale claim can be reclaimed using
+`deletionLastProgressAt`, matching the existing stale creation-lock pattern.
+If a claimed phase fails before the retry budget is exhausted, failure
+recording atomically returns it to `PENDING_DELETION` while preserving the
+current phase, attempt count, and error context. BullMQ's five-second retry can
+therefore claim it immediately; it does not wait for the 30-second stale-worker
+boundary or falsely complete as `not-claimable`.
+
+After the retry budget is exhausted, transition to `DELETION_FAILED`. A
+reconciler or operator can move it back to `PENDING_DELETION` without rebuilding
+lost context.
+
+Implement the schema change through the repository's current upgrade-command
+mechanism described in `UPGRADE_COMMANDS.md`; do not add a legacy TypeORM
+migration.
+
+#### Deferred Go lifecycle changes (not in PR #2202)
+
+Extend the control-plane connection constraint and TypeScript types with:
+
+- `deprovisioning`
+- `deprovision_failed`
+
+The transition becomes:
+
+```text
+active -> deprovisioning -> disabled
+                       \-> deprovision_failed -> deprovisioning
+```
+
+Every state other than `active` must deny normal tenant CRM work. This preserves
+the existing invariant that a deletion failure cannot leave an apparently
+active tenant pointing at a damaged or missing Twenty workspace.
+
+Go should store the Twenty deletion operation/workspace identifier and poll a
+read-only internal status endpoint. It should not attempt to model Twenty's
+internal teardown phases independently.
+
+### 2. Separate discovery from per-workspace execution
+
+The target architecture separates the combined PR #137 batch into three
+independent discovery jobs:
+
+1. Inactivity warning and soft-deletion discovery.
+2. Ordinary hard-deletion discovery.
+3. Regie E2E hard-deletion discovery, scheduled every ten minutes.
+
+Phase one implements only item 3. Inactivity warning and ordinary suspended
+workspace cleanup remain on the existing multi-workspace batch path. They are
+not removed or claimed as reliable per-workspace teardown by these PRs.
+
+Before admitting fresh hard-deletion candidates, recovery first reclaims stale
+`ONGOING_DELETION` workspaces so partial teardown resumes before more
+destructive work starts. It also re-enqueues stranded `PENDING_DELETION` rows;
+these have not necessarily begun teardown and do not otherwise impose an
+execution order. Exhausted `DELETION_FAILED` rows still require the configured
+reconciler or operator transition before they become retryable.
+
+Discovery jobs only:
+
+1. select a bounded page, using deterministic ordering for stable pagination
+   and backlog fairness;
+2. validate the eligibility/safety boundary;
+3. atomically set `PENDING_DELETION` when hard deletion is required; and
+4. enqueue one deterministic job per workspace.
+
+Use a deterministic BullMQ-safe job ID such as `workspace-delete-<workspaceId>`.
+Duplicate
+discovery runs must not create concurrent teardown jobs for the same workspace.
+
+The initial discovery policy allows up to 5 recovery jobs and 15 fresh jobs per
+pass. Recovery is enqueued first, so a pass has a deliberate maximum of 20
+workspace jobs. A restored-development-data run of 30 serial deletions took
+10m51s, exceeding the ten-minute schedule interval. The 5 + 15 bound preserves
+fresh deletion throughput while reserving recovery capacity and operating
+margin. The live 20-workspace acceptance run must validate that it completes
+inside the interval with external cleanup and production-shaped load.
+
+One worker job processes one workspace. Use a workspace-scoped advisory lock,
+not a single global cleanup lock. Start with queue concurrency one to measure
+database impact. Increase it only when load tests and production metrics show
+safe headroom. Queue execution order is not a correctness requirement: recovery
+work has priority over fresh teardown, but jobs within either class may execute
+in any order.
+
+The ten-minute schedule changes arrival latency and potential throughput; it
+does not replace backpressure. If a prior job is slow, work remains queued
+rather than spawning an overlapping deletion.
+
+### 3. Make teardown phased, idempotent, and resumable
+
+Persist the next phase after each successful phase:
+
+```text
+MEMBERS
+METADATA
+SCHEMA
+CACHE
+EXTERNAL_CLEANUP
+CORE_ROW
+```
+
+Each phase must accept the state left by a previous attempt:
+
+- Removing already-removed memberships succeeds.
+- Deleting absent metadata succeeds.
+- Dropping an absent workspace schema succeeds.
+- Flushing absent cache keys succeeds.
+- E2E file/domain cleanup runs synchronously inside its phase and is idempotent.
+- DNS cleanup treats an already-absent hostname as success.
+- An absent final workspace row means the teardown completed.
+
+Advance `deletionPhase` only after the current phase has returned successfully.
+Update `deletionLastProgressAt` at the same time. Capture a stable error code and
+bounded message when a phase fails.
+
+The database-backed phases should use transactions scoped to that phase. A
+single transaction cannot correctly include Redis, object storage, DNS, or
+queue side effects. This is a small persisted saga, not one global database
+transaction.
+
+The phase executor reaches destructive work only through
+`WorkspaceDeletionPhaseOperationsService`. The established
+`WorkspaceService.deleteWorkspace()` implementation remains unchanged for
+ordinary suspended customer workspaces: it retains its existing metadata
+strategy, async file/email-domain jobs, and direct final-row deletion. This
+explicit call boundary, rather than the E2E cron flag alone, prevents phase-one
+maintenance behavior from leaking into the always-active legacy cleaner.
+
+For the final row deletion, use a server-side timeout that cancels and rolls
+back the statement before the client's wait timeout. This prevents the current
+ambiguous outcome where the client stops waiting without knowing whether the
+database committed.
+
+### 4. Remove avoidable SQL work and add supporting indexes
+
+#### Field metadata deletion
+
+The legacy customer cleanup path continues to build relation-aware chunks of
+approximately 50 `fieldMetadata` IDs. The E2E lifecycle path instead reads IDs
+and self-references directly from PostgreSQL, constructs complete undirected
+relation components, and packs those components into batches of at most 50
+rows (with an indivisible oversized component allowed as one batch). Each batch
+uses a workspace-scoped statement:
+
+```sql
+DELETE FROM core."fieldMetadata"
+WHERE "workspaceId" = $1 AND "id" = ANY($2::uuid[]);
+```
+
+Each batch commits independently. If a later statement fails, a retry reads the
+remaining rows from PostgreSQL and continues without relying on stale cache
+state or repeating already committed batches. Tests prove:
+
+- paired relation fields are removed together;
+- no valid cross-workspace reference is broken;
+- dependent metadata foreign keys behave correctly; and
+- batches stay bounded without splitting a relation component;
+- a failure after one commit resumes from database state; and
+- unrelated workspace fields are excluded by every delete.
+
+#### E2E discovery
+
+Use a production-shaped `EXPLAIN` before choosing the exact index. The current
+query joins `core.keyValuePair` to `core.workspace`, filters marker JSON,
+filters the workspace slug and quarantine cutoff, orders by `deletedAt`, and
+limits to 15.
+
+Likely supporting indexes include:
+
+- a selective partial index for the E2E marker key/type and `workspaceId`;
+- expression predicates for stable JSON marker fields if JSON remains the
+  storage format; and
+- an index supporting workspace deletion eligibility and oldest-first ordering.
+
+Prefer persisted typed marker columns if the query cannot be made reliably
+selective. Do not weaken the marker plus slug plus quarantine validation in
+order to make the query faster.
+
+All candidate queries must be bounded and deterministically ordered so repeated
+discovery pages are stable and the backlog is treated fairly. This ordering
+applies only to candidate selection; it does not impose FIFO execution on the
+workspace deletion queue.
+
+### 5. Give maintenance work appropriate limits and recovery
+
+The deployed worker does not override `PG_DATABASE_PRIMARY_TIMEOUT_MS`, so the
+core datasource uses the global 10,000 ms client-side query timeout. That
+interactive guardrail is not an appropriate contract for workspace teardown.
+
+Use a maintenance query runner with explicit, separately configured limits:
+
+- a longer Postgres `statement_timeout` for destructive maintenance statements;
+- a short `lock_timeout` so cleanup yields rather than waiting behind live work;
+- a client timeout longer than `statement_timeout`;
+- an overall phase deadline; and
+- an overall per-workspace job deadline.
+
+Do not increase the global primary database timeout.
+
+The PostgreSQL statement and client limits are cancellation boundaries: the
+transaction must have stopped and rolled back before the workspace lock is
+released. The phase and job deadlines are duration guards, not permission to
+abandon a still-running JavaScript promise. If either deadline is exceeded,
+retain the workspace advisory lock, wait for the underlying operation to
+settle, and only then report the timeout and allow a retry. A genuinely stuck
+operation therefore remains `ONGOING_DELETION` and is surfaced by the
+motionless-backlog monitor; it must not overlap a retry. Immediate deadline
+cancellation can be added only where the entire phase accepts a cancellation
+signal and confirms that mutation has stopped before returning.
+
+#### Controlled RDS deletion timing sample
+
+On 2026-09-12, a controlled run deleted 30 isolated workspaces from the
+development RDS instance. Each fixture contained 600 paired, self-referencing
+field metadata rows, its object metadata row, and a workspace schema. The timed
+section included the field and object metadata statements, schema drop, final
+workspace-row deletion, transaction commit, and no fixture construction.
+
+| Statistic                    | Duration |
+| ---------------------------- | -------: |
+| Mean                         | 1,542 ms |
+| Sample standard deviation    |    89 ms |
+| Mean + 2 standard deviations | 1,721 ms |
+| p95                          | 1,747 ms |
+| Maximum                      | 1,879 ms |
+
+This is a low-load database-only calibration, not an end-to-end production
+service-level objective: it excludes members, Redis, queues, object storage,
+email-domain cleanup, and DNS. For the measured database work, round the larger
+of mean plus two standard deviations and p95 upward rather than using the raw
+1,721 ms value, producing a 2,000 ms measured boundary. Use 5,000 ms as the
+initial server statement-timeout candidate to retain load headroom until a
+representative production-load sample is available. Set the client, phase, and
+job deadlines outside the server statement deadline so PostgreSQL remains the
+first component to cancel ambiguous database work.
+
+Configure bounded automatic retries with exponential backoff and jitter.
+Differentiate retryable database pressure, lock contention, and infrastructure
+errors from permanent safety-validation failures. Permanent marker failures
+move directly to `DELETION_FAILED` and require review.
+
+BullMQ lock renewal must remain healthy for teardown jobs that exceed the
+30-second base lock duration. A worker restart or lost lock must result in one
+stalled/retried job, not concurrent deletion.
+
+### 6. Monitor and reconcile the complete lifecycle
+
+Keep scheduler monitoring, but give each detached operation its own truth:
+
+- discovery started/completed/failed;
+- candidates selected;
+- workspaces marked pending;
+- per-workspace jobs queued/running/completed/failed;
+- attempts and current phase;
+- duration by phase;
+- oldest pending workspace;
+- total eligible and failed backlog; and
+- confirmed deletions per hour/day.
+
+Do not use workspace ID as an unbounded metric dimension. Put it in structured
+logs and traces; aggregate metrics by deletion kind, phase, status, and error
+code.
+
+Sentry check-ins for a discovery cron must cover discovery, not just enqueueing
+another batch. Per-workspace failures must create actionable error events.
+Phase one emits a structured backlog snapshot after every successful discovery
+and explicit unhealthy events for stalled work, terminal failures, and backlog
+older than twenty minutes. The companion Go PR derives CloudWatch metrics from
+those worker logs and creates alarms for missing discovery heartbeat, deletion
+failure, stalled backlog, terminal backlog, and old backlog, plus an operator
+dashboard. This path does not depend on an OpenTelemetry exporter being
+configured.
+
+The Twenty phase-one reconciler processes recovery work before admitting fresh
+hard-deletion candidates and:
+
+1. re-enqueues stale `PENDING_DELETION` rows;
+2. reclaims stale `ONGOING_DELETION` rows;
+3. confirms that a missing Twenty row is complete;
+4. moves exhausted failures to the explicit failed state; and
+5. reports safe pre-marker orphans which still require a one-time reviewed
+   backfill rule.
+
+Moving matching Go connections through explicit deprovisioning states is a
+deferred control-plane follow-up.
+
+## API contract between Go and Twenty
+
+Twenty should expose authenticated internal operations equivalent to:
+
+```text
+POST /internal/workspaces/:workspaceId/deletion
+GET  /internal/workspaces/:workspaceId/deletion
+```
+
+The request identifies deletion kind and supplies the E2E safety identity when
+applicable. The workspace ID is the deletion identifier; no second deletion
+state machine is persisted. Repeated requests return the current persisted
+workspace lifecycle while the row exists. Once the final workspace row is
+absent, both request and status operations report idempotent completion. They do
+not claim that a separate historical operation record still exists.
+
+For a soft-deleted workspace, the API may return a derived informational
+eligibility time, but it is not persisted and is not authoritative. The reaper
+always decides current eligibility from `deletedAt` and its configured grace
+policy.
+
+The status response exposes only lifecycle information needed by Go:
+
+- workspace ID;
+- lifecycle status;
+- current phase;
+- attempt count;
+- last progress timestamp;
+- stable error code; and
+- whether the workspace is absent/completed.
+
+Go transitions the connection to `deprovisioning` before making the request.
+If the call fails, the durable poller retries. When Twenty reports the row
+absent or complete, Go transitions to `disabled`.
+
+Twenty's autonomous E2E reconciler continues to support orphaned workspaces
+which cannot be reached from a live Go connection row.
+
+The phase-one internal endpoint is deliberately named
+`instant-hard-deletion`. It is an operational exception to quarantine: an
+`ACTIVE` or `SUSPENDED` E2E workspace does not need `deletedAt` before the
+request can enter the deletion lifecycle. The endpoint remains internal-token
+authenticated and requires the exact persistent E2E marker, organization ID,
+slug, and marker/workspace identity match. Integration coverage proves that an
+active workspace with that complete identity is accepted and that unmarked,
+malformed, mismatched, and non-E2E workspaces are rejected. Scheduled discovery
+does not use this exception and continues to derive its 24-hour eligibility
+from `deletedAt`.
+
+## Test strategy
+
+Testing must reproduce the ways the current implementation failed. Happy-path
+unit tests alone are not sufficient.
+
+### State-transition tests
+
+Test the complete Twenty transition table:
+
+- only eligible states can become `PENDING_DELETION`;
+- only one worker can claim a workspace;
+- a fresh `ONGOING_DELETION` claim cannot be stolen;
+- a stale claim can be reclaimed;
+- completed phases cannot move backwards;
+- retry exhaustion produces `DELETION_FAILED`;
+- an absent workspace is idempotent success; and
+- ordinary workspaces cannot enter the E2E path without the persistent marker,
+  matching slug, and quarantine period.
+
+Test the Go transition table and verify that `deprovisioning`,
+`deprovision_failed`, `blocked`, and `disabled` all deny normal tenant work.
+
+### Database integration tests
+
+Use the repository's isolated Postgres integration-test environment with
+explicit environment configuration.
+
+Seed production-shaped workspaces with:
+
+- at least 600 field metadata rows;
+- paired relation fields and morph relations;
+- representative indexes, views, roles, agents, and application metadata;
+- multiple workspace members;
+- E2E marker rows; and
+- unrelated real-tenant rows which must remain untouched.
+
+Verify that workspace-scoped field deletion removes all and only the target
+workspace's fields in bounded relation-aware batches. Verify committed-batch
+progress and restart from the remaining database rows when a later batch fails.
+
+Seed at least the current backlog order of magnitude for the marker query.
+Assert that it returns only the oldest 15 eligible rows, refuses malformed
+markers, and uses the intended indexes. Record the query plan in the test
+artifact. Avoid a brittle wall-clock assertion in ordinary CI; run a bounded
+performance lane against production-shaped data.
+
+### Deterministic timeout reproduction
+
+Provide failure injection at every phase. Tests must be able to throw the same
+`Query read timeout` class seen in the incident from:
+
+- initial workspace lookup;
+- metadata deletion;
+- final workspace deletion; and
+- E2E marker selection.
+
+For the maintenance timeout integration test, hold a conflicting database lock
+or execute an isolated intentionally slow statement under a very small
+server-side timeout. Assert that Postgres cancels and rolls back before the
+client timeout fires.
+
+Specifically reproduce the first run's outcomes:
+
+1. One workspace completes.
+2. A second fails before any destructive phase.
+3. A third fails after metadata/schema phases but before the final row.
+4. The worker continues processing independent jobs.
+5. Each failed workspace retains its exact next phase and error.
+6. A retry or worker restart resumes and completes without duplicating harmful
+   external side effects.
+
+### Worker interruption and queue tests
+
+Terminate the worker after each persisted phase boundary and start a new
+worker. Wait for commands and workers to exit or reach an asserted terminal
+state; starting a worker is not proof of recovery.
+
+Verify:
+
+- deterministic job IDs prevent duplicate active jobs;
+- advisory locking prevents concurrent teardown for one workspace;
+- crossing a phase or job deadline does not release the advisory lock while
+  the underlying operation is still running;
+- lock renewal supports a job longer than 30 seconds;
+- a genuinely stalled job is retried within the configured budget;
+- retries use backoff rather than a tight loop;
+- one workspace failure does not fail discovery or another workspace job; and
+- queue depth remains bounded when discovery runs every ten minutes.
+
+### Monitoring tests
+
+Reproduce the PR #137 monitoring gap directly:
+
+1. Allow discovery/enqueue to succeed.
+2. Force the detached workspace job to fail.
+3. Assert that discovery is recorded as successful.
+4. Assert separately that the workspace deletion failure metric, structured
+   error, lifecycle state, and alarm input are emitted.
+
+Also test the inverse: a successful queue operation must not count as a
+confirmed workspace deletion until the final row is gone.
+
+Verify that a backlog with no successful deletions becomes alertable even when
+no individual job throws, such as repeated lock contention or safety skips.
+
+### Go/Twenty contract tests
+
+Run contract tests across both PRs:
+
+- repeated deletion requests return the same workspace lifecycle while it
+  exists, and report idempotent completion once it is absent;
+- Go remains `deprovisioning` while Twenty reports pending/running;
+- a retryable Twenty failure becomes `deprovision_failed` without reactivating
+  the tenant;
+- a later retry can return to `deprovisioning` and complete;
+- a missing Twenty workspace is reconciled to `disabled`;
+- a stale or missing Go row does not prevent Twenty from safely reaping a
+  persistently marked orphan; and
+- a non-E2E workspace cannot be deleted through the E2E route.
+
+### Capacity and live-development acceptance test
+
+Before enabling cron registration, run the opt-in direct acceptance lane against
+the isolated integration stack:
+
+```bash
+NODE_OPTIONS=--max-old-space-size=12288 \
+RUN_WORKSPACE_DELETION_DIRECT_ACCEPTANCE=true yarn jest \
+  --config jest-integration.config.ts \
+  test/integration/workspace-deletion/workspace-deletion-direct-acceptance.integration-spec.ts \
+  --runInBand
+```
+
+This calls the discovery job once without registering its repeatable cron. The
+normal queue adapter and single-concurrency workspace-cleanup worker remain in
+the path. The lane refuses to start if unrelated eligible or outstanding
+deletions exist, creates 5 recovery and 15 fresh fixtures plus unmarked
+controls, and emits a machine-readable timing and signal summary.
+
+To exercise the real BullMQ scheduler instead, enable the production cron flag
+and add `WORKSPACE_DELETION_ACCEPTANCE_VIA_CRON=true` to the same command. In
+this mode the lane registers the exact `*/10 * * * *` schedule, waits for its
+first firing, removes the repeatable job immediately after discovery succeeds,
+and starts the ten-minute completion budget at that discovery event. It never
+invokes the discovery processor directly. Existing-database mode also accepts
+`WORKSPACE_DELETION_ACCEPTANCE_USE_EXISTING=true`; it recovers persisted E2E
+lifecycle rows first, admits only enough marker-safe candidates to reach the
+20-workspace bound, and preserves at least one eligible control.
+
+Before enabling the ten-minute schedule, create a scoped set of disposable,
+persistently marked development workspaces and allow them to cross the test
+quarantine boundary.
+
+Acceptance requires direct evidence that:
+
+- every discovery run finishes and is monitored;
+- every workspace reaches a terminal result;
+- the eligible backlog decreases;
+- successful deletion capacity exceeds the measured E2E creation rate;
+- Postgres CPU, connections, latency, locks, and disk queue remain healthy;
+- Redis queue locks renew without stalls;
+- no TWENTY-J regression occurs;
+- timeout and deletion issues do not recur in Sentry; and
+- malformed or unmarked workspaces remain untouched.
+
+Inspect at least one deliberately interrupted deletion and prove that it resumes
+from the persisted phase after a worker restart.
+
+The restored-development-database acceptance run on 2026-09-13 validated the
+5 + 15 bound at queue concurrency one. One discovery round recovered 5 stale
+deletions, admitted 15 fresh deletions, and completely removed all 20 targets
+in 442.076 seconds, leaving 157.924 seconds before the next ten-minute pass.
+Mean per-workspace deletion duration was 22.096 seconds with a 0.702-second
+population standard deviation (mean + 2σ: 23.501 seconds). The run produced 20
+completion traces and counters, no failure signal, no outstanding lifecycle
+state, and preserved its eligible control. RDS CPU averaged 43.24% and peaked
+at 53.74%; connections peaked at 4, and latency and disk-queue metrics remained
+low. The cron remained disabled throughout the direct run.
+
+The cron-driven restored-database run on 2026-09-14 validated the production
+scheduling path and restart recovery. Its first scheduled firing exposed and
+then gained regression coverage for the BullMQ processor payload: the queue
+passes job data to `handle`, so a deterministic test-time `Date` parameter must
+instead live on a separate `runAt` method. A subsequent cold database operation
+was cancelled by PostgreSQL with `57014`; the worker was stopped only after the
+server-side statement had ended, leaving two partial core-row operations and
+three member-phase operations durably recoverable. On the next scheduled pass,
+discovery recovered those 5 rows, admitted 15 new rows, and completely removed
+all 20 targets in 474.559 seconds after discovery, leaving 125.441 seconds
+before the next ten-minute pass. Mean per-workspace deletion duration was
+23.732 seconds with a 10.387-second population standard deviation (mean + 2σ:
+44.506 seconds). The final pass emitted 20 completion traces and counters, no
+workspace failure signal, and left no outstanding lifecycle state while
+preserving 36 eligible controls. RDS CPU averaged 44.34% and peaked at 52.67%;
+connections peaked at 4, and read latency, write latency, and disk queue
+remained low.
+
+The same run validated the companion CloudWatch filters with discovery
+heartbeat, completion, discovery-failure, stalled-backlog, and old-backlog
+events and observed the corresponding test alarms change state. Because the
+local Jest worker did not use the ECS `awslogs` driver, successful-run log
+events were replayed into the temporary validation log group and marked
+`validationReplay`; production log transport itself was not claimed by this
+test. A real event was submitted through Twenty's production Sentry exception
+driver and flushed successfully; readback still requires a read-only Sentry API
+token. The repeatable cron was removed after its successful firing.
+
+## Backfill and recovery of existing workspaces
+
+Deployment must include an explicit recovery pass for state created before the
+new lifecycle:
+
+1. Identify PR #137-era workspaces with valid persistent markers.
+2. Identify older candidates using the same immutable safety evidence as
+   automatic discovery: `ephemeral: true`, an `org_e2e_` organization ID, an
+   `org-e2e-` workspace slug, and an exact marker-slug/workspace-subdomain
+   match. Do not infer E2E identity from a slug alone or weaken the ongoing
+   automatic marker rule.
+3. Inspect the two workspaces that timed out on their final core-row deletion
+   and determine whether the row still exists.
+4. For surviving partial workspaces, infer the earliest safe resumable phase
+   from direct database/schema evidence and store it.
+5. Quarantine untouched eligible workspaces with the normal soft-deletion
+   operation. Automatic discovery marks them `PENDING_DELETION` only after the
+   ordinary 24-hour grace period; the backfill does not bypass that policy.
+6. Run the new worker at concurrency one and verify each result by readback.
+
+The Twenty command is `workspace:backfill-regie-e2e-quarantine`. Omission of
+`--apply` is always a dry run, and its structured output includes counts and
+identifiers. Use a reviewed comma-separated set for the first pass:
+
+```bash
+yarn command:prod workspace:backfill-regie-e2e-quarantine \
+  --organization-ids org_e2e_example_one,org_e2e_example_two
+yarn command:prod workspace:backfill-regie-e2e-quarantine \
+  --organization-ids org_e2e_example_one,org_e2e_example_two --apply
+```
+
+Read back those exact workspace rows and verify that unselected and non-E2E
+controls did not change. After the limited pass is verified, dry-run and apply
+the complete persistent-marker set explicitly:
+
+```bash
+yarn command:prod workspace:backfill-regie-e2e-quarantine --all
+yarn command:prod workspace:backfill-regie-e2e-quarantine --all --apply
+```
+
+`--all` cannot be combined with `--organization-ids`, and an apply refuses the
+entire limited pass if any requested organization lacks exactly one safe
+marker/workspace match. Already-quarantined workspaces are reported and left
+unchanged, so both modes are safe to repeat. After the grace period, compare
+the reaper candidate inventory with the applied identifiers before enabling or
+manually invoking discovery.
+
+The restored development copy validation on 2026-09-14 exercised this exact
+sequence. Limited mode quarantined 2 selected workspaces without changing the
+other 28 active marker-safe workspaces or any of 3,147 non-E2E controls. All
+mode then quarantined the other 28 and repeated as a no-op, leaving 66 total
+marker-safe quarantines. The reaper was run with a test-only future clock so the
+production 24-hour policy itself remained unchanged. An intentional harness
+interruption left the first 15 recoverable; the next worker start resumed and
+completed them. The remaining 51 were admitted in bounded rounds of
+15/15/15/6 at concurrency one. Final independent readback found none of the 66
+workspace rows, schemas, memberships, object metadata, field metadata, or key
+values; no outstanding lifecycle state; and the same 3,147 non-E2E workspace
+rows, including all 1,438 pre-existing soft-deleted controls. The pre-reaper
+state is recoverable from RDS snapshot
+`twenty-pr138-post-backfill-pre-reaper-20260914-1915`.
+
+## Pull request and rollout order
+
+### Completed: Go PR #2202
+
+PR #2202 has been merged and applied with automatic discovery disabled. It:
+
+- passes the feature flag and separate 5-recovery/15-admission limits to
+  Twenty's server and worker task definitions;
+- keeps automatic discovery disabled;
+- derives CloudWatch metrics from Twenty's structured worker events;
+- alarms on missing heartbeat, deletion failure, stalled backlog, terminal
+  backlog, and old backlog; and
+- provides a workspace-deletion operations dashboard.
+
+Go PR #2221 makes the scoped IAM permissions for Twenty one-off deployment
+tasks authoritative in Pulumi. Equivalent hardening has already been applied
+manually, so #2221 does not block #138, but it must merge before another Pulumi
+apply can overwrite that manual state.
+
+### Next: Twenty PR #138
+
+Scope:
+
+- additive lifecycle states and columns;
+- internal deletion request/status contract;
+- independent discovery jobs;
+- deterministic per-workspace teardown jobs;
+- resumable phase executor;
+- maintenance-specific timeout handling;
+- field metadata deletion improvement;
+- E2E discovery indexes;
+- metrics, structured logs, and reconciler; and
+- dry-run backfill/recovery command.
+
+Merge and deploy this PR while automatic discovery remains disabled. The
+deployment must run `yarn command:prod upgrade` and then
+`yarn command:prod upgrade:status --failed-only --fail-on-unhealthy`, aborting
+before rollout if either fails. It then rolls and stabilizes the server and
+worker and finally verifies the CloudWatch canary. Migrations, service rollout,
+and observability validation do not enable the cleanup cron.
+
+Deferred Go lifecycle scope:
+
+- additive control-plane deprovisioning states and inactive behavior;
+- an idempotent Twenty deletion request client;
+- durable status readback and reconciliation; and
+- Go lifecycle metrics and contract coverage.
+
+Enabling the cron remains a separate explicit configuration change after this
+sequence and its validation are complete.
+
+### Final cutover
+
+After both PRs are healthy:
+
+1. Enable E2E discovery every ten minutes.
+2. Run the reviewed one-time legacy backfill.
+3. Monitor backlog slope and database health through multiple cycles.
+4. In a separate follow-up, remove only the PR #137 E2E sweep from the combined
+   path after the new cron has proven healthy; ordinary suspended cleanup stays
+   on its established batch path in phase one.
+5. Keep the safety marker, quarantine rule, and bounded candidate selection.
+
+## Phase-one definition of done
+
+This work is complete when:
+
+- no monitor can report teardown success merely because work was enqueued;
+- ordinary lifecycle maintenance and E2E reaping cannot fail each other;
+- one workspace failure cannot stop another workspace;
+- every in-progress deletion has a persisted state and next phase;
+- interruption at every phase is demonstrably recoverable;
+- database timeouts have determinate rollback behavior;
+- successful teardown throughput exceeds workspace creation throughput;
+- current and historical safe E2E backlog is decreasing; and
+- no unmarked or non-E2E workspace can enter the automated E2E deletion path.
+
+Go/Twenty terminal-state convergence remains part of the deferred control-plane
+lifecycle follow-up, not a claim of these two PRs.
