@@ -11,7 +11,7 @@ export const TWENTY_STANDARD_APPLICATION = {
   universalIdentifier: TWENTY_STANDARD_APPLICATION_UNIVERSAL_IDENTIFIER,
   name: TWENTY_STANDARD_APPLICATION_NAME,
   description: null,
-  version: '1.0.1',
+  version: '1.1.0',
   sourcePath: 'cli-sync',
   sourceType: ApplicationRegistrationSourceType.LOCAL,
 } as const satisfies Pick<
