@@ -1,0 +1,66 @@
+name: Dependabot CI Request
+
+# Dependabot-triggered pull_request workflows cannot access repository secrets, and
+# labels applied with GITHUB_TOKEN do not start another workflow. Run from trusted
+# default-branch code after metadata capture so the existing automerge PAT can request
+# the same label-gated CI pass a maintainer would request.
+on:
+  workflow_run:
+    workflows: ['Dependabot Metadata']
+    types: [completed]
+
+permissions:
+  contents: read
+  pull-requests: read
+
+jobs:
+  request-ci:
+    if: >-
+      github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.event == 'pull_request' &&
+      github.event.workflow_run.head_repository.full_name == github.repository &&
+      startsWith(github.event.workflow_run.head_branch, 'dependabot/')
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      HEAD_BRANCH: ${{ github.event.workflow_run.head_branch }}
+      HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
+      GH_TOKEN: ${{ secrets.DEPENDABOT_AUTOMERGE_PAT }}
+    steps:
+      - name: Verify PAT is available
+        run: |
+          if [ -z "$GH_TOKEN" ]; then
+            echo "::error::DEPENDABOT_AUTOMERGE_PAT is unavailable."
+            exit 1
+          fi
+
+      - name: Resolve exact Dependabot pull request
+        id: pr
+        run: |
+          pr_json=$(gh pr list --repo "$GITHUB_REPOSITORY" \
+            --head "$HEAD_BRANCH" --state open \
+            --json number,author,baseRefName,url,headRefOid --limit 1)
+          number=$(jq -r '.[0].number // empty' <<< "$pr_json")
+          author=$(jq -r '.[0].author.login // empty' <<< "$pr_json")
+          base=$(jq -r '.[0].baseRefName // empty' <<< "$pr_json")
+          url=$(jq -r '.[0].url // empty' <<< "$pr_json")
+          head_oid=$(jq -r '.[0].headRefOid // empty' <<< "$pr_json")
+
+          if [ -z "$number" ] || \
+             { [ "$author" != "dependabot[bot]" ] && [ "$author" != "app/dependabot" ]; }; then
+            echo "::error::No open Dependabot pull request for $HEAD_BRANCH."
+            exit 1
+          fi
+          if [ "$base" != "main" ] && [ "$base" != "develop" ]; then
+            echo "::error::Dependabot CI request targets unsupported base $base."
+            exit 1
+          fi
+          if [ "$head_oid" != "$HEAD_SHA" ]; then
+            echo "::error::Metadata SHA $HEAD_SHA is not current pull request head $head_oid."
+            exit 1
+          fi
+
+          echo "url=$url" >> "$GITHUB_OUTPUT"
+
+      - name: Request CI for current Dependabot head
+        run: gh pr edit "${{ steps.pr.outputs.url }}" --add-label run-ci
