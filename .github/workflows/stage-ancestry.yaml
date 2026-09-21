@@ -1,0 +1,48 @@
+name: Stage ancestry
+
+# Stage is a promotion branch. CI proves that a candidate behaves correctly; this
+# separate, automatic guard proves that the exact candidate was already integrated
+# through develop before it can be merged into stage.
+on:
+  pull_request:
+    branches: [stage]
+    types: [opened, synchronize, reopened, edited]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: stage-ancestry-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  ancestry:
+    name: Stage ancestry
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout exact pull request head
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+
+      - name: Fetch develop
+        run: git fetch --no-tags origin refs/heads/develop:refs/remotes/origin/develop
+
+      - name: Require prior integration through develop
+        env:
+          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          DEVELOP_REF: refs/remotes/origin/develop
+        run: |
+          if git merge-base --is-ancestor "$PR_HEAD_SHA" "$DEVELOP_REF"; then
+            echo "Pull request head $PR_HEAD_SHA is contained in develop."
+            exit 0
+          fi
+
+          HEAD_SHORT=$(git rev-parse --short "$PR_HEAD_SHA")
+          DEVELOP_SHORT=$(git rev-parse --short "$DEVELOP_REF")
+          echo "::error title=Stage promotion bypass::$HEAD_SHORT is not contained in develop at $DEVELOP_SHORT. Merge the change into develop before promoting it to stage."
+          echo "Commits in this stage candidate that are not in develop:"
+          git log --oneline --no-decorate --max-count=20 "$DEVELOP_REF..$PR_HEAD_SHA"
+          exit 1

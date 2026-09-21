@@ -1,0 +1,72 @@
+name: CI Control
+
+# Attaching `run-ci` requests one CI pass for the PR's current head. The label is
+# removed immediately so it can be attached again after another push. A push starts
+# no test suite, but it does cancel CI that is still running for the superseded SHA.
+on:
+  pull_request:
+    branches: [main, develop, stage]
+    types: [labeled, synchronize]
+
+permissions: {}
+
+jobs:
+  acknowledge-request:
+    name: Acknowledge run-ci request
+    if: github.event.action == 'labeled' && github.event.label.name == 'run-ci'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      pull-requests: write
+      issues: write
+    steps:
+      - name: Remove trigger label
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if ! gh pr edit "${{ github.event.pull_request.number }}" \
+              --repo "${{ github.repository }}" --remove-label run-ci; then
+            echo "::warning::Could not remove run-ci. Remove it manually before requesting another run."
+          fi
+
+  cancel-superseded:
+    name: Cancel superseded CI
+    if: github.event.action == 'synchronize'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      actions: write
+    steps:
+      - name: Cancel runs for the previous PR head
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          BRANCH: ${{ github.event.pull_request.head.ref }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          STALE=$(
+            gh api --paginate "repos/$REPO/actions/runs?branch=$BRANCH&per_page=100" \
+              --jq '.workflow_runs[]
+                | select(.path == ".github/workflows/ci-front.yaml"
+                      or .path == ".github/workflows/ci-server.yaml"
+                      or .path == ".github/workflows/ci-shared.yaml"
+                      or .path == ".github/workflows/ci-ui.yaml"
+                      or .path == ".github/workflows/ci-twenty-apps.yaml")
+                | select(.status == "queued" or .status == "in_progress"
+                      or .status == "waiting" or .status == "requested"
+                      or .status == "pending")
+                | select(.head_sha != env.HEAD_SHA)
+                | "\(.id)\t\(.name)\t\(.head_sha)"'
+          )
+
+          if [ -z "$STALE" ]; then
+            echo "No superseded CI runs in flight for $BRANCH."
+            exit 0
+          fi
+
+          printf '%s\n' "$STALE" | while IFS=$'\t' read -r ID NAME SHA; do
+            echo "Cancelling $NAME run $ID (${SHA:0:9}, superseded by ${HEAD_SHA:0:9})"
+            if ! gh api --method POST "repos/$REPO/actions/runs/$ID/cancel" > /dev/null 2>&1; then
+              echo "Run $ID already finished; nothing to cancel."
+            fi
+          done

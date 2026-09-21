@@ -4,7 +4,7 @@ name: Dependabot Metadata
 # there with a read-only token; the privileged workflow consumes the artifact.
 on:
   pull_request:
-    branches: [main]
+    branches: [main, develop]
     types: [opened, synchronize, reopened]
 
 permissions:

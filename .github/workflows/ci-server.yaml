@@ -2,21 +2,23 @@ name: CI Server
 
 on:
   pull_request:
-  merge_group:
+    branches: [main, develop, stage]
+    types: [labeled]
+  workflow_dispatch:
 
 permissions:
   contents: read
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}-${{ github.event.label.name == 'run-ci' && 'run' || github.event.label.name || 'dispatch' }}
+  cancel-in-progress: true
 
 env:
   SERVER_BUILD_CACHE_KEY: server-build
 
 jobs:
   changed-files-check:
-    if: github.event_name != 'merge_group'
+    if: github.event_name == 'workflow_dispatch' || github.event.label.name == 'run-ci'
     uses: ./.github/workflows/changed-files.yaml
     with:
       files: |
@@ -31,7 +33,7 @@ jobs:
         packages/twenty-shared/**
 
   upgrade-changed-files-check:
-    if: github.event_name != 'merge_group'
+    if: github.event_name == 'workflow_dispatch' || github.event.label.name == 'run-ci'
     uses: ./.github/workflows/changed-files.yaml
     with:
       files: |
@@ -93,7 +95,7 @@ jobs:
           tasks: lingui:compile
 
   server-previous-version-upgrade-mutation-guard:
-    if: github.event_name != 'merge_group'
+    if: github.event_name == 'workflow_dispatch' || github.event.label.name == 'run-ci'
     timeout-minutes: 5
     runs-on: ubuntu-latest
     steps:
@@ -389,9 +391,15 @@ jobs:
           mode: installation-only
 
   ci-server-status-check:
-    if: always() && !cancelled()
+    name: CI Server Result
+    if: >-
+      always() &&
+      !cancelled() &&
+      (github.event_name == 'workflow_dispatch' || github.event.label.name == 'run-ci')
     timeout-minutes: 5
     runs-on: ubuntu-latest
+    permissions:
+      statuses: write
     needs:
       [
         changed-files-check,
@@ -406,6 +414,42 @@ jobs:
         server-apps-install-smoke,
       ]
     steps:
-      - name: Fail job if any needs failed
-        if: contains(needs.*.result, 'failure')
+      - name: Evaluate required jobs
+        id: evaluate
+        env:
+          RESULTS: ${{ toJSON(needs) }}
+        run: |
+          if jq -e 'to_entries | any(.value.result == "cancelled")' <<< "$RESULTS" > /dev/null; then
+            STATE=cancelled
+            DESCRIPTION="Run cancelled; leaving the previous verdict"
+          elif jq -e 'to_entries | any(.value.result == "failure")' <<< "$RESULTS" > /dev/null; then
+            STATE=failure
+            DESCRIPTION="One or more required Server CI jobs failed"
+          else
+            STATE=success
+            DESCRIPTION="All required Server CI jobs passed"
+          fi
+          echo "state=$STATE" >> "$GITHUB_OUTPUT"
+          echo "description=$DESCRIPTION" >> "$GITHUB_OUTPUT"
+
+      - name: Publish required status
+        if: >-
+          github.event_name == 'pull_request' &&
+          steps.evaluate.outcome == 'success' &&
+          steps.evaluate.outputs.state != 'cancelled'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          STATE: ${{ steps.evaluate.outputs.state }}
+          DESCRIPTION: ${{ steps.evaluate.outputs.description }}
+          SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          gh api --method POST "repos/${{ github.repository }}/statuses/$SHA" \
+            -f state="$STATE" \
+            -f context="ci-server-status-check" \
+            -f description="$DESCRIPTION" \
+            -f target_url="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}" \
+            > /dev/null
+
+      - name: Fail when a required job did not pass
+        if: steps.evaluate.outputs.state == 'failure'
         run: exit 1
