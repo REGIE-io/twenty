@@ -15,6 +15,11 @@ import {
   type RegieE2eWorkspaceMarker,
 } from 'src/engine/core-modules/auth/constants/regie-e2e-workspace-marker.constant';
 import {
+  hasRegieCiWorkspaceMetadata,
+  isValidRegieCiWorkspaceMarker,
+  sameRegieCiWorkspaceOwner,
+} from 'src/engine/core-modules/auth/utils/regie-ci-workspace-marker.util';
+import {
   KeyValuePairEntity,
   KeyValuePairType,
 } from 'src/engine/core-modules/key-value-pair/key-value-pair.entity';
@@ -114,7 +119,10 @@ export class InternalWorkspaceInstantHardDeletionService {
       workspace.subdomain === input.workspaceSlug &&
       marker?.ephemeral === true &&
       marker.organizationId === input.organizationId &&
-      marker.workspaceSlug === input.workspaceSlug;
+      marker.workspaceSlug === input.workspaceSlug &&
+      (!(input.ciOwner || hasRegieCiWorkspaceMetadata(marker)) ||
+        (isValidRegieCiWorkspaceMarker(marker, workspace.subdomain) &&
+          sameRegieCiWorkspaceOwner(marker.ciOwner, input.ciOwner)));
 
     if (!valid) {
       throw new BadRequestException(

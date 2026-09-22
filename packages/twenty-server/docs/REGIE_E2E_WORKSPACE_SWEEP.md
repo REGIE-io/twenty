@@ -12,6 +12,43 @@ and its `org_e2e_*` organization ID. Twenty accepts that marker only when the
 workspace slug also starts with `org-e2e-`, then stores the organization ID and
 exact workspace slug with the workspace.
 
+## CI ownership and interrupted-run cleanup
+
+Dedicated CRM CI provisioning adds `ciOwner` to the existing create request:
+
+```json
+{
+  "repository": "REGIE-io/go",
+  "runId": "123456789",
+  "runAttempt": 1,
+  "job": "crm-api-records"
+}
+```
+
+Twenty records this identity with `owner: "go-crm-ci"`, `issuedAt`, and a server-issued
+`expiresAt` exactly 60 minutes later in the existing `USER_VARIABLE` marker. The
+request cannot choose or extend expiry. CI metadata is accepted only with
+`ephemeral: true`, an `org_e2e_` organization, and an exact `org-e2e-` workspace slug.
+No database migration or new feature flag is required.
+
+The repository, run, attempt and job are immutable. Existing CI markers cannot be
+rebound, renewed, or stripped by legacy marker backfill. Activation and deletion
+of a marked CI workspace require the same `ciOwner` in the request body;
+activation also refuses an expired lease. Instant hard deletion requires the
+same identity in addition to its existing organization/slug safety inputs.
+Legacy requests without CI metadata retain their existing behavior.
+
+The existing ten-minute E2E discovery cron first quarantines up to 15 expired
+`ACTIVE` CI workspaces under the `clean-suspended-workspaces-job` PostgreSQL advisory
+lock. It requires the durable owner, full run identity, fixed expiry, exact slug,
+and ephemeral organization; names alone never authorize cleanup. Unexpired,
+legacy, malformed, and already quarantined workspaces are excluded. Failures are
+logged and retried on a later pass.
+
+Expiry authorizes quarantine, not immediate hard deletion. The existing 24-hour
+quarantine grace and deletion lifecycle remain unchanged. This recovers workspaces
+left by cancelled workflows or killed runners without relying on Go teardown.
+
 ## Cleanup lifecycle
 
 `DELETE /internal/workspaces/:workspaceId` is authenticated with
@@ -20,7 +57,7 @@ flushes its metadata caches; it never performs permanent deletion. The response
 calls this state `quarantined` and reports whether the workspace is eligible
 for eventual purging.
 
-The hourly sweeper independently requires all of the following before permanent
+The E2E deletion discovery independently requires all of the following before permanent
 deletion:
 
 1. The persisted marker has `ephemeral: true`.
@@ -28,8 +65,9 @@ deletion:
 3. Its recorded slug exactly matches the current workspace slug.
 4. The workspace slug starts with `org-e2e-`.
 
-If any check fails, the workspace remains quarantined indefinitely. No remotely
-callable endpoint performs an immediate hard delete.
+If any check fails, the workspace remains quarantined indefinitely. CI markers
+also require valid ownership metadata. The separate authenticated instant-hard-delete
+endpoint retains its explicit identity checks; normal `DELETE` never uses it.
 
 Re-quarantining an already soft-deleted workspace is a no-op after marker
 evaluation. In particular, it does not repeat membership removal or external
@@ -45,16 +83,11 @@ loads active suspended workspaces old enough to require a warning or soft
 deletion. It no longer loads every soft-deleted suspended workspace merely to
 skip it after reaching the limit.
 
-The same batch runs the E2E sweeper, which selects at most 15 workspaces that
-have been quarantined for 24 hours. Its database query applies the marker,
-prefix, and age checks, and the service revalidates the full marker and exact
-slug in memory before calling `WorkspaceService.deleteWorkspace(workspaceId)`.
-Individual failures are logged and retried on the next run.
-
-The 15-workspace hourly batch permits 360 permanent deletions per day. This is
-above the observed 255 CRM E2E legs in a busy 24-hour period while keeping
-deletions sequential. A larger failure burst intentionally drains over multiple
-runs; monitor the oldest eligible quarantine before increasing the cap.
+E2E discovery runs separately every ten minutes. It admits quarantined workspaces
+after 24 hours, using its configured admission limit, and recovers interrupted
+deletion jobs through the existing lifecycle store. The manual sweep command
+remains a bounded 15-workspace operation. Monitor backlog age before changing
+these limits.
 
 Legacy workspaces without the durable marker are deliberately excluded from
 prefix-based cleanup. To migrate one, Go must look up the authoritative tenant

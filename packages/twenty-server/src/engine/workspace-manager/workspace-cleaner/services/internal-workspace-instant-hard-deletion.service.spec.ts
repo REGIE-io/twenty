@@ -7,6 +7,11 @@ import {
 } from 'src/engine/core-modules/workspace/types/workspace-deletion-lifecycle.type';
 import { InternalWorkspaceInstantHardDeletionService } from 'src/engine/workspace-manager/workspace-cleaner/services/internal-workspace-instant-hard-deletion.service';
 
+jest.mock(
+  'src/engine/workspace-manager/workspace-cleaner/services/workspace-deletion-queue.adapter',
+  () => ({ WorkspaceDeletionQueueAdapter: class {} }),
+);
+
 describe('InternalWorkspaceInstantHardDeletionService', () => {
   const workspaceId = '20202020-0000-4000-8000-000000000001';
   const input = {
@@ -75,6 +80,43 @@ describe('InternalWorkspaceInstantHardDeletionService', () => {
     expect(queue.enqueue).toHaveBeenCalledWith({
       workspaceId,
       jobId: `workspace-delete-${workspaceId}`,
+    });
+  });
+
+  it('cannot bypass the recorded CI owner through instant hard deletion', async () => {
+    const { service, markerRepository, store, queue } = makeService();
+    const ciOwner = {
+      repository: 'REGIE-io/go',
+      runId: '123',
+      runAttempt: 1,
+      job: 'crm-api-records',
+    };
+    markerRepository.findOne.mockResolvedValue({
+      value: {
+        ephemeral: true,
+        ...input,
+        owner: 'go-crm-ci',
+        ciOwner,
+        issuedAt: '2026-09-22T12:00:00.000Z',
+        expiresAt: '2026-09-22T13:00:00.000Z',
+      },
+    });
+
+    await expect(service.request(workspaceId, input)).rejects.toThrow(
+      BadRequestException,
+    );
+    await expect(
+      service.request(workspaceId, {
+        ...input,
+        ciOwner: { ...ciOwner, runAttempt: 2 },
+      }),
+    ).rejects.toThrow(BadRequestException);
+    expect(store.requestInstantHardDeletion).not.toHaveBeenCalled();
+    expect(queue.enqueue).not.toHaveBeenCalled();
+    await expect(
+      service.request(workspaceId, { ...input, ciOwner }),
+    ).resolves.toMatchObject({
+      status: WorkspaceActivationStatus.PENDING_DELETION,
     });
   });
 

@@ -14,6 +14,10 @@ import {
   type RegieLegacyE2eOrphanMarker,
 } from 'src/engine/core-modules/auth/constants/regie-e2e-workspace-marker.constant';
 import {
+  hasRegieCiWorkspaceMetadata,
+  isValidRegieCiWorkspaceMarker,
+} from 'src/engine/core-modules/auth/utils/regie-ci-workspace-marker.util';
+import {
   KeyValuePairEntity,
   KeyValuePairType,
 } from 'src/engine/core-modules/key-value-pair/key-value-pair.entity';
@@ -290,7 +294,9 @@ export class RegieE2eWorkspaceDeletionDiscoveryService {
         typeof standardMarker.organizationId === 'string' &&
         standardMarker.organizationId.startsWith(
           REGIE_E2E_ORGANIZATION_ID_PREFIX,
-        )
+        ) &&
+        (!hasRegieCiWorkspaceMetadata(standardMarker) ||
+          isValidRegieCiWorkspaceMarker(standardMarker, subdomain))
       );
     }
 
