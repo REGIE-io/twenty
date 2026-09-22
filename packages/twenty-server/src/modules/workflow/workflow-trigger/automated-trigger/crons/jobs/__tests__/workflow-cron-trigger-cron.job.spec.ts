@@ -1,5 +1,7 @@
 import { Test, type TestingModule } from '@nestjs/testing';
 import { getDataSourceToken, getRepositoryToken } from '@nestjs/typeorm';
+import { WorkspaceActivationStatus } from 'twenty-shared/workspace';
+import { IsNull } from 'typeorm';
 
 import { CacheStorageNamespace } from 'src/engine/core-modules/cache-storage/types/cache-storage-namespace.enum';
 import { CronTriggerDeduplicationService } from 'src/engine/core-modules/cron/services/cron-trigger-deduplication.service';
@@ -7,6 +9,10 @@ import { ExceptionHandlerService } from 'src/engine/core-modules/exception-handl
 import { FeatureFlagService } from 'src/engine/core-modules/feature-flag/services/feature-flag.service';
 import { WorkspaceEntity } from 'src/engine/core-modules/workspace/workspace.entity';
 import { WorkspaceCacheService } from 'src/engine/workspace-cache/services/workspace-cache.service';
+import {
+  WORKFLOW_CRON_TRIGGER_EMPTY_CACHE_SENTINEL_FIELD,
+  WORKFLOW_CRON_TRIGGER_EMPTY_CACHE_SENTINEL_VALUE,
+} from 'src/modules/workflow/workflow-trigger/automated-trigger/crons/constants/workflow-cron-trigger-empty-cache-sentinel.constant';
 import { WORKFLOW_CRON_TRIGGER_CACHE_KEY } from 'src/modules/workflow/workflow-trigger/automated-trigger/crons/constants/workflow-cron-trigger-cache-key.constant';
 import { WORKFLOW_CRON_TRIGGER_CACHE_TTL_MS } from 'src/modules/workflow/workflow-trigger/automated-trigger/crons/constants/workflow-cron-trigger-cache-ttl.constant';
 import { WorkflowCronTriggerCronJob } from 'src/modules/workflow/workflow-trigger/automated-trigger/crons/jobs/workflow-cron-trigger-cron.job';
@@ -191,6 +197,24 @@ describe('WorkflowCronTriggerCronJob', () => {
       expect(mockCacheStorageService.hashSet).not.toHaveBeenCalled();
       expect(mockCacheStorageService.hashSetWithExpire).not.toHaveBeenCalled();
     });
+
+    it('should treat the empty-cache sentinel as a cache hit without dispatching it', async () => {
+      mockCacheStorageService.hashGetValues.mockResolvedValue([
+        WORKFLOW_CRON_TRIGGER_EMPTY_CACHE_SENTINEL_VALUE,
+      ]);
+
+      await job.handle();
+
+      expect(mockWorkspaceRepository.find).not.toHaveBeenCalled();
+      expect(mockCoreDataSource.query).not.toHaveBeenCalled();
+      expect(
+        mockCronTriggerDeduplicationService.shouldDispatch,
+      ).not.toHaveBeenCalled();
+      expect(mockMessageQueueService.add).not.toHaveBeenCalled();
+      expect(
+        mockExceptionHandlerService.captureExceptions,
+      ).not.toHaveBeenCalled();
+    });
   });
 
   describe('handle - cache miss', () => {
@@ -205,7 +229,13 @@ describe('WorkflowCronTriggerCronJob', () => {
 
       await job.handle();
 
-      expect(mockWorkspaceRepository.find).toHaveBeenCalled();
+      expect(mockWorkspaceRepository.find).toHaveBeenCalledWith({
+        where: {
+          activationStatus: WorkspaceActivationStatus.ACTIVE,
+          deletedAt: IsNull(),
+        },
+        select: ['id'],
+      });
       expect(mockCoreDataSource.query).toHaveBeenCalledTimes(3);
     });
 
@@ -272,7 +302,7 @@ describe('WorkflowCronTriggerCronJob', () => {
       );
     });
 
-    it('should not write to cache when no workspaces have cron triggers', async () => {
+    it('should cache an empty scan result with a TTL', async () => {
       mockCacheStorageService.hashGetValues.mockResolvedValue([]);
       mockWorkspaceRepository.find.mockResolvedValue([{ id: WORKSPACE_1 }]);
       mockCoreDataSource.query.mockResolvedValue([]);
@@ -280,7 +310,28 @@ describe('WorkflowCronTriggerCronJob', () => {
       await job.handle();
 
       expect(mockCacheStorageService.hashSet).not.toHaveBeenCalled();
+      expect(mockCacheStorageService.hashSetWithExpire).toHaveBeenCalledWith({
+        key: WORKFLOW_CRON_TRIGGER_CACHE_KEY,
+        field: WORKFLOW_CRON_TRIGGER_EMPTY_CACHE_SENTINEL_FIELD,
+        value: WORKFLOW_CRON_TRIGGER_EMPTY_CACHE_SENTINEL_VALUE,
+        ttlMs: WORKFLOW_CRON_TRIGGER_CACHE_TTL_MS,
+      });
+    });
+
+    it('should not cache an empty result when a workspace scan fails', async () => {
+      mockCacheStorageService.hashGetValues.mockResolvedValue([]);
+      mockWorkspaceRepository.find.mockResolvedValue([{ id: WORKSPACE_1 }]);
+      mockCoreDataSource.query.mockRejectedValue(new Error('Schema not found'));
+
+      await job.handle();
+
+      expect(mockCacheStorageService.hashSet).not.toHaveBeenCalled();
       expect(mockCacheStorageService.hashSetWithExpire).not.toHaveBeenCalled();
+      expect(
+        mockExceptionHandlerService.captureExceptions,
+      ).toHaveBeenCalledWith([expect.any(Error)], {
+        workspace: { id: WORKSPACE_1 },
+      });
     });
 
     it('reads cron triggers from the core trigger map when dispatch-from-core is enabled', async () => {

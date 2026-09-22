@@ -4,7 +4,7 @@ import { InjectDataSource, InjectRepository } from '@nestjs/typeorm';
 import { FeatureFlagKey } from 'twenty-shared/types';
 import { isDefined } from 'twenty-shared/utils';
 import { WorkspaceActivationStatus } from 'twenty-shared/workspace';
-import { DataSource, Repository } from 'typeorm';
+import { DataSource, IsNull, Repository } from 'typeorm';
 
 import { InjectCacheStorage } from 'src/engine/core-modules/cache-storage/decorators/cache-storage.decorator';
 import { CacheStorageService } from 'src/engine/core-modules/cache-storage/services/cache-storage.service';
@@ -24,6 +24,10 @@ import { WorkspaceCacheService } from 'src/engine/workspace-cache/services/works
 import { getWorkspaceSchemaName } from 'src/engine/workspace-datasource/utils/get-workspace-schema-name.util';
 import { AutomatedTriggerType } from 'src/modules/workflow/common/standard-objects/workflow-automated-trigger.workspace-entity';
 import { type CronTriggerSettings } from 'src/modules/workflow/workflow-trigger/automated-trigger/constants/automated-trigger-settings';
+import {
+  WORKFLOW_CRON_TRIGGER_EMPTY_CACHE_SENTINEL_FIELD,
+  WORKFLOW_CRON_TRIGGER_EMPTY_CACHE_SENTINEL_VALUE,
+} from 'src/modules/workflow/workflow-trigger/automated-trigger/crons/constants/workflow-cron-trigger-empty-cache-sentinel.constant';
 import { WORKFLOW_CRON_TRIGGER_CACHE_KEY } from 'src/modules/workflow/workflow-trigger/automated-trigger/crons/constants/workflow-cron-trigger-cache-key.constant';
 import { WORKFLOW_CRON_TRIGGER_CACHE_TTL_MS } from 'src/modules/workflow/workflow-trigger/automated-trigger/crons/constants/workflow-cron-trigger-cache-ttl.constant';
 import { type CachedCronTrigger } from 'src/modules/workflow/workflow-trigger/automated-trigger/crons/types/cached-cron-trigger.type';
@@ -68,9 +72,16 @@ export class WorkflowCronTriggerCronJob {
     );
 
     if (cachedValues.length > 0) {
-      this.logger.log(`Cache hit: ${cachedValues.length} cached cron triggers`);
+      const cachedTriggers = cachedValues.filter(
+        (cachedValue) =>
+          cachedValue !== WORKFLOW_CRON_TRIGGER_EMPTY_CACHE_SENTINEL_VALUE,
+      );
 
-      await this.getAndRunTriggersFromCache(cachedValues, now);
+      this.logger.log(
+        `Cache hit: ${cachedTriggers.length} cached cron triggers`,
+      );
+
+      await this.getAndRunTriggersFromCache(cachedTriggers, now);
     } else {
       this.logger.log('Cache miss: performing full scan of all workspaces');
 
@@ -124,6 +135,7 @@ export class WorkflowCronTriggerCronJob {
     const activeWorkspaces = await this.workspaceRepository.find({
       where: {
         activationStatus: WorkspaceActivationStatus.ACTIVE,
+        deletedAt: IsNull(),
       },
       select: ['id'],
     });
@@ -131,12 +143,19 @@ export class WorkflowCronTriggerCronJob {
     this.logger.log(`Found ${activeWorkspaces.length} active workspaces`);
 
     let triggerCount = 0;
+    let failedWorkspaceCount = 0;
 
     for (const workspace of activeWorkspaces) {
       const triggersToCache = await this.getAndRunWorkspaceTriggersFromDatabase(
         workspace.id,
         now,
       );
+
+      if (!isDefined(triggersToCache)) {
+        failedWorkspaceCount++;
+
+        continue;
+      }
 
       for (const trigger of triggersToCache) {
         await this.cacheStorageService.hashSetWithExpire({
@@ -150,13 +169,22 @@ export class WorkflowCronTriggerCronJob {
       }
     }
 
+    if (triggerCount === 0 && failedWorkspaceCount === 0) {
+      await this.cacheStorageService.hashSetWithExpire({
+        key: WORKFLOW_CRON_TRIGGER_CACHE_KEY,
+        field: WORKFLOW_CRON_TRIGGER_EMPTY_CACHE_SENTINEL_FIELD,
+        value: WORKFLOW_CRON_TRIGGER_EMPTY_CACHE_SENTINEL_VALUE,
+        ttlMs: WORKFLOW_CRON_TRIGGER_CACHE_TTL_MS,
+      });
+    }
+
     this.logger.log(`Cache rebuilt with ${triggerCount} cron triggers`);
   }
 
   private async getAndRunWorkspaceTriggersFromDatabase(
     workspaceId: string,
     now: Date,
-  ): Promise<CachedCronTrigger[]> {
+  ): Promise<CachedCronTrigger[] | undefined> {
     try {
       const cronTriggers = await this.getWorkspaceCronTriggers(workspaceId);
 
@@ -217,7 +245,7 @@ export class WorkflowCronTriggerCronJob {
         workspace: { id: workspaceId },
       });
 
-      return [];
+      return undefined;
     }
   }
 
