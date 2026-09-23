@@ -40,6 +40,8 @@ import { ConnectedAccountTokenEncryptionModule } from 'src/engine/metadata-modul
 import { RefreshTokensManagerModule } from 'src/modules/connected-account/refresh-tokens-manager/connected-account-refresh-tokens-manager.module';
 import { InternalConnectedAccountProvisioningController } from 'src/engine/core-modules/workspace/internal/internal-connected-account-provisioning.controller';
 import { InternalConnectedAccountProvisioningService } from 'src/engine/core-modules/workspace/internal/internal-connected-account-provisioning.service';
+import { InternalE2eMessageChannelController } from 'src/engine/core-modules/workspace/internal/internal-e2e-message-channel.controller';
+import { InternalE2eMessageChannelService } from 'src/engine/core-modules/workspace/internal/internal-e2e-message-channel.service';
 import { InternalWorkspaceMemberProvisioningController } from 'src/engine/core-modules/workspace/internal/internal-workspace-member-provisioning.controller';
 import { InternalWorkspaceMemberProvisioningService } from 'src/engine/core-modules/workspace/internal/internal-workspace-member-provisioning.service';
 import { WorkspaceGaugeService } from 'src/engine/core-modules/workspace/workspace-gauge.service';
@@ -107,6 +109,7 @@ import { WorkspaceFieldMetadataDeletionService } from 'src/engine/workspace-mana
   controllers: [
     InternalWorkspaceMemberProvisioningController,
     InternalConnectedAccountProvisioningController,
+    InternalE2eMessageChannelController,
   ],
   exports: [
     WorkspaceService,
@@ -123,6 +126,7 @@ import { WorkspaceFieldMetadataDeletionService } from 'src/engine/workspace-mana
     WorkspaceEntityCacheProviderService,
     InternalWorkspaceMemberProvisioningService,
     InternalConnectedAccountProvisioningService,
+    InternalE2eMessageChannelService,
     CreateCalendarChannelService,
     CreateMessageChannelService,
     InternalMetadataTokenGuard,

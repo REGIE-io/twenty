@@ -12,6 +12,7 @@ import { RegieE2eWorkspaceDeletionDiscoveryService } from 'src/engine/workspace-
 import { WorkspaceDeletionMonitoringService } from 'src/engine/workspace-manager/workspace-cleaner/services/workspace-deletion-monitoring.service';
 import { WorkspaceDeletionQueueAdapter } from 'src/engine/workspace-manager/workspace-cleaner/services/workspace-deletion-queue.adapter';
 import { WorkspaceDeletionTraceService } from 'src/engine/workspace-manager/workspace-cleaner/services/workspace-deletion-trace.service';
+import { RegieE2eWorkspaceSweeperService } from 'src/engine/workspace-manager/workspace-cleaner/services/regie-e2e-workspace-sweeper.service';
 
 export const REGIE_E2E_WORKSPACE_DELETION_CRON_PATTERN = '*/10 * * * *';
 
@@ -23,6 +24,7 @@ export class RegieE2eWorkspaceDeletionDiscoveryJob {
     private readonly config: TwentyConfigService,
     private readonly monitoring: WorkspaceDeletionMonitoringService,
     private readonly trace: WorkspaceDeletionTraceService,
+    private readonly sweeper: RegieE2eWorkspaceSweeperService,
   ) {}
 
   @Process(RegieE2eWorkspaceDeletionDiscoveryJob.name)
@@ -37,6 +39,7 @@ export class RegieE2eWorkspaceDeletionDiscoveryJob {
   }
 
   async runAt(now: Date): Promise<{ recovered: number; admitted: number }> {
+    await this.sweeper.quarantineExpiredCiWorkspaces(now);
     const result = await this.discovery.discover(this.queue, {
       now,
       gracePeriodMs: REGIE_E2E_PURGE_GRACE_PERIOD_MS,

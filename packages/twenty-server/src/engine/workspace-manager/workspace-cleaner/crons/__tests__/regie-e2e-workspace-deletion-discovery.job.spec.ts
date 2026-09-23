@@ -1,4 +1,5 @@
 import * as Sentry from '@sentry/node';
+import { type RegieE2eWorkspaceSweeperService } from 'src/engine/workspace-manager/workspace-cleaner/services/regie-e2e-workspace-sweeper.service';
 
 import { REGIE_E2E_PURGE_GRACE_PERIOD_MS } from 'src/engine/core-modules/auth/constants/regie-e2e-workspace-marker.constant';
 import { type TwentyConfigService } from 'src/engine/core-modules/twenty-config/twenty-config.service';
@@ -12,6 +13,31 @@ jest.mock('@sentry/node', () => ({
   captureCheckIn: jest.fn(),
   isInitialized: jest.fn().mockReturnValue(false),
 }));
+
+jest.mock(
+  'src/engine/workspace-manager/workspace-cleaner/services/regie-e2e-workspace-deletion-discovery.service',
+  () => ({ RegieE2eWorkspaceDeletionDiscoveryService: class {} }),
+);
+jest.mock(
+  'src/engine/workspace-manager/workspace-cleaner/services/workspace-deletion-queue.adapter',
+  () => ({ WorkspaceDeletionQueueAdapter: class {} }),
+);
+jest.mock(
+  'src/engine/core-modules/twenty-config/twenty-config.service',
+  () => ({ TwentyConfigService: class {} }),
+);
+jest.mock(
+  'src/engine/workspace-manager/workspace-cleaner/services/workspace-deletion-monitoring.service',
+  () => ({ WorkspaceDeletionMonitoringService: class {} }),
+);
+jest.mock(
+  'src/engine/workspace-manager/workspace-cleaner/services/workspace-deletion-trace.service',
+  () => ({ WorkspaceDeletionTraceService: class {} }),
+);
+jest.mock(
+  'src/engine/workspace-manager/workspace-cleaner/services/regie-e2e-workspace-sweeper.service',
+  () => ({ RegieE2eWorkspaceSweeperService: class {} }),
+);
 
 describe('RegieE2eWorkspaceDeletionDiscoveryJob', () => {
   const config = {
@@ -35,6 +61,10 @@ describe('RegieE2eWorkspaceDeletionDiscoveryJob', () => {
     record: jest.fn(),
   } as unknown as WorkspaceDeletionTraceService;
 
+  const sweeper = {
+    quarantineExpiredCiWorkspaces: jest.fn().mockResolvedValue(0),
+  } as unknown as RegieE2eWorkspaceSweeperService;
+
   beforeEach(() => {
     jest.clearAllMocks();
     jest.mocked(Sentry.isInitialized).mockReturnValue(false);
@@ -53,12 +83,18 @@ describe('RegieE2eWorkspaceDeletionDiscoveryJob', () => {
       config,
       monitoring,
       trace,
+      sweeper,
     );
 
     await expect(job.runAt(now)).resolves.toEqual({
       recovered: 2,
       admitted: 3,
     });
+    expect(sweeper.quarantineExpiredCiWorkspaces).toHaveBeenCalledWith(now);
+    expect(
+      jest.mocked(sweeper.quarantineExpiredCiWorkspaces).mock
+        .invocationCallOrder[0],
+    ).toBeLessThan(discovery.discover.mock.invocationCallOrder[0]);
     expect(discovery.discover).toHaveBeenCalledWith(adapter, {
       now,
       gracePeriodMs: REGIE_E2E_PURGE_GRACE_PERIOD_MS,
@@ -94,6 +130,7 @@ describe('RegieE2eWorkspaceDeletionDiscoveryJob', () => {
       config,
       unhealthyMonitoring as unknown as WorkspaceDeletionMonitoringService,
       trace,
+      sweeper,
     );
 
     await job.runAt(new Date('2026-09-12T12:00:00.000Z'));
@@ -121,6 +158,7 @@ describe('RegieE2eWorkspaceDeletionDiscoveryJob', () => {
       config,
       monitoring,
       trace,
+      sweeper,
     );
 
     await expect(job.handle({})).resolves.toEqual({
@@ -152,6 +190,7 @@ describe('RegieE2eWorkspaceDeletionDiscoveryJob', () => {
       config,
       monitoring,
       trace,
+      sweeper,
     );
 
     const handling = job.handle(new Date('2026-09-12T12:00:00.000Z'));
@@ -182,6 +221,7 @@ describe('RegieE2eWorkspaceDeletionDiscoveryJob', () => {
       config,
       monitoring,
       trace,
+      sweeper,
     );
 
     await expect(job.handle()).rejects.toBe(failure);

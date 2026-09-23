@@ -12,8 +12,7 @@ import { MessageQueue } from 'src/engine/core-modules/message-queue/message-queu
 import { TwentyConfigService } from 'src/engine/core-modules/twenty-config/twenty-config.service';
 import { WorkspaceEntity } from 'src/engine/core-modules/workspace/workspace.entity';
 import { CleanerWorkspaceService } from 'src/engine/workspace-manager/workspace-cleaner/services/cleaner.workspace-service';
-
-const CLEAN_SUSPENDED_WORKSPACES_LOCK_NAME = 'clean-suspended-workspaces-job';
+import { CLEAN_SUSPENDED_WORKSPACES_LOCK_NAME } from 'src/engine/workspace-manager/workspace-cleaner/constants/workspace-cleanup-lock.constant';
 
 @Processor(MessageQueue.workspaceCleanupQueue)
 export class CleanSuspendedWorkspacesBatchJob {
