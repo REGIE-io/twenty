@@ -9,6 +9,7 @@ import {
   MessageChannelType,
   MessageChannelVisibility,
 } from 'twenty-shared/types';
+import { WorkspaceActivationStatus } from 'twenty-shared/workspace';
 import { IsNull, Repository } from 'typeorm';
 
 import { REGIE_E2E_WORKSPACE_MARKER_KEY } from 'src/engine/core-modules/auth/constants/regie-e2e-workspace-marker.constant';
@@ -57,6 +58,7 @@ export class InternalE2eMessageChannelService {
       const marker: unknown = markerRow?.value;
       if (
         !workspace ||
+        workspace.activationStatus !== WorkspaceActivationStatus.ACTIVE ||
         !isValidRegieCiWorkspaceMarker(marker, workspace.subdomain) ||
         input.ciOwner?.repository !== 'REGIE-io/go' ||
         !sameRegieCiWorkspaceOwner(marker.ciOwner, input.ciOwner) ||
@@ -64,7 +66,7 @@ export class InternalE2eMessageChannelService {
         Date.parse(marker.expiresAt) <= Date.now()
       ) {
         throw new BadRequestException(
-          'An unexpired CI workspace and its exact recorded owner are required.',
+          'An active, unexpired CI workspace and its exact recorded owner are required.',
         );
       }
       const user = await manager

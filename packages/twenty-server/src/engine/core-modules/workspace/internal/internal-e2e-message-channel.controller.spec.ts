@@ -13,6 +13,7 @@ import {
   MessageChannelType,
   MessageChannelVisibility,
 } from 'twenty-shared/types';
+import { WorkspaceActivationStatus } from 'twenty-shared/workspace';
 import { FindOperator } from 'typeorm';
 
 import {
@@ -140,6 +141,7 @@ describe('CI-owned disabled message channel HTTP fixture', () => {
       id: workspaceId,
       subdomain: 'org-e2e-fixture',
       deletedAt: null,
+      activationStatus: WorkspaceActivationStatus.ACTIVE,
     };
     marker = {
       ephemeral: true,
@@ -231,6 +233,8 @@ describe('CI-owned disabled message channel HTTP fixture', () => {
   it.each([
     'production',
     'deleted',
+    'suspended',
+    'inactive',
     'not-ephemeral',
     'expired',
     'future',
@@ -239,6 +243,10 @@ describe('CI-owned disabled message channel HTTP fixture', () => {
   ])('refuses %s workspace metadata without writes', async (variation) => {
     if (variation === 'production') workspace.subdomain = 'customer';
     if (variation === 'deleted') workspace.deletedAt = new Date();
+    if (variation === 'suspended')
+      workspace.activationStatus = WorkspaceActivationStatus.SUSPENDED;
+    if (variation === 'inactive')
+      workspace.activationStatus = WorkspaceActivationStatus.INACTIVE;
     if (variation === 'not-ephemeral') marker.ephemeral = false;
     if (variation === 'missing-owner') delete marker.ciOwner;
     if (variation === 'marker-slug') marker.workspaceSlug = 'org-e2e-another';
