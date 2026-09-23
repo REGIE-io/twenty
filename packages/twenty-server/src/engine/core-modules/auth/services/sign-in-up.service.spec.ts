@@ -1,4 +1,5 @@
 import { WorkspaceActivationStatus } from 'twenty-shared/workspace';
+import { QueryFailedError } from 'typeorm';
 
 import {
   AuthException,
@@ -7,8 +8,65 @@ import {
 import { type SignInUpNewUserPayload } from 'src/engine/core-modules/auth/types/signInUp.type';
 import { DpaAgreementEntity } from 'src/engine/core-modules/dpa/entities/dpa-agreement.entity';
 import { AuthProviderEnum } from 'src/engine/core-modules/workspace/types/workspace.type';
+import { UserEntity } from 'src/engine/core-modules/user/user.entity';
+import { WorkspaceExceptionCode } from 'src/engine/core-modules/workspace/workspace.exception';
 
 import { SignInUpService } from './sign-in-up.service';
+
+jest.mock(
+  'src/engine/core-modules/user-workspace/user-workspace.service',
+  () => ({ UserWorkspaceService: class {} }),
+);
+jest.mock('src/engine/core-modules/application/application.service', () => ({
+  ApplicationService: class {},
+}));
+jest.mock(
+  'src/engine/core-modules/billing/services/billing-credit.service',
+  () => ({ BillingCreditService: class {} }),
+);
+jest.mock('src/engine/core-modules/billing/services/billing.service', () => ({
+  BillingService: class {},
+}));
+jest.mock(
+  'src/engine/core-modules/workspace-invitation/services/workspace-invitation.service',
+  () => ({ WorkspaceInvitationService: class {} }),
+);
+jest.mock('src/engine/core-modules/user/services/user.service', () => ({
+  UserService: class {},
+}));
+jest.mock(
+  'src/engine/core-modules/file/file-core-picture/services/file-core-picture.service',
+  () => ({ FileCorePictureService: class {} }),
+);
+jest.mock(
+  'src/engine/workspace-cache/services/workspace-cache.service',
+  () => ({ WorkspaceCacheService: class {} }),
+);
+jest.mock(
+  'src/engine/core-modules/twenty-config/twenty-config.service',
+  () => ({ TwentyConfigService: class {} }),
+);
+jest.mock(
+  'src/engine/core-modules/domain/subdomain-manager/services/subdomain-manager.service',
+  () => ({ SubdomainManagerService: class {} }),
+);
+jest.mock(
+  'src/engine/core-modules/enterprise/services/enterprise-plan.service',
+  () => ({ EnterprisePlanService: class {} }),
+);
+jest.mock('src/engine/core-modules/onboarding/onboarding.service', () => ({
+  OnboardingService: class {},
+}));
+jest.mock('src/engine/core-modules/metrics/metrics.service', () => ({
+  MetricsService: class {},
+}));
+jest.mock('src/engine/workspace-event-emitter/workspace-event-emitter', () => ({
+  WorkspaceEventEmitter: class {},
+}));
+jest.mock(
+  'src/engine/core-modules/event-logs/emit/event-log-emitter.service',
+  () => ({ EventLogEmitterService: class {} }),
+);
 
 const mockPartialUserPayload: SignInUpNewUserPayload = {
   email: 'first.user@acme.dev',
@@ -80,6 +138,21 @@ const createSignInUpServiceForTests = () => {
     setOnboardingInviteTeamPending: jest.fn(),
     createOnboardingStatusForWorkspaceMember: jest.fn(),
   };
+  const mockUserService = {
+    findUserByEmail: jest.fn(),
+    findByEmail: jest.fn(),
+    markEmailAsVerified: jest.fn(),
+  };
+  const mockBillingService = {
+    isBillingEnabled: jest.fn(),
+    ensureBillingCustomer: jest.fn(),
+  };
+  const mockDataSource = {
+    createQueryRunner: jest.fn(() => queryRunnerMock),
+    transaction: jest.fn(async (runInTransaction) =>
+      runInTransaction({ queryRunner: queryRunnerMock }),
+    ),
+  };
 
   const service = new SignInUpService(
     mockUserRepository as any,
@@ -98,11 +171,7 @@ const createSignInUpServiceForTests = () => {
       generateSubdomain: jest.fn(),
       validateSubdomainOrThrow: jest.fn(),
     } as any,
-    {
-      findUserByEmail: jest.fn(),
-      findByEmail: jest.fn(),
-      markEmailAsVerified: jest.fn(),
-    } as any,
+    mockUserService as never,
     {
       incrementCounterForEvent: jest.fn(),
     } as any,
@@ -124,15 +193,8 @@ const createSignInUpServiceForTests = () => {
     {
       creditWorkspaceBalance: jest.fn(),
     } as any,
-    {
-      isBillingEnabled: jest.fn(),
-    } as any,
-    {
-      createQueryRunner: jest.fn(() => queryRunnerMock),
-      transaction: jest.fn(async (runInTransaction) =>
-        runInTransaction({ queryRunner: queryRunnerMock }),
-      ),
-    } as any,
+    mockBillingService as never,
+    mockDataSource as never,
   );
 
   return {
@@ -144,8 +206,192 @@ const createSignInUpServiceForTests = () => {
     mockApplicationService,
     mockOnboardingService,
     queryRunnerMock,
+    mockUserService,
+    mockBillingService,
+    mockDataSource,
   };
 };
+
+describe('SignInUpService concurrent internal provisioning', () => {
+  const newUserWithPicture = {
+    email: 'twenty-workspace-provisioning@regie.ai',
+    firstName: 'Regie',
+    lastName: 'Provisioning',
+    isEmailVerified: true,
+  };
+  const userData = { type: 'newUserWithPicture' as const, newUserWithPicture };
+  const options = {
+    displayName: 'Internal workspace',
+    subdomain: 'internal-one',
+    shouldBypassWorkspaceCreationChecks: true,
+    shouldRecordDpaAcceptance: false,
+  };
+  const databaseError = (code = '23505', constraint = 'UQ_USER_EMAIL') =>
+    new QueryFailedError(
+      'INSERT',
+      [],
+      Object.assign(new Error('injected database error'), { code, constraint }),
+    );
+
+  it('allows concurrent workspaces to share the user created by the winning transaction', async () => {
+    const {
+      service,
+      queryRunnerMock,
+      mockUserService,
+      mockDataSource,
+      mockUserWorkspaceService,
+    } = createSignInUpServiceForTests();
+    let storedUser: { id: string; email: string } | undefined;
+    queryRunnerMock.manager.save.mockImplementation(async (entity, value) => {
+      if (entity !== UserEntity) return value;
+      await Promise.resolve();
+      if (storedUser) throw databaseError();
+      storedUser = { ...value, id: 'shared-service-user' };
+      return storedUser;
+    });
+    mockUserService.findUserByEmail.mockImplementation(async (email: string) =>
+      email === storedUser?.email ? storedUser : null,
+    );
+
+    const [first, second] = await Promise.all([
+      service.signUpOnNewWorkspace(userData, options),
+      service.signUpOnNewWorkspace(userData, {
+        ...options,
+        subdomain: 'internal-two',
+      }),
+    ]);
+
+    expect(first.user.id).toBe('shared-service-user');
+    expect(second.user.id).toBe(first.user.id);
+    expect(first.workspace.id).not.toBe(second.workspace.id);
+    expect([first.workspace.subdomain, second.workspace.subdomain]).toEqual([
+      'internal-one',
+      'internal-two',
+    ]);
+    expect(mockDataSource.transaction).toHaveBeenCalledTimes(3);
+    expect(mockUserService.findUserByEmail).toHaveBeenCalledTimes(1);
+    expect(mockUserService.findUserByEmail).toHaveBeenCalledWith(
+      newUserWithPicture.email,
+    );
+    expect(
+      mockUserWorkspaceService.create.mock.calls.map(([input]) => input.userId),
+    ).toEqual(['shared-service-user', 'shared-service-user']);
+    expect(
+      mockUserWorkspaceService.create.mock.calls.map(
+        ([input]) => input.isExistingUser,
+      ),
+    ).toEqual([false, true]);
+  });
+
+  it('looks up the normalized exact email and propagates the race if the user is unavailable', async () => {
+    const { service, mockUserService, mockDataSource } =
+      createSignInUpServiceForTests();
+    const failure = databaseError();
+    mockDataSource.transaction.mockRejectedValue(failure);
+    mockUserService.findUserByEmail.mockResolvedValue(null);
+
+    await expect(
+      service.signUpOnNewWorkspace(
+        {
+          ...userData,
+          newUserWithPicture: {
+            ...newUserWithPicture,
+            email: ' Service@REGIE.AI ',
+          },
+        },
+        options,
+      ),
+    ).rejects.toBe(failure);
+    expect(mockUserService.findUserByEmail).toHaveBeenCalledWith(
+      'service@regie.ai',
+    );
+    expect(mockDataSource.transaction).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not adopt an existing identity during public signup', async () => {
+    const {
+      service,
+      mockUserService,
+      mockDataSource,
+      mockWorkspaceRepository,
+    } = createSignInUpServiceForTests();
+    mockWorkspaceRepository.count.mockResolvedValue(0);
+    mockDataSource.transaction.mockRejectedValue(databaseError());
+
+    await expect(
+      service.signUpOnNewWorkspace(userData, {
+        ...options,
+        shouldBypassWorkspaceCreationChecks: false,
+      }),
+    ).rejects.toMatchObject({
+      code: WorkspaceExceptionCode.SUBDOMAIN_ALREADY_TAKEN,
+    });
+    expect(mockUserService.findUserByEmail).not.toHaveBeenCalled();
+    expect(mockDataSource.transaction).toHaveBeenCalledTimes(1);
+  });
+
+  it('preserves unrelated uniqueness conflicts without looking up or retrying the user', async () => {
+    const { service, mockUserService, mockDataSource } =
+      createSignInUpServiceForTests();
+    mockDataSource.transaction.mockRejectedValue(
+      databaseError('23505', 'UQ_WORKSPACE_SUBDOMAIN'),
+    );
+
+    await expect(
+      service.signUpOnNewWorkspace(userData, options),
+    ).rejects.toMatchObject({
+      code: WorkspaceExceptionCode.SUBDOMAIN_ALREADY_TAKEN,
+    });
+    expect(mockUserService.findUserByEmail).not.toHaveBeenCalled();
+    expect(mockDataSource.transaction).toHaveBeenCalledTimes(1);
+  });
+
+  it('propagates unexpected database errors unchanged', async () => {
+    const { service, mockUserService, mockDataSource } =
+      createSignInUpServiceForTests();
+    const failure = databaseError('40001');
+    mockDataSource.transaction.mockRejectedValue(failure);
+
+    await expect(service.signUpOnNewWorkspace(userData, options)).rejects.toBe(
+      failure,
+    );
+    expect(mockUserService.findUserByEmail).not.toHaveBeenCalled();
+    expect(mockDataSource.transaction).toHaveBeenCalledTimes(1);
+  });
+
+  it('never repeats a committed workspace after a later billing error', async () => {
+    const { service, mockUserService, mockDataSource, mockBillingService } =
+      createSignInUpServiceForTests();
+    mockBillingService.isBillingEnabled.mockReturnValue(true);
+    mockBillingService.ensureBillingCustomer.mockRejectedValue(databaseError());
+
+    await expect(
+      service.signUpOnNewWorkspace(userData, options),
+    ).rejects.toMatchObject({
+      code: WorkspaceExceptionCode.SUBDOMAIN_ALREADY_TAKEN,
+    });
+    expect(mockUserService.findUserByEmail).not.toHaveBeenCalled();
+    expect(mockDataSource.transaction).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not retry a second failure on the existing-user path', async () => {
+    const { service, mockUserService, mockDataSource } =
+      createSignInUpServiceForTests();
+    mockDataSource.transaction.mockRejectedValue(databaseError());
+    mockUserService.findUserByEmail.mockResolvedValue({
+      ...newUserWithPicture,
+      id: 'shared-user',
+    });
+
+    await expect(
+      service.signUpOnNewWorkspace(userData, options),
+    ).rejects.toMatchObject({
+      code: WorkspaceExceptionCode.SUBDOMAIN_ALREADY_TAKEN,
+    });
+    expect(mockUserService.findUserByEmail).toHaveBeenCalledTimes(1);
+    expect(mockDataSource.transaction).toHaveBeenCalledTimes(2);
+  });
+});
 
 describe('SignInUpService workspace-creation policy', () => {
   it('grants bootstrap owner server permissions when multi-workspace is enabled and unrestricted', async () => {

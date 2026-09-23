@@ -556,7 +556,7 @@ export class SignInUpService {
       shouldBypassWorkspaceCreationChecks?: boolean;
       shouldRecordDpaAcceptance?: boolean;
     },
-  ) {
+  ): Promise<{ user: UserEntity; workspace: WorkspaceEntity }> {
     const email =
       userData.type === 'newUserWithPicture'
         ? userData.newUserWithPicture.email
@@ -602,6 +602,7 @@ export class SignInUpService {
 
     const workspaceId = v4();
     const workspaceCustomApplicationId = v4();
+    let transactionCompleted = false;
 
     try {
       const { user, workspace } = await this.dataSource.transaction(
@@ -728,6 +729,7 @@ export class SignInUpService {
           return { user, workspace };
         },
       );
+      transactionCompleted = true;
 
       void this.eventLogEmitterService
         .createContext({ workspaceId })
@@ -743,12 +745,35 @@ export class SignInUpService {
 
       return { user, workspace };
     } catch (error) {
-      const isSubdomainConflict =
+      const isUniqueViolation =
         error instanceof QueryFailedError &&
         (error as QueryFailedErrorWithCode).code ===
           POSTGRESQL_ERROR_CODES.UNIQUE_VIOLATION;
 
-      if (isDefined(requestedSubdomain) && isSubdomainConflict) {
+      if (
+        !transactionCompleted &&
+        options?.shouldBypassWorkspaceCreationChecks === true &&
+        userData.type === 'newUserWithPicture' &&
+        isUniqueViolation &&
+        'constraint' in error &&
+        error.constraint === 'UQ_USER_EMAIL'
+      ) {
+        // Concurrent internal provisioning shares one user; the losing transaction has rolled back.
+        const concurrentlyCreatedUser = await this.userService.findUserByEmail(
+          email.trim().toLowerCase(),
+        );
+
+        if (concurrentlyCreatedUser) {
+          return await this.signUpOnNewWorkspace(
+            { type: 'existingUser', existingUser: concurrentlyCreatedUser },
+            options,
+          );
+        }
+
+        throw error;
+      }
+
+      if (isDefined(requestedSubdomain) && isUniqueViolation) {
         throw new WorkspaceException(
           'Subdomain already taken',
           WorkspaceExceptionCode.SUBDOMAIN_ALREADY_TAKEN,
