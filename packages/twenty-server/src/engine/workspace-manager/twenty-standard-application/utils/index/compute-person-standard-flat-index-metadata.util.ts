@@ -29,20 +29,24 @@ export const buildPersonStandardFlatIndexMetadatas = ({
     twentyStandardApplicationId,
     now,
   }),
-  emailsUniqueIndex: createStandardIndexFlatMetadata({
-    objectName,
-    workspaceId,
-    context: {
-      indexName: 'emailsUniqueIndex',
-      relatedFieldNames: ['emails'],
-      isUnique: true,
-      hasDeterministicUniversalIdentifier: true,
-    },
-    standardObjectMetadataRelatedEntityIds,
-    dependencyFlatEntityMaps,
-    twentyStandardApplicationId,
-    now,
-  }),
+  emailsUniqueIndex: {
+    // Keep the historical index identifier while relaxing its uniqueness.
+    ...createStandardIndexFlatMetadata({
+      objectName,
+      workspaceId,
+      context: {
+        indexName: 'emailsUniqueIndex',
+        relatedFieldNames: ['emails'],
+        isUnique: true,
+        hasDeterministicUniversalIdentifier: true,
+      },
+      standardObjectMetadataRelatedEntityIds,
+      dependencyFlatEntityMaps,
+      twentyStandardApplicationId,
+      now,
+    }),
+    isUnique: false,
+  },
   phonesPrimaryPhoneNumberIndex: createStandardIndexFlatMetadata({
     objectName,
     workspaceId,
