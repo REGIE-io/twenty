@@ -139,7 +139,7 @@ export const buildCompanyStandardFlatFieldMetadatas = ({
       ),
       icon: 'IconLink',
       isNullable: true,
-      isUnique: true,
+      isUnique: false,
       settings: {
         maxNumberOfValues: 1,
       },

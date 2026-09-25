@@ -1,3 +1,4 @@
+import { AllowDuplicateCrmIdentitiesCommand } from 'src/database/commands/upgrade-version-command/2-20/2-20-workspace-command-1790294400000-allow-duplicate-crm-identities.command';
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 
@@ -32,6 +33,7 @@ import { WorkspaceMigrationModule } from 'src/engine/workspace-manager/workspace
     WorkspaceSchemaManagerModule,
   ],
   providers: [
+    AllowDuplicateCrmIdentitiesCommand,
     AddMessageCampaignStatFieldsCommand,
     CreateMessageListViewCommand,
     BackfillActorSourceEnumValuesCommand,
