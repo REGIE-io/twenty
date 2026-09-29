@@ -120,6 +120,7 @@ export const CalendarEventsCard = () => {
       }}
     >
       <StyledContainer>
+        <div data-testid="calendar-shared-address-history-label">{t`Shared address history`}</div>
         {monthTimes.map((monthTime) => {
           const monthDayTimes = daysByMonthTime[monthTime] || [];
           const year = getYear(monthTime);

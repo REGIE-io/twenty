@@ -20,7 +20,7 @@ node dist/command/command.js upgrade:2-20:allow-duplicate-crm-identities --works
 node dist/command/command.js upgrade:2-20:allow-duplicate-crm-identities --workspace-id <workspace-id>
 ```
 
-First validate in an isolated workspace. Coordinate a pause of Go inbound workers,
+First validate in an isolated workspace. Coordinate a pause of affected Go writes and inbound workers,
 deploy Twenty server/worker and apply across provisioned workspaces, deploy Go's
 provider-ID-only import behavior, then resume. Omitting `--workspace-id` selects the
 provisioned workspace fleet. Explicitly invoke this command for an instance already
@@ -29,8 +29,8 @@ at 2.20 if its normal upgrade runner does not revisit that version.
 Verify field and index metadata are non-unique, and inspect `pg_index` for valid,
 non-unique physical indexes on `person.emailsPrimaryEmail` and
 `company.domainNamePrimaryLinkUrl`. Verify two distinct IDs with the same values
-persist and an ID replay updates only its row. Regie manual/CSV checks remain at the
-application layer; native Twenty API/UI creation permits duplicates.
+persist and an ID replay updates only its row. The companion Go change permits
+duplicates in manual/bulk/CSV paths too; native Twenty API/UI creation also permits them.
 
 After duplicates exist, restore neither the old unique indexes nor Go's old fallback
 matching automatically. Pause inbound workers and fix forward. Reinstating uniqueness
@@ -46,3 +46,22 @@ own random workspace schema and two minimal metadata tables; do not use a custom
 ```sh
 CRM_DUPLICATES_TEST_DATABASE_URL=<disposable-postgres-url> yarn jest --config packages/twenty-server/jest.config.mjs --runInBand --runTestsByPath packages/twenty-server/src/database/commands/upgrade-version-command/2-20/__tests__/allow-duplicate-crm-identities.command.spec.ts
 ```
+
+## Shared-address history
+
+People sharing primary or additional emails remain distinct. Participant matching
+normalizes exact addresses and assigns a convenience person ID only when one live
+person matches; primary email does not outrank another person's additional email.
+Soft-deleted people cannot take the match.
+
+Email/calendar timeline reads include exact shared addresses without copying activity
+rows or broadening channel visibility. The address branch requires a mailbox channel
+association; direct record associations remain independent. Company timelines derive
+people from explicit relationships, never shared domains. UI sections label shared
+address history and refresh on participant/person changes.
+
+The companion Go PR now also covers manual/bulk/CSV creation, explicit-ID updates,
+enrichment candidates and unresolved inbound sender selection. Hold affected writes
+through the paired cutover; the Go control-plane/backend additive migrations must be
+applied before enabling those paths. See the Go duplicate-CRM-imports runbook for the
+complete sequence. Continue in the existing Twenty #163 and Go #2502 PRs.

@@ -14,37 +14,28 @@ export function addPersonEmailFiltersToQueryBuilder({
   emails,
   excludePersonIds = [],
 }: AddPersonEmailFiltersToQueryBuilderOptions): SelectQueryBuilder<PersonWorkspaceEntity> {
-  const normalizedEmails = emails.map((email) => email.toLowerCase());
+  const normalizedEmails = [
+    ...new Set(
+      emails.map((email) => email.trim().toLowerCase()).filter(Boolean),
+    ),
+  ];
 
-  queryBuilder = queryBuilder
-    .where('LOWER("person"."emailsPrimaryEmail") IN (:...emails)', {
-      emails: normalizedEmails,
-    })
-    .withDeleted();
+  queryBuilder = queryBuilder.where(
+    `(LOWER(TRIM("person"."emailsPrimaryEmail")) = ANY(:emails) OR EXISTS (
+      SELECT 1 FROM jsonb_array_elements_text(
+        CASE WHEN jsonb_typeof("person"."emailsAdditionalEmails") = 'array'
+          THEN "person"."emailsAdditionalEmails" ELSE '[]'::jsonb END
+      ) AS address(value) WHERE LOWER(TRIM(address.value)) = ANY(:emails)
+    ))`,
+    { emails: normalizedEmails },
+  );
 
   if (excludePersonIds.length > 0) {
     queryBuilder = queryBuilder.andWhere(
       '"person"."id" NOT IN (:...excludePersonIds)',
-      {
-        excludePersonIds,
-      },
+      { excludePersonIds },
     );
   }
 
-  for (const [index, email] of normalizedEmails.entries()) {
-    const emailParamName = `email${index}`;
-    const orWhereIsInAdditionalEmail =
-      excludePersonIds.length > 0
-        ? `"person"."id" NOT IN (:...excludePersonIds) AND "person"."emailsAdditionalEmails" @> :${emailParamName}::jsonb`
-        : `"person"."emailsAdditionalEmails" @> :${emailParamName}::jsonb`;
-
-    queryBuilder = queryBuilder.orWhere(orWhereIsInAdditionalEmail, {
-      ...(excludePersonIds.length > 0 && { excludePersonIds }),
-      [emailParamName]: JSON.stringify([email]),
-    });
-  }
-
-  queryBuilder = queryBuilder.withDeleted();
-
-  return queryBuilder;
+  return queryBuilder.withDeleted();
 }

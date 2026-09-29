@@ -1,3 +1,5 @@
+import { type PersonWorkspaceEntity } from 'src/modules/person/standard-objects/person.workspace-entity';
+import { personEmailAddresses } from 'src/modules/match-participant/utils/person-email-addresses.util';
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 
@@ -57,13 +59,40 @@ export class TimelineMessagingService {
             'messageThread',
           );
 
+        const personRepository =
+          await this.globalWorkspaceOrmManager.getRepository<PersonWorkspaceEntity>(
+            workspaceId,
+            'person',
+          );
+        const addresses = await personRepository
+          .createQueryBuilder('person')
+          .select('"person"."emailsPrimaryEmail"', 'primaryEmail')
+          .addSelect('"person"."emailsAdditionalEmails"', 'additionalEmails')
+          .where('person.id = ANY(:personIds)', { personIds })
+          .getRawMany<{
+            primaryEmail: string | null;
+            additionalEmails: string[] | null;
+          }>();
+        const emails = personEmailAddresses(
+          addresses.map((address) => ({
+            emails: {
+              primaryEmail: address.primaryEmail ?? '',
+              additionalEmails: address.additionalEmails ?? [],
+            },
+          })),
+        );
+        const participantFilter =
+          '(messageParticipants.personId = ANY(:personIds) OR (LOWER(TRIM(messageParticipants.handle)) = ANY(:emails) AND channelAssociations.id IS NOT NULL))';
+
         const totalNumberOfThreads = await messageThreadRepository
           .createQueryBuilder('messageThread')
           .innerJoin('messageThread.messages', 'messages')
           .innerJoin('messages.messageParticipants', 'messageParticipants')
-          .where('messageParticipants.personId IN(:...personIds)', {
-            personIds,
-          })
+          .leftJoin(
+            'messages.messageChannelMessageAssociations',
+            'channelAssociations',
+          )
+          .where(participantFilter, { personIds, emails })
           .groupBy('messageThread.id')
           .getCount();
 
@@ -73,9 +102,11 @@ export class TimelineMessagingService {
           .addSelect('MAX(messages.receivedAt)', 'max_received_at')
           .innerJoin('messageThread.messages', 'messages')
           .innerJoin('messages.messageParticipants', 'messageParticipants')
-          .where('messageParticipants.personId IN (:...personIds)', {
-            personIds,
-          })
+          .leftJoin(
+            'messages.messageChannelMessageAssociations',
+            'channelAssociations',
+          )
+          .where(participantFilter, { personIds, emails })
           .groupBy('messageThread.id')
           .orderBy('max_received_at', 'DESC')
           .offset(offset)
