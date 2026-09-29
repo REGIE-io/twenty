@@ -91,7 +91,6 @@ export const EmailsCard = () => {
   if (!firstQueryLoading && !timelineThreads?.length) {
     return (
       <StyledContainer>
-        <div data-testid="emails-shared-address-history-label">{t`Shared address history`}</div>
         <EmptyInboxPlaceholder />
       </StyledContainer>
     );
@@ -99,7 +98,6 @@ export const EmailsCard = () => {
 
   return (
     <StyledContainer>
-      <div data-testid="emails-shared-address-history-label">{t`Shared address history`}</div>
       <Section>
         {!firstQueryLoading && (
           <ActivityList>

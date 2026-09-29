@@ -24,7 +24,7 @@ First validate in an isolated workspace. Coordinate a pause of affected Go write
 deploy Twenty server/worker and apply across provisioned workspaces, deploy Go's
 provider-ID-only import behavior, then resume. Omitting `--workspace-id` selects the
 provisioned workspace fleet. Explicitly invoke this command for an instance already
-at 2.20 if its normal upgrade runner does not revisit that version.
+at 2.32 if its normal upgrade runner does not revisit that version.
 
 Verify field and index metadata are non-unique, and inspect `pg_index` for valid,
 non-unique physical indexes on `person.emailsPrimaryEmail` and
@@ -44,7 +44,7 @@ For PostgreSQL migration, dry-run, rerun, and rollback checks, set
 own random workspace schema and two minimal metadata tables; do not use a customer DB.
 
 ```sh
-CRM_DUPLICATES_TEST_DATABASE_URL=<disposable-postgres-url> yarn jest --config packages/twenty-server/jest.config.mjs --runInBand --runTestsByPath packages/twenty-server/src/database/commands/upgrade-version-command/2-20/__tests__/allow-duplicate-crm-identities.command.spec.ts
+CRM_DUPLICATES_TEST_DATABASE_URL=<disposable-postgres-url> yarn jest --config packages/twenty-server/jest.config.mjs --runInBand --runTestsByPath packages/twenty-server/src/database/commands/upgrade-version-command/2-32/__tests__/allow-duplicate-crm-identities.command.spec.ts
 ```
 
 ## Shared-address history
@@ -57,8 +57,9 @@ Soft-deleted people cannot take the match.
 Email/calendar timeline reads include exact shared addresses without copying activity
 rows or broadening channel visibility. The address branch requires a mailbox channel
 association; direct record associations remain independent. Company timelines derive
-people from explicit relationships, never shared domains. UI sections label shared
-address history and refresh on participant/person changes.
+people from explicit relationships, never shared domains. Twenty frontend code is
+unchanged: this PR adds no history labels or periodic refresh. Shared history is
+returned when the existing timeline queries run.
 
 The companion Go PR now also covers manual/bulk/CSV creation, explicit-ID updates,
 enrichment candidates and unresolved inbound sender selection. Hold affected writes
