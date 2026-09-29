@@ -5,7 +5,7 @@ indexes remain as lookup indexes, including their historical names and universal
 identifiers. Twenty's create-many upsert conflict discovery now uses the record ID
 instead of the email/domain. Other unique constraints are unchanged.
 
-The versioned command `upgrade:2-20:allow-duplicate-crm-identities` reconciles both
+The versioned command `upgrade:2-32:allow-duplicate-crm-identities` reconciles both
 metadata flags and the physical indexes in one transaction per provisioned workspace.
 It rebuilds missing/invalid indexes, supports reruns, and refreshes metadata caches
 and the workspace metadata version after commit. A 5-second lock timeout rolls back
@@ -16,8 +16,8 @@ this upgrade preserves that index's identity and columns as a non-unique lookup.
 From the built twenty-server container:
 
 ```sh
-node dist/command/command.js upgrade:2-20:allow-duplicate-crm-identities --workspace-id <workspace-id> --dry-run
-node dist/command/command.js upgrade:2-20:allow-duplicate-crm-identities --workspace-id <workspace-id>
+node dist/command/command.js upgrade:2-32:allow-duplicate-crm-identities --workspace-id <workspace-id> --dry-run
+node dist/command/command.js upgrade:2-32:allow-duplicate-crm-identities --workspace-id <workspace-id>
 ```
 
 First validate in an isolated workspace. Coordinate a pause of affected Go writes and inbound workers,

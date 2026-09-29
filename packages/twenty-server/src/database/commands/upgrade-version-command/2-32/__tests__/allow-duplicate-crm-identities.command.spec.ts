@@ -3,7 +3,7 @@ import { DataSource, EntitySchema } from 'typeorm';
 import { STANDARD_OBJECTS } from 'twenty-shared/metadata';
 import { isDefined } from 'twenty-shared/utils';
 
-import { AllowDuplicateCrmIdentitiesCommand } from 'src/database/commands/upgrade-version-command/2-20/2-20-workspace-command-1790294400000-allow-duplicate-crm-identities.command';
+import { AllowDuplicateCrmIdentitiesCommand } from 'src/database/commands/upgrade-version-command/2-32/2-32-workspace-command-1790294400000-allow-duplicate-crm-identities.command';
 import { FieldMetadataEntity } from 'src/engine/metadata-modules/field-metadata/field-metadata.entity';
 import { IndexMetadataEntity } from 'src/engine/metadata-modules/index-metadata/index-metadata.entity';
 import { WorkspaceSchemaIndexManagerService } from 'src/engine/twenty-orm/workspace-schema-manager/services/workspace-schema-index-manager.service';

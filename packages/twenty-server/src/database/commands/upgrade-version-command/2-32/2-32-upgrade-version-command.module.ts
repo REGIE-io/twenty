@@ -1,4 +1,7 @@
 import { Module } from '@nestjs/common';
+import { AllowDuplicateCrmIdentitiesCommand } from 'src/database/commands/upgrade-version-command/2-32/2-32-workspace-command-1790294400000-allow-duplicate-crm-identities.command';
+import { WorkspaceMetadataVersionModule } from 'src/engine/metadata-modules/workspace-metadata-version/workspace-metadata-version.module';
+import { WorkspaceSchemaManagerModule } from 'src/engine/twenty-orm/workspace-schema-manager/workspace-schema-manager.module';
 
 import { WorkspaceIteratorModule } from 'src/database/commands/command-runners/workspace-iterator.module';
 import { AddCalendarEventSummaryTabCommand } from 'src/database/commands/upgrade-version-command/2-32/2-32-workspace-command-1786609782000-add-calendar-event-summary-tab.command';
@@ -14,12 +17,15 @@ import { WorkspaceMigrationModule } from 'src/engine/workspace-manager/workspace
 @Module({
   imports: [
     ApplicationModule,
+    WorkspaceMetadataVersionModule,
+    WorkspaceSchemaManagerModule,
     WorkspaceCacheModule,
     WorkspaceIteratorModule,
     WorkspaceMigrationModule,
     PhoneSearchIndexModule,
   ],
   providers: [
+    AllowDuplicateCrmIdentitiesCommand,
     AddCalendarEventSummaryTabCommand,
     AddWorkspaceMemberUiScaleFieldCommand,
     InitializePersonPhoneSearchLookupCommand,

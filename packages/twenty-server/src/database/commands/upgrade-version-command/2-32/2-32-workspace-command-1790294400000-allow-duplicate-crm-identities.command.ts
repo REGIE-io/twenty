@@ -16,9 +16,9 @@ import { WorkspaceCacheService } from 'src/engine/workspace-cache/services/works
 import { getWorkspaceSchemaName } from 'src/engine/workspace-datasource/utils/get-workspace-schema-name.util';
 import { createIndexInWorkspaceSchema, dropIndexFromWorkspaceSchema } from 'src/engine/workspace-manager/workspace-migration/workspace-migration-runner/action-handlers/index/utils/index-action-handler.utils';
 
-@RegisteredWorkspaceCommand('2.20.0', 1790294400000)
+@RegisteredWorkspaceCommand('2.32.0', 1790294400000)
 @Command({
-  name: 'upgrade:2-20:allow-duplicate-crm-identities',
+  name: 'upgrade:2-32:allow-duplicate-crm-identities',
   description: 'Replace standard person email and company domain unique indexes with lookup indexes',
 })
 export class AllowDuplicateCrmIdentitiesCommand extends ProvisionedWorkspaceCommandRunner {
