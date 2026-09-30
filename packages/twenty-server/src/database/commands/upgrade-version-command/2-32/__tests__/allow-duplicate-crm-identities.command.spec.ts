@@ -4,7 +4,6 @@ import { STANDARD_OBJECTS } from 'twenty-shared/metadata';
 import { isDefined } from 'twenty-shared/utils';
 
 import { AllowDuplicateCrmIdentitiesCommand } from 'src/database/commands/upgrade-version-command/2-32/2-32-workspace-command-1790294400000-allow-duplicate-crm-identities.command';
-import { FieldMetadataEntity } from 'src/engine/metadata-modules/field-metadata/field-metadata.entity';
 import { IndexMetadataEntity } from 'src/engine/metadata-modules/index-metadata/index-metadata.entity';
 import { WorkspaceSchemaIndexManagerService } from 'src/engine/twenty-orm/workspace-schema-manager/services/workspace-schema-index-manager.service';
 import { getWorkspaceSchemaName } from 'src/engine/workspace-datasource/utils/get-workspace-schema-name.util';
@@ -45,7 +44,6 @@ integration('workspace uniqueness migration against PostgreSQL', () => {
   beforeAll(async () => {
     jest.useRealTimers();
     db = new DataSource({ type: 'postgres', url: process.env.CRM_DUPLICATES_TEST_DATABASE_URL, entities: [
-      new EntitySchema({ name: 'FieldMetadataEntity', target: FieldMetadataEntity, tableName: 'duplicate_test_fields', columns: { id: { type: 'uuid', primary: true }, workspaceId: { type: 'uuid' }, isUnique: { type: Boolean } } }),
       new EntitySchema({ name: 'IndexMetadataEntity', target: IndexMetadataEntity, tableName: 'duplicate_test_indexes', columns: { id: { type: 'uuid', primary: true }, workspaceId: { type: 'uuid' }, isUnique: { type: Boolean } } }),
     ] });
     await db.initialize();
@@ -64,23 +62,21 @@ integration('workspace uniqueness migration against PostgreSQL', () => {
       index.isUnique = true;
       const column = object.nameSingular === 'person' ? 'emailsPrimaryEmail' : 'domainNamePrimaryLinkUrl';
       await db.query(`CREATE UNIQUE INDEX "${index.name}" ON "${schema}"."${object.nameSingular}" ("${column}")`);
-      await db.getRepository(FieldMetadataEntity).insert({ id: field.id, workspaceId, isUnique: true });
       await db.getRepository(IndexMetadataEntity).insert({ id: index.id, workspaceId, isUnique: true });
     }
   });
   afterEach(async () => {
     await db.query(`DROP SCHEMA "${schema}" CASCADE`);
-    await db.query('TRUNCATE duplicate_test_fields, duplicate_test_indexes');
+    await db.query('TRUNCATE duplicate_test_indexes');
   });
   afterAll(async () => { await db.destroy(); });
   test('dry-run does not change metadata or physical uniqueness', async () => {
     await command().runOnWorkspace({ workspaceId, index: 0, total: 1, options: { dryRun: true } });
-    expect(await db.getRepository(FieldMetadataEntity).countBy({ isUnique: true })).toBe(2);
+    expect(await db.getRepository(IndexMetadataEntity).countBy({ isUnique: true })).toBe(2);
     expect(flush).not.toHaveBeenCalled();
   });
   test('upgrade and rerun preserve rows, permit duplicates, and retain primary-key upserts', async () => {
     for (let run = 0; run < 2; run++) await command().runOnWorkspace({ workspaceId, index: 0, total: 1, options: {} });
-    expect(await db.getRepository(FieldMetadataEntity).countBy({ isUnique: true })).toBe(0);
     expect(await db.getRepository(IndexMetadataEntity).countBy({ isUnique: true })).toBe(0);
     for (const [table, column, value] of [['person', 'emailsPrimaryEmail', 'same@example.test'], ['company', 'domainNamePrimaryLinkUrl', 'example.test']]) {
       await db.query(`INSERT INTO "${schema}"."${table}" (id, "${column}") VALUES ('00000000-0000-4000-8000-000000000001', $1), ('00000000-0000-4000-8000-000000000002', $1)`, [value]);
@@ -93,8 +89,15 @@ integration('workspace uniqueness migration against PostgreSQL', () => {
   test('an index rebuild failure rolls back metadata and earlier index changes', async () => {
     await db.query(`DROP TABLE "${schema}".company CASCADE`);
     await expect(command().runOnWorkspace({ workspaceId, index: 0, total: 1, options: {} })).rejects.toThrow();
-    expect(await db.getRepository(FieldMetadataEntity).countBy({ isUnique: true })).toBe(2);
     expect(await db.getRepository(IndexMetadataEntity).countBy({ isUnique: true })).toBe(2);
     expect(flush).not.toHaveBeenCalled();
   });
+});
+
+test('skips unprovisioned standard objects without opening a transaction', async () => {
+  const dataSource = { createQueryRunner: jest.fn() };
+  const cache = { getOrRecompute: async () => ({ flatObjectMetadataMaps: { byUniversalIdentifier: {} }, flatFieldMetadataMaps: { byUniversalIdentifier: {} }, flatIndexMaps: { byUniversalIdentifier: {} } }) };
+  const command = new AllowDuplicateCrmIdentitiesCommand({} as never, cache as never, {} as never, {} as never, dataSource as never);
+  await command.runOnWorkspace({ workspaceId, index: 0, total: 1, options: {} });
+  expect(dataSource.createQueryRunner).not.toHaveBeenCalled();
 });

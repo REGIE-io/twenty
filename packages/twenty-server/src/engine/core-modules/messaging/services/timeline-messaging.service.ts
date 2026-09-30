@@ -63,11 +63,13 @@ export class TimelineMessagingService {
           await this.globalWorkspaceOrmManager.getRepository<PersonWorkspaceEntity>(
             workspaceId,
             'person',
+            // Internal relation/address resolution; mailbox visibility is enforced below.
+            { shouldBypassPermissionChecks: true },
           );
         const addresses = await personRepository
           .createQueryBuilder('person')
-          .select('"person"."emailsPrimaryEmail"', 'primaryEmail')
-          .addSelect('"person"."emailsAdditionalEmails"', 'additionalEmails')
+          .select('person.emailsPrimaryEmail', 'primaryEmail')
+          .addSelect('person.emailsAdditionalEmails', 'additionalEmails')
           .where('person.id = ANY(:personIds)', { personIds })
           .getRawMany<{
             primaryEmail: string | null;

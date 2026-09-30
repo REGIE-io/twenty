@@ -8,7 +8,6 @@ import { ProvisionedWorkspaceCommandRunner } from 'src/database/commands/command
 import { WorkspaceIteratorService } from 'src/database/commands/command-runners/workspace-iterator.service';
 import { type RunOnWorkspaceArgs } from 'src/database/commands/command-runners/workspace.command-runner';
 import { RegisteredWorkspaceCommand } from 'src/engine/core-modules/upgrade/decorators/registered-workspace-command.decorator';
-import { FieldMetadataEntity } from 'src/engine/metadata-modules/field-metadata/field-metadata.entity';
 import { IndexMetadataEntity } from 'src/engine/metadata-modules/index-metadata/index-metadata.entity';
 import { WorkspaceMetadataVersionService } from 'src/engine/metadata-modules/workspace-metadata-version/services/workspace-metadata-version.service';
 import { WorkspaceSchemaManagerService } from 'src/engine/twenty-orm/workspace-schema-manager/workspace-schema-manager.service';
@@ -38,9 +37,10 @@ export class AllowDuplicateCrmIdentitiesCommand extends ProvisionedWorkspaceComm
         'flatFieldMetadataMaps', 'flatObjectMetadataMaps', 'flatIndexMaps',
       ]);
     const targets = [
-      STANDARD_OBJECTS.person.fields.emails.universalIdentifier,
-      STANDARD_OBJECTS.company.fields.domainName.universalIdentifier,
-    ].map((universalIdentifier) => {
+      { object: STANDARD_OBJECTS.person.universalIdentifier, field: STANDARD_OBJECTS.person.fields.emails.universalIdentifier },
+      { object: STANDARD_OBJECTS.company.universalIdentifier, field: STANDARD_OBJECTS.company.fields.domainName.universalIdentifier },
+    ].filter(({ object }) => isDefined(flatObjectMetadataMaps.byUniversalIdentifier[object]))
+      .map(({ field: universalIdentifier }) => {
       const field = flatFieldMetadataMaps.byUniversalIdentifier[universalIdentifier];
       if (!isDefined(field) || field.isCustom) {
         throw new Error(`Missing standard CRM identity field ${universalIdentifier} in ${workspaceId}`);
@@ -56,6 +56,7 @@ export class AllowDuplicateCrmIdentitiesCommand extends ProvisionedWorkspaceComm
       }
       return { field, object, index: indexes[0] };
     });
+    if (targets.length === 0) return;
     const queryRunner = this.dataSource.createQueryRunner();
     const schemaName = getWorkspaceSchemaName(workspaceId);
     await queryRunner.connect();
@@ -82,7 +83,7 @@ export class AllowDuplicateCrmIdentitiesCommand extends ProvisionedWorkspaceComm
         }
         // One transaction preserves the index identity without the field side effect deleting it.
         await queryRunner.manager.getRepository(IndexMetadataEntity).update({ id: index.id, workspaceId }, { isUnique: false });
-        await queryRunner.manager.getRepository(FieldMetadataEntity).update({ id: field.id, workspaceId }, { isUnique: false });
+        // Field uniqueness is derived from index metadata when the cache rebuilds.
       }
       if (!options.dryRun) await queryRunner.commitTransaction();
     } catch (error) {

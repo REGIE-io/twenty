@@ -6,12 +6,13 @@ identifiers. Twenty's create-many upsert conflict discovery now uses the record 
 instead of the email/domain. Other unique constraints are unchanged.
 
 The versioned command `upgrade:2-32:allow-duplicate-crm-identities` reconciles both
-metadata flags and the physical indexes in one transaction per provisioned workspace.
+index metadata and the physical indexes in one transaction per provisioned workspace.
 It rebuilds missing/invalid indexes, supports reruns, and refreshes metadata caches
 and the workspace metadata version after commit. A 5-second lock timeout rolls back
-the current workspace if another workload holds the table. The raw metadata update
-is intentional: the generic field uniqueness side effect deletes the backing index;
-this upgrade preserves that index's identity and columns as a non-unique lookup.
+the current workspace if another workload holds the table. Field uniqueness is derived
+from index metadata during cache rebuild; no persisted field flag is updated.
+The upgrade preserves index identity and columns as a non-unique lookup, and skips
+standard objects absent from partially provisioned workspaces.
 
 From the built twenty-server container:
 
