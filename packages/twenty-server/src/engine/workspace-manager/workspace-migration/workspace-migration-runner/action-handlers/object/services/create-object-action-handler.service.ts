@@ -12,6 +12,7 @@ import { isFlatFieldMetadataOfType } from 'src/engine/metadata-modules/flat-fiel
 import { deriveSearchVectorAsExpressionForTsVectorField } from 'src/engine/metadata-modules/flat-search-field-metadata/utils/derive-search-vector-as-expression-for-ts-vector-field.util';
 import { getTargetSearchFieldMetadatasForTsVectorField } from 'src/engine/metadata-modules/flat-search-field-metadata/utils/get-target-search-field-metadatas-for-ts-vector-field.util';
 import { WorkspaceSchemaManagerService } from 'src/engine/twenty-orm/workspace-schema-manager/workspace-schema-manager.service';
+import { ensureParticipantHandleIndex } from 'src/engine/workspace-manager/workspace-migration/workspace-migration-runner/action-handlers/object/utils/ensure-participant-handle-index.util';
 import {
   FlatCreateObjectAction,
   UniversalCreateObjectAction,
@@ -195,6 +196,12 @@ export class CreateObjectActionHandlerService extends WorkspaceMigrationRunnerAc
       schemaName,
       tableName,
       columnDefinitions,
+    });
+
+    await ensureParticipantHandleIndex({
+      queryRunner,
+      workspaceId,
+      objectMetadata: flatObjectMetadata,
     });
   }
 }

@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+import { AddParticipantHandleIndexesCommand } from 'src/database/commands/upgrade-version-command/2-32/2-32-workspace-command-1790812800000-add-participant-handle-indexes.command';
 import { AllowDuplicateCrmIdentitiesCommand } from 'src/database/commands/upgrade-version-command/2-32/2-32-workspace-command-1790294400000-allow-duplicate-crm-identities.command';
 import { WorkspaceMetadataVersionModule } from 'src/engine/metadata-modules/workspace-metadata-version/workspace-metadata-version.module';
 import { WorkspaceSchemaManagerModule } from 'src/engine/twenty-orm/workspace-schema-manager/workspace-schema-manager.module';
@@ -26,6 +27,7 @@ import { WorkspaceMigrationModule } from 'src/engine/workspace-manager/workspace
   ],
   providers: [
     AllowDuplicateCrmIdentitiesCommand,
+    AddParticipantHandleIndexesCommand,
     AddCalendarEventSummaryTabCommand,
     AddWorkspaceMemberUiScaleFieldCommand,
     InitializePersonPhoneSearchLookupCommand,
