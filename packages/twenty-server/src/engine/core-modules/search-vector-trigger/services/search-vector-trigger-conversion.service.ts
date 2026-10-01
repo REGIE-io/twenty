@@ -8,6 +8,11 @@ import {
   buildSearchVectorTriggerStatements,
   type SearchVectorTriggerStatements,
 } from 'src/engine/core-modules/search-vector-trigger/utils/build-search-vector-trigger-statements.util';
+import {
+  getSearchVectorColumnState,
+  hasSearchVectorTrigger,
+  selectMismatchCount,
+} from 'src/engine/core-modules/search-vector-trigger/utils/search-vector-table-queries.util';
 import { findManyFlatEntityByIdInFlatEntityMaps } from 'src/engine/metadata-modules/flat-entity/utils/find-many-flat-entity-by-id-in-flat-entity-maps.util';
 import { deriveCheckedSearchVectorExpression } from 'src/engine/metadata-modules/flat-search-field-metadata/utils/derive-checked-search-vector-expression.util';
 import { findTsVectorFlatFieldMetadataForObject } from 'src/engine/metadata-modules/flat-search-field-metadata/utils/find-ts-vector-flat-field-metadata-for-object.util';
@@ -48,8 +53,6 @@ export type SearchVectorWorkspaceConversionReport = {
   status: 'converted' | 'mismatch' | 'dryRun' | 'incomplete';
   tables: SearchVectorTableConversionReportRow[];
 };
-
-type SearchVectorColumnState = 'generated' | 'plain' | 'missing';
 
 type TimeoutAdjustableQueryRunner = QueryRunner & {
   databaseConnection?: {
@@ -245,7 +248,7 @@ export class SearchVectorTriggerConversionService {
       await queryRunner.connect();
       restoreClientTimeout = this.raiseClientQueryTimeout(queryRunner);
 
-      const columnState = await this.getSearchVectorColumnState(
+      const columnState = await getSearchVectorColumnState(
         queryRunner,
         schemaName,
         tableName,
@@ -270,24 +273,53 @@ export class SearchVectorTriggerConversionService {
           return { status: 'mismatch', mismatchCount: plainMismatchCount };
         }
 
-        if (!dryRun) {
-          // Self-heal a plain column whose trigger is missing or stale.
-          await queryRunner.startTransaction();
-          await queryRunner.query(`SET LOCAL lock_timeout = '${lockTimeout}'`);
-          await this.installTrigger({
+        if (dryRun) {
+          return { status: 'alreadyConverted', mismatchCount: 0 };
+        }
+
+        const hasTrigger = await hasSearchVectorTrigger(
+          queryRunner,
+          qualifiedTable,
+          statements.functionName,
+        );
+
+        await queryRunner.startTransaction();
+        await queryRunner.query(`SET LOCAL lock_timeout = '${lockTimeout}'`);
+
+        if (!hasTrigger) {
+          // Nothing maintains the column yet, so a write after the scan above would stay
+          // stale. Block writes and recheck before installing the trigger.
+          await queryRunner.query(
+            `LOCK TABLE ${qualifiedTable} IN SHARE ROW EXCLUSIVE MODE`,
+          );
+          await queryRunner.query(
+            `SET LOCAL statement_timeout = '${MISMATCH_CHECK_STATEMENT_TIMEOUT}'`,
+          );
+
+          const lockedMismatchCount = await selectMismatchCount(
             queryRunner,
             qualifiedTable,
-            statements,
-            triggerRowExpression,
-          });
-          await queryRunner.commitTransaction();
+            leanColumnExpression,
+          );
+
+          if (lockedMismatchCount > 0) {
+            await queryRunner.rollbackTransaction();
+
+            return { status: 'mismatch', mismatchCount: lockedMismatchCount };
+          }
         }
+
+        await this.installTrigger({
+          queryRunner,
+          qualifiedTable,
+          statements,
+          triggerRowExpression,
+        });
+        await queryRunner.commitTransaction();
 
         return { status: 'alreadyConverted', mismatchCount: 0 };
       }
 
-      // Rows written between this scan and the lock keep the generated value; it equals the
-      // lean one for every input the shape tests cover.
       const mismatchCount = await this.countMismatches(
         queryRunner,
         qualifiedTable,
@@ -383,9 +415,11 @@ export class SearchVectorTriggerConversionService {
       await queryRunner.query(
         `SET LOCAL statement_timeout = '${MISMATCH_CHECK_STATEMENT_TIMEOUT}'`,
       );
-      const [{ mismatchCount }] = (await queryRunner.query(
-        `SELECT count(*) FILTER (WHERE "searchVector" IS DISTINCT FROM (${leanColumnExpression}))::int AS "mismatchCount" FROM ${qualifiedTable}`,
-      )) as Array<{ mismatchCount: number }>;
+      const mismatchCount = await selectMismatchCount(
+        queryRunner,
+        qualifiedTable,
+        leanColumnExpression,
+      );
 
       await queryRunner.commitTransaction();
 
@@ -436,40 +470,6 @@ export class SearchVectorTriggerConversionService {
     return (
       candidate?.code === POSTGRESQL_ERROR_CODES.LOCK_NOT_AVAILABLE ||
       candidate?.driverError?.code === POSTGRESQL_ERROR_CODES.LOCK_NOT_AVAILABLE
-    );
-  }
-
-  private async getSearchVectorColumnState(
-    queryRunner: QueryRunner,
-    schemaName: string,
-    tableName: string,
-  ): Promise<SearchVectorColumnState> {
-    const rows = (await queryRunner.query(
-      `SELECT a.attgenerated
-         FROM pg_attribute a
-         JOIN pg_class c ON c.oid = a.attrelid
-         JOIN pg_namespace n ON n.oid = c.relnamespace
-        WHERE n.nspname = $1 AND c.relname = $2 AND a.attname = 'searchVector' AND NOT a.attisdropped`,
-      [schemaName, tableName],
-    )) as Array<{ attgenerated: string }>;
-
-    if (rows.length === 0) {
-      return 'missing';
-    }
-
-    const { attgenerated } = rows[0];
-
-    if (attgenerated === '') {
-      return 'plain';
-    }
-
-    if (attgenerated === 's') {
-      return 'generated';
-    }
-
-    // PG18 adds virtual generated columns ('v'); converting one needs its own path.
-    throw new Error(
-      `Unsupported searchVector attgenerated value '${attgenerated}' on ${schemaName}.${tableName}`,
     );
   }
 }

@@ -232,6 +232,42 @@ describe('SearchVectorTriggerConversionService.convertTable', () => {
     expect(nullVectors).toBe(2);
   });
 
+  it('rechecks a trigger-less plain column under a write lock before installing', async () => {
+    await dataSource.query(
+      `ALTER TABLE "${SCHEMA}"."person" ALTER COLUMN "searchVector" DROP EXPRESSION`,
+    );
+    const createQueryRunner = dataSource.createQueryRunner.bind(dataSource);
+    const createQueryRunnerSpy = jest
+      .spyOn(dataSource, 'createQueryRunner')
+      .mockImplementation(() => {
+        const queryRunner = createQueryRunner();
+        const query = queryRunner.query.bind(queryRunner);
+
+        // A concurrent write lands after the unlocked scan and before the lock.
+        queryRunner.query = async (sql: string, parameters?: unknown[]) => {
+          if (sql.startsWith('LOCK TABLE')) {
+            await dataSource.query(
+              `UPDATE "${SCHEMA}"."person" SET "jobTitle" = 'Changed', "searchVector" = NULL WHERE "nameFirstName" = 'Samuel'`,
+            );
+          }
+
+          return query(sql, parameters);
+        };
+
+        return queryRunner;
+      });
+
+    try {
+      await expect(convert(false)).resolves.toEqual({
+        status: 'mismatch',
+        mismatchCount: 1,
+      });
+    } finally {
+      createQueryRunnerSpy.mockRestore();
+    }
+    expect(await countTriggers()).toBe(0);
+  });
+
   it('throws when the searchVector column is missing', async () => {
     await dataSource.query(
       `ALTER TABLE "${SCHEMA}"."person" DROP COLUMN "searchVector"`,
