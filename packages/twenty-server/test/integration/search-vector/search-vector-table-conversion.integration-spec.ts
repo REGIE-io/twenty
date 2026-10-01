@@ -194,8 +194,12 @@ describe('SearchVectorTriggerConversionService.convertTable', () => {
     );
     await dataSource.query(`DROP TRIGGER "${tgname}" ON "${SCHEMA}"."person"`);
 
+    await expect(convert(true)).resolves.toEqual({
+      status: 'dryRun',
+      mismatchCount: 0,
+    });
     await expect(convert(false)).resolves.toEqual({
-      status: 'alreadyConverted',
+      status: 'converted',
       mismatchCount: 0,
     });
     expect(await countTriggers()).toBe(1);
@@ -207,6 +211,28 @@ describe('SearchVectorTriggerConversionService.convertTable', () => {
       `SELECT count(*)::int AS hackers FROM "${SCHEMA}"."person" WHERE "searchVector" @@ to_tsquery('simple', 'hacker')`,
     );
     expect(hackers).toBe(1);
+  });
+
+  it('does not count a disabled trigger as maintaining the column', async () => {
+    await convert(false);
+    await dataSource.query(
+      `ALTER TABLE "${SCHEMA}"."person" DISABLE TRIGGER USER`,
+    );
+
+    await expect(convert(true)).resolves.toEqual({
+      status: 'dryRun',
+      mismatchCount: 0,
+    });
+    await expect(convert(false)).resolves.toEqual({
+      status: 'converted',
+      mismatchCount: 0,
+    });
+
+    const [{ enabledTriggers }] = await dataSource.query(
+      `SELECT count(*)::int AS "enabledTriggers" FROM pg_trigger
+        WHERE tgrelid = '"${SCHEMA}"."person"'::regclass AND NOT tgisinternal AND tgenabled <> 'D'`,
+    );
+    expect(enabledTriggers).toBe(1);
   });
 
   it('refuses a plain column with no trigger whose stored vectors are NULL', async () => {

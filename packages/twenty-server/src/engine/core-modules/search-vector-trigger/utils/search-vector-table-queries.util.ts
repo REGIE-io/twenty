@@ -14,17 +14,35 @@ export const selectMismatchCount = async (
   return mismatchCount;
 };
 
+// BEFORE (2) | ROW (1) | INSERT (4) | UPDATE (16), as created by buildSearchVectorTriggerStatements.
+const SEARCH_VECTOR_TRIGGER_TYPE = 23;
+
+// A disabled trigger, or a same-named one calling another function, does not maintain the
+// column, so only the exact trigger counts.
 export const hasSearchVectorTrigger = async (
   queryRunner: QueryRunner,
-  qualifiedTable: string,
-  triggerName: string,
+  {
+    qualifiedTable,
+    triggerName,
+    qualifiedFunction,
+  }: { qualifiedTable: string; triggerName: string; qualifiedFunction: string },
 ): Promise<boolean> => {
   const [{ exists }] = (await queryRunner.query(
     `SELECT EXISTS (
        SELECT 1 FROM pg_trigger
-        WHERE tgrelid = $1::regclass AND tgname = $2 AND NOT tgisinternal
+        WHERE tgrelid = $1::regclass
+          AND tgname = $2
+          AND NOT tgisinternal
+          AND tgenabled <> 'D'
+          AND tgtype = $3
+          AND tgfoid = to_regprocedure($4 || '()')
      ) AS "exists"`,
-    [qualifiedTable, triggerName],
+    [
+      qualifiedTable,
+      triggerName,
+      SEARCH_VECTOR_TRIGGER_TYPE,
+      qualifiedFunction,
+    ],
   )) as Array<{ exists: boolean }>;
 
   return exists;

@@ -273,15 +273,20 @@ export class SearchVectorTriggerConversionService {
           return { status: 'mismatch', mismatchCount: plainMismatchCount };
         }
 
-        if (dryRun) {
-          return { status: 'alreadyConverted', mismatchCount: 0 };
-        }
-
-        const hasTrigger = await hasSearchVectorTrigger(
-          queryRunner,
+        const hasTrigger = await hasSearchVectorTrigger(queryRunner, {
           qualifiedTable,
-          statements.functionName,
-        );
+          triggerName: statements.functionName,
+          qualifiedFunction: `${escapeIdentifier(schemaName)}.${escapeIdentifier(statements.functionName)}`,
+        });
+
+        // Only a working trigger makes a plain column converted; without one the next write
+        // goes stale, so the table still needs converting.
+        if (dryRun) {
+          return {
+            status: hasTrigger ? 'alreadyConverted' : 'dryRun',
+            mismatchCount: 0,
+          };
+        }
 
         await queryRunner.startTransaction();
         await queryRunner.query(`SET LOCAL lock_timeout = '${lockTimeout}'`);
@@ -317,7 +322,10 @@ export class SearchVectorTriggerConversionService {
         });
         await queryRunner.commitTransaction();
 
-        return { status: 'alreadyConverted', mismatchCount: 0 };
+        return {
+          status: hasTrigger ? 'alreadyConverted' : 'converted',
+          mismatchCount: 0,
+        };
       }
 
       const mismatchCount = await this.countMismatches(
