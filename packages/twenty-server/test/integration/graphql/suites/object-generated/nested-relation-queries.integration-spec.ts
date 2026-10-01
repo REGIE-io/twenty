@@ -125,7 +125,7 @@ describe('relation connect in workspace createOne/createMany resolvers  (e2e)', 
         id: TEST_PERSON_1_ID,
         company: {
           connect: {
-            where: { domainName: { primaryLinkUrl: 'company1.com' } },
+            where: { id: TEST_COMPANY_1_ID },
           },
         },
       },
@@ -148,7 +148,7 @@ describe('relation connect in workspace createOne/createMany resolvers  (e2e)', 
           id: TEST_PERSON_1_ID,
           company: {
             connect: {
-              where: { domainName: { primaryLinkUrl: 'company1.com' } },
+              where: { id: TEST_COMPANY_1_ID },
             },
           },
         },
@@ -156,7 +156,7 @@ describe('relation connect in workspace createOne/createMany resolvers  (e2e)', 
           id: TEST_PERSON_2_ID,
           company: {
             connect: {
-              where: { domainName: { primaryLinkUrl: 'company2.com' } },
+              where: { id: TEST_COMPANY_2_ID },
             },
           },
         },
@@ -197,16 +197,16 @@ describe('relation connect in workspace createOne/createMany resolvers  (e2e)', 
           id: TEST_PERSON_1_ID,
           company: {
             connect: {
-              where: { domainName: { primaryLinkUrl: 'company2.com' } },
+              where: { id: TEST_COMPANY_2_ID },
             },
           },
         },
         {
-        id: TEST_PERSON_2_ID,
-        jobTitle: 'new-record',
-        company: {
+          id: TEST_PERSON_2_ID,
+          jobTitle: 'new-record',
+          company: {
             connect: {
-              where: { domainName: { primaryLinkUrl: 'company1.com' } },
+              where: { id: TEST_COMPANY_1_ID },
             },
           },
         },
@@ -254,7 +254,7 @@ describe('relation connect in workspace createOne/createMany resolvers  (e2e)', 
       data: {
         company: {
           connect: {
-            where: { domainName: { primaryLinkUrl: 'company2.com' } },
+            where: { id: TEST_COMPANY_2_ID },
           },
         },
       },
@@ -297,7 +297,7 @@ describe('relation connect in workspace createOne/createMany resolvers  (e2e)', 
       data: {
         company: {
           connect: {
-            where: { domainName: { primaryLinkUrl: 'company2.com' } },
+            where: { id: TEST_COMPANY_2_ID },
           },
         },
       },
@@ -324,7 +324,7 @@ describe('relation connect in workspace createOne/createMany resolvers  (e2e)', 
         companyId: TEST_COMPANY_1_ID,
         company: {
           connect: {
-            where: { domainName: { primaryLinkUrl: 'company1.com' } },
+            where: { id: TEST_COMPANY_1_ID },
           },
         },
       },
@@ -349,7 +349,7 @@ describe('relation connect in workspace createOne/createMany resolvers  (e2e)', 
         id: TEST_PERSON_1_ID,
         company: {
           connect: {
-            where: { domainName: { primaryLinkUrl: 'not-existing-company' } },
+            where: { id: '00000000-0000-4000-8000-000000000099' },
           },
         },
       },
@@ -359,14 +359,14 @@ describe('relation connect in workspace createOne/createMany resolvers  (e2e)', 
 
     expect(response.body.errors).toBeDefined();
     expect(response.body.errors[0].message).toBe(
-      'Expected 1 record to connect to company, but found 0 for domainNamePrimaryLinkUrl = not-existing-company',
+      'Expected 1 record to connect to company, but found 0 for id = 00000000-0000-4000-8000-000000000099',
     );
     expect(response.body.errors[0].extensions.code).toBe(
       ErrorCode.BAD_USER_INPUT,
     );
   });
 
-  it('should throw an error if unique constraint is not the same for all created records', async () => {
+  it('rejects a domain-only connection when another row uses an explicit ID', async () => {
     const graphqlOperation = createManyOperationFactory({
       objectMetadataSingularName: 'person',
       objectMetadataPluralName: 'people',
@@ -395,7 +395,7 @@ describe('relation connect in workspace createOne/createMany resolvers  (e2e)', 
 
     expect(response.body.errors).toBeDefined();
     expect(response.body.errors[0].message).toBe(
-      'Expected the same constraint fields to be used consistently across all operations for company.',
+      "Missing required fields: at least one unique constraint have to be fully populated for 'company'.",
     );
     expect(response.body.errors[0].extensions.code).toBe(
       ErrorCode.BAD_USER_INPUT,
@@ -435,7 +435,7 @@ describe('relation connect in workspace createOne/createMany resolvers  (e2e)', 
         id: TEST_PERSON_1_ID,
         company: {
           connect: {
-            where: { domainName: { primaryLinkUrl: 'company1.com' } },
+            where: { id: TEST_COMPANY_1_ID },
           },
           disconnect: true,
         },
@@ -577,7 +577,7 @@ describe('relation connect in workspace createOne/createMany resolvers  (e2e)', 
           id: TEST_PERSON_2_ID,
           company: {
             connect: {
-              where: { domainName: { primaryLinkUrl: 'company2.com' } },
+              where: { id: TEST_COMPANY_2_ID },
             },
           },
         },

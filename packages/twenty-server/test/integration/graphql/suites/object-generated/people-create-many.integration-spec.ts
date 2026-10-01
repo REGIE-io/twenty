@@ -6,7 +6,9 @@ import { makeGraphqlAPIRequest } from 'test/integration/graphql/utils/make-graph
 import { deleteAllRecords } from 'test/integration/utils/delete-all-records';
 
 describe('people resolvers (integration)', () => {
+  let person1Id: string;
   let person2Id: string;
+  let person3Id: string;
 
   beforeAll(async () => {
     await deleteAllRecords('person');
@@ -55,6 +57,14 @@ describe('people resolvers (integration)', () => {
     const response = await makeGraphqlAPIRequest(graphqlOperation);
 
     expect(response.body.data.createPeople).toHaveLength(3);
+    person1Id = response.body.data.createPeople.find(
+      (person: { id: string; emails: { primaryEmail: string } }) =>
+        person.emails.primaryEmail === 'john.doe@example.com',
+    ).id;
+    person3Id = response.body.data.createPeople.find(
+      (person: { id: string; emails: { primaryEmail: string } }) =>
+        person.emails.primaryEmail === 'tim.apple@example.com',
+    ).id;
     expect(response.body.errors).toBeUndefined();
   });
 
@@ -81,6 +91,7 @@ describe('people resolvers (integration)', () => {
       gqlFields: PERSON_GQL_FIELDS,
       data: [
         {
+          id: person1Id,
           emails: {
             primaryEmail: 'john.doe@example.com',
           },
@@ -121,6 +132,7 @@ describe('people resolvers (integration)', () => {
       gqlFields: PERSON_GQL_FIELDS,
       data: [
         {
+          id: person3Id,
           emails: {
             primaryEmail: 'tim.apple@example.com',
           },
@@ -162,5 +174,39 @@ describe('people resolvers (integration)', () => {
       ).emails.primaryEmail,
     ).toEqual('jane.smith@updated.com');
     expect(response.body.errors).toBeUndefined();
+  });
+  it('creates distinct people for shared emails even with upsert enabled', async () => {
+    const response = await makeGraphqlAPIRequest(
+      createManyOperationFactory({
+        objectMetadataSingularName: 'person',
+        objectMetadataPluralName: 'people',
+        gqlFields: PERSON_GQL_FIELDS,
+        data: [
+          {
+            emails: { primaryEmail: 'john.doe@example.com' },
+            jobTitle: 'Duplicate One',
+          },
+          {
+            emails: { primaryEmail: 'john.doe@example.com' },
+            jobTitle: 'Duplicate Two',
+          },
+        ],
+        upsert: true,
+      }),
+    );
+    expect(response.body.errors).toBeUndefined();
+    const ids = response.body.data.createPeople.map(
+      (person: { id: string }) => person.id,
+    );
+    expect(new Set(ids).size).toBe(2);
+    expect(ids).not.toContain(person1Id);
+    const original = await makeGraphqlAPIRequest(
+      findOneOperationFactory({
+        objectMetadataSingularName: 'person',
+        gqlFields: PERSON_GQL_FIELDS,
+        filter: { id: { eq: person1Id } },
+      }),
+    );
+    expect(original.body.data.person.jobTitle).toBe('Just Updated');
   });
 });

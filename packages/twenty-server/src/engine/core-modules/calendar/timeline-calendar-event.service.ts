@@ -1,10 +1,12 @@
+import { type PersonWorkspaceEntity } from 'src/modules/person/standard-objects/person.workspace-entity';
+import { personEmailAddresses } from 'src/modules/match-participant/utils/person-email-addresses.util';
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 
 import omit from 'lodash.omit';
 import { FIELD_RESTRICTED_ADDITIONAL_PERMISSIONS_REQUIRED } from 'twenty-shared/constants';
 import { isDefined } from 'twenty-shared/utils';
-import { Any, In, type Repository } from 'typeorm';
+import { Any, In, IsNull, Not, Raw, type Repository } from 'typeorm';
 
 import { CalendarChannelVisibility } from 'twenty-shared/types';
 import { TIMELINE_CALENDAR_EVENTS_DEFAULT_PAGE_SIZE } from 'src/engine/core-modules/calendar/constants/calendar.constants';
@@ -60,22 +62,50 @@ export class TimelineCalendarEventService {
             'calendarEvent',
           );
 
+        const personRepository =
+          await this.globalWorkspaceOrmManager.getRepository<PersonWorkspaceEntity>(
+            workspaceId,
+            'person',
+            // Internal relation/address resolution; mailbox visibility is enforced below.
+            { shouldBypassPermissionChecks: true },
+          );
+        const addresses = await personRepository
+          .createQueryBuilder('person')
+          .select('person.emailsPrimaryEmail', 'primaryEmail')
+          .addSelect('person.emailsAdditionalEmails', 'additionalEmails')
+          .where('person.id = ANY(:personIds)', { personIds })
+          .getRawMany<{
+            primaryEmail: string | null;
+            additionalEmails: string[] | null;
+          }>();
+        const emails = personEmailAddresses(
+          addresses.map((address) => ({
+            emails: {
+              primaryEmail: address.primaryEmail ?? '',
+              additionalEmails: address.additionalEmails ?? [],
+            },
+          })),
+        );
+        const participantWhere = [
+          { calendarEventParticipants: { personId: Any(personIds) } },
+          {
+            calendarChannelEventAssociations: { id: Not(IsNull()) },
+            calendarEventParticipants: {
+              handle: Raw((alias) => `LOWER(TRIM(${alias})) = ANY(:emails)`, {
+                emails,
+              }),
+            },
+          },
+        ];
+
         const totalNumberOfCalendarEvents = await calendarEventRepository.count(
           {
-            where: {
-              calendarEventParticipants: {
-                personId: Any(personIds),
-              },
-            },
+            where: participantWhere,
           },
         );
 
         const calendarEventIds = await calendarEventRepository.find({
-          where: {
-            calendarEventParticipants: {
-              personId: Any(personIds),
-            },
-          },
+          where: participantWhere,
           select: {
             id: true,
             startsAt: true,

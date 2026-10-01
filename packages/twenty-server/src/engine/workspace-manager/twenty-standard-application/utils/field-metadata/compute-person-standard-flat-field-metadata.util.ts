@@ -139,7 +139,7 @@ export const buildPersonStandardFlatFieldMetadatas = ({
       description: "Contact's Emails",
       icon: 'IconMail',
       isNullable: true,
-      isUnique: true,
+      isUnique: false,
       settings: {
         maxNumberOfValues: 1,
       },

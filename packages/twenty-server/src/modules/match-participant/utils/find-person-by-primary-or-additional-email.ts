@@ -7,27 +7,21 @@ export const findPersonByPrimaryOrAdditionalEmail = ({
   people: PersonWorkspaceEntity[];
   email: string;
 }): PersonWorkspaceEntity | undefined => {
-  const lowercaseEmail = email.toLowerCase();
+  const normalizedEmail = email.trim().toLowerCase();
 
-  const personWithPrimaryEmail = people.find(
-    (person) => person.emails?.primaryEmail?.toLowerCase() === lowercaseEmail,
+  if (!normalizedEmail) return undefined;
+
+  const matches = people.filter((person) =>
+    [
+      person.emails?.primaryEmail,
+      ...(Array.isArray(person.emails?.additionalEmails)
+        ? person.emails.additionalEmails
+        : []),
+    ].some((address) => address?.trim().toLowerCase() === normalizedEmail),
   );
+  const uniqueMatches = [
+    ...new Map(matches.map((person) => [person.id, person])).values(),
+  ];
 
-  if (personWithPrimaryEmail) {
-    return personWithPrimaryEmail;
-  }
-
-  const personWithAdditionalEmail = people.find((person) => {
-    const additionalEmails = person.emails?.additionalEmails;
-
-    if (!Array.isArray(additionalEmails)) {
-      return false;
-    }
-
-    return additionalEmails.some(
-      (additionalEmail) => additionalEmail.toLowerCase() === lowercaseEmail,
-    );
-  });
-
-  return personWithAdditionalEmail;
+  return uniqueMatches.length === 1 ? uniqueMatches[0] : undefined;
 };

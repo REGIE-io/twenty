@@ -29,13 +29,13 @@ describe('findPersonByPrimaryOrAdditionalEmail', () => {
     },
   ] as PersonWorkspaceEntity[];
 
-  it('should return person with matching primary email', () => {
+  it('should not choose between primary and additional email matches', () => {
     const result = findPersonByPrimaryOrAdditionalEmail({
       people: mockPeople,
       email: 'test@example.com',
     });
 
-    expect(result).toEqual(mockPeople[2]);
+    expect(result).toBeUndefined();
   });
 
   it('should return person with matching additional email when no primary match exists', () => {
@@ -47,7 +47,7 @@ describe('findPersonByPrimaryOrAdditionalEmail', () => {
     expect(result).toEqual(mockPeople[0]);
   });
 
-  it('should prioritize primary email over additional email', () => {
+  it('should treat primary and additional email matches as ambiguous', () => {
     const peopleWithConflict = [
       {
         id: 'person-with-additional',
@@ -70,7 +70,7 @@ describe('findPersonByPrimaryOrAdditionalEmail', () => {
       email: 'conflict@example.com',
     });
 
-    expect(result).toEqual(peopleWithConflict[1]);
+    expect(result).toBeUndefined();
   });
 
   it('should return undefined when no match is found', () => {
@@ -118,7 +118,7 @@ describe('findPersonByPrimaryOrAdditionalEmail', () => {
       email: 'test@example.com',
     });
 
-    expect(result).toEqual(peopleWithNullEmails[1]);
+    expect(result).toBeUndefined();
   });
 
   it('should handle people with empty additional emails array', () => {
@@ -153,7 +153,7 @@ describe('findPersonByPrimaryOrAdditionalEmail', () => {
       email: 'TEST@EXAMPLE.COM',
     });
 
-    expect(result).toEqual(mockPeople[2]);
+    expect(result).toBeUndefined();
   });
 
   it('should handle people with non-array additional emails', () => {
