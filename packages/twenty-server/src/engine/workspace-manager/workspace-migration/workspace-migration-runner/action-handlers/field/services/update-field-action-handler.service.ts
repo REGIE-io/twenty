@@ -24,7 +24,7 @@ import { isCompositeFlatFieldMetadata } from 'src/engine/metadata-modules/flat-f
 import { isEnumFlatFieldMetadata } from 'src/engine/metadata-modules/flat-field-metadata/utils/is-enum-flat-field-metadata.util';
 import { isFlatFieldMetadataOfType } from 'src/engine/metadata-modules/flat-field-metadata/utils/is-flat-field-metadata-of-type.util';
 import { isMorphOrRelationFlatFieldMetadata } from 'src/engine/metadata-modules/flat-field-metadata/utils/is-morph-or-relation-flat-field-metadata.util';
-import { deriveSearchVectorAsExpressionForTsVectorField } from 'src/engine/metadata-modules/flat-search-field-metadata/utils/derive-search-vector-as-expression-for-ts-vector-field.util';
+import { deriveCheckedSearchVectorExpression } from 'src/engine/metadata-modules/flat-search-field-metadata/utils/derive-checked-search-vector-expression.util';
 import { getTargetSearchFieldMetadatasForTsVectorField } from 'src/engine/metadata-modules/flat-search-field-metadata/utils/get-target-search-field-metadatas-for-ts-vector-field.util';
 import { FlatObjectMetadata } from 'src/engine/metadata-modules/flat-object-metadata/types/flat-object-metadata.type';
 import { WorkspaceSchemaManagerService } from 'src/engine/twenty-orm/workspace-schema-manager/workspace-schema-manager.service';
@@ -355,32 +355,25 @@ export class UpdateFieldActionHandlerService extends WorkspaceMigrationRunnerAct
         FieldMetadataType.TS_VECTOR,
       )
     ) {
-      const indexedFieldById = new Map(
-        findManyFlatEntityByIdInFlatEntityMaps({
-          flatEntityMaps: flatFieldMetadataMaps,
-          flatEntityIds: flatObjectMetadata.fieldIds,
-        }).map((indexedFlatFieldMetadata) => [
-          indexedFlatFieldMetadata.id,
-          {
-            name: indexedFlatFieldMetadata.name,
-            type: indexedFlatFieldMetadata.type,
-            options: indexedFlatFieldMetadata.options ?? undefined,
-          },
-        ]),
-      );
+      const objectFlatFieldMetadatas = findManyFlatEntityByIdInFlatEntityMaps({
+        flatEntityMaps: flatFieldMetadataMaps,
+        flatEntityIds: flatObjectMetadata.fieldIds,
+      });
 
-      const searchVectorAsExpression =
-        deriveSearchVectorAsExpressionForTsVectorField({
-          targetSearchFieldMetadatas:
-            getSearchFieldMetadatasByTsVectorFieldId?.(
-              optimisticFlatFieldMetadata.id,
-            ) ??
-            getTargetSearchFieldMetadatasForTsVectorField({
-              tsVectorFieldMetadataId: optimisticFlatFieldMetadata.id,
-              flatSearchFieldMetadataMaps,
-            }),
-          indexedFieldById,
+      const targetSearchFieldMetadatas =
+        getSearchFieldMetadatasByTsVectorFieldId?.(
+          optimisticFlatFieldMetadata.id,
+        ) ??
+        getTargetSearchFieldMetadatasForTsVectorField({
+          tsVectorFieldMetadataId: optimisticFlatFieldMetadata.id,
+          flatSearchFieldMetadataMaps,
         });
+
+      const searchVectorAsExpression = deriveCheckedSearchVectorExpression({
+        flatObjectMetadata,
+        objectFlatFieldMetadatas,
+        targetSearchFieldMetadatas,
+      });
 
       const columnDefinitions = generateColumnDefinitions({
         flatFieldMetadata: optimisticFlatFieldMetadata,
