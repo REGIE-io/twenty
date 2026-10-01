@@ -2,7 +2,9 @@ import { FieldMetadataType } from 'twenty-shared/types';
 
 import {
   type FieldTypeAndNameMetadata,
+  getLeanTsVectorExpressionFromFields,
   getTsVectorColumnExpressionFromFields,
+  SEARCH_VECTOR_TEXT_LIMIT,
 } from 'src/engine/workspace-manager/utils/get-ts-vector-column-expression.util';
 import { isSafeTsVectorExpression } from 'src/engine/workspace-manager/workspace-migration/utils/remove-sql-injection.util';
 
@@ -389,5 +391,184 @@ describe('getTsVectorColumnExpressionFromFields with additionally searchable dro
 
     expect(result).toContain('Under');
     expect(result).toContain('10k');
+  });
+});
+
+const everyBranchFields: FieldTypeAndNameMetadata[] = [
+  { name: 'name', type: FieldMetadataType.FULL_NAME },
+  { name: 'emails', type: FieldMetadataType.EMAILS },
+  { name: 'phones', type: FieldMetadataType.PHONES },
+  { name: 'domainName', type: FieldMetadataType.LINKS },
+  { name: 'jobTitle', type: FieldMetadataType.TEXT },
+  { name: 'id', type: FieldMetadataType.UUID },
+  {
+    name: 'aeTier',
+    type: FieldMetadataType.SELECT,
+    options: [
+      { value: 'OPT_1', label: '1', position: 0 },
+      { value: 'PARTNER', label: 'Partner', position: 1 },
+    ],
+  },
+  {
+    name: 'seniority',
+    type: FieldMetadataType.MULTI_SELECT,
+    options: [
+      { value: 'VP', label: 'VP/SVP', position: 0 },
+      { value: 'DIRECTOR', label: 'Director', position: 1 },
+    ],
+  },
+];
+
+const remainingBranchFields: FieldTypeAndNameMetadata[] = [
+  { name: 'address', type: FieldMetadataType.ADDRESS },
+  { name: 'bodyV2', type: FieldMetadataType.RICH_TEXT },
+  { name: 'stage', type: FieldMetadataType.SELECT, options: [] },
+  { name: 'tags', type: FieldMetadataType.MULTI_SELECT, options: [] },
+];
+
+describe('getTsVectorColumnExpressionFromFields output freeze', () => {
+  it('produces exactly the formula stored in prod generated columns', () => {
+    expect(getTsVectorColumnExpressionFromFields(everyBranchFields)).toBe(
+      "to_tsvector('simple', COALESCE(public.unaccent_immutable(\"nameFirstName\"), '') || ' ' || COALESCE(public.unaccent_immutable(\"nameLastName\"), '') || ' ' || \n      COALESCE(public.unaccent_immutable(\"emailsPrimaryEmail\"), '') || ' ' ||\n      COALESCE(public.unaccent_immutable(SPLIT_PART(\"emailsPrimaryEmail\", '@', 2)), '') || ' ' || COALESCE(public.unaccent_immutable(TRANSLATE(\"emailsAdditionalEmails\"::text, '[]\",', '    ')), '') || ' ' || COALESCE(public.unaccent_immutable(TRANSLATE(REPLACE(\"emailsAdditionalEmails\"::text, '@', ' '), '[]\",', '    ')), '') || ' ' || COALESCE(\"phonesPrimaryPhoneNumber\", '') || ' ' || COALESCE(\"phonesPrimaryPhoneCallingCode\", '') || ' ' || COALESCE(\"phonesPrimaryPhoneCallingCode\" || \"phonesPrimaryPhoneNumber\", '') || ' ' || COALESCE(REPLACE(\"phonesPrimaryPhoneCallingCode\", '+', '') || \"phonesPrimaryPhoneNumber\", '') || ' ' || COALESCE('0' || \"phonesPrimaryPhoneNumber\", '') || ' ' || COALESCE(TRANSLATE(regexp_replace(\"phonesAdditionalPhones\"::text, '\"(number|countryCode|callingCode)\"\\s*:\\s*', '', 'g'), '[]{}\",:', '        '), '') || ' ' || COALESCE(public.unaccent_immutable(\"domainNamePrimaryLinkLabel\"), '') || ' ' || COALESCE(public.unaccent_immutable(\"domainNamePrimaryLinkUrl\"), '') || ' ' || COALESCE(public.unaccent_immutable(TRANSLATE(regexp_replace(\"domainNameSecondaryLinks\"::text, '\"(label|url)\"\\s*:\\s*', '', 'g'), '[]{}\",:', '        ')), '') || ' ' || COALESCE(public.unaccent_immutable(\"jobTitle\"), '') || ' ' || COALESCE(\"id\"::text, '') || ' ' || COALESCE(public.unaccent_immutable(CASE \"aeTier\" WHEN 'OPT_1' THEN 'OPT_1' WHEN 'PARTNER' THEN 'PARTNER' ELSE '' END), '') || ' ' || COALESCE(public.unaccent_immutable(CASE \"aeTier\" WHEN 'OPT_1' THEN '1' WHEN 'PARTNER' THEN 'Partner' ELSE '' END), '') || ' ' || COALESCE(public.unaccent_immutable(CASE WHEN 'VP' = ANY(\"seniority\") THEN 'VP' ELSE '' END || ' ' || CASE WHEN 'DIRECTOR' = ANY(\"seniority\") THEN 'DIRECTOR' ELSE '' END), '') || ' ' || COALESCE(public.unaccent_immutable(CASE WHEN 'VP' = ANY(\"seniority\") THEN 'VP/SVP' ELSE '' END || ' ' || CASE WHEN 'DIRECTOR' = ANY(\"seniority\") THEN 'Director' ELSE '' END), ''))",
+    );
+  });
+
+  it('produces exactly the formula for address, rich text and option-less dropdowns', () => {
+    expect(getTsVectorColumnExpressionFromFields(remainingBranchFields)).toBe(
+      "to_tsvector('simple', COALESCE(public.unaccent_immutable(\"addressAddressStreet1\"), '') || ' ' || COALESCE(public.unaccent_immutable(\"addressAddressStreet2\"), '') || ' ' || COALESCE(public.unaccent_immutable(\"addressAddressCity\"), '') || ' ' || COALESCE(public.unaccent_immutable(\"addressAddressPostcode\"), '') || ' ' || COALESCE(public.unaccent_immutable(\"addressAddressState\"), '') || ' ' || COALESCE(public.unaccent_immutable(\"addressAddressCountry\"), '') || ' ' || COALESCE(public.unaccent_immutable(\"bodyV2Markdown\"), '') || ' ' || '' || ' ' || '')",
+    );
+  });
+
+  it('produces exactly the empty formula', () => {
+    expect(getTsVectorColumnExpressionFromFields([])).toBe(
+      "to_tsvector('simple', NULL)",
+    );
+  });
+});
+
+describe('getLeanTsVectorExpressionFromFields', () => {
+  it('joins every piece once and calls unaccent once', () => {
+    const result = getLeanTsVectorExpressionFromFields(
+      [
+        { name: 'name', type: FieldMetadataType.FULL_NAME },
+        { name: 'jobTitle', type: FieldMetadataType.TEXT },
+      ],
+      { columnReference: 'column' },
+    );
+
+    expect(result).toBe(
+      `to_tsvector('simple', public.unaccent_immutable(left(concat_ws(' ', concat_ws(' ', COALESCE(("nameFirstName"), ''), COALESCE(("nameLastName"), ''), COALESCE(("jobTitle"), ''))), ${SEARCH_VECTOR_TEXT_LIMIT})))`,
+    );
+    expect(result.match(/unaccent_immutable/g)).toHaveLength(1);
+  });
+
+  it('reads columns from the trigger row when asked to', () => {
+    const result = getLeanTsVectorExpressionFromFields(
+      [{ name: 'jobTitle', type: FieldMetadataType.TEXT }],
+      { columnReference: 'triggerRow' },
+    );
+
+    expect(result).toBe(
+      `to_tsvector('simple', public.unaccent_immutable(left(concat_ws(' ', concat_ws(' ', COALESCE((NEW."jobTitle"), ''))), ${SEARCH_VECTOR_TEXT_LIMIT})))`,
+    );
+  });
+
+  it.each([
+    [99, 2],
+    [100, 3],
+    [198, 3],
+    [199, 4],
+  ])('with %i pieces emits %i concat_ws calls', (fieldCount, expectedCalls) => {
+    const fields: FieldTypeAndNameMetadata[] = Array.from(
+      { length: fieldCount },
+      (_, index) => ({
+        name: `field${index}`,
+        type: FieldMetadataType.TEXT,
+      }),
+    );
+
+    const result = getLeanTsVectorExpressionFromFields(fields, {
+      columnReference: 'column',
+    });
+
+    expect(result.match(/concat_ws\(' ', /g)).toHaveLength(expectedCalls);
+  });
+
+  it('throws when the pieces exceed one level of nesting', () => {
+    const buildTextFields = (count: number): FieldTypeAndNameMetadata[] =>
+      Array.from({ length: count }, (_, index) => ({
+        name: `field${index}`,
+        type: FieldMetadataType.TEXT,
+      }));
+
+    expect(() =>
+      getLeanTsVectorExpressionFromFields(buildTextFields(99 * 99), {
+        columnReference: 'column',
+      }),
+    ).not.toThrow();
+    expect(() =>
+      getLeanTsVectorExpressionFromFields(buildTextFields(99 * 99 + 1), {
+        columnReference: 'column',
+      }),
+    ).toThrow(/Too many searchable columns/);
+  });
+
+  it('caps the joined text at 131,072 characters', () => {
+    expect(SEARCH_VECTOR_TEXT_LIMIT).toBe(131072);
+    expect(
+      getLeanTsVectorExpressionFromFields(
+        [{ name: 'jobTitle', type: FieldMetadataType.TEXT }],
+        { columnReference: 'column' },
+      ),
+    ).toContain(', 131072)');
+  });
+
+  it('returns the empty formula when nothing is searchable', () => {
+    expect(
+      getLeanTsVectorExpressionFromFields([], { columnReference: 'column' }),
+    ).toBe("to_tsvector('simple', NULL)");
+  });
+
+  it('stays a safe expression with hostile option labels', () => {
+    const result = getLeanTsVectorExpressionFromFields(
+      [
+        {
+          name: 'tier',
+          type: FieldMetadataType.SELECT,
+          options: [
+            { value: 'A', label: "x'; DROP TABLE y; --$$", position: 0 },
+          ],
+        },
+      ],
+      { columnReference: 'triggerRow' },
+    );
+
+    expect(isSafeTsVectorExpression(result)).toBe(true);
+  });
+
+  it('is rejected by the safety check when an option value contains a dollar sign', () => {
+    const result = getLeanTsVectorExpressionFromFields(
+      [
+        {
+          name: 'tier',
+          type: FieldMetadataType.SELECT,
+          options: [{ value: 'A$B', label: 'x', position: 0 }],
+        },
+      ],
+      { columnReference: 'triggerRow' },
+    );
+
+    expect(isSafeTsVectorExpression(result)).toBe(false);
+  });
+
+  it('emits an empty string piece for a select without options', () => {
+    expect(
+      getLeanTsVectorExpressionFromFields(
+        [{ name: 'tier', type: FieldMetadataType.SELECT, options: [] }],
+        { columnReference: 'column' },
+      ),
+    ).toBe(
+      `to_tsvector('simple', public.unaccent_immutable(left(concat_ws(' ', concat_ws(' ', '')), ${SEARCH_VECTOR_TEXT_LIMIT})))`,
+    );
   });
 });

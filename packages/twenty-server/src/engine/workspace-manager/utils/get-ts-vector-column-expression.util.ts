@@ -30,11 +30,70 @@ export type FieldTypeAndNameMetadata = {
   options?: SearchableFieldOption[];
 };
 
+// Postgres rejects a tsvector over 1,048,575 bytes and fails the whole row write. left()
+// counts characters; 131,072 keeps the worst case (distinct 4-byte-UTF-8 words) near 700KB.
+export const SEARCH_VECTOR_TEXT_LIMIT = 131072;
+
+// Postgres caps a function call at 100 arguments.
+const CONCAT_WS_MAX_PIECES = 99;
+
+type TsVectorExpressionStyle = {
+  quoteColumn: (columnName: string) => string;
+  unaccent: (expression: string) => string;
+};
+
+const GENERATED_COLUMN_STYLE: TsVectorExpressionStyle = {
+  quoteColumn: escapeIdentifier,
+  unaccent: (expression) => `public.unaccent_immutable(${expression})`,
+};
+
+// Same pieces in the same order as the generated-column formula, joined once and
+// unaccented once; unaccent now also passes over phone and uuid text, a no-op for digits
+// and hex. concat_ws is not immutable, so this shape only works outside a generated column.
+export const getLeanTsVectorExpressionFromFields = (
+  fieldsUsedForSearch: FieldTypeAndNameMetadata[],
+  { columnReference }: { columnReference: 'column' | 'triggerRow' },
+): string => {
+  const style: TsVectorExpressionStyle = {
+    quoteColumn:
+      columnReference === 'triggerRow'
+        ? (columnName) => `NEW.${escapeIdentifier(columnName)}`
+        : escapeIdentifier,
+    // unaccent runs once over the joined text below, so each piece only keeps its grouping.
+    unaccent: (expression) => `(${expression})`,
+  };
+
+  const pieces = fieldsUsedForSearch.flatMap((field) =>
+    getColumnExpressionsFromField(field, style),
+  );
+
+  if (pieces.length === 0) {
+    return "to_tsvector('simple', NULL)";
+  }
+
+  const chunks: string[] = [];
+
+  for (let start = 0; start < pieces.length; start += CONCAT_WS_MAX_PIECES) {
+    chunks.push(
+      `concat_ws(' ', ${pieces.slice(start, start + CONCAT_WS_MAX_PIECES).join(', ')})`,
+    );
+  }
+
+  // One level of nesting covers 99 * 99 pieces; past that the outer call breaks the limit.
+  if (chunks.length > CONCAT_WS_MAX_PIECES) {
+    throw new Error(
+      `Too many searchable columns for one search vector: ${pieces.length} pieces, at most ${CONCAT_WS_MAX_PIECES * CONCAT_WS_MAX_PIECES}`,
+    );
+  }
+
+  return `to_tsvector('simple', public.unaccent_immutable(left(concat_ws(' ', ${chunks.join(', ')}), ${SEARCH_VECTOR_TEXT_LIMIT})))`;
+};
+
 export const getTsVectorColumnExpressionFromFields = (
   fieldsUsedForSearch: FieldTypeAndNameMetadata[],
 ): string => {
-  const columnExpressions = fieldsUsedForSearch.flatMap(
-    getColumnExpressionsFromField,
+  const columnExpressions = fieldsUsedForSearch.flatMap((field) =>
+    getColumnExpressionsFromField(field, GENERATED_COLUMN_STYLE),
   );
   const concatenatedExpression =
     columnExpressions.length > 0
@@ -83,6 +142,7 @@ const EMPTY_PROJECTION = "''";
 const getSelectExpression = (
   quotedColumnName: string,
   options: SearchableFieldOption[],
+  style: TsVectorExpressionStyle,
 ): string => {
   const orderedOptions = orderOptions(options);
 
@@ -100,7 +160,7 @@ const getSelectExpression = (
       )
       .join(' ');
 
-    return `COALESCE(public.unaccent_immutable(CASE ${quotedColumnName} ${arms} ELSE '' END), '')`;
+    return `COALESCE(${style.unaccent(`CASE ${quotedColumnName} ${arms} ELSE '' END`)}, '')`;
   };
 
   return `${buildCase((option) => option.value)} || ' ' || ${buildCase((option) => option.label)}`;
@@ -110,6 +170,7 @@ const getSelectExpression = (
 const getMultiSelectExpression = (
   quotedColumnName: string,
   options: SearchableFieldOption[],
+  style: TsVectorExpressionStyle,
 ): string => {
   const orderedOptions = orderOptions(options);
 
@@ -127,7 +188,7 @@ const getMultiSelectExpression = (
       )
       .join(" || ' ' || ");
 
-    return `COALESCE(public.unaccent_immutable(${tests}), '')`;
+    return `COALESCE(${style.unaccent(tests)}, '')`;
   };
 
   return `${buildTests((option) => option.value)} || ' ' || ${buildTests((option) => option.label)}`;
@@ -135,6 +196,7 @@ const getMultiSelectExpression = (
 
 const getColumnExpressionsFromField = (
   fieldMetadataTypeAndName: FieldTypeAndNameMetadata,
+  style: TsVectorExpressionStyle,
 ): string[] => {
   // Handled before the composite branch: dropdowns need the metadata options, which the
   // shared getColumnExpression(columnName, fieldType) never receives.
@@ -142,15 +204,15 @@ const getColumnExpressionsFromField = (
     fieldMetadataTypeAndName.type === FieldMetadataType.SELECT ||
     fieldMetadataTypeAndName.type === FieldMetadataType.MULTI_SELECT
   ) {
-    const quotedColumnName = escapeIdentifier(
+    const quotedColumnName = style.quoteColumn(
       computeColumnName(fieldMetadataTypeAndName.name),
     );
     const options = fieldMetadataTypeAndName.options ?? [];
 
     return [
       fieldMetadataTypeAndName.type === FieldMetadataType.SELECT
-        ? getSelectExpression(quotedColumnName, options)
-        : getMultiSelectExpression(quotedColumnName, options),
+        ? getSelectExpression(quotedColumnName, options, style)
+        : getMultiSelectExpression(quotedColumnName, options, style),
     ];
   }
 
@@ -175,17 +237,21 @@ const getColumnExpressionsFromField = (
           property,
         );
 
-        return getColumnExpression(columnName, fieldMetadataTypeAndName.type);
+        return getColumnExpression(
+          columnName,
+          fieldMetadataTypeAndName.type,
+          style,
+        );
       });
 
     if (fieldMetadataTypeAndName.type === FieldMetadataType.PHONES) {
-      const phoneNumberColumn = escapeIdentifier(
+      const phoneNumberColumn = style.quoteColumn(
         `${fieldMetadataTypeAndName.name}PrimaryPhoneNumber`,
       );
-      const callingCodeColumn = escapeIdentifier(
+      const callingCodeColumn = style.quoteColumn(
         `${fieldMetadataTypeAndName.name}PrimaryPhoneCallingCode`,
       );
-      const additionalPhonesColumn = escapeIdentifier(
+      const additionalPhonesColumn = style.quoteColumn(
         `${fieldMetadataTypeAndName.name}AdditionalPhones`,
       );
 
@@ -205,21 +271,21 @@ const getColumnExpressionsFromField = (
     }
 
     if (fieldMetadataTypeAndName.type === FieldMetadataType.LINKS) {
-      const secondaryLinksColumn = escapeIdentifier(
+      const secondaryLinksColumn = style.quoteColumn(
         `${fieldMetadataTypeAndName.name}SecondaryLinks`,
       );
 
-      const secondaryLinksExpression = `COALESCE(public.unaccent_immutable(TRANSLATE(regexp_replace(${secondaryLinksColumn}::text, '"(label|url)"\\s*:\\s*', '', 'g'), '[]{}",:', '        ')), '')`;
+      const secondaryLinksExpression = `COALESCE(${style.unaccent(`TRANSLATE(regexp_replace(${secondaryLinksColumn}::text, '"(label|url)"\\s*:\\s*', '', 'g'), '[]{}",:', '        ')`)}, '')`;
 
       return [...baseExpressions, secondaryLinksExpression];
     }
 
     if (fieldMetadataTypeAndName.type === FieldMetadataType.EMAILS) {
-      const additionalEmailsColumn = escapeIdentifier(
+      const additionalEmailsColumn = style.quoteColumn(
         `${fieldMetadataTypeAndName.name}AdditionalEmails`,
       );
 
-      const additionalEmailsExpression = `COALESCE(public.unaccent_immutable(TRANSLATE(${additionalEmailsColumn}::text, '[]",', '    ')), '') || ' ' || COALESCE(public.unaccent_immutable(TRANSLATE(REPLACE(${additionalEmailsColumn}::text, '@', ' '), '[]",', '    ')), '')`;
+      const additionalEmailsExpression = `COALESCE(${style.unaccent(`TRANSLATE(${additionalEmailsColumn}::text, '[]",', '    ')`)}, '') || ' ' || COALESCE(${style.unaccent(`TRANSLATE(REPLACE(${additionalEmailsColumn}::text, '@', ' '), '[]",', '    ')`)}, '')`;
 
       return [...baseExpressions, additionalEmailsExpression];
     }
@@ -228,20 +294,23 @@ const getColumnExpressionsFromField = (
   }
   const columnName = computeColumnName(fieldMetadataTypeAndName.name);
 
-  return [getColumnExpression(columnName, fieldMetadataTypeAndName.type)];
+  return [
+    getColumnExpression(columnName, fieldMetadataTypeAndName.type, style),
+  ];
 };
 
 const getColumnExpression = (
   columnName: string,
   fieldType: FieldMetadataType,
+  style: TsVectorExpressionStyle,
 ): string => {
-  const quotedColumnName = escapeIdentifier(columnName);
+  const quotedColumnName = style.quoteColumn(columnName);
 
   switch (fieldType) {
     case FieldMetadataType.EMAILS:
       return `
-      COALESCE(public.unaccent_immutable(${quotedColumnName}), '') || ' ' ||
-      COALESCE(public.unaccent_immutable(SPLIT_PART(${quotedColumnName}, '@', 2)), '')`;
+      COALESCE(${style.unaccent(quotedColumnName)}, '') || ' ' ||
+      COALESCE(${style.unaccent(`SPLIT_PART(${quotedColumnName}, '@', 2)`)}, '')`;
 
     case FieldMetadataType.PHONES:
       return `COALESCE(${quotedColumnName}, '')`;
@@ -250,6 +319,6 @@ const getColumnExpression = (
       return `COALESCE(${quotedColumnName}::text, '')`;
 
     default:
-      return `COALESCE(public.unaccent_immutable(${quotedColumnName}), '')`;
+      return `COALESCE(${style.unaccent(quotedColumnName)}, '')`;
   }
 };
