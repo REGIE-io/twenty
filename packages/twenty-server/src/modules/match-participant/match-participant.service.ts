@@ -121,6 +121,7 @@ export class MatchParticipantService<
       });
 
       const people = await queryBuilder
+        .andWhere('"person"."deletedAt" IS NULL')
         .orderBy('person.createdAt', 'ASC')
         .getMany();
 
