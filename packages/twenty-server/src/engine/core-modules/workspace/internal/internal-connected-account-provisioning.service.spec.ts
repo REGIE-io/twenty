@@ -1,3 +1,5 @@
+import { NotFoundException } from '@nestjs/common';
+
 import {
   CalendarChannelSyncStage,
   CalendarChannelSyncStatus,
@@ -239,6 +241,13 @@ const makeServiceHarness = () => {
   };
 
   const calendarChannelRepository = {
+    findOneBy: jest.fn(
+      async ({ id, workspaceId }: { id: string; workspaceId: string }) => {
+        const channel = calendarChannels.get(id);
+
+        return channel?.workspaceId === workspaceId ? channel : null;
+      },
+    ),
     find: jest.fn(
       async ({
         where: { connectedAccountId, isSyncEnabled },
@@ -844,6 +853,51 @@ describe('InternalConnectedAccountProvisioningService', () => {
           connectedAccountId: 'connected-account-1',
         }),
       ).rejects.toThrow('Workspace missing-workspace not found.');
+    });
+  });
+
+  describe('getCalendarChannelSyncStatus', () => {
+    it('reports the channel sync status', async () => {
+      const { service, stores } = makeServiceHarness();
+
+      seedChannel(stores, {
+        connectedAccountId: 'connected-account-1',
+        syncStatus: CalendarChannelSyncStatus.ONGOING,
+      });
+
+      const result = await service.getCalendarChannelSyncStatus({
+        workspaceId: WORKSPACE_ID,
+        calendarChannelId: 'existing-calendar-channel',
+      });
+
+      expect(result).toEqual({ syncStatus: CalendarChannelSyncStatus.ONGOING });
+    });
+
+    it('rejects an unknown channel', async () => {
+      const { service } = makeServiceHarness();
+
+      await expect(
+        service.getCalendarChannelSyncStatus({
+          workspaceId: WORKSPACE_ID,
+          calendarChannelId: 'missing-calendar-channel',
+        }),
+      ).rejects.toThrow(NotFoundException);
+    });
+
+    it('does not read a channel from another workspace', async () => {
+      const { service, stores } = makeServiceHarness();
+
+      seedChannel(stores, {
+        connectedAccountId: 'connected-account-1',
+        workspaceId: '20202020-0000-4000-8000-000000000002',
+      });
+
+      await expect(
+        service.getCalendarChannelSyncStatus({
+          workspaceId: WORKSPACE_ID,
+          calendarChannelId: 'existing-calendar-channel',
+        }),
+      ).rejects.toThrow(NotFoundException);
     });
   });
 });
