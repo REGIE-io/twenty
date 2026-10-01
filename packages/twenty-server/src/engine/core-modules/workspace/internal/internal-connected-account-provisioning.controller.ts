@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  Get,
   HttpCode,
   HttpStatus,
   Param,
@@ -16,6 +17,7 @@ import { InternalMetadataTokenGuard } from 'src/engine/core-modules/workspace/in
 import { InternalConnectedAccountProvisioningService } from 'src/engine/core-modules/workspace/internal/internal-connected-account-provisioning.service';
 import {
   type AttachConnectedAccountResult,
+  type CalendarChannelSyncStatusResult,
   type DetachConnectedAccountResult,
 } from 'src/engine/core-modules/workspace/internal/types/internal-connected-account-provisioning.type';
 import { NoPermissionGuard } from 'src/engine/guards/no-permission.guard';
@@ -67,6 +69,18 @@ export class InternalConnectedAccountProvisioningController {
   ): Promise<DetachConnectedAccountResult> {
     return await this.internalConnectedAccountProvisioningService.detachConnectedAccount(
       { workspaceId, connectedAccountId },
+    );
+  }
+
+  @Get(':workspaceId/calendar-channels/:calendarChannelId')
+  async getCalendarChannelSyncStatus(
+    @Param('workspaceId', new ParseUUIDPipe({ version: '4' }))
+    workspaceId: string,
+    @Param('calendarChannelId', new ParseUUIDPipe({ version: '4' }))
+    calendarChannelId: string,
+  ): Promise<CalendarChannelSyncStatusResult> {
+    return await this.internalConnectedAccountProvisioningService.getCalendarChannelSyncStatus(
+      { workspaceId, calendarChannelId },
     );
   }
 }
