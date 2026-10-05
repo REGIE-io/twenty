@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 
 import { WorkspaceIteratorModule } from 'src/database/commands/command-runners/workspace-iterator.module';
+import { ConvertSearchVectorToTriggerCommand } from 'src/database/commands/convert-search-vector-to-trigger.command';
 import { CronRegisterAllCommand } from 'src/database/commands/cron-register-all.command';
 import { DataSeedWorkspaceCommand } from 'src/database/commands/data-seed-dev-workspace.command';
 import { SecretEncryptionRotationModule } from 'src/database/commands/secret-encryption-rotation/secret-encryption-rotation.module';
@@ -32,6 +33,7 @@ import { RotateSigningKeysCronCommand } from 'src/engine/core-modules/jwt/crons/
 import { FileModule } from 'src/engine/core-modules/file/file.module';
 import { PublicDomainModule } from 'src/engine/core-modules/public-domain/public-domain.module';
 import { PhoneSearchIndexModule } from 'src/engine/core-modules/phone-search-index/phone-search-index.module';
+import { SearchVectorTriggerModule } from 'src/engine/core-modules/search-vector-trigger/search-vector-trigger.module';
 import { TwentyConfigModule } from 'src/engine/core-modules/twenty-config/twenty-config.module';
 import { UserSessionModule } from 'src/engine/core-modules/user-session/user-session.module';
 import { UpgradeStatusCommand } from 'src/engine/core-modules/upgrade/commands/upgrade-status.command';
@@ -101,6 +103,7 @@ import { WorkflowCoreConsistencyModule } from 'src/modules/workflow/workflow-cor
     SecretEncryptionRotationModule,
     UserSessionModule,
     PhoneSearchIndexModule,
+    SearchVectorTriggerModule,
   ],
   providers: [
     DataSeedWorkspaceCommand,
@@ -116,6 +119,7 @@ import { WorkflowCoreConsistencyModule } from 'src/modules/workflow/workflow-cor
     UpgradeStatusCommand,
     RebuildApplicationDefaultDepsCommand,
     InstallPreInstalledAppsCommand,
+    ConvertSearchVectorToTriggerCommand,
     provideWorkspaceScopedRepository(RoleEntity),
   ],
 })

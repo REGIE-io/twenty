@@ -12,6 +12,7 @@ export const WorkspaceMigrationActionExecutionExceptionCode = {
   FLAT_ENTITY_NOT_FOUND: 'FLAT_ENTITY_NOT_FOUND',
   UNSUPPORTED_FIELD_METADATA_TYPE: 'UNSUPPORTED_FIELD_METADATA_TYPE',
   INTERNAL_SERVER_ERROR: 'INTERNAL_SERVER_ERROR',
+  MISSING_STANDARD_SEARCH_FIELDS: 'MISSING_STANDARD_SEARCH_FIELDS',
 } as const;
 
 const getWorkspaceMigrationActionExecutionExceptionUserFriendlyMessage = (
@@ -36,6 +37,8 @@ const getWorkspaceMigrationActionExecutionExceptionUserFriendlyMessage = (
       return msg`Unsupported field metadata type.`;
     case WorkspaceMigrationActionExecutionExceptionCode.INTERNAL_SERVER_ERROR:
       return msg`An unexpected error occurred.`;
+    case WorkspaceMigrationActionExecutionExceptionCode.MISSING_STANDARD_SEARCH_FIELDS:
+      return msg`Search is not set up correctly for this object.`;
     default:
       assertUnreachable(code);
   }
