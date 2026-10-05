@@ -52,7 +52,7 @@ export class CalendarRefreshSyncWindowCronJob {
       .andWhere('calendarChannel.isSyncEnabled = true')
       .andWhere("calendarChannel.syncCursor <> ''")
       .andWhere(
-        'EXTRACT(DAY FROM calendarChannel."createdAt") = EXTRACT(DAY FROM now())',
+        'EXTRACT(DAY FROM calendarChannel.createdAt) = EXTRACT(DAY FROM now())',
       )
       .getMany()
       .catch((error) => {
