@@ -1,5 +1,7 @@
 import { FieldMetadataType } from 'twenty-shared/types';
 
+import { buildSearchVectorTriggerStatements } from 'src/engine/core-modules/search-vector-trigger/utils/build-search-vector-trigger-statements.util';
+
 import { type FieldMetadataEntity } from 'src/engine/metadata-modules/field-metadata/field-metadata.entity';
 import { type FlatEntityMaps } from 'src/engine/metadata-modules/flat-entity/types/flat-entity-maps.type';
 import { type FlatFieldMetadata } from 'src/engine/metadata-modules/flat-field-metadata/types/flat-field-metadata.type';
@@ -83,6 +85,8 @@ export const generateWorkspaceSchemaDdl = (
   objectMetadatas: ObjectMetadataEntity[],
   fieldsByObjectId: Map<string, FieldMetadataEntity[]>,
   searchFieldMetadatasByObjectId: Map<string, SearchFieldMetadataEntity[]>,
+  // Tables whose searchVector is plain and kept by a trigger in the source workspace.
+  triggerModeTableNames: ReadonlySet<string> = new Set(),
 ): string[] => {
   const statements: string[] = [];
 
@@ -121,25 +125,47 @@ export const generateWorkspaceSchemaDdl = (
       );
     }
 
-    const columnDefinitions = flatFieldMetadatas.flatMap((flatFieldMetadata) =>
-      generateColumnDefinitions({
-        flatFieldMetadata,
-        flatObjectMetadata,
-        workspaceId,
-        searchVectorAsExpression: isFlatFieldMetadataOfType(
+    const isTriggerMode = triggerModeTableNames.has(tableName);
+    const triggerRowExpressions: string[] = [];
+
+    const deriveExpression = (
+      tsVectorFieldMetadataId: string,
+      shape: 'generatedColumn' | 'triggerRow',
+    ) =>
+      deriveSearchVectorAsExpressionForTsVectorField({
+        targetSearchFieldMetadatas:
+          getTargetSearchFieldMetadatasForTsVectorField({
+            tsVectorFieldMetadataId,
+            flatSearchFieldMetadataMaps,
+          }),
+        indexedFieldById,
+        shape,
+      });
+
+    const columnDefinitions = flatFieldMetadatas.flatMap(
+      (flatFieldMetadata) => {
+        const isTsVectorField = isFlatFieldMetadataOfType(
           flatFieldMetadata,
           FieldMetadataType.TS_VECTOR,
-        )
-          ? deriveSearchVectorAsExpressionForTsVectorField({
-              targetSearchFieldMetadatas:
-                getTargetSearchFieldMetadatasForTsVectorField({
-                  tsVectorFieldMetadataId: flatFieldMetadata.id,
-                  flatSearchFieldMetadataMaps,
-                }),
-              indexedFieldById,
-            })
-          : undefined,
-      }),
+        );
+
+        if (isTsVectorField && isTriggerMode) {
+          triggerRowExpressions.push(
+            deriveExpression(flatFieldMetadata.id, 'triggerRow'),
+          );
+        }
+
+        return generateColumnDefinitions({
+          flatFieldMetadata,
+          flatObjectMetadata,
+          workspaceId,
+          // A trigger-mode table gets a plain column; its trigger is emitted below.
+          searchVectorAsExpression:
+            isTsVectorField && !isTriggerMode
+              ? deriveExpression(flatFieldMetadata.id, 'generatedColumn')
+              : undefined,
+        });
+      },
     );
 
     if (columnDefinitions.length === 0) continue;
@@ -153,6 +179,17 @@ export const generateWorkspaceSchemaDdl = (
     statements.push(
       `CREATE TABLE ${escapeIdentifier(schemaName)}.${escapeIdentifier(tableName)} (\n${columnsSql}\n);`,
     );
+
+    for (const triggerRowExpression of triggerRowExpressions) {
+      const { createFunction, createTrigger } =
+        buildSearchVectorTriggerStatements({
+          schemaName,
+          tableName,
+          triggerRowExpression,
+        });
+
+      statements.push(`${createFunction};`, `${createTrigger};`);
+    }
   }
 
   return statements;

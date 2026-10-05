@@ -4,15 +4,13 @@ import { isDefined } from 'twenty-shared/utils';
 import { type DataSource, type QueryRunner } from 'typeorm';
 
 import { POSTGRESQL_ERROR_CODES } from 'src/engine/api/graphql/workspace-query-runner/constants/postgres-error-codes.constants';
-import {
-  buildSearchVectorTriggerStatements,
-  type SearchVectorTriggerStatements,
-} from 'src/engine/core-modules/search-vector-trigger/utils/build-search-vector-trigger-statements.util';
+import { buildSearchVectorTriggerStatements } from 'src/engine/core-modules/search-vector-trigger/utils/build-search-vector-trigger-statements.util';
 import {
   getSearchVectorColumnState,
   hasSearchVectorTrigger,
   selectMismatchCount,
 } from 'src/engine/core-modules/search-vector-trigger/utils/search-vector-table-queries.util';
+import { installSearchVectorTrigger } from 'src/engine/core-modules/search-vector-trigger/utils/search-vector-trigger-maintenance.util';
 import { findManyFlatEntityByIdInFlatEntityMaps } from 'src/engine/metadata-modules/flat-entity/utils/find-many-flat-entity-by-id-in-flat-entity-maps.util';
 import { deriveCheckedSearchVectorExpression } from 'src/engine/metadata-modules/flat-search-field-metadata/utils/derive-checked-search-vector-expression.util';
 import { findTsVectorFlatFieldMetadataForObject } from 'src/engine/metadata-modules/flat-search-field-metadata/utils/find-ts-vector-flat-field-metadata-for-object.util';
@@ -314,7 +312,7 @@ export class SearchVectorTriggerConversionService {
           }
         }
 
-        await this.installTrigger({
+        await installSearchVectorTrigger({
           queryRunner,
           qualifiedTable,
           statements,
@@ -350,7 +348,7 @@ export class SearchVectorTriggerConversionService {
       await queryRunner.query(
         `ALTER TABLE ${qualifiedTable} ALTER COLUMN "searchVector" DROP EXPRESSION`,
       );
-      await this.installTrigger({
+      await installSearchVectorTrigger({
         queryRunner,
         qualifiedTable,
         statements,
@@ -378,37 +376,6 @@ export class SearchVectorTriggerConversionService {
       restoreClientTimeout();
       await queryRunner.release();
     }
-  }
-
-  private async installTrigger({
-    queryRunner,
-    qualifiedTable,
-    statements,
-    triggerRowExpression,
-    skipCreateFunction = false,
-  }: {
-    queryRunner: QueryRunner;
-    qualifiedTable: string;
-    statements: SearchVectorTriggerStatements;
-    triggerRowExpression: string;
-    skipCreateFunction?: boolean;
-  }): Promise<void> {
-    if (!skipCreateFunction) {
-      await queryRunner.query(statements.createFunction);
-    }
-    await queryRunner.query(statements.dropTrigger);
-    await queryRunner.query(statements.createTrigger);
-    // Parse-check the trigger body against the table even when it is empty; plpgsql would
-    // otherwise only fail at the first write.
-    await queryRunner.query(`SET LOCAL search_path = pg_catalog, public`);
-    await queryRunner.query(
-      `SELECT ${triggerRowExpression} FROM ${qualifiedTable} AS new LIMIT 0`,
-    );
-    // Runtime check: fire the trigger once so a broken expression rolls the conversion
-    // back instead of failing every later write.
-    await queryRunner.query(
-      `UPDATE ${qualifiedTable} SET "id" = "id" WHERE "id" = (SELECT "id" FROM ${qualifiedTable} LIMIT 1)`,
-    );
   }
 
   private async countMismatches(

@@ -21,6 +21,8 @@ export type WorkspaceMigrationActionRunnerArgs<
   getSearchFieldMetadatasByTsVectorFieldId?: (
     tsVectorFieldMetadataId: string,
   ) => FlatSearchFieldMetadata[];
+  // Objects deleted later in this migration, whose fields are dropped one by one first.
+  objectUniversalIdentifiersBeingDeleted?: ReadonlySet<string>;
 };
 
 export type WorkspaceMigrationActionRunnerContext<

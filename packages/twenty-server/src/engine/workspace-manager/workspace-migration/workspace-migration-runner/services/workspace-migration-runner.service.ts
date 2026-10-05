@@ -365,6 +365,16 @@ export class WorkspaceMigrationRunnerService {
         () => allFlatEntityMaps.flatSearchFieldMetadataMaps,
       );
 
+    const objectUniversalIdentifiersBeingDeleted = new Set(
+      actions
+        .filter(
+          (action) =>
+            action.metadataName === 'objectMetadata' &&
+            action.type === 'delete',
+        )
+        .map((action) => action.universalIdentifier),
+    );
+
     try {
       await queryRunner.query(`SET LOCAL lock_timeout = '8s'`);
       await beforeActions?.(queryRunner);
@@ -408,6 +418,7 @@ export class WorkspaceMigrationRunnerService {
                   preallocatedIdByUniversalIdentifierByMetadataName,
                   getSearchFieldMetadatasByTsVectorFieldId:
                     searchFieldMetadatasByTsVectorFieldIdAccessor.get,
+                  objectUniversalIdentifiersBeingDeleted,
                 })),
               },
             );
@@ -460,6 +471,7 @@ export class WorkspaceMigrationRunnerService {
                 preallocatedIdByUniversalIdentifierByMetadataName,
                 getSearchFieldMetadatasByTsVectorFieldId:
                   searchFieldMetadatasByTsVectorFieldIdAccessor.get,
+                objectUniversalIdentifiersBeingDeleted,
               },
             },
           );
