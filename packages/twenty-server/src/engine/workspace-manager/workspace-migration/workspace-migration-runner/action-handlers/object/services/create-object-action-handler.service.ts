@@ -1,10 +1,12 @@
 import { Injectable } from '@nestjs/common';
 
 import { FieldMetadataType } from 'twenty-shared/types';
+import { isDefined } from 'twenty-shared/utils';
 import { v4 } from 'uuid';
 
 import { WorkspaceMigrationRunnerActionHandler } from 'src/engine/workspace-manager/workspace-migration/workspace-migration-runner/interfaces/workspace-migration-runner-action-handler-service.interface';
 
+import { reinstallSearchVectorTrigger } from 'src/engine/core-modules/search-vector-trigger/utils/search-vector-trigger-maintenance.util';
 import { ALL_METADATA_ENTITY_BY_METADATA_NAME } from 'src/engine/metadata-modules/flat-entity/constant/all-metadata-entity-by-metadata-name.constant';
 import { isCompositeFlatFieldMetadata } from 'src/engine/metadata-modules/flat-field-metadata/utils/is-composite-flat-field-metadata.util';
 import { isEnumFlatFieldMetadata } from 'src/engine/metadata-modules/flat-field-metadata/utils/is-enum-flat-field-metadata.util';
@@ -128,6 +130,7 @@ export class CreateObjectActionHandlerService extends WorkspaceMigrationRunnerAc
       workspaceId,
       allFlatEntityMaps,
       getSearchFieldMetadatasByTsVectorFieldId,
+      isSearchVectorTriggerEnabled,
     } = context;
     const { flatEntity: flatObjectMetadata, flatFieldMetadatas } = flatAction;
 
@@ -136,32 +139,41 @@ export class CreateObjectActionHandlerService extends WorkspaceMigrationRunnerAc
       objectMetadata: flatObjectMetadata,
     });
 
-    const deriveSearchVectorExpression = (
-      tsVectorFieldMetadataId: string,
-    ): string =>
-      deriveCheckedSearchVectorExpression({
-        flatObjectMetadata,
-        objectFlatFieldMetadatas: flatFieldMetadatas,
-        targetSearchFieldMetadatas:
-          getSearchFieldMetadatasByTsVectorFieldId?.(tsVectorFieldMetadataId) ??
-          getTargetSearchFieldMetadatasForTsVectorField({
-            tsVectorFieldMetadataId,
-            flatSearchFieldMetadataMaps:
-              allFlatEntityMaps.flatSearchFieldMetadataMaps,
-          }),
+    const findTargetSearchFieldMetadatas = (tsVectorFieldMetadataId: string) =>
+      getSearchFieldMetadatasByTsVectorFieldId?.(tsVectorFieldMetadataId) ??
+      getTargetSearchFieldMetadatasForTsVectorField({
+        tsVectorFieldMetadataId,
+        flatSearchFieldMetadataMaps:
+          allFlatEntityMaps.flatSearchFieldMetadataMaps,
       });
+
+    const tsVectorFlatFieldMetadata = flatFieldMetadatas.find(
+      (flatFieldMetadata) =>
+        isFlatFieldMetadataOfType(
+          flatFieldMetadata,
+          FieldMetadataType.TS_VECTOR,
+        ),
+    );
 
     const columnDefinitions = flatFieldMetadatas.flatMap((flatFieldMetadata) =>
       generateColumnDefinitions({
         flatFieldMetadata,
         flatObjectMetadata,
         workspaceId,
-        searchVectorAsExpression: isFlatFieldMetadataOfType(
-          flatFieldMetadata,
-          FieldMetadataType.TS_VECTOR,
-        )
-          ? deriveSearchVectorExpression(flatFieldMetadata.id)
-          : undefined,
+        // In a converted workspace the column stays plain and a trigger fills it.
+        searchVectorAsExpression:
+          isFlatFieldMetadataOfType(
+            flatFieldMetadata,
+            FieldMetadataType.TS_VECTOR,
+          ) && !isSearchVectorTriggerEnabled
+            ? deriveCheckedSearchVectorExpression({
+                flatObjectMetadata,
+                objectFlatFieldMetadatas: flatFieldMetadatas,
+                targetSearchFieldMetadatas: findTargetSearchFieldMetadatas(
+                  flatFieldMetadata.id,
+                ),
+              })
+            : undefined,
       }),
     );
 
@@ -190,6 +202,19 @@ export class CreateObjectActionHandlerService extends WorkspaceMigrationRunnerAc
       tableName,
       columnDefinitions,
     });
+
+    if (isSearchVectorTriggerEnabled && isDefined(tsVectorFlatFieldMetadata)) {
+      await reinstallSearchVectorTrigger({
+        queryRunner,
+        schemaName,
+        tableName,
+        flatObjectMetadata,
+        objectFlatFieldMetadatas: flatFieldMetadatas,
+        targetSearchFieldMetadatas: findTargetSearchFieldMetadatas(
+          tsVectorFlatFieldMetadata.id,
+        ),
+      });
+    }
 
     await ensureParticipantHandleIndex({
       queryRunner,

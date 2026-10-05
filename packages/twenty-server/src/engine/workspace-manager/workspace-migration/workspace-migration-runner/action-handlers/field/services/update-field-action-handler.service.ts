@@ -8,10 +8,12 @@ import {
 import { isDefined } from 'twenty-shared/utils';
 import { ColumnType, type QueryRunner } from 'typeorm';
 
+import { createSearchVectorBackfillJobs } from 'src/engine/core-modules/search-vector-trigger/utils/search-vector-backfill.util';
 import {
   disableSearchVectorTrigger,
   findSearchVectorTriggerSource,
   isSearchVectorTriggerMode,
+  refreshOrSelfHealSearchVectorTrigger,
   refreshSearchVectorTriggerIfConverted,
   reinstallSearchVectorTrigger,
   type SearchVectorTriggerSource,
@@ -193,6 +195,9 @@ export class UpdateFieldActionHandlerService extends WorkspaceMigrationRunnerAct
       },
       workspaceId,
       getSearchFieldMetadatasByTsVectorFieldId,
+      searchListChanges,
+      isSearchVectorFormulaChange,
+      isSearchVectorTriggerEnabled,
     } = context;
     const { entityId, update } = flatAction;
 
@@ -406,14 +411,29 @@ export class UpdateFieldActionHandlerService extends WorkspaceMigrationRunnerAct
           flatSearchFieldMetadataMaps,
         });
 
-      // A converted table keeps its plain column; only the trigger function changes.
-      const isTriggerMode = await refreshSearchVectorTriggerIfConverted({
-        queryRunner,
-        schemaName,
-        tableName,
-        flatObjectMetadata,
-        objectFlatFieldMetadatas,
-        targetSearchFieldMetadatas,
+      // A converted table keeps its plain column; only the trigger function changes. With the
+      // flag on, a still-generated table is switched in place (tested in trigger-mode-migrations).
+      const isTriggerMode = await refreshOrSelfHealSearchVectorTrigger({
+        source: {
+          queryRunner,
+          schemaName,
+          tableName,
+          flatObjectMetadata,
+          objectFlatFieldMetadatas,
+          targetSearchFieldMetadatas,
+        },
+        backfillChange:
+          isSearchVectorFormulaChange === true
+            ? { type: 'formula' }
+            : {
+                type: 'searchList',
+                searchListChanges: (searchListChanges ?? []).filter(
+                  (searchListChange) =>
+                    searchListChange.tsVectorFieldUniversalIdentifier ===
+                    optimisticFlatFieldMetadata.universalIdentifier,
+                ),
+              },
+        isSearchVectorTriggerEnabled: isSearchVectorTriggerEnabled === true,
       });
 
       if (!isTriggerMode) {
@@ -779,6 +799,15 @@ export class UpdateFieldActionHandlerService extends WorkspaceMigrationRunnerAct
     // Recreating the trigger also re-enables it.
     if (isTriggerMode) {
       await reinstallSearchVectorTrigger(searchVectorTriggerSource);
+      await createSearchVectorBackfillJobs({
+        source: searchVectorTriggerSource,
+        change: {
+          type: 'options',
+          fieldMetadataId: flatFieldMetadata.id,
+          fromOptions: fromOptions ?? [],
+          toOptions: toOptions ?? [],
+        },
+      });
     }
   }
 }

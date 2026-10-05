@@ -1,7 +1,9 @@
 import { Injectable } from '@nestjs/common';
 import { InjectDataSource } from '@nestjs/typeorm';
 
+import { msg } from '@lingui/core/macro';
 import { type AllMetadataName } from 'twenty-shared/metadata';
+import { FeatureFlagKey } from 'twenty-shared/types';
 import { isDefined } from 'twenty-shared/utils';
 import { DataSource, type QueryRunner } from 'typeorm';
 
@@ -9,6 +11,14 @@ import { LoggerService } from 'src/engine/core-modules/logger/logger.service';
 import { WORKSPACE_MIGRATION_DURATION_MS_BUCKET_BOUNDARIES } from 'src/engine/core-modules/metrics/constants/workspace-migration-duration-ms-bucket-boundaries.constant';
 import { MetricsService } from 'src/engine/core-modules/metrics/metrics.service';
 import { MetricsKeys } from 'src/engine/core-modules/metrics/types/metrics-keys.type';
+import {
+  collectSearchListChanges,
+  isSearchVectorFormulaChange,
+} from 'src/engine/core-modules/search-vector-trigger/utils/search-vector-backfill.util';
+import {
+  getSearchVectorConversionLockName,
+  isLockNotAvailableError,
+} from 'src/engine/core-modules/search-vector-trigger/utils/search-vector-trigger-maintenance.util';
 import { TwentyConfigService } from 'src/engine/core-modules/twenty-config/twenty-config.service';
 import { WorkspaceManyOrAllFlatEntityMapsCacheService } from 'src/engine/metadata-modules/flat-entity/services/workspace-many-or-all-flat-entity-maps-cache.service';
 import { AllFlatEntityMaps } from 'src/engine/metadata-modules/flat-entity/types/all-flat-entity-maps.type';
@@ -43,6 +53,29 @@ export class WorkspaceMigrationRunnerService {
     private readonly logger: LoggerService,
     private readonly twentyConfigService: TwentyConfigService,
   ) {}
+
+  // Waits (up to the lock timeout) while a search vector conversion runs on this workspace.
+  private async waitForSearchVectorConversion(
+    queryRunner: QueryRunner,
+    workspaceId: string,
+  ): Promise<void> {
+    try {
+      await queryRunner.query(
+        `SELECT pg_advisory_xact_lock_shared(hashtextextended($1, 0))`,
+        [getSearchVectorConversionLockName(workspaceId)],
+      );
+    } catch (error) {
+      if (!isLockNotAvailableError(error)) {
+        throw error;
+      }
+
+      throw new WorkspaceMigrationRunnerException({
+        message: `Search vector conversion holds the lock of workspace ${workspaceId}`,
+        code: WorkspaceMigrationRunnerExceptionCode.DDL_LOCKED,
+        userFriendlyMessage: msg`Search is being upgraded for this workspace, try again shortly.`,
+      });
+    }
+  }
 
   private getLegacyCacheInvalidationPromises({
     allFlatEntityMapsKeys,
@@ -365,6 +398,12 @@ export class WorkspaceMigrationRunnerService {
         () => allFlatEntityMaps.flatSearchFieldMetadataMaps,
       );
 
+    const searchListChanges = collectSearchListChanges({
+      actions,
+      allFlatEntityMaps,
+    });
+    const isFormulaChange = isSearchVectorFormulaChange(actions);
+
     const objectUniversalIdentifiersBeingDeleted = new Set(
       actions
         .filter(
@@ -377,6 +416,17 @@ export class WorkspaceMigrationRunnerService {
 
     try {
       await queryRunner.query(`SET LOCAL lock_timeout = '8s'`);
+      await this.waitForSearchVectorConversion(queryRunner, workspaceId);
+
+      // Read under the lock: a conversion sets the flag before it releases it. Read from the
+      // database, not the cache, so it is exact across processes.
+      const [searchVectorTriggerFlag] = (await queryRunner.query(
+        `SELECT "value" FROM core."featureFlag" WHERE "workspaceId" = $1 AND "key" = $2`,
+        [workspaceId, FeatureFlagKey.IS_SEARCH_VECTOR_TRIGGER_ENABLED],
+      )) as Array<{ value: boolean }>;
+      const isSearchVectorTriggerEnabled =
+        searchVectorTriggerFlag?.value === true;
+
       await beforeActions?.(queryRunner);
 
       let actionIndex = 0;
@@ -419,6 +469,9 @@ export class WorkspaceMigrationRunnerService {
                   getSearchFieldMetadatasByTsVectorFieldId:
                     searchFieldMetadatasByTsVectorFieldIdAccessor.get,
                   objectUniversalIdentifiersBeingDeleted,
+                  searchListChanges,
+                  isSearchVectorFormulaChange: isFormulaChange,
+                  isSearchVectorTriggerEnabled,
                 })),
               },
             );
@@ -472,6 +525,9 @@ export class WorkspaceMigrationRunnerService {
                 getSearchFieldMetadatasByTsVectorFieldId:
                   searchFieldMetadatasByTsVectorFieldIdAccessor.get,
                 objectUniversalIdentifiersBeingDeleted,
+                searchListChanges,
+                isSearchVectorFormulaChange: isFormulaChange,
+                isSearchVectorTriggerEnabled,
               },
             },
           );

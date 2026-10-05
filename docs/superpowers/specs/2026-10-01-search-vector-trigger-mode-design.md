@@ -1,7 +1,6 @@
 # Search vector: trigger mode — design
 
-Status: decisions locked 2026-10-01. Product sign-off still needed on the three items in
-"Open items".
+Status: decisions locked 2026-10-01; PR 2 split and rollout agreed 2026-10-05.
 
 ## Why
 
@@ -114,47 +113,85 @@ attempts, last error, timestamps.
 - Done when a batch finds no rows. A cron every minute re-queues PENDING, RETRYABLE and
   lease-expired jobs. An alert fires when a job has not moved in N minutes.
 - If the workspace, object or field no longer exists, the job is FAILED with the reason.
-- A daily cleanup deletes COMPLETED rows older than 30 days. FAILED rows are never deleted
+- The reconcile cron also deletes COMPLETED rows older than 30 days. FAILED rows are never deleted
   automatically. Index on `(status, "completedAt")`.
 
 ## Delivery
 
 | PR | Repo | Contents | Gate |
 |---|---|---|---|
-| 1 — Trigger mode foundation | Twenty | lean builder (plain or `NEW.`-qualified columns), trigger SQL generator with 131,072-character cap, search-list guard, trigger installer, conversion command (`--dry-run` works; real conversion refused until PR 2) | inert: nothing can be converted |
-| 2 — Trigger mode in the migration runner + backfills | Twenty | `IS_SEARCH_VECTOR_TRIGGER_ENABLED` feature flag as the converted state, set by the conversion; converted workspaces: regenerate the function instead of drop/add; no `searchVector` drop on enum option changes; regenerate in the same migration on field delete/rename; new objects get a plain column + trigger; backfill table, queue job, reconciler cron, 30-day cleanup; regression test that the column never becomes generated again; enables real conversion | conversion state |
-| 3 — 700 fields | Go | index policy (External ID + unique only), cap 20 → 700, column-slot check, usage reporting, "only if converted" rule, optional search-updating indicator | `crm-custom-fields-700` WorkOS flag **and** converted |
+| 1 — Trigger mode foundation (#173) | Twenty | lean builder, trigger SQL generator with 131,072-character cap, search-list guard, trigger installer, conversion command (`--dry-run` only) | inert: nothing can be converted |
+| 2a — Keep converted tables working on field changes | Twenty | migration runner decides per table from the column (plain + our trigger = converted): replaces the function instead of drop/add on search-list changes; disables the trigger around enum swaps; refreshes it on field rename/delete; renames it on object rename; drops it on object delete; workspace export writes the trigger. Regression test on a self-converted custom object | inert: no table is converted |
+| 2b — Backfill and switching conversion on | Twenty | backfill job table, worker job, reconcile cron, 30-day cleanup; `IS_SEARCH_VECTOR_TRIGGER_ENABLED` flag set by the conversion; real conversion enabled; `--repair` for broken plain tables; per-workspace lock shared with the runner; per-table dry-run report; new objects start in trigger mode when the flag is on | merged with the flag off everywhere: no change until we run the command |
+| 3 — 700 fields | Go | index policy (External ID + unique only), cap 20 → 700, column-slot check, usage reporting, optional search-updating indicator | `crm-custom-fields-700` WorkOS flag **and** converted |
 | Cleanup | Go | remove `crm-custom-fields-700` and `crm-search-vector` | after full rollout |
+| Separate fix | Twenty | a standalone TS_VECTOR field gets a plain column nothing fills (`create-field-action-handler`); pulled out of 2a because the fix rewrites the table under a lock | own PR |
 
-No workspace — not even dev — may be converted before PR 2: today's runner drops
-`searchVector` on enum option changes and relies on CASCADE on field delete, both of which
-break a trigger-mode workspace (the column comes back generated, or every save fails with
-"record new has no field").
+### PR 2b decisions
 
-PR 2 must also decide per table from the column's real state (`attgenerated`), not only the
-flag: a conversion that stops partway (lock timeout, failure) leaves some tables in trigger
-mode while the flag is still off. A generated rebuild on such a table must drop the trigger.
-The admin panel can also set the flag by hand, so `attgenerated` is the truth, not the flag.
+- **One flag, `IS_SEARCH_VECTOR_TRIGGER_ENABLED`, per workspace.** Off by default. Only the
+  conversion command turns it on, once every table is done; never the admin panel (runbook
+  rule). Inside Twenty each table still decides from its own column. Go reads the flag.
+- **New objects** start in trigger mode when the flag is on. **New workspaces** start
+  converted only after the fleet conversion, by adding the flag to `DEFAULT_FEATURE_FLAGS`.
+- **No off switch.** Turning the flag off does not revert tables. Problems are fixed forward:
+  replace the function, then backfill. The runbook holds the emergency SQL (drop the trigger,
+  replace the function, check a table's state).
+- **Backfill** as designed above: one `core` entity row per job, `id` cursor plus
+  `createdAt <= cutoff`, ~1,000 rows per batch, retries then FAILED, reconcile cron every
+  minute, which also cleans up. Only changes that alter existing rows' words create a job (default
+  value, option relabel or removal, archive or restore, searched-field delete, repair), limited
+  to affected rows where possible. The single hook is `refreshSearchVectorTriggerIfConverted`
+  from 2a.
+- **Repair** of broken plain tables needs an explicit `--repair`, because it rewrites every row.
+- **The workspace lock is held only for the switch.** Check every table without it, then take
+  it, rebuild the plans and compare them with the checked ones (a difference reports `changed`,
+  rerun), run only the quick DDL and set the flag. After release, rescan each switched table
+  once; rows that differ get a whole-table REPAIR backfill.
+- **Migrations read the flag from the database,** inside their transaction after the shared
+  lock, never from the cache, so every process sees the same value.
+- **Flag-on workspaces self-heal.** A table still generated on a converted workspace (skipped by
+  the conversion, or a flag set by hand) is switched in place on its next search list change,
+  with a whole-table REPAIR backfill.
 
-PR 2 must also close these gaps left by PR 1:
+### Blockers to check before rollout
 
-- Per-table dry-run report: a guard failure on one object aborts the whole workspace plan, so
-  the dry run shows one error instead of which tables are fine.
-- Stale plans: the command builds every table plan before phase 2 converts anything, so a
-  search field change in between converts a table with an outdated formula. It needs a
-  per-workspace lock shared with the migration runner, or plans re-derived inside the locked
-  transaction.
-- Repair path: tables left plain with no trigger by the 2026-07-21 to 2026-08-25
-  batch-create bug are refused today (NULL or stale vectors). They need the trigger installed
-  first, then a backfill.
-- Create-field path: a TS_VECTOR field created without an expression still gets a plain
-  column with no trigger (`generate-column-definitions.util.ts`, around lines 101-112).
+1. ~~Twenty crons are registered in our deploy.~~ Checked 2026-10-05: `entrypoint.sh` runs
+   `cron:register:all` on every server start (unless `DISABLE_CRON_JOBS_REGISTRATION=true`; a
+   failure only warns). Add the new cron to that list and confirm it at rollout stage 0.
+2. ~~Touching a row must not look like an edit.~~ Checked 2026-10-05: a raw `SET "id" = "id"`
+   leaves `updatedAt` alone (only TypeORM sets it), emits no Twenty events, webhooks or timeline
+   rows (all hang off the ORM), and Go never sees it (message webhooks only; its own dirty queue).
+   Person's phone-lookup trigger runs but writes nothing. Batch SQL must be
+   `WHERE "id" IN (SELECT ... ORDER BY "id" LIMIT n) RETURNING "id"`; UPDATE has no LIMIT.
+3. Backfill load on large tables (row rewrites, autovacuum); may need a pause between batches.
+4. The 56 GO-660 workspaces may fail the guard and need fixing before they convert.
+5. The fleet dry-run results.
+
+## Rollout
+
+Convert every workspace first, then give customers the feature. Conversion is invisible to
+customers (the lean formula matched every stored row), so it is ours to do, gradually; the
+700-field feature is switched on per customer only afterwards, on converted workspaces.
+
+| Stage | What | Move on when |
+|---|---|---|
+| 0 | Merge 2b, flag off everywhere | job table exists, crons registered, nothing changed |
+| 1 | Dry run across the fleet | every workspace sorted: clean, needs repair, needs fixing |
+| 2 | Convert our private workspace; use it for a few days | backfills finish, search correct, saves no slower |
+| 3 | Dev, then stage | same checks |
+| 4 | Prod: a few small workspaces, then medium, then large (Alchemer) at a quiet hour | no failed jobs, no save errors, sampled search checks match |
+| 5 | Repair broken tables (Anders, `_regie*`) with `--repair` | their search works |
+| 6 | New workspaces start converted (flag in `DEFAULT_FEATURE_FLAGS`) | stages 2 to 5 stable |
+| 7 | Go PR 3: 700 fields per customer, converted workspaces only | |
+
+Stop rule at every stage: a failed save, wrong search results or a failed job stops the
+rollout until fixed forward.
 
 ## Open items
 
-- **tom sign-off (Linear wins on product behaviour):** 700 vs Linear's 1,000 fields
-  (§4.3/§13); 7 searchable types vs "all" (§7/§13); a few minutes of search lag after a
-  default/relabel/archive (§4.1). Needed before PR C's flag goes on for a customer.
+- tom signed off on 700 fields, the 7 searchable types and the short search lag after a
+  default, relabel or archive.
 - **Out of this project:** an upgrade gap check (GO-660's real cause was a manual
   instance-only migration on 27 Jul that moved the upgrade cursor past every 2.16–2.22
   workspace step), and an audit of the other 22 skipped steps for the 56 older workspaces.

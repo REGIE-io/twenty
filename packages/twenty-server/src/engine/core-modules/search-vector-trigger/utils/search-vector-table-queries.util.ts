@@ -1,6 +1,63 @@
-import { type QueryRunner } from 'typeorm';
+import { isDefined } from 'twenty-shared/utils';
+import { type DataSource, type QueryRunner } from 'typeorm';
 
 type SearchVectorColumnState = 'generated' | 'plain' | 'missing';
+
+type TimeoutAdjustableQueryRunner = QueryRunner & {
+  databaseConnection?: {
+    query_timeout?: number;
+    connectionParameters?: { query_timeout?: number };
+  };
+};
+
+export const MISMATCH_CHECK_STATEMENT_TIMEOUT = '30min';
+const CLIENT_QUERY_TIMEOUT_MS = 35 * 60 * 1000;
+
+// The pg client timer only rejects the promise and never cancels the server query, so the
+// client limit is raised here and the server-side statement_timeout does the cancelling.
+const raiseClientQueryTimeout = (queryRunner: QueryRunner): (() => void) => {
+  const databaseConnection = (queryRunner as TimeoutAdjustableQueryRunner)
+    .databaseConnection;
+
+  if (!isDefined(databaseConnection)) {
+    return () => {};
+  }
+
+  const originalQueryTimeout = databaseConnection.query_timeout;
+  const connectionParameters = databaseConnection.connectionParameters;
+  const originalParameterTimeout = connectionParameters?.query_timeout;
+
+  databaseConnection.query_timeout = CLIENT_QUERY_TIMEOUT_MS;
+  if (isDefined(connectionParameters)) {
+    connectionParameters.query_timeout = CLIENT_QUERY_TIMEOUT_MS;
+  }
+
+  return () => {
+    databaseConnection.query_timeout = originalQueryTimeout;
+    if (isDefined(connectionParameters)) {
+      connectionParameters.query_timeout = originalParameterTimeout;
+    }
+  };
+};
+
+// A whole-table scan can outlast the client's default query timeout.
+export const withLongQueryRunner = async <TResult>(
+  dataSource: DataSource,
+  callback: (queryRunner: QueryRunner) => Promise<TResult>,
+): Promise<TResult> => {
+  const queryRunner = dataSource.createQueryRunner();
+  let restoreClientTimeout: () => void = () => {};
+
+  try {
+    await queryRunner.connect();
+    restoreClientTimeout = raiseClientQueryTimeout(queryRunner);
+
+    return await callback(queryRunner);
+  } finally {
+    restoreClientTimeout();
+    await queryRunner.release();
+  }
+};
 
 export const selectMismatchCount = async (
   queryRunner: QueryRunner,
@@ -12,6 +69,38 @@ export const selectMismatchCount = async (
   )) as Array<{ mismatchCount: number }>;
 
   return mismatchCount;
+};
+
+// Read only, in its own transaction, so the scan takes no lock beyond reading.
+export const countSearchVectorMismatches = async (
+  queryRunner: QueryRunner,
+  qualifiedTable: string,
+  leanColumnExpression: string,
+): Promise<number> => {
+  await queryRunner.startTransaction();
+
+  try {
+    await queryRunner.query(`SET TRANSACTION READ ONLY`);
+    await queryRunner.query(
+      `SET LOCAL statement_timeout = '${MISMATCH_CHECK_STATEMENT_TIMEOUT}'`,
+    );
+    const mismatchCount = await selectMismatchCount(
+      queryRunner,
+      qualifiedTable,
+      leanColumnExpression,
+    );
+
+    await queryRunner.commitTransaction();
+
+    return mismatchCount;
+  } catch (error) {
+    try {
+      await queryRunner.rollbackTransaction();
+    } catch {
+      // Keep the original error.
+    }
+    throw error;
+  }
 };
 
 // BEFORE (2) | ROW (1) | INSERT (4) | UPDATE (16), as created by buildSearchVectorTriggerStatements.
@@ -80,4 +169,24 @@ export const getSearchVectorColumnState = async (
   throw new Error(
     `Unsupported searchVector attgenerated value '${attgenerated}' on ${schemaName}.${tableName}`,
   );
+};
+
+// The conversion cannot proceed without the column, so a missing one is an error.
+export const getExistingSearchVectorColumnState = async (
+  queryRunner: QueryRunner,
+  { schemaName, tableName }: { schemaName: string; tableName: string },
+): Promise<'generated' | 'plain'> => {
+  const columnState = await getSearchVectorColumnState(
+    queryRunner,
+    schemaName,
+    tableName,
+  );
+
+  if (columnState === 'missing') {
+    throw new Error(
+      `searchVector column not found on ${schemaName}.${tableName}`,
+    );
+  }
+
+  return columnState;
 };
