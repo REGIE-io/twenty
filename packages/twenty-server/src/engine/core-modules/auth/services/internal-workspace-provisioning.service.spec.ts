@@ -112,6 +112,7 @@ describe('InternalWorkspaceProvisioningService', () => {
         subdomain: 'acme',
         shouldBypassWorkspaceCreationChecks: true,
         shouldRecordDpaAcceptance: false,
+        shouldFetchWorkspaceLogo: false,
       },
     );
     expect(workspaceService.activateWorkspace).toHaveBeenCalledWith(
@@ -198,6 +199,7 @@ describe('InternalWorkspaceProvisioningService', () => {
         subdomain: 'acme',
         shouldBypassWorkspaceCreationChecks: true,
         shouldRecordDpaAcceptance: false,
+        shouldFetchWorkspaceLogo: false,
       },
     );
   });

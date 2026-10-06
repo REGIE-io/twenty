@@ -94,37 +94,121 @@ export class CreateObjectActionHandlerService extends WorkspaceMigrationRunnerAc
     };
   }
 
+  override canBatchCreate = true;
+
   async executeForMetadata(
     context: WorkspaceMigrationActionRunnerContext<FlatCreateObjectAction>,
   ): Promise<void> {
-    const { queryRunner, flatAction } = context;
-    const { flatEntity: flatObjectMetadata, flatFieldMetadatas } = flatAction;
+    await this.executeForMetadataBatch([context]);
+  }
+
+  override async executeForMetadataBatch(
+    contexts: WorkspaceMigrationActionRunnerContext<FlatCreateObjectAction>[],
+  ): Promise<void> {
+    if (contexts.length === 0) {
+      return;
+    }
+
+    const { queryRunner } = contexts[0];
 
     await this.insertFlatEntitiesInRepository({
       queryRunner,
-      flatEntities: [flatObjectMetadata],
+      flatEntities: contexts.map((context) => context.flatAction.flatEntity),
     });
 
-    const scalarFieldMetadatas = flatFieldMetadatas.map((flatFieldMetadata) =>
-      flatEntityToScalarFlatEntity({
-        metadataName: 'fieldMetadata',
-        flatEntity: flatFieldMetadata,
-      }),
+    const scalarFieldMetadatas = contexts.flatMap((context) =>
+      context.flatAction.flatFieldMetadatas.map((flatFieldMetadata) =>
+        flatEntityToScalarFlatEntity({
+          metadataName: 'fieldMetadata',
+          flatEntity: flatFieldMetadata,
+        }),
+      ),
     );
 
-    const fieldMetadataRepository = queryRunner.manager.getRepository(
-      ALL_METADATA_ENTITY_BY_METADATA_NAME['fieldMetadata'],
-    );
+    if (scalarFieldMetadatas.length === 0) {
+      return;
+    }
 
-    await fieldMetadataRepository.insert(scalarFieldMetadatas);
+    await queryRunner.manager
+      .getRepository(ALL_METADATA_ENTITY_BY_METADATA_NAME['fieldMetadata'])
+      .insert(scalarFieldMetadatas);
   }
 
   async executeForWorkspaceSchema(
     context: WorkspaceMigrationActionRunnerContext<FlatCreateObjectAction>,
   ): Promise<void> {
+    const { queryRunner, workspaceId, flatAction } = context;
+    const { schemaName, tableName, columnDefinitions, enumOperations } =
+      this.buildCreateTableDefinition(context);
+
+    await executeBatchEnumOperations({
+      enumOperations,
+      queryRunner,
+      schemaName,
+      workspaceSchemaManagerService: this.workspaceSchemaManagerService,
+    });
+
+    await this.workspaceSchemaManagerService.tableManager.createTable({
+      queryRunner,
+      schemaName,
+      tableName,
+      columnDefinitions,
+    });
+
+    await ensureParticipantHandleIndex({
+      queryRunner,
+      workspaceId,
+      objectMetadata: flatAction.flatEntity,
+    });
+  }
+
+  override async executeForWorkspaceSchemaBatch(
+    contexts: WorkspaceMigrationActionRunnerContext<FlatCreateObjectAction>[],
+  ): Promise<void> {
+    if (contexts.length === 0) {
+      return;
+    }
+
+    const { queryRunner, workspaceId } = contexts[0];
+    const tableDefinitions = contexts.map((context) =>
+      this.buildCreateTableDefinition(context),
+    );
+    const { schemaName } = tableDefinitions[0];
+
+    await executeBatchEnumOperations({
+      enumOperations: tableDefinitions.flatMap(
+        (tableDefinition) => tableDefinition.enumOperations,
+      ),
+      queryRunner,
+      schemaName,
+      workspaceSchemaManagerService: this.workspaceSchemaManagerService,
+    });
+
+    await this.workspaceSchemaManagerService.tableManager.createTables({
+      queryRunner,
+      schemaName,
+      tables: tableDefinitions.map(({ tableName, columnDefinitions }) => ({
+        tableName,
+        columnDefinitions,
+      })),
+    });
+
+    for (const context of contexts) {
+      await ensureParticipantHandleIndex({
+        queryRunner,
+        workspaceId,
+        objectMetadata: context.flatAction.flatEntity,
+      });
+    }
+  }
+
+  // Both paths build their tables here: the batched path once skipped the searchVector
+  // expression, which creates a tsvector column that is never populated.
+  private buildCreateTableDefinition(
+    context: WorkspaceMigrationActionRunnerContext<FlatCreateObjectAction>,
+  ) {
     const {
       flatAction,
-      queryRunner,
       workspaceId,
       allFlatEntityMaps,
       getSearchFieldMetadatasByTsVectorFieldId,
@@ -177,24 +261,6 @@ export class CreateObjectActionHandlerService extends WorkspaceMigrationRunnerAc
       operation: EnumOperation.CREATE,
     });
 
-    await executeBatchEnumOperations({
-      enumOperations,
-      queryRunner,
-      schemaName,
-      workspaceSchemaManagerService: this.workspaceSchemaManagerService,
-    });
-
-    await this.workspaceSchemaManagerService.tableManager.createTable({
-      queryRunner,
-      schemaName,
-      tableName,
-      columnDefinitions,
-    });
-
-    await ensureParticipantHandleIndex({
-      queryRunner,
-      workspaceId,
-      objectMetadata: flatObjectMetadata,
-    });
+    return { schemaName, tableName, columnDefinitions, enumOperations };
   }
 }
