@@ -73,6 +73,10 @@ const createSignInUpServiceForTests = () => {
     addUserToWorkspaceIfUserNotInWorkspace: jest.fn(),
   };
 
+  const mockFileCorePictureService = {
+    uploadWorkspaceLogoFromUrl: jest.fn(),
+  };
+
   const mockOnboardingService = {
     setOnboardingConnectAccountPending: jest.fn(),
     setOnboardingCreateProfilePending: jest.fn(),
@@ -110,9 +114,7 @@ const createSignInUpServiceForTests = () => {
       invalidateAndRecompute: jest.fn(),
     } as any,
     mockApplicationService as any,
-    {
-      uploadWorkspaceLogoFromUrl: jest.fn(),
-    } as any,
+    mockFileCorePictureService as any,
     {
       isValid: jest.fn().mockReturnValue(false),
     } as any,
@@ -143,6 +145,7 @@ const createSignInUpServiceForTests = () => {
     mockUserWorkspaceService,
     mockApplicationService,
     mockOnboardingService,
+    mockFileCorePictureService,
     queryRunnerMock,
   };
 };
@@ -388,6 +391,66 @@ describe('SignInUpService workspace-creation policy', () => {
     expect(queryRunnerMock.manager.save).not.toHaveBeenCalledWith(
       DpaAgreementEntity,
       expect.anything(),
+    );
+  });
+
+  it('skips the workspace logo download when internal provisioning opts out', async () => {
+    const { service, mockWorkspaceRepository, mockFileCorePictureService } =
+      createSignInUpServiceForTests();
+
+    mockWorkspaceRepository.count.mockResolvedValue(5);
+
+    await service.signUpOnNewWorkspace(
+      {
+        type: 'existingUser',
+        existingUser: {
+          id: 'provisioning-user-id',
+          email: 'twenty-workspace-provisioning@regie.ai',
+          canAccessFullAdminPanel: false,
+        } as any,
+      },
+      {
+        displayName: 'Acme',
+        subdomain: 'acme',
+        shouldBypassWorkspaceCreationChecks: true,
+        shouldRecordDpaAcceptance: false,
+        shouldFetchWorkspaceLogo: false,
+      },
+    );
+
+    expect(
+      mockFileCorePictureService.uploadWorkspaceLogoFromUrl,
+    ).not.toHaveBeenCalled();
+  });
+
+  it('downloads the workspace logo for a work-email signup by default', async () => {
+    const { service, mockWorkspaceRepository, mockFileCorePictureService } =
+      createSignInUpServiceForTests();
+
+    mockWorkspaceRepository.count.mockResolvedValue(5);
+
+    await service.signUpOnNewWorkspace(
+      {
+        type: 'existingUser',
+        existingUser: {
+          id: 'existing-user-id',
+          email: 'founder@acme.dev',
+          canAccessFullAdminPanel: false,
+        } as any,
+      },
+      {
+        displayName: 'Acme',
+        subdomain: 'acme',
+        shouldBypassWorkspaceCreationChecks: true,
+      },
+    );
+
+    expect(
+      mockFileCorePictureService.uploadWorkspaceLogoFromUrl,
+    ).toHaveBeenCalledWith(
+      expect.objectContaining({
+        imageUrl: expect.stringContaining('acme.dev'),
+      }),
     );
   });
 
