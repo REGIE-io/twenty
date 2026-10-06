@@ -9,9 +9,10 @@ import { ALL_METADATA_ENTITY_BY_METADATA_NAME } from 'src/engine/metadata-module
 import { isCompositeFlatFieldMetadata } from 'src/engine/metadata-modules/flat-field-metadata/utils/is-composite-flat-field-metadata.util';
 import { isEnumFlatFieldMetadata } from 'src/engine/metadata-modules/flat-field-metadata/utils/is-enum-flat-field-metadata.util';
 import { isFlatFieldMetadataOfType } from 'src/engine/metadata-modules/flat-field-metadata/utils/is-flat-field-metadata-of-type.util';
-import { deriveSearchVectorAsExpressionForTsVectorField } from 'src/engine/metadata-modules/flat-search-field-metadata/utils/derive-search-vector-as-expression-for-ts-vector-field.util';
+import { deriveCheckedSearchVectorExpression } from 'src/engine/metadata-modules/flat-search-field-metadata/utils/derive-checked-search-vector-expression.util';
 import { getTargetSearchFieldMetadatasForTsVectorField } from 'src/engine/metadata-modules/flat-search-field-metadata/utils/get-target-search-field-metadatas-for-ts-vector-field.util';
 import { WorkspaceSchemaManagerService } from 'src/engine/twenty-orm/workspace-schema-manager/workspace-schema-manager.service';
+import { ensureParticipantHandleIndex } from 'src/engine/workspace-manager/workspace-migration/workspace-migration-runner/action-handlers/object/utils/ensure-participant-handle-index.util';
 import {
   FlatCreateObjectAction,
   UniversalCreateObjectAction,
@@ -135,16 +136,20 @@ export class CreateObjectActionHandlerService extends WorkspaceMigrationRunnerAc
       objectMetadata: flatObjectMetadata,
     });
 
-    const indexedFieldById = new Map(
-      flatFieldMetadatas.map((flatFieldMetadata) => [
-        flatFieldMetadata.id,
-        {
-          name: flatFieldMetadata.name,
-          type: flatFieldMetadata.type,
-          options: flatFieldMetadata.options ?? undefined,
-        },
-      ]),
-    );
+    const deriveSearchVectorExpression = (
+      tsVectorFieldMetadataId: string,
+    ): string =>
+      deriveCheckedSearchVectorExpression({
+        flatObjectMetadata,
+        objectFlatFieldMetadatas: flatFieldMetadatas,
+        targetSearchFieldMetadatas:
+          getSearchFieldMetadatasByTsVectorFieldId?.(tsVectorFieldMetadataId) ??
+          getTargetSearchFieldMetadatasForTsVectorField({
+            tsVectorFieldMetadataId,
+            flatSearchFieldMetadataMaps:
+              allFlatEntityMaps.flatSearchFieldMetadataMaps,
+          }),
+      });
 
     const columnDefinitions = flatFieldMetadatas.flatMap((flatFieldMetadata) =>
       generateColumnDefinitions({
@@ -155,18 +160,7 @@ export class CreateObjectActionHandlerService extends WorkspaceMigrationRunnerAc
           flatFieldMetadata,
           FieldMetadataType.TS_VECTOR,
         )
-          ? deriveSearchVectorAsExpressionForTsVectorField({
-              targetSearchFieldMetadatas:
-                getSearchFieldMetadatasByTsVectorFieldId?.(
-                  flatFieldMetadata.id,
-                ) ??
-                getTargetSearchFieldMetadatasForTsVectorField({
-                  tsVectorFieldMetadataId: flatFieldMetadata.id,
-                  flatSearchFieldMetadataMaps:
-                    allFlatEntityMaps.flatSearchFieldMetadataMaps,
-                }),
-              indexedFieldById,
-            })
+          ? deriveSearchVectorExpression(flatFieldMetadata.id)
           : undefined,
       }),
     );
@@ -195,6 +189,12 @@ export class CreateObjectActionHandlerService extends WorkspaceMigrationRunnerAc
       schemaName,
       tableName,
       columnDefinitions,
+    });
+
+    await ensureParticipantHandleIndex({
+      queryRunner,
+      workspaceId,
+      objectMetadata: flatObjectMetadata,
     });
   }
 }

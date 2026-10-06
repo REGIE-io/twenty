@@ -5,6 +5,7 @@ import { findOneOperationFactory } from 'test/integration/graphql/utils/find-one
 import { makeGraphqlAPIRequest } from 'test/integration/graphql/utils/make-graphql-api-request.util';
 import { mergeManyOperationFactory } from 'test/integration/graphql/utils/merge-many-operation-factory.util';
 import { deleteRecordsByIds } from 'test/integration/utils/delete-records-by-ids';
+import { waitForAllJobsToFinish } from 'test/integration/utils/wait-for-all-jobs-to-finish.util';
 
 import { type PersonWorkspaceEntity } from 'src/modules/person/standard-objects/person.workspace-entity';
 
@@ -12,6 +13,7 @@ describe('people merge resolvers (integration)', () => {
   let createdPersonIdsForCleaning: string[] = [];
 
   afterEach(async () => {
+    await waitForAllJobsToFinish();
     if (createdPersonIdsForCleaning.length > 0) {
       await deleteRecordsByIds('person', createdPersonIdsForCleaning);
       createdPersonIdsForCleaning = [];
@@ -47,6 +49,8 @@ describe('people merge resolvers (integration)', () => {
         createPersonsResponse.body.data.createPeople;
 
       createdPersonIdsForCleaning.push(priorityPerson.id, duplicatePerson.id);
+      // Person-created jobs must finish adding relations before the merge reads them.
+      await waitForAllJobsToFinish();
 
       const createTimelineActivityResponse = await makeGraphqlAPIRequest(
         createOneOperationFactory({
