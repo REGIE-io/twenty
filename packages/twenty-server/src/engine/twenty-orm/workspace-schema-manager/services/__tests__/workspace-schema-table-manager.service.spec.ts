@@ -1,5 +1,6 @@
 import { type QueryRunner } from 'typeorm';
 
+import { WorkspaceSchemaManagerException } from 'src/engine/twenty-orm/workspace-schema-manager/exceptions/workspace-schema-manager.exception';
 import { WorkspaceSchemaTableManagerService } from 'src/engine/twenty-orm/workspace-schema-manager/services/workspace-schema-table-manager.service';
 
 describe('WorkspaceSchemaTableManagerService', () => {
@@ -60,6 +61,76 @@ describe('WorkspaceSchemaTableManagerService', () => {
         schemaName: 'workspace_1',
         tables: [],
       });
+
+      expect(query).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('generated tsvector columns', () => {
+    const searchVectorColumn = (asExpression?: string) => ({
+      name: 'searchVector',
+      type: 'tsvector',
+      isNullable: true,
+      isArray: false,
+      default: null,
+      asExpression,
+      generatedType: 'STORED' as const,
+      isPrimary: false,
+    });
+
+    it('emits the generated expression for a tsvector column', async () => {
+      await service.createTables({
+        queryRunner,
+        schemaName: 'workspace_1',
+        tables: [
+          {
+            tableName: 'person',
+            columnDefinitions: [
+              searchVectorColumn(
+                "to_tsvector('simple', COALESCE(\"name\", ''))",
+              ),
+            ],
+          },
+        ],
+      });
+
+      expect(query.mock.calls[0][0]).toContain(
+        `"searchVector" tsvector GENERATED ALWAYS AS (to_tsvector('simple', COALESCE("name", ''))) STORED`,
+      );
+    });
+
+    it('refuses to create a table whose tsvector column has no expression', async () => {
+      await expect(
+        service.createTable({
+          queryRunner,
+          schemaName: 'workspace_1',
+          tableName: 'person',
+          columnDefinitions: [searchVectorColumn()],
+        }),
+      ).rejects.toThrow(WorkspaceSchemaManagerException);
+
+      expect(query).not.toHaveBeenCalled();
+    });
+
+    it('refuses the whole batch when any table has a tsvector column with no expression', async () => {
+      await expect(
+        service.createTables({
+          queryRunner,
+          schemaName: 'workspace_1',
+          tables: [
+            {
+              tableName: 'company',
+              columnDefinitions: [
+                searchVectorColumn("to_tsvector('simple', '')"),
+              ],
+            },
+            {
+              tableName: 'person',
+              columnDefinitions: [searchVectorColumn('')],
+            },
+          ],
+        }),
+      ).rejects.toThrow(/person.*searchVector/);
 
       expect(query).not.toHaveBeenCalled();
     });
