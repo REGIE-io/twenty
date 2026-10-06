@@ -117,6 +117,42 @@ describe('RegieE2eWorkspaceDeletionDiscoveryService', () => {
       admissionLimit,
     });
 
+  it('admits a CI lease only with intact durable ownership metadata', async () => {
+    const ciMarker = {
+      ...markerRow.value,
+      owner: 'go-crm-ci',
+      ciOwner: {
+        repository: 'REGIE-io/go',
+        runId: '123',
+        runAttempt: 1,
+        job: 'crm-api-records',
+      },
+      issuedAt: '2026-09-10T12:00:00.000Z',
+      expiresAt: '2026-09-10T13:00:00.000Z',
+    };
+    const valid = makeService({
+      markerRows: [{ ...markerRow, value: ciMarker }],
+    });
+
+    await expect(discover(valid.service, valid.enqueuer)).resolves.toEqual({
+      recovered: 0,
+      admitted: 1,
+    });
+
+    const invalid = makeService({
+      markerRows: [
+        { ...markerRow, value: { ...ciMarker, ciOwner: undefined } },
+      ],
+    });
+
+    await expect(discover(invalid.service, invalid.enqueuer)).resolves.toEqual({
+      recovered: 0,
+      admitted: 0,
+    });
+    expect(invalid.lifecycleStore.requestDeletion).not.toHaveBeenCalled();
+    expect(invalid.enqueuer.enqueue).not.toHaveBeenCalled();
+  });
+
   it('re-enqueues recovery before admitting fresh work', async () => {
     const stranded = lifecycle('20202020-0000-4000-8000-000000000099');
     const { service, lifecycleStore, enqueuer } = makeService({

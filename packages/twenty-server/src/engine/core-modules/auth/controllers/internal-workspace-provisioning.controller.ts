@@ -14,6 +14,7 @@ import {
 
 import {
   InternalWorkspaceApiKeyDto,
+  InternalWorkspaceCiOwnershipDto,
   InternalWorkspaceE2eMarkerDto,
   InternalWorkspaceProvisioningDto,
 } from 'src/engine/core-modules/auth/dto/internal-workspace-provisioning.dto';
@@ -48,9 +49,11 @@ export class InternalWorkspaceProvisioningController {
   async activateWorkspace(
     @Param('workspaceId', new ParseUUIDPipe({ version: '4' }))
     workspaceId: string,
+    @Body() body: InternalWorkspaceCiOwnershipDto,
   ) {
     return await this.internalWorkspaceProvisioningService.activateWorkspace(
       workspaceId,
+      body?.ciOwner,
     );
   }
 
@@ -59,9 +62,11 @@ export class InternalWorkspaceProvisioningController {
   async deleteWorkspace(
     @Param('workspaceId', new ParseUUIDPipe({ version: '4' }))
     workspaceId: string,
+    @Body() body: InternalWorkspaceCiOwnershipDto,
   ) {
     return await this.internalWorkspaceProvisioningService.deleteWorkspace(
       workspaceId,
+      body?.ciOwner,
     );
   }
 

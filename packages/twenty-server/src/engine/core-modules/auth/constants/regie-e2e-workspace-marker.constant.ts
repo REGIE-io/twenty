@@ -5,11 +5,24 @@ export const REGIE_LEGACY_E2E_ORPHAN_MARKER_KEY =
 export const REGIE_LEGACY_E2E_ORPHAN_MARKER_KIND = 'LEGACY_ORPHAN';
 export const REGIE_LEGACY_E2E_ORPHAN_MARKER_SOURCE =
   'reviewed-cross-database-backfill';
+export const REGIE_CI_WORKSPACE_OWNER = 'go-crm-ci';
+export const REGIE_CI_WORKSPACE_LEASE_MS = 60 * 60 * 1000;
+
+export type RegieCiWorkspaceOwner = {
+  repository: string;
+  runId: string;
+  runAttempt: number;
+  job: string;
+};
 
 export type RegieE2eWorkspaceMarker = {
   ephemeral: true;
   organizationId: string;
   workspaceSlug: string;
+  owner?: typeof REGIE_CI_WORKSPACE_OWNER;
+  ciOwner?: RegieCiWorkspaceOwner;
+  issuedAt?: string;
+  expiresAt?: string;
 };
 
 export type RegieLegacyE2eOrphanMarker = {

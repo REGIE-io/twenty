@@ -6,12 +6,21 @@ import {
 
 import { ApiKeyService } from 'src/engine/core-modules/api-key/services/api-key.service';
 import {
+  REGIE_CI_WORKSPACE_LEASE_MS,
+  REGIE_CI_WORKSPACE_OWNER,
   REGIE_E2E_ORGANIZATION_ID_PREFIX,
   REGIE_E2E_PURGE_GRACE_PERIOD_MS,
   REGIE_E2E_WORKSPACE_MARKER_KEY,
   REGIE_E2E_WORKSPACE_SLUG_PREFIX,
   type RegieE2eWorkspaceMarker,
+  type RegieCiWorkspaceOwner,
 } from 'src/engine/core-modules/auth/constants/regie-e2e-workspace-marker.constant';
+import {
+  hasRegieCiWorkspaceMetadata,
+  isRegieCiWorkspaceOwner,
+  isValidRegieCiWorkspaceMarker,
+  sameRegieCiWorkspaceOwner,
+} from 'src/engine/core-modules/auth/utils/regie-ci-workspace-marker.util';
 import { SignInUpService } from 'src/engine/core-modules/auth/services/sign-in-up.service';
 import { KeyValuePairType } from 'src/engine/core-modules/key-value-pair/key-value-pair.entity';
 import { KeyValuePairService } from 'src/engine/core-modules/key-value-pair/key-value-pair.service';
@@ -29,6 +38,7 @@ type CreateWorkspaceInput = {
   serviceUserEmail?: string;
   ephemeral?: boolean;
   organizationId?: string;
+  ciOwner?: RegieCiWorkspaceOwner;
 };
 
 type RegieWorkspaceMarkerMap = {
@@ -43,6 +53,7 @@ type CreateWorkspaceApiKeyInput = {
 type BackfillE2eWorkspaceMarkerInput = {
   organizationId?: string;
   workspaceSlug?: string;
+  ciOwner?: RegieCiWorkspaceOwner;
 };
 
 @Injectable()
@@ -84,10 +95,38 @@ export class InternalWorkspaceProvisioningService {
       },
     );
     if (e2eMarker) {
+      if (result.workspace.subdomain !== e2eMarker.workspaceSlug) {
+        throw new BadRequestException(
+          'Provisioned workspace does not match its E2E slug',
+        );
+      }
+      const previousMarker = await this.getE2eWorkspaceMarker(
+        result.workspace.id,
+      );
+
+      if (e2eMarker.ciOwner || hasRegieCiWorkspaceMetadata(previousMarker)) {
+        if (
+          previousMarker &&
+          (!isValidRegieCiWorkspaceMarker(
+            previousMarker,
+            result.workspace.subdomain,
+          ) ||
+            previousMarker.organizationId !== e2eMarker.organizationId ||
+            !sameRegieCiWorkspaceOwner(
+              previousMarker.ciOwner,
+              e2eMarker.ciOwner,
+            ) ||
+            Date.parse(previousMarker.expiresAt ?? '') <= Date.now())
+        ) {
+          throw new BadRequestException(
+            'CI workspace ownership cannot be rebound',
+          );
+        }
+      }
       await this.keyValuePairService.set({
         workspaceId: result.workspace.id,
         key: REGIE_E2E_WORKSPACE_MARKER_KEY,
-        value: e2eMarker,
+        value: previousMarker?.ciOwner ? previousMarker : e2eMarker,
         type: KeyValuePairType.USER_VARIABLE,
       });
     }
@@ -101,7 +140,10 @@ export class InternalWorkspaceProvisioningService {
     return this.toWorkspaceProvisioningResponse(workspace, input.primaryDomain);
   }
 
-  async activateWorkspace(workspaceId: string) {
+  async activateWorkspace(
+    workspaceId: string,
+    ciOwner?: RegieCiWorkspaceOwner,
+  ) {
     const serviceUserEmail = this.getServiceUserEmail();
     const user = await this.userService.findUserByEmail(serviceUserEmail);
     const workspace =
@@ -113,6 +155,13 @@ export class InternalWorkspaceProvisioningService {
 
     if (!workspace) {
       throw new NotFoundException('Workspace was not found');
+    }
+
+    const marker = await this.assertCiOwnership(workspace, ciOwner);
+    if (marker?.expiresAt && Date.parse(marker.expiresAt) <= Date.now()) {
+      throw new BadRequestException(
+        'Expired CI workspaces cannot be reactivated',
+      );
     }
 
     const activatedWorkspace =
@@ -149,7 +198,7 @@ export class InternalWorkspaceProvisioningService {
     };
   }
 
-  async deleteWorkspace(workspaceId: string) {
+  async deleteWorkspace(workspaceId: string, ciOwner?: RegieCiWorkspaceOwner) {
     const workspace =
       await this.workspaceService.findOneWorkspaceByIdIncludingDeleted(
         workspaceId,
@@ -168,7 +217,8 @@ export class InternalWorkspaceProvisioningService {
 
     const alreadyQuarantined = Boolean(workspace.deletedAt);
     let quarantinedAt = workspace.deletedAt ?? new Date();
-    const purgeEligible = await this.hasValidE2eWorkspaceMarker(workspace);
+    const marker = await this.assertCiOwnership(workspace, ciOwner);
+    const purgeEligible = this.hasValidE2eWorkspaceMarker(workspace, marker);
 
     // A retry must not repeat external side effects such as Stripe cancellation
     // while its asynchronous webhook is still updating the local subscription.
@@ -232,6 +282,8 @@ export class InternalWorkspaceProvisioningService {
 
     const existingMarker = await this.getE2eWorkspaceMarker(workspace.id);
 
+    this.requireCiOwnership(workspace, existingMarker, input.ciOwner);
+
     if (existingMarker) {
       if (
         existingMarker.ephemeral !== marker.ephemeral ||
@@ -275,9 +327,9 @@ export class InternalWorkspaceProvisioningService {
     workspaceSlug: string,
   ): RegieE2eWorkspaceMarker | undefined {
     if (input.ephemeral !== true) {
-      if (input.organizationId !== undefined) {
+      if (input.organizationId !== undefined || input.ciOwner !== undefined) {
         throw new BadRequestException(
-          'organizationId is only accepted for ephemeral workspaces',
+          'organizationId and ciOwner are only accepted for ephemeral workspaces',
         );
       }
 
@@ -298,12 +350,37 @@ export class InternalWorkspaceProvisioningService {
       );
     }
 
-    return { ephemeral: true, organizationId, workspaceSlug };
+    if (
+      input.ciOwner !== undefined &&
+      !isRegieCiWorkspaceOwner(input.ciOwner)
+    ) {
+      throw new BadRequestException(
+        'CI ownership requires repository, runId, runAttempt and job',
+      );
+    }
+    const issuedAt = new Date();
+
+    return {
+      ephemeral: true,
+      organizationId,
+      workspaceSlug,
+      ...(input.ciOwner
+        ? {
+            owner: REGIE_CI_WORKSPACE_OWNER,
+            ciOwner: input.ciOwner,
+            issuedAt: issuedAt.toISOString(),
+            expiresAt: new Date(
+              issuedAt.getTime() + REGIE_CI_WORKSPACE_LEASE_MS,
+            ).toISOString(),
+          }
+        : {}),
+    };
   }
 
-  private async hasValidE2eWorkspaceMarker(workspace: WorkspaceEntity) {
-    const marker = await this.getE2eWorkspaceMarker(workspace.id);
-
+  private hasValidE2eWorkspaceMarker(
+    workspace: WorkspaceEntity,
+    marker?: RegieE2eWorkspaceMarker,
+  ) {
     return !(
       marker?.ephemeral !== true ||
       typeof marker.organizationId !== 'string' ||
@@ -314,15 +391,45 @@ export class InternalWorkspaceProvisioningService {
     );
   }
 
+  private async assertCiOwnership(
+    workspace: WorkspaceEntity,
+    ciOwner?: RegieCiWorkspaceOwner,
+  ) {
+    const marker = await this.getE2eWorkspaceMarker(workspace.id);
+
+    this.requireCiOwnership(workspace, marker, ciOwner);
+
+    return marker;
+  }
+
+  private requireCiOwnership(
+    workspace: WorkspaceEntity,
+    marker: RegieE2eWorkspaceMarker | undefined,
+    ciOwner?: RegieCiWorkspaceOwner,
+  ) {
+    if (!ciOwner && !hasRegieCiWorkspaceMetadata(marker)) return;
+    if (
+      !isValidRegieCiWorkspaceMarker(marker, workspace.subdomain) ||
+      !sameRegieCiWorkspaceOwner(marker?.ciOwner, ciOwner)
+    ) {
+      throw new BadRequestException(
+        'CI workspace requires its exact recorded owner',
+      );
+    }
+  }
+
   private async getE2eWorkspaceMarker(workspaceId: string) {
     const [markerEntry] = await this.keyValuePairService.get({
       workspaceId,
       key: REGIE_E2E_WORKSPACE_MARKER_KEY,
       type: KeyValuePairType.USER_VARIABLE,
     });
-    const marker = (
-      markerEntry as unknown as { value?: RegieE2eWorkspaceMarker } | undefined
-    )?.value;
+    const marker =
+      (
+        markerEntry as unknown as
+          | { value?: RegieE2eWorkspaceMarker }
+          | undefined
+      )?.value ?? undefined;
 
     return marker;
   }
