@@ -119,26 +119,34 @@ const buildService = ({
     query: jest.fn(async () => (job === null ? [] : [{ ...JOB, ...job }])),
   };
   const exceptionHandlerService = { captureExceptions: jest.fn() };
+  const workspaceCacheService = {
+    invalidateAndRecompute: jest.fn(),
+    getOrRecompute: jest.fn(async () => ({
+      flatObjectMetadataMaps,
+      flatFieldMetadataMaps: {
+        universalIdentifierById: Object.fromEntries(
+          flatFieldMetadatas.map((field) => [field.id, field.id]),
+        ),
+        byUniversalIdentifier: Object.fromEntries(
+          flatFieldMetadatas.map((field) => [field.id, field]),
+        ),
+      },
+    })),
+  };
 
   const service = new SearchVectorBackfillService(
     dataSource as never,
-    {
-      getOrRecompute: jest.fn(async () => ({
-        flatObjectMetadataMaps,
-        flatFieldMetadataMaps: {
-          universalIdentifierById: Object.fromEntries(
-            flatFieldMetadatas.map((field) => [field.id, field.id]),
-          ),
-          byUniversalIdentifier: Object.fromEntries(
-            flatFieldMetadatas.map((field) => [field.id, field]),
-          ),
-        },
-      })),
-    } as never,
+    workspaceCacheService as never,
     exceptionHandlerService as never,
   );
 
-  return { service, queryRunner, jobUpdates, exceptionHandlerService };
+  return {
+    service,
+    queryRunner,
+    jobUpdates,
+    exceptionHandlerService,
+    workspaceCacheService,
+  };
 };
 
 const runBatch = (service: SearchVectorBackfillService) =>
@@ -167,7 +175,8 @@ describe('SearchVectorBackfillService.runBatch', () => {
     expect(queryRunner.commitTransaction).toHaveBeenCalled();
   });
 
-  it('should continue from the cursor and read the cutoff from the job row', async () => {
+  // createdAt can be set by clients, so an imported row must not be skipped by a cutoff.
+  it('should continue from the cursor without filtering rows by createdAt', async () => {
     const { service, queryRunner } = buildService({
       job: { cursor: 'cursor-id' },
     });
@@ -179,10 +188,8 @@ describe('SearchVectorBackfillService.runBatch', () => {
     );
 
     expect(batchCall?.[0]).toContain(`WHERE "id" > $1`);
-    expect(batchCall?.[0]).toContain(
-      `"createdAt" <= (SELECT "cutoffAt" FROM core."searchVectorBackfillJob" WHERE "id" = $2)`,
-    );
-    expect(batchCall?.[1]).toEqual(['cursor-id', JOB.id]);
+    expect(batchCall?.[0]).not.toContain('createdAt');
+    expect(batchCall?.[1]).toEqual(['cursor-id']);
   });
 
   it('should move past a window where the filter matched no row', async () => {
@@ -226,7 +233,7 @@ describe('SearchVectorBackfillService.runBatch', () => {
 
     expect(await runBatch(service)).toBe(true);
     expect(jobUpdates[0].sql).toContain(`"status" = 'COMPLETED'`);
-    expect(jobUpdates[0].parameters[2]).toBeNull();
+    expect(jobUpdates[0].sql).toContain(`"lastError" = NULL`);
   });
 
   it('should roll the batch back when the job was reset while it ran', async () => {
@@ -246,14 +253,18 @@ describe('SearchVectorBackfillService.runBatch', () => {
     expect(queryRunner.startTransaction).not.toHaveBeenCalled();
   });
 
-  it('should complete with a note when the table is no longer in trigger mode', async () => {
-    const { service, jobUpdates, queryRunner } = buildService({
-      isTriggerMode: false,
-    });
+  // A job is deleted with its object, so a table missing here means a stale cache, not done.
+  it('should refresh the cache and retry when the table is not found in trigger mode', async () => {
+    const { service, jobUpdates, queryRunner, workspaceCacheService } =
+      buildService({ isTriggerMode: false });
 
     expect(await runBatch(service)).toBe(true);
-    expect(jobUpdates[0].sql).toContain(`"status" = 'COMPLETED'`);
-    expect(jobUpdates[0].parameters[2]).toContain('Nothing to backfill');
+    expect(workspaceCacheService.invalidateAndRecompute).toHaveBeenCalledWith(
+      JOB.workspaceId,
+      ['flatObjectMetadataMaps', 'flatFieldMetadataMaps'],
+    );
+    expect(jobUpdates[0].sql).toContain(`"attempts" + 1`);
+    expect(jobUpdates[0].sql).not.toContain(`'COMPLETED'`);
     expect(
       queryRunner.query.mock.calls.some(([sql]) =>
         sql.includes('WITH "batchWindow"'),
@@ -352,6 +363,21 @@ describe('SearchVectorBackfillService.reportStuckJobs', () => {
           status: 'RUNNING',
         },
       },
+    );
+  });
+
+  // A reset or failure starts the wait again, so a job reset long after creation can still alert.
+  it('should measure how long a job has waited from its last update, not its creation', async () => {
+    const { service } = buildService({ job: { status: 'PENDING' } });
+
+    await service.reportStuckJobs();
+
+    const [stuckSql] = (service['dataSource'].query as unknown as jest.Mock)
+      .mock.calls[0] as [string];
+
+    expect(stuckSql).not.toContain('createdAt');
+    expect(stuckSql).toMatch(
+      /"status" IN \('PENDING', 'RETRYABLE'\)\s+AND "updatedAt" <=/,
     );
   });
 });

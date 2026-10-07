@@ -364,7 +364,7 @@ export const upsertSearchVectorBackfillJob = async (
     request: SearchVectorBackfillRequest;
   },
 ): Promise<void> => {
-  // cutoffAt is only a placeholder for NOT NULL: the claim that starts the run sets the real one.
+  // cutoffAt is only a placeholder for NOT NULL: the claim that starts the run records its start.
   const insertedJobs = (await queryRunner.query(
     `INSERT INTO core."searchVectorBackfillJob"
        ("workspaceId", "objectMetadataId", "reason", "filter", "cutoffAt")

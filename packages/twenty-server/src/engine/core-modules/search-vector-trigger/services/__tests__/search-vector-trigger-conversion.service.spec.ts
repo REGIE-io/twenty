@@ -1,10 +1,8 @@
 import { FeatureFlagKey } from 'twenty-shared/types';
 
-import {
-  type SearchVectorTableConversionResult,
-  SearchVectorTriggerConversionService,
-} from 'src/engine/core-modules/search-vector-trigger/services/search-vector-trigger-conversion.service';
+import { SearchVectorTriggerConversionService } from 'src/engine/core-modules/search-vector-trigger/services/search-vector-trigger-conversion.service';
 import { upsertSearchVectorBackfillJob } from 'src/engine/core-modules/search-vector-trigger/utils/search-vector-backfill.util';
+import { type SearchVectorTableConversionResult } from 'src/engine/core-modules/search-vector-trigger/utils/search-vector-table-conversion.util';
 import {
   checkSearchVectorIndex,
   countSearchVectorMismatches,
@@ -508,7 +506,7 @@ describe('SearchVectorTriggerConversionService.convertWorkspace', () => {
     expect(postgresAdvisoryLockService.tryWithLock).not.toHaveBeenCalled();
   });
 
-  it('reports busy without converting when the lock stays taken', async () => {
+  it('reports busy with the checked tables, without converting, when the lock stays taken', async () => {
     jest.useFakeTimers();
     const {
       service,
@@ -526,7 +524,11 @@ describe('SearchVectorTriggerConversionService.convertWorkspace', () => {
 
     await expect(reportPromise).resolves.toEqual({
       status: 'busy',
-      tables: [],
+      tables: [
+        { tableName: 'person', ...result('dryRun') },
+        { tableName: 'company', ...result('dryRun') },
+        { tableName: 'task', ...result('dryRun') },
+      ],
     });
     expect(
       postgresAdvisoryLockService.tryWithLock.mock.calls.length,

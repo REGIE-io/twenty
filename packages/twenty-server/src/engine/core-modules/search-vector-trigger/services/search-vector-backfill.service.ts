@@ -112,8 +112,8 @@ export class SearchVectorBackfillService {
       const claimedJobs: ClaimedSearchVectorBackfillJob[] = [];
 
       for (const job of selectSearchVectorBackfillJobsToClaim(activeJobs)) {
-        // The cutoff is taken at the start of a run, after the migration that created the job
-        // committed: a cutoff taken inside it could miss rows saved by the old function meanwhile.
+        // cutoffAt only records when this run started; rows are not filtered by it, because
+        // clients can set createdAt and a cutoff would skip imported rows.
         const [claimedJob] = await this.updateJobs(
           `UPDATE core."searchVectorBackfillJob"
               SET "status" = 'RUNNING', "generation" = "generation" + 1,
@@ -181,23 +181,27 @@ export class SearchVectorBackfillService {
         `SET LOCAL lock_timeout = '${SEARCH_VECTOR_BACKFILL_LOCK_TIMEOUT}'`,
       );
 
+      // A job is deleted with its object, and a converted table never goes back to generated, so
+      // a missing or generated table here means a stale cache: refresh it and retry the job.
       if (
         !isDefined(target) ||
         !(await isSearchVectorTriggerMode(queryRunner, target))
       ) {
-        await this.completeJob(queryRunner, job, {
-          note: 'Nothing to backfill: the table is gone or no longer in trigger mode',
-        });
-        await queryRunner.commitTransaction();
+        await this.workspaceCacheService.invalidateAndRecompute(
+          job.workspaceId,
+          ['flatObjectMetadataMaps', 'flatFieldMetadataMaps'],
+        );
 
-        return true;
+        throw new Error(
+          'Backfill table not found in trigger mode; metadata cache refreshed for the retry',
+        );
       }
 
       const batchResult = await this.touchNextRows(queryRunner, job, target);
       const isTableExhausted = batchResult.windowRowCount === 0;
 
       const isJobStillCurrent = isTableExhausted
-        ? await this.completeJob(queryRunner, job, { note: null })
+        ? await this.completeJob(queryRunner, job)
         : await this.advanceJob(queryRunner, job, batchResult);
 
       // A reset, reclaim or duplicate message moved the job meanwhile; its current holder redoes these rows.
@@ -241,7 +245,8 @@ export class SearchVectorBackfillService {
     }
   }
 
-  // Every claim and batch bumps updatedAt, so for a running job it marks the last progress.
+  // Every claim, batch, reset and failure bumps updatedAt: for a running job it marks the last
+  // progress, for a waiting one when it last started waiting.
   async reportStuckJobs(): Promise<void> {
     const stuckJobs = (await this.dataSource.query(
       `SELECT "id", "workspaceId", "objectMetadataId", "status"
@@ -251,8 +256,8 @@ export class SearchVectorBackfillService {
                AND "updatedAt" > now() - interval '${SEARCH_VECTOR_BACKFILL_RUNNING_STUCK_AFTER}'
                                        - interval '${SEARCH_VECTOR_BACKFILL_STUCK_ALERT_WINDOW}')
            OR ("status" IN ('PENDING', 'RETRYABLE')
-               AND "createdAt" <= now() - interval '${SEARCH_VECTOR_BACKFILL_WAITING_STUCK_AFTER}'
-               AND "createdAt" > now() - interval '${SEARCH_VECTOR_BACKFILL_WAITING_STUCK_AFTER}'
+               AND "updatedAt" <= now() - interval '${SEARCH_VECTOR_BACKFILL_WAITING_STUCK_AFTER}'
+               AND "updatedAt" > now() - interval '${SEARCH_VECTOR_BACKFILL_WAITING_STUCK_AFTER}'
                                        - interval '${SEARCH_VECTOR_BACKFILL_STUCK_ALERT_WINDOW}')`,
     )) as Pick<
       SearchVectorBackfillJobRow,
@@ -293,8 +298,6 @@ export class SearchVectorBackfillService {
     const cursorCondition = isDefined(job.cursor)
       ? `WHERE "id" > ${addParameter(job.cursor)}`
       : '';
-    // Read from the job row in SQL, so the cutoff keeps its microseconds.
-    const cutoffCondition = `"createdAt" <= (SELECT "cutoffAt" FROM core."searchVectorBackfillJob" WHERE "id" = ${addParameter(job.id)})`;
     const filterSql = buildFilterSql(addParameter);
 
     const [batchResult] = (await queryRunner.query(
@@ -305,7 +308,7 @@ export class SearchVectorBackfillService {
        touched AS (
          UPDATE ${qualifiedTable} SET "id" = "id"
           WHERE "id" IN (SELECT "id" FROM "batchWindow")
-            AND ${filterSql} AND ${cutoffCondition}
+            AND ${filterSql}
          RETURNING "id"
        )
        SELECT (SELECT count(*)::int FROM "batchWindow") AS "windowRowCount",
@@ -394,15 +397,14 @@ export class SearchVectorBackfillService {
   private async completeJob(
     queryRunner: QueryRunner,
     job: SearchVectorBackfillJobRow,
-    { note }: { note: string | null },
   ): Promise<boolean> {
     const updatedJobs = await this.updateJobs(
       `UPDATE core."searchVectorBackfillJob"
           SET "status" = 'COMPLETED', "completedAt" = now(), "leaseExpiresAt" = NULL,
-              "lastError" = $3, "updatedAt" = now()
+              "lastError" = NULL, "updatedAt" = now()
         WHERE "id" = $1 AND "generation" = $2 AND "status" = 'RUNNING'
         RETURNING "id"`,
-      [job.id, job.generation, note],
+      [job.id, job.generation],
       queryRunner,
     );
 

@@ -1159,6 +1159,7 @@ describe('searchVector conversion with --repair', () => {
   let object: CreatedObject;
   const tableName = tableNameOf(REPAIR_OBJECT.nameSingular);
   let recordId: string;
+  let importedRecordId: string;
 
   beforeAll(async () => {
     await deleteLeftoverObjects();
@@ -1166,6 +1167,18 @@ describe('searchVector conversion with --repair', () => {
     recordId = await createRecord(REPAIR_OBJECT.nameSingular, {
       codename: 'zzrepairtoken',
     });
+    // Clients can set createdAt, so an imported row may claim a date after the backfill starts.
+    importedRecordId = await createRecord(REPAIR_OBJECT.nameSingular, {
+      codename: 'zzimportedtoken',
+      createdAt: '2099-01-01T00:00:00.000Z',
+    });
+
+    const [importedRecord] = await query<{ createdAt: Date }>(
+      `SELECT "createdAt" FROM "${object.schemaName}"."${tableName}" WHERE id = $1`,
+      [importedRecordId],
+    );
+
+    expect(importedRecord.createdAt.getUTCFullYear()).toBe(2099);
 
     // The July/August batch-create bug: a plain column nothing fills, NULL on every row.
     await query(
@@ -1188,7 +1201,7 @@ describe('searchVector conversion with --repair', () => {
 
     await expect(
       getConversionService().convertTable({ ...plan, dryRun: false }),
-    ).resolves.toEqual({ status: 'mismatch', mismatchCount: 1 });
+    ).resolves.toEqual({ status: 'mismatch', mismatchCount: 2 });
     expect(await isTriggerMode(object.schemaName, tableName)).toBe(false);
   });
 
@@ -1201,7 +1214,7 @@ describe('searchVector conversion with --repair', () => {
 
     await expect(
       getConversionService().convertTable({ ...plan, dryRun: true, repair }),
-    ).resolves.toEqual({ status: 'needsRepair', mismatchCount: 1 });
+    ).resolves.toEqual({ status: 'needsRepair', mismatchCount: 2 });
     expect(await isTriggerMode(object.schemaName, tableName)).toBe(false);
     expect(await readBackfillJobs(object.id)).toHaveLength(0);
   });
@@ -1218,7 +1231,7 @@ describe('searchVector conversion with --repair', () => {
           objectMetadataId: object.id,
         },
       }),
-    ).resolves.toEqual({ status: 'repaired', mismatchCount: 1 });
+    ).resolves.toEqual({ status: 'repaired', mismatchCount: 2 });
 
     expect(await isTriggerMode(object.schemaName, tableName)).toBe(true);
     expect(await readLatestBackfillJob(object.id)).toMatchObject({
@@ -1238,6 +1251,14 @@ describe('searchVector conversion with --repair', () => {
         tableName,
         recordId,
         'zzrepairtoken',
+      ),
+    ).toBe(true);
+    expect(
+      await vectorMatches(
+        object.schemaName,
+        tableName,
+        importedRecordId,
+        'zzimportedtoken',
       ),
     ).toBe(true);
   });

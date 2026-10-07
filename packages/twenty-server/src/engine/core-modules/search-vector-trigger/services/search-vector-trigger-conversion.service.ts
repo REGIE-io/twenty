@@ -1,64 +1,29 @@
 import { Injectable } from '@nestjs/common';
 import { InjectDataSource } from '@nestjs/typeorm';
 import { FeatureFlagKey } from 'twenty-shared/types';
-import { isDefined } from 'twenty-shared/utils';
-import { type DataSource, type QueryRunner } from 'typeorm';
+import { type DataSource } from 'typeorm';
 
 import { PostgresAdvisoryLockService } from 'src/database/typeorm/postgres-advisory-lock.service';
 import { FeatureFlagService } from 'src/engine/core-modules/feature-flag/services/feature-flag.service';
-import { buildSearchVectorTriggerStatements } from 'src/engine/core-modules/search-vector-trigger/utils/build-search-vector-trigger-statements.util';
-import { upsertSearchVectorBackfillJob } from 'src/engine/core-modules/search-vector-trigger/utils/search-vector-backfill.util';
 import {
-  countSearchVectorMismatches,
-  getSearchVectorColumnState,
-  MISMATCH_CHECK_STATEMENT_TIMEOUT,
-  checkSearchVectorIndex,
-  type SearchVectorIndexHealth,
-  selectMismatchCount,
-  selectRowCount,
-  withLongQueryRunner,
-} from 'src/engine/core-modules/search-vector-trigger/utils/search-vector-table-queries.util';
+  checkSearchVectorIndexes,
+  checkSearchVectorTable,
+  switchSearchVectorTable,
+  type SearchVectorTable,
+  type SearchVectorTableConversionReportRow,
+  type SearchVectorTableConversionResult,
+  type SearchVectorTableRepair,
+  toRepair,
+  verifySearchVectorTables,
+} from 'src/engine/core-modules/search-vector-trigger/utils/search-vector-table-conversion.util';
 import {
   buildSearchVectorTablePlans,
-  convertGeneratedSearchVectorColumn,
   getSearchVectorConversionLockName,
   haveSearchVectorTablePlansChanged,
-  installSearchVectorTrigger,
-  isLockNotAvailableError,
-  isSearchVectorTriggerMode,
   type SearchVectorTablePlan,
   type SearchVectorUnplannedTable,
 } from 'src/engine/core-modules/search-vector-trigger/utils/search-vector-trigger-maintenance.util';
 import { WorkspaceCacheService } from 'src/engine/workspace-cache/services/workspace-cache.service';
-import {
-  assertSafeTsVectorExpression,
-  escapeIdentifier,
-} from 'src/engine/workspace-manager/workspace-migration/utils/remove-sql-injection.util';
-
-export type SearchVectorTableConversionResult = {
-  status:
-    | 'converted'
-    | 'alreadyConverted'
-    | 'mismatch'
-    | 'needsRepair'
-    | 'repaired'
-    | 'dryRun'
-    | 'lockTimeout';
-  mismatchCount: number;
-};
-
-export type SearchVectorTableConversionReportRow = {
-  tableName: string;
-  status:
-    | SearchVectorTableConversionResult['status']
-    | 'skipped'
-    | 'blocked'
-    | 'failed';
-  mismatchCount: number;
-  indexHealth?: SearchVectorIndexHealth | 'repaired';
-  error?: string;
-  note?: string;
-};
 
 export type SearchVectorWorkspaceTablePlans = {
   plans: SearchVectorTablePlan[];
@@ -78,27 +43,12 @@ export type SearchVectorWorkspaceConversionReport = {
   tables: SearchVectorTableConversionReportRow[];
 };
 
-type SearchVectorTable = Omit<SearchVectorTablePlan, 'objectMetadataId'>;
-
-const qualifyTable = ({
-  schemaName,
-  tableName,
-}: Pick<SearchVectorTable, 'schemaName' | 'tableName'>): string =>
-  `${escapeIdentifier(schemaName)}.${escapeIdentifier(tableName)}`;
-
 // mismatchCounts follows plans, one count per table.
 type SearchVectorWorkspaceCheck = SearchVectorWorkspaceTablePlans & {
   report: SearchVectorWorkspaceConversionReport;
   mismatchCounts: number[];
 };
 
-// Repairs a mismatched table instead of refusing it, and queues the backfill that rewrites its rows.
-type SearchVectorTableRepair = {
-  workspaceId: string;
-  objectMetadataId: string;
-};
-
-const CONVERSION_LOCK_TIMEOUT = '8s';
 const CONVERSION_LOCK_ATTEMPTS = 5;
 const CONVERSION_LOCK_RETRY_DELAY_MS = 2000;
 const DONE_TABLE_STATUSES: SearchVectorTableConversionReportRow['status'][] = [
@@ -106,14 +56,6 @@ const DONE_TABLE_STATUSES: SearchVectorTableConversionReportRow['status'][] = [
   'alreadyConverted',
   'repaired',
 ];
-
-const toRepair = (
-  workspaceId: string,
-  plan: SearchVectorTablePlan,
-): SearchVectorTableRepair => ({
-  workspaceId,
-  objectMetadataId: plan.objectMetadataId,
-});
 
 @Injectable()
 export class SearchVectorTriggerConversionService {
@@ -209,8 +151,9 @@ export class SearchVectorTriggerConversionService {
       }
     }
 
-    // A migration of this workspace kept the lock; a rerun converts once it is done.
-    return { status: 'busy', tables: [] };
+    // A migration of this workspace kept the lock; a rerun converts once it is done. The check is
+    // kept for the report, but a rerun scans again, as counts are only valid for their snapshot.
+    return { status: 'busy', tables: checked.report.tables };
   }
 
   // Check every table before converting any, so a mismatch on a late table cannot leave the
@@ -335,8 +278,6 @@ export class SearchVectorTriggerConversionService {
     return { status: 'converted', tables: conversions };
   }
 
-  // Airtight: this scan's snapshot starts after the DDL committed, so it sees every row written
-  // before the switch, and every row written after went through the trigger.
   private async verifyWorkspace({
     workspaceId,
     report,
@@ -346,56 +287,11 @@ export class SearchVectorTriggerConversionService {
     report: SearchVectorWorkspaceConversionReport;
     plans: SearchVectorTablePlan[];
   }): Promise<SearchVectorWorkspaceConversionReport> {
-    const tables: SearchVectorWorkspaceConversionReport['tables'] = [];
-
-    for (const table of report.tables) {
-      const plan = plans.find(
-        (tablePlan) => tablePlan.tableName === table.tableName,
-      );
-
-      if (table.status !== 'converted' || !isDefined(plan)) {
-        tables.push(table);
-        continue;
-      }
-
-      try {
-        const mismatchCount = await withLongQueryRunner(
-          this.dataSource,
-          (queryRunner) =>
-            countSearchVectorMismatches(
-              queryRunner,
-              qualifyTable(plan),
-              plan.leanColumnExpression,
-            ),
-        );
-
-        if (mismatchCount === 0) {
-          tables.push(table);
-          continue;
-        }
-
-        // The upsert locks the active job row, so it runs in a transaction.
-        await this.dataSource.transaction((entityManager) =>
-          this.queueRepairBackfill(
-            entityManager.queryRunner as QueryRunner,
-            toRepair(workspaceId, plan),
-          ),
-        );
-
-        tables.push({
-          tableName: table.tableName,
-          status: 'repaired',
-          mismatchCount,
-          note: 'rows written during the switch, queued for backfill',
-        });
-      } catch (error) {
-        tables.push({
-          ...table,
-          status: 'failed',
-          error: error instanceof Error ? error.message : String(error),
-        });
-      }
-    }
+    const tables = await verifySearchVectorTables(this.dataSource, {
+      workspaceId,
+      tables: report.tables,
+      plans,
+    });
 
     return {
       status: tables.some((table) => table.status === 'failed')
@@ -405,7 +301,6 @@ export class SearchVectorTriggerConversionService {
     };
   }
 
-  // Reported on every run; with --repair a broken GIN is rebuilt concurrently.
   private async checkIndexes({
     report,
     plans,
@@ -415,47 +310,11 @@ export class SearchVectorTriggerConversionService {
     plans: SearchVectorTablePlan[];
     repair: boolean;
   }): Promise<SearchVectorWorkspaceConversionReport> {
-    const tables: SearchVectorWorkspaceConversionReport['tables'] = [];
-
-    for (const table of report.tables) {
-      const plan = plans.find(
-        (tablePlan) => tablePlan.tableName === table.tableName,
-      );
-
-      if (!isDefined(plan) || table.status === 'failed') {
-        tables.push(table);
-        continue;
-      }
-
-      try {
-        const indexHealth = await withLongQueryRunner(
-          this.dataSource,
-          (queryRunner) =>
-            checkSearchVectorIndex(queryRunner, {
-              schemaName: plan.schemaName,
-              qualifiedTable: qualifyTable(plan),
-              indexName: plan.searchVectorIndexName,
-              repair,
-            }),
-          repair ? 0 : undefined,
-        );
-
-        tables.push({
-          ...table,
-          indexHealth,
-          ...(isDefined(plan.searchVectorIndexName) || indexHealth === 'healthy'
-            ? {}
-            : { note: 'no searchVector index in metadata, not rebuilt' }),
-        });
-      } catch (error) {
-        tables.push({
-          ...table,
-          status: 'failed',
-          error: error instanceof Error ? error.message : String(error),
-        });
-      }
-    }
-
+    const tables = await checkSearchVectorIndexes(this.dataSource, {
+      tables: report.tables,
+      plans,
+      repair,
+    });
     const hasFailedIndexCheck =
       (report.status === 'converted' || report.status === 'dryRun') &&
       tables.some((table) => table.status === 'failed');
@@ -491,201 +350,19 @@ export class SearchVectorTriggerConversionService {
     });
   }
 
-  // Read-only and lock-free: only the scan's own snapshot.
-  async checkTable({
-    schemaName,
-    tableName,
-    leanColumnExpression,
-    repair,
-  }: SearchVectorTable & {
-    repair?: SearchVectorTableRepair;
-  }): Promise<SearchVectorTableConversionResult> {
-    assertSafeTsVectorExpression(leanColumnExpression);
-
-    return withLongQueryRunner(this.dataSource, async (queryRunner) => {
-      const columnState = await getSearchVectorColumnState(
-        queryRunner,
-        schemaName,
-        tableName,
-      );
-
-      // Every row needs its vector written, so a missing column is a repair of the whole table.
-      if (columnState === 'missing') {
-        if (!isDefined(repair)) {
-          throw new Error(
-            `searchVector column not found on ${schemaName}.${tableName}; rerun with --repair`,
-          );
-        }
-
-        return {
-          status: 'needsRepair',
-          mismatchCount: await selectRowCount(
-            queryRunner,
-            qualifyTable({ schemaName, tableName }),
-          ),
-        };
-      }
-
-      const mismatchCount = await countSearchVectorMismatches(
-        queryRunner,
-        qualifyTable({ schemaName, tableName }),
-        leanColumnExpression,
-      );
-
-      // A plain column of unknown origin may hold NULL or stale vectors; installing a trigger
-      // would only fix rows on their next write, so it needs --repair like a generated one.
-      if (mismatchCount > 0) {
-        return {
-          status: isDefined(repair) ? 'needsRepair' : 'mismatch',
-          mismatchCount,
-        };
-      }
-
-      // Only a working trigger makes a plain column converted; without one the next write
-      // goes stale, so the table still needs converting.
-      const hasTrigger = await isSearchVectorTriggerMode(queryRunner, {
-        schemaName,
-        tableName,
-      });
-
-      return {
-        status: hasTrigger ? 'alreadyConverted' : 'dryRun',
-        mismatchCount: 0,
-      };
-    });
+  async checkTable(
+    table: SearchVectorTable & { repair?: SearchVectorTableRepair },
+  ): Promise<SearchVectorTableConversionResult> {
+    return checkSearchVectorTable(this.dataSource, table);
   }
 
-  // The quick DDL only; mismatchCount comes from the check and decides the REPAIR job.
-  async switchTable({
-    schemaName,
-    tableName,
-    leanColumnExpression,
-    triggerRowExpression,
-    mismatchCount,
-    repair,
-    lockTimeout = CONVERSION_LOCK_TIMEOUT,
-  }: SearchVectorTable & {
-    mismatchCount: number;
-    repair?: SearchVectorTableRepair;
-    lockTimeout?: string;
-  }): Promise<SearchVectorTableConversionResult> {
-    if (!/^\d+(ms|s)$/.test(lockTimeout)) {
-      throw new Error(`Invalid lock timeout: ${lockTimeout}`);
-    }
-
-    assertSafeTsVectorExpression(leanColumnExpression);
-
-    const qualifiedTable = qualifyTable({ schemaName, tableName });
-    const statements = buildSearchVectorTriggerStatements({
-      schemaName,
-      tableName,
-      triggerRowExpression,
-    });
-
-    return withLongQueryRunner(this.dataSource, async (queryRunner) => {
-      try {
-        const columnState = await getSearchVectorColumnState(
-          queryRunner,
-          schemaName,
-          tableName,
-        );
-        const hasTrigger = await isSearchVectorTriggerMode(queryRunner, {
-          schemaName,
-          tableName,
-        });
-
-        await queryRunner.startTransaction();
-        await queryRunner.query(`SET LOCAL lock_timeout = '${lockTimeout}'`);
-
-        let repairedRowCount = mismatchCount;
-
-        if (columnState === 'generated') {
-          await convertGeneratedSearchVectorColumn({
-            queryRunner,
-            qualifiedTable,
-            statements,
-            triggerRowExpression,
-          });
-        } else {
-          // A repair rewrites every row through its backfill, so a write after the scan is
-          // covered. Otherwise nothing maintains the column yet: block writes and recheck.
-          if (columnState === 'missing') {
-            // No default, so Postgres adds it without rewriting the table; the backfill fills it.
-            await queryRunner.query(
-              `ALTER TABLE ${qualifiedTable} ADD COLUMN "searchVector" tsvector`,
-            );
-          } else if (repairedRowCount === 0 && !hasTrigger) {
-            await queryRunner.query(
-              `LOCK TABLE ${qualifiedTable} IN SHARE ROW EXCLUSIVE MODE`,
-            );
-            await queryRunner.query(
-              `SET LOCAL statement_timeout = '${MISMATCH_CHECK_STATEMENT_TIMEOUT}'`,
-            );
-            repairedRowCount = await selectMismatchCount(
-              queryRunner,
-              qualifiedTable,
-              leanColumnExpression,
-            );
-
-            if (repairedRowCount > 0 && !isDefined(repair)) {
-              await queryRunner.rollbackTransaction();
-
-              return { status: 'mismatch', mismatchCount: repairedRowCount };
-            }
-          }
-
-          await installSearchVectorTrigger({
-            queryRunner,
-            qualifiedTable,
-            statements,
-            triggerRowExpression,
-          });
-        }
-
-        // Same transaction as the trigger, so a repaired table always has its backfill.
-        if (repairedRowCount > 0) {
-          await this.queueRepairBackfill(queryRunner, repair);
-        }
-
-        await queryRunner.commitTransaction();
-
-        if (repairedRowCount > 0) {
-          return { status: 'repaired', mismatchCount: repairedRowCount };
-        }
-
-        return {
-          status: hasTrigger ? 'alreadyConverted' : 'converted',
-          mismatchCount: 0,
-        };
-      } catch (error) {
-        if (queryRunner.isTransactionActive) {
-          try {
-            await queryRunner.rollbackTransaction();
-          } catch {
-            // Keep the original error; a failed rollback must not mask it.
-          }
-        }
-
-        if (isLockNotAvailableError(error)) {
-          return { status: 'lockTimeout', mismatchCount: 0 };
-        }
-
-        throw error;
-      }
-    });
-  }
-
-  private async queueRepairBackfill(
-    queryRunner: QueryRunner,
-    repair: SearchVectorTableRepair | undefined,
-  ): Promise<void> {
-    if (!isDefined(repair)) {
-      throw new Error('A mismatched table can only be converted with --repair');
-    }
-
-    await upsertSearchVectorBackfillJob(queryRunner, {
-      ...repair,
-      request: { reason: 'REPAIR', filter: null },
-    });
+  async switchTable(
+    table: SearchVectorTable & {
+      mismatchCount: number;
+      repair?: SearchVectorTableRepair;
+      lockTimeout?: string;
+    },
+  ): Promise<SearchVectorTableConversionResult> {
+    return switchSearchVectorTable(this.dataSource, table);
   }
 }
