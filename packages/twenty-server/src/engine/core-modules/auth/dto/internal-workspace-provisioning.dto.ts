@@ -2,6 +2,7 @@ import {
   IsBoolean,
   IsDateString,
   IsEmail,
+  IsNotEmpty,
   IsOptional,
   IsString,
 } from 'class-validator';
@@ -28,6 +29,11 @@ export class InternalWorkspaceProvisioningDto {
   @IsOptional()
   @IsString()
   organizationId?: string;
+
+  @IsOptional()
+  @IsString()
+  @IsNotEmpty()
+  apiKeyName?: string;
 }
 
 export class InternalWorkspaceApiKeyDto {
