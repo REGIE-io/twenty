@@ -10,9 +10,12 @@ import { buildSearchVectorTriggerStatements } from 'src/engine/core-modules/sear
 import { upsertSearchVectorBackfillJob } from 'src/engine/core-modules/search-vector-trigger/utils/search-vector-backfill.util';
 import {
   countSearchVectorMismatches,
-  getExistingSearchVectorColumnState,
+  getSearchVectorColumnState,
   MISMATCH_CHECK_STATEMENT_TIMEOUT,
+  checkSearchVectorIndex,
+  type SearchVectorIndexHealth,
   selectMismatchCount,
+  selectRowCount,
   withLongQueryRunner,
 } from 'src/engine/core-modules/search-vector-trigger/utils/search-vector-table-queries.util';
 import {
@@ -52,6 +55,7 @@ export type SearchVectorTableConversionReportRow = {
     | 'blocked'
     | 'failed';
   mismatchCount: number;
+  indexHealth?: SearchVectorIndexHealth | 'repaired';
   error?: string;
   note?: string;
 };
@@ -128,6 +132,7 @@ export class SearchVectorTriggerConversionService {
       'flatObjectMetadataMaps',
       'flatFieldMetadataMaps',
       'flatSearchFieldMetadataMaps',
+      'flatIndexMaps',
     ] as const;
     if (refreshCache) {
       await this.workspaceCacheService.invalidateAndRecompute(workspaceId, [
@@ -139,6 +144,7 @@ export class SearchVectorTriggerConversionService {
       flatObjectMetadataMaps,
       flatFieldMetadataMaps,
       flatSearchFieldMetadataMaps,
+      flatIndexMaps,
     } = await this.workspaceCacheService.getOrRecompute(workspaceId, [
       ...mapKeys,
     ]);
@@ -148,6 +154,7 @@ export class SearchVectorTriggerConversionService {
       flatObjectMetadataMaps,
       flatFieldMetadataMaps,
       flatSearchFieldMetadataMaps,
+      flatIndexMaps,
     });
   }
 
@@ -164,7 +171,11 @@ export class SearchVectorTriggerConversionService {
     const checked = await this.checkWorkspace({ workspaceId, dryRun, repair });
 
     if (dryRun || checked.report.status !== 'dryRun') {
-      return checked.report;
+      return this.checkIndexes({
+        report: checked.report,
+        plans: checked.plans,
+        repair: false,
+      });
     }
 
     for (let attempt = 1; attempt <= CONVERSION_LOCK_ATTEMPTS; attempt++) {
@@ -174,13 +185,21 @@ export class SearchVectorTriggerConversionService {
       );
 
       if (lockResult.acquired) {
-        return lockResult.value.status === 'converted'
-          ? this.verifyWorkspace({
-              workspaceId,
-              report: lockResult.value,
-              plans: checked.plans,
-            })
-          : lockResult.value;
+        const report =
+          lockResult.value.status === 'converted'
+            ? await this.verifyWorkspace({
+                workspaceId,
+                report: lockResult.value,
+                plans: checked.plans,
+              })
+            : lockResult.value;
+
+        // After the lock is released: a concurrent index build waits out every open transaction.
+        return this.checkIndexes({
+          report,
+          plans: checked.plans,
+          repair: repair && report.status === 'converted',
+        });
       }
 
       if (attempt < CONVERSION_LOCK_ATTEMPTS) {
@@ -215,20 +234,33 @@ export class SearchVectorTriggerConversionService {
     const mismatchCounts: number[] = [];
 
     for (const plan of plans) {
-      const check = await this.checkTable({
-        ...plan,
-        repair: repair ? toRepair(workspaceId, plan) : undefined,
-      });
+      try {
+        const check = await this.checkTable({
+          ...plan,
+          repair: repair ? toRepair(workspaceId, plan) : undefined,
+        });
 
-      checks.push({ tableName: plan.tableName, ...check });
-      mismatchCounts.push(check.mismatchCount);
+        checks.push({ tableName: plan.tableName, ...check });
+        mismatchCounts.push(check.mismatchCount);
+      } catch (error) {
+        // Reported per table, so the run still reports every other table.
+        checks.push({
+          tableName: plan.tableName,
+          status: 'failed',
+          mismatchCount: 0,
+          error: error instanceof Error ? error.message : String(error),
+        });
+        mismatchCounts.push(0);
+      }
     }
 
-    const status = checks.some((check) => check.status === 'blocked')
-      ? 'blocked'
-      : checks.some((check) => check.status === 'mismatch')
-        ? 'mismatch'
-        : 'dryRun';
+    const status = checks.some((check) => check.status === 'failed')
+      ? 'incomplete'
+      : checks.some((check) => check.status === 'blocked')
+        ? 'blocked'
+        : checks.some((check) => check.status === 'mismatch')
+          ? 'mismatch'
+          : 'dryRun';
 
     return {
       report: { status, tables: checks },
@@ -373,6 +405,67 @@ export class SearchVectorTriggerConversionService {
     };
   }
 
+  // Reported on every run; with --repair a broken GIN is rebuilt concurrently.
+  private async checkIndexes({
+    report,
+    plans,
+    repair,
+  }: {
+    report: SearchVectorWorkspaceConversionReport;
+    plans: SearchVectorTablePlan[];
+    repair: boolean;
+  }): Promise<SearchVectorWorkspaceConversionReport> {
+    const tables: SearchVectorWorkspaceConversionReport['tables'] = [];
+
+    for (const table of report.tables) {
+      const plan = plans.find(
+        (tablePlan) => tablePlan.tableName === table.tableName,
+      );
+
+      if (!isDefined(plan) || table.status === 'failed') {
+        tables.push(table);
+        continue;
+      }
+
+      try {
+        const indexHealth = await withLongQueryRunner(
+          this.dataSource,
+          (queryRunner) =>
+            checkSearchVectorIndex(queryRunner, {
+              schemaName: plan.schemaName,
+              qualifiedTable: qualifyTable(plan),
+              indexName: plan.searchVectorIndexName,
+              repair,
+            }),
+          repair ? 0 : undefined,
+        );
+
+        tables.push({
+          ...table,
+          indexHealth,
+          ...(isDefined(plan.searchVectorIndexName) || indexHealth === 'healthy'
+            ? {}
+            : { note: 'no searchVector index in metadata, not rebuilt' }),
+        });
+      } catch (error) {
+        tables.push({
+          ...table,
+          status: 'failed',
+          error: error instanceof Error ? error.message : String(error),
+        });
+      }
+    }
+
+    const hasFailedIndexCheck =
+      (report.status === 'converted' || report.status === 'dryRun') &&
+      tables.some((table) => table.status === 'failed');
+
+    return {
+      status: hasFailedIndexCheck ? 'incomplete' : report.status,
+      tables,
+    };
+  }
+
   // Checks and switches one table, as one run would.
   async convertTable({
     dryRun,
@@ -410,10 +503,29 @@ export class SearchVectorTriggerConversionService {
     assertSafeTsVectorExpression(leanColumnExpression);
 
     return withLongQueryRunner(this.dataSource, async (queryRunner) => {
-      await getExistingSearchVectorColumnState(queryRunner, {
+      const columnState = await getSearchVectorColumnState(
+        queryRunner,
         schemaName,
         tableName,
-      });
+      );
+
+      // Every row needs its vector written, so a missing column is a repair of the whole table.
+      if (columnState === 'missing') {
+        if (!isDefined(repair)) {
+          throw new Error(
+            `searchVector column not found on ${schemaName}.${tableName}; rerun with --repair`,
+          );
+        }
+
+        return {
+          status: 'needsRepair',
+          mismatchCount: await selectRowCount(
+            queryRunner,
+            qualifyTable({ schemaName, tableName }),
+          ),
+        };
+      }
+
       const mismatchCount = await countSearchVectorMismatches(
         queryRunner,
         qualifyTable({ schemaName, tableName }),
@@ -472,9 +584,10 @@ export class SearchVectorTriggerConversionService {
 
     return withLongQueryRunner(this.dataSource, async (queryRunner) => {
       try {
-        const columnState = await getExistingSearchVectorColumnState(
+        const columnState = await getSearchVectorColumnState(
           queryRunner,
-          { schemaName, tableName },
+          schemaName,
+          tableName,
         );
         const hasTrigger = await isSearchVectorTriggerMode(queryRunner, {
           schemaName,
@@ -496,7 +609,12 @@ export class SearchVectorTriggerConversionService {
         } else {
           // A repair rewrites every row through its backfill, so a write after the scan is
           // covered. Otherwise nothing maintains the column yet: block writes and recheck.
-          if (repairedRowCount === 0 && !hasTrigger) {
+          if (columnState === 'missing') {
+            // No default, so Postgres adds it without rewriting the table; the backfill fills it.
+            await queryRunner.query(
+              `ALTER TABLE ${qualifiedTable} ADD COLUMN "searchVector" tsvector`,
+            );
+          } else if (repairedRowCount === 0 && !hasTrigger) {
             await queryRunner.query(
               `LOCK TABLE ${qualifiedTable} IN SHARE ROW EXCLUSIVE MODE`,
             );

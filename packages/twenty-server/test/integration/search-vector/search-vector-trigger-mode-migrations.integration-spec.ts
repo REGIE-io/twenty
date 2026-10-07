@@ -349,14 +349,31 @@ const updateRecord = async (
 };
 
 const readAttGenerated = async (schemaName: string, tableName: string) => {
-  const [{ attgenerated }] = await query<{ attgenerated: string }>(
+  const [column] = await query<{ attgenerated: string }>(
     `SELECT attgenerated FROM pg_attribute
       WHERE attrelid = to_regclass($1) AND attname = 'searchVector' AND NOT attisdropped`,
     [`"${schemaName}"."${tableName}"`],
   );
 
-  return attgenerated;
+  return column?.attgenerated;
 };
+
+// A rebuild gives the index a new oid or relfilenode, so equal values prove it survived.
+const readSearchVectorIndexes = (schemaName: string, tableName: string) =>
+  query<{
+    indexName: string;
+    oid: string;
+    relfilenode: string;
+    definition: string;
+  }>(
+    `SELECT ic.relname AS "indexName", ic.oid::text AS oid,
+            ic.relfilenode::text AS relfilenode, pg_get_indexdef(ic.oid) AS definition
+       FROM pg_index i
+       JOIN pg_class ic ON ic.oid = i.indexrelid
+       JOIN pg_attribute a ON a.attrelid = i.indrelid AND a.attname = 'searchVector'
+      WHERE i.indrelid = to_regclass($1) AND a.attnum = ANY(i.indkey)`,
+    [`"${schemaName}"."${tableName}"`],
+  );
 
 const isTriggerMode = async (schemaName: string, tableName: string) => {
   const queryRunner = global.testDataSource.createQueryRunner();
@@ -1003,6 +1020,10 @@ describe('searchVector trigger mode backfill jobs', () => {
 
   it('creates no job for a new searchable field that is empty on every row', async () => {
     const jobCountBefore = (await readBackfillJobs(object.id)).length;
+    const indexesBefore = await readSearchVectorIndexes(
+      object.schemaName,
+      tableName,
+    );
     const [identifiers] = await query<{
       objectUniversalIdentifier: string;
       applicationUniversalIdentifier: string;
@@ -1065,6 +1086,10 @@ describe('searchVector trigger mode backfill jobs', () => {
       await readFunctionDefinition(object.schemaName, tableName),
     ).toContain('NEW."freshText"');
     expect(await readBackfillJobs(object.id)).toHaveLength(jobCountBefore);
+    expect(indexesBefore).toHaveLength(1);
+    expect(await readSearchVectorIndexes(object.schemaName, tableName)).toEqual(
+      indexesBefore,
+    );
   });
 
   it('backfills the whole table when a searched field is deleted', async () => {
@@ -1223,6 +1248,7 @@ describe('searchVector conversion of a workspace', () => {
   let selfHealObject: CreatedObject | undefined;
   let newObject: CreatedObject | undefined;
   let workspaceId: string;
+  let lostTriggerRecordId: string;
   const convertedTableName = tableNameOf(REPAIR_OBJECT.nameSingular);
   const selfHealTableName = tableNameOf(SELF_HEAL_OBJECT.nameSingular);
   const newTableName = tableNameOf(CONVERTED_WORKSPACE_OBJECT.nameSingular);
@@ -1242,6 +1268,11 @@ describe('searchVector conversion of a workspace', () => {
     // Created before the flag, and left out of the conversion below, so it stays generated.
     selfHealObject = await createObject(SELF_HEAL_OBJECT);
     workspaceId = convertedObject.workspaceId;
+  });
+
+  // A failing test must not leave its plan spy on the next one.
+  afterEach(() => {
+    jest.restoreAllMocks();
   });
 
   afterAll(async () => {
@@ -1337,6 +1368,10 @@ describe('searchVector conversion of a workspace', () => {
 
     expect(await readFlag()).toBeUndefined();
 
+    const indexesBefore = await readSearchVectorIndexes(
+      schemaName,
+      convertedTableName,
+    );
     const report = await conversionService.convertWorkspace({
       workspaceId,
       dryRun: false,
@@ -1349,10 +1384,15 @@ describe('searchVector conversion of a workspace', () => {
           tableName: convertedTableName,
           status: 'repaired',
           mismatchCount: 1,
+          indexHealth: 'healthy',
           note: expect.any(String),
         },
       ],
     });
+    expect(indexesBefore).toHaveLength(1);
+    expect(
+      await readSearchVectorIndexes(schemaName, convertedTableName),
+    ).toEqual(indexesBefore);
     expect(await isTriggerMode(schemaName, convertedTableName)).toBe(true);
     expect(await readFlag()).toBe(true);
     expect(await readLatestBackfillJob(ownPlan.objectMetadataId)).toMatchObject(
@@ -1453,8 +1493,17 @@ describe('searchVector conversion of a workspace', () => {
       return matchingRecordCount;
     };
 
+    const indexesBefore = await readSearchVectorIndexes(
+      schemaName,
+      selfHealTableName,
+    );
+
     await makeLabelIdentifier(selfHealObject.id, codenameField.id);
 
+    expect(indexesBefore).toHaveLength(1);
+    expect(
+      await readSearchVectorIndexes(schemaName, selfHealTableName),
+    ).toEqual(indexesBefore);
     expect(await readAttGenerated(schemaName, selfHealTableName)).toBe('');
     expect(await isTriggerMode(schemaName, selfHealTableName)).toBe(true);
     expect(
@@ -1472,5 +1521,262 @@ describe('searchVector conversion of a workspace', () => {
     await runBackfillJobs();
 
     expect(await countMatchingRecords()).toBe(2);
+  });
+
+  // Before this, a plain column without its trigger fell back to dropping and re-adding
+  // searchVector as a generated column, which locks and rewrites the whole table.
+  it('reinstalls a lost trigger on the next search list change, keeping the column and its index', async () => {
+    if (!isDefined(selfHealObject)) {
+      throw new Error('Self-heal object was not created');
+    }
+
+    const { schemaName } = selfHealObject;
+
+    await query(
+      `DROP TRIGGER "${getSearchVectorFunctionName(selfHealTableName)}" ON "${schemaName}"."${selfHealTableName}"`,
+    );
+    expect(await isTriggerMode(schemaName, selfHealTableName)).toBe(false);
+
+    const aliasField = await createField({
+      objectMetadataId: selfHealObject.id,
+      name: 'alias',
+      type: FieldMetadataType.TEXT,
+    });
+
+    lostTriggerRecordId = await createRecord(SELF_HEAL_OBJECT.nameSingular, {
+      alias: 'zzlosttriggertoken',
+    });
+
+    const indexesBefore = await readSearchVectorIndexes(
+      schemaName,
+      selfHealTableName,
+    );
+
+    await makeLabelIdentifier(selfHealObject.id, aliasField.id);
+
+    expect(await readAttGenerated(schemaName, selfHealTableName)).toBe('');
+    expect(await isTriggerMode(schemaName, selfHealTableName)).toBe(true);
+    expect(
+      await readFunctionDefinition(schemaName, selfHealTableName),
+    ).toContain('NEW."alias"');
+    expect(await readLatestBackfillJob(selfHealObject.id)).toMatchObject({
+      reason: 'REPAIR',
+      status: 'PENDING',
+      filter: null,
+    });
+    expect(
+      await readSearchVectorIndexes(schemaName, selfHealTableName),
+    ).toEqual(indexesBefore);
+
+    await runBackfillJobs();
+
+    expect(
+      await vectorMatches(
+        schemaName,
+        selfHealTableName,
+        lostTriggerRecordId,
+        'zzlosttriggertoken',
+      ),
+    ).toBe(true);
+  });
+
+  // The heal runs before the enum type gains the new value, so it must use the current options.
+  it('heals a lost trigger when an option is added to a searched dropdown, and the save goes through', async () => {
+    if (!isDefined(selfHealObject)) {
+      throw new Error('Self-heal object was not created');
+    }
+
+    const { schemaName } = selfHealObject;
+    const tierField = await createField({
+      objectMetadataId: selfHealObject.id,
+      name: 'tier',
+      type: FieldMetadataType.SELECT,
+      options: [{ label: 'Gold', value: 'GOLD', position: 0, color: 'green' }],
+    });
+
+    await registerSearchField({
+      objectMetadataId: selfHealObject.id,
+      fieldMetadataId: tierField.id,
+      workspaceId,
+    });
+    await runBackfillJobs();
+    await query(
+      `DROP TRIGGER "${getSearchVectorFunctionName(selfHealTableName)}" ON "${schemaName}"."${selfHealTableName}"`,
+    );
+
+    const recordId = await createRecord(SELF_HEAL_OBJECT.nameSingular, {
+      tier: 'GOLD',
+    });
+    const { errors } = await updateOneFieldMetadata({
+      expectToFail: false,
+      gqlFields: `id`,
+      input: {
+        idToUpdate: tierField.id,
+        updatePayload: {
+          options: [
+            {
+              id: tierField.options?.[0]?.id,
+              label: 'Gilded',
+              value: 'GOLD',
+              position: 0,
+              color: 'green',
+            },
+            {
+              label: 'Platinum',
+              value: 'PLATINUM',
+              position: 1,
+              color: 'gray',
+            },
+          ],
+        },
+      },
+    });
+
+    expect(errors).toBeUndefined();
+    expect(await readAttGenerated(schemaName, selfHealTableName)).toBe('');
+    expect(await isTriggerMode(schemaName, selfHealTableName)).toBe(true);
+    expect(await readLatestBackfillJob(selfHealObject.id)).toMatchObject({
+      status: 'PENDING',
+      filter: null,
+    });
+
+    await runBackfillJobs();
+
+    expect(
+      await vectorMatches(schemaName, selfHealTableName, recordId, 'gilded'),
+    ).toBe(true);
+  });
+
+  it('refuses a search list change once the column is gone, and --repair restores column, trigger and index', async () => {
+    if (!isDefined(selfHealObject)) {
+      throw new Error('Self-heal object was not created');
+    }
+
+    const { schemaName } = selfHealObject;
+    const conversionService = getConversionService();
+    const ownPlan = await findOwnTablePlan(workspaceId, selfHealTableName);
+
+    expect(ownPlan.searchVectorIndexName).toEqual(expect.any(String));
+
+    // Dropping the column takes its GIN with it; the trigger would fail every save without it.
+    await query(
+      `DROP TRIGGER "${getSearchVectorFunctionName(selfHealTableName)}" ON "${schemaName}"."${selfHealTableName}"`,
+    );
+    await query(
+      `ALTER TABLE "${schemaName}"."${selfHealTableName}" DROP COLUMN "searchVector"`,
+    );
+
+    const nicknameField = await createField({
+      objectMetadataId: selfHealObject.id,
+      name: 'nickname',
+      type: FieldMetadataType.TEXT,
+    });
+    const { errors } = await updateOneObjectMetadata({
+      expectToFail: true,
+      input: {
+        idToUpdate: selfHealObject.id,
+        updatePayload: { labelIdentifierFieldMetadataId: nicknameField.id },
+      },
+    });
+
+    expect(errors).toBeDefined();
+    expect(
+      await readAttGenerated(schemaName, selfHealTableName),
+    ).toBeUndefined();
+
+    jest
+      .spyOn(conversionService, 'buildWorkspaceTablePlans')
+      .mockResolvedValue({ plans: [ownPlan], unplannedTables: [] });
+
+    const report = await conversionService.convertWorkspace({
+      workspaceId,
+      dryRun: false,
+      repair: true,
+    });
+
+    jest.restoreAllMocks();
+
+    expect(report).toEqual({
+      status: 'converted',
+      tables: [
+        {
+          tableName: selfHealTableName,
+          status: 'repaired',
+          mismatchCount: expect.any(Number),
+          indexHealth: 'repaired',
+        },
+      ],
+    });
+    expect(await readAttGenerated(schemaName, selfHealTableName)).toBe('');
+    expect(await isTriggerMode(schemaName, selfHealTableName)).toBe(true);
+    expect(
+      await readSearchVectorIndexes(schemaName, selfHealTableName),
+    ).toEqual([
+      expect.objectContaining({
+        indexName: ownPlan.searchVectorIndexName,
+        definition: expect.stringMatching(/USING gin \("searchVector"\)$/),
+      }),
+    ]);
+
+    await runBackfillJobs();
+
+    expect(
+      await vectorMatches(
+        schemaName,
+        selfHealTableName,
+        lostTriggerRecordId,
+        'zzlosttriggertoken',
+      ),
+    ).toBe(true);
+  });
+
+  it('reports a GIN with the wrong definition and rebuilds it under its name with --repair', async () => {
+    if (!isDefined(selfHealObject)) {
+      throw new Error('Self-heal object was not created');
+    }
+
+    const { schemaName } = selfHealObject;
+    const conversionService = getConversionService();
+    const ownPlan = await findOwnTablePlan(workspaceId, selfHealTableName);
+    const indexName = ownPlan.searchVectorIndexName as string;
+
+    await query(`DROP INDEX "${schemaName}"."${indexName}"`);
+    await query(
+      `CREATE INDEX "${indexName}" ON "${schemaName}"."${selfHealTableName}" USING gin ("searchVector") WHERE "deletedAt" IS NULL`,
+    );
+
+    jest
+      .spyOn(conversionService, 'buildWorkspaceTablePlans')
+      .mockResolvedValue({ plans: [ownPlan], unplannedTables: [] });
+
+    const dryRunReport = await conversionService.convertWorkspace({
+      workspaceId,
+      dryRun: true,
+    });
+    const report = await conversionService.convertWorkspace({
+      workspaceId,
+      dryRun: false,
+      repair: true,
+    });
+
+    jest.restoreAllMocks();
+
+    expect(dryRunReport.tables).toEqual([
+      expect.objectContaining({ indexHealth: 'wrongDefinition' }),
+    ]);
+    expect(report.tables).toEqual([
+      expect.objectContaining({
+        status: 'alreadyConverted',
+        indexHealth: 'repaired',
+      }),
+    ]);
+    expect(
+      await readSearchVectorIndexes(schemaName, selfHealTableName),
+    ).toEqual([
+      expect.objectContaining({
+        indexName,
+        definition: expect.not.stringContaining('WHERE'),
+      }),
+    ]);
   });
 });

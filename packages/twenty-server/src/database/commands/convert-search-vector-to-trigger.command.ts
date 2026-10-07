@@ -31,7 +31,7 @@ export class ConvertSearchVectorToTriggerCommand extends ProvisionedWorkspaceCom
   @Option({
     flags: '--repair',
     description:
-      'Convert tables whose stored searchVector differs from the formula, and backfill them',
+      'Also convert tables whose stored searchVector differs from the formula or whose column is missing, backfill them, and rebuild a broken searchVector index concurrently',
     required: false,
   })
   parseRepair(): boolean {
@@ -73,7 +73,7 @@ export class ConvertSearchVectorToTriggerCommand extends ProvisionedWorkspaceCom
 
     for (const table of report.tables) {
       this.logger.log(
-        `  ${table.tableName}: ${table.status}, mismatchCount=${table.mismatchCount}${isDefined(table.error) ? `, error=${table.error}` : ''}${isDefined(table.note) ? `, note=${table.note}` : ''}`,
+        `  ${table.tableName}: ${table.status}, mismatchCount=${table.mismatchCount}${isDefined(table.indexHealth) ? `, index=${table.indexHealth}` : ''}${isDefined(table.error) ? `, error=${table.error}` : ''}${isDefined(table.note) ? `, note=${table.note}` : ''}`,
       );
     }
   }

@@ -1,3 +1,6 @@
+import { Logger } from '@nestjs/common';
+
+import { msg } from '@lingui/core/macro';
 import { isDefined } from 'twenty-shared/utils';
 import { type QueryRunner } from 'typeorm';
 
@@ -15,10 +18,13 @@ import {
 import {
   getSearchVectorColumnState,
   hasSearchVectorTrigger,
+  readSearchVectorIndexHealth,
 } from 'src/engine/core-modules/search-vector-trigger/utils/search-vector-table-queries.util';
 import { type FlatEntityMaps } from 'src/engine/metadata-modules/flat-entity/types/flat-entity-maps.type';
 import { findManyFlatEntityByIdInFlatEntityMaps } from 'src/engine/metadata-modules/flat-entity/utils/find-many-flat-entity-by-id-in-flat-entity-maps.util';
 import { type FlatFieldMetadata } from 'src/engine/metadata-modules/flat-field-metadata/types/flat-field-metadata.type';
+import { findFieldRelatedIndexes } from 'src/engine/metadata-modules/flat-field-metadata/utils/find-field-related-index.util';
+import { type FlatIndexMetadata } from 'src/engine/metadata-modules/flat-index-metadata/types/flat-index-metadata.type';
 import { type FlatObjectMetadata } from 'src/engine/metadata-modules/flat-object-metadata/types/flat-object-metadata.type';
 import { type FlatSearchFieldMetadata } from 'src/engine/metadata-modules/flat-search-field-metadata/types/flat-search-field-metadata.type';
 import { deriveCheckedSearchVectorExpression } from 'src/engine/metadata-modules/flat-search-field-metadata/utils/derive-checked-search-vector-expression.util';
@@ -42,6 +48,8 @@ export type SearchVectorTablePlan = SearchVectorTable & {
   objectMetadataId: string;
   leanColumnExpression: string;
   triggerRowExpression: string;
+  // The GIN's name in index metadata, which a repair recreates it under.
+  searchVectorIndexName?: string;
 };
 
 // Everything needed to rebuild a table's trigger function from its current fields.
@@ -51,6 +59,8 @@ export type SearchVectorTriggerSource = SearchVectorTable & {
   objectFlatFieldMetadatas: FlatFieldMetadata[];
   targetSearchFieldMetadatas: FlatSearchFieldMetadata[];
 };
+
+const logger = new Logger('SearchVectorTrigger');
 
 const qualifyName = (schemaName: string, name: string): string =>
   `${escapeIdentifier(schemaName)}.${escapeIdentifier(name)}`;
@@ -81,11 +91,13 @@ export const buildSearchVectorTablePlans = ({
   flatObjectMetadataMaps,
   flatFieldMetadataMaps,
   flatSearchFieldMetadataMaps,
+  flatIndexMaps,
 }: {
   workspaceId: string;
   flatObjectMetadataMaps: FlatEntityMaps<FlatObjectMetadata>;
   flatFieldMetadataMaps: FlatEntityMaps<FlatFieldMetadata>;
   flatSearchFieldMetadataMaps: FlatEntityMaps<FlatSearchFieldMetadata>;
+  flatIndexMaps: FlatEntityMaps<FlatIndexMetadata>;
 }): {
   plans: SearchVectorTablePlan[];
   unplannedTables: SearchVectorUnplannedTable[];
@@ -151,6 +163,11 @@ export const buildSearchVectorTablePlans = ({
           ...expressionInput,
           shape: 'triggerRow',
         }),
+        searchVectorIndexName: findFieldRelatedIndexes({
+          flatFieldMetadata: tsVectorField,
+          flatObjectMetadata,
+          flatIndexMaps,
+        })[0]?.name,
       });
     } catch (error) {
       if (!isMissingStandardSearchFieldsError(error)) {
@@ -339,8 +356,88 @@ export const refreshSearchVectorTriggerIfConverted = async (
   return true;
 };
 
-// A converted workspace (flag on) can still hold a generated table: one the conversion skipped,
-// or a flag set by hand. Its next search list change switches it in place instead of rebuilding.
+// With the flag on, a table never goes back to the drop-and-recreate path, which locks and
+// rewrites the whole table. A generated column (skipped by the conversion, or a flag set by
+// hand) is switched in place; a plain one whose trigger is gone gets it back.
+export const ensureSearchVectorTriggerMode = async (
+  source: SearchVectorTriggerSource,
+  isSearchVectorTriggerEnabled: boolean,
+): Promise<boolean> => {
+  if (await isSearchVectorTriggerMode(source.queryRunner, source)) {
+    return true;
+  }
+
+  if (!isSearchVectorTriggerEnabled) {
+    return false;
+  }
+
+  const { queryRunner, schemaName, tableName } = source;
+  const columnState = await getSearchVectorColumnState(
+    queryRunner,
+    schemaName,
+    tableName,
+  );
+
+  if (columnState === 'missing') {
+    throw new WorkspaceMigrationActionExecutionException({
+      message: `searchVector column is missing on ${schemaName}.${tableName}; run workspace:convert-search-vector-to-trigger with --repair`,
+      code: WorkspaceMigrationActionExecutionExceptionCode.INTERNAL_SERVER_ERROR,
+      userFriendlyMessage: msg`Search is not set up correctly for this object.`,
+    });
+  }
+
+  const triggerRowExpression = deriveCheckedSearchVectorExpression({
+    flatObjectMetadata: source.flatObjectMetadata,
+    objectFlatFieldMetadatas: source.objectFlatFieldMetadatas,
+    targetSearchFieldMetadatas: source.targetSearchFieldMetadatas,
+    shape: 'triggerRow',
+  });
+  const trigger = {
+    queryRunner,
+    qualifiedTable: qualifyName(schemaName, tableName),
+    statements: buildSearchVectorTriggerStatements({
+      schemaName,
+      tableName,
+      triggerRowExpression,
+    }),
+    triggerRowExpression,
+  };
+
+  if (columnState === 'generated') {
+    await convertGeneratedSearchVectorColumn(trigger);
+  } else {
+    await installSearchVectorTrigger(trigger);
+  }
+
+  // Stored values follow the old generated formula, or went stale while no trigger ran.
+  await upsertSearchVectorBackfillJob(queryRunner, {
+    workspaceId: source.flatObjectMetadata.workspaceId,
+    objectMetadataId: source.flatObjectMetadata.id,
+    request: { reason: 'REPAIR', filter: null },
+  });
+
+  return true;
+};
+
+// Only reported: rebuilding a GIN inside a user's save would block their table, so the repair
+// is left to the conversion command's --repair, which builds it concurrently.
+const warnOnUnhealthySearchVectorIndex = async ({
+  queryRunner,
+  schemaName,
+  tableName,
+}: SearchVectorTriggerSource): Promise<void> => {
+  const indexHealth = await readSearchVectorIndexHealth(
+    queryRunner,
+    qualifyName(schemaName, tableName),
+  );
+
+  if (indexHealth !== 'healthy') {
+    logger.warn(
+      `searchVector index on ${schemaName}.${tableName} is ${indexHealth}; run workspace:convert-search-vector-to-trigger with --repair`,
+    );
+  }
+};
+
 export const refreshOrSelfHealSearchVectorTrigger = async ({
   source,
   backfillChange,
@@ -350,46 +447,16 @@ export const refreshOrSelfHealSearchVectorTrigger = async ({
   backfillChange?: SearchVectorBackfillChange;
   isSearchVectorTriggerEnabled: boolean;
 }): Promise<boolean> => {
-  if (await refreshSearchVectorTriggerIfConverted(source, backfillChange)) {
-    return true;
+  // Healing installs the current formula and rewrites every row, which covers backfillChange.
+  const isTriggerMode =
+    (await refreshSearchVectorTriggerIfConverted(source, backfillChange)) ||
+    (await ensureSearchVectorTriggerMode(source, isSearchVectorTriggerEnabled));
+
+  if (isTriggerMode) {
+    await warnOnUnhealthySearchVectorIndex(source);
   }
 
-  if (
-    !isSearchVectorTriggerEnabled ||
-    (await getSearchVectorColumnState(
-      source.queryRunner,
-      source.schemaName,
-      source.tableName,
-    )) !== 'generated'
-  ) {
-    return false;
-  }
-
-  const triggerRowExpression = deriveCheckedSearchVectorExpression({
-    flatObjectMetadata: source.flatObjectMetadata,
-    objectFlatFieldMetadatas: source.objectFlatFieldMetadatas,
-    targetSearchFieldMetadatas: source.targetSearchFieldMetadatas,
-    shape: 'triggerRow',
-  });
-
-  await convertGeneratedSearchVectorColumn({
-    queryRunner: source.queryRunner,
-    qualifiedTable: qualifyName(source.schemaName, source.tableName),
-    statements: buildSearchVectorTriggerStatements({
-      schemaName: source.schemaName,
-      tableName: source.tableName,
-      triggerRowExpression,
-    }),
-    triggerRowExpression,
-  });
-  // Stored values follow the old generated formula, so every row is rewritten by the new one.
-  await upsertSearchVectorBackfillJob(source.queryRunner, {
-    workspaceId: source.flatObjectMetadata.workspaceId,
-    objectMetadataId: source.flatObjectMetadata.id,
-    request: { reason: 'REPAIR', filter: null },
-  });
-
-  return true;
+  return isTriggerMode;
 };
 
 // Builds the field list as it is after the current action: the changed field replaces its

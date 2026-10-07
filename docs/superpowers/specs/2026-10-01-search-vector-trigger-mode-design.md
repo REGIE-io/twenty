@@ -150,9 +150,20 @@ attempts, last error, timestamps.
   once; rows that differ get a whole-table REPAIR backfill.
 - **Migrations read the flag from the database,** inside their transaction after the shared
   lock, never from the cache, so every process sees the same value.
-- **Flag-on workspaces self-heal.** A table still generated on a converted workspace (skipped by
-  the conversion, or a flag set by hand) is switched in place on its next search list change,
-  with a whole-table REPAIR backfill.
+- **Flag-on workspaces self-heal, and never take the legacy drop-and-recreate path.** On its next
+  search list change, a table still generated (skipped by the conversion, or a flag set by hand)
+  is switched in place, and a plain column whose trigger is gone (the runbook's emergency drop, a
+  restore without triggers) gets its trigger back. Both queue a whole-table REPAIR backfill. A
+  missing column refuses the change with an error naming `--repair`; a column is never added
+  inside a user's save. (tom's review, 2026-10-06)
+- **The GIN is checked on its own.** Without a usable index search does not fail, it scans the
+  whole table. A search list change only logs a warning when the index is missing, invalid or
+  wrongly defined. The conversion command reports index health per table on every run, dry runs
+  included; with `--repair` it rebuilds the index after the workspace lock is released, outside
+  any transaction (`CREATE INDEX CONCURRENTLY` / `REINDEX INDEX CONCURRENTLY`), under its
+  index-metadata name. `--repair` also restores a missing column. Bloat stays an ops task.
+  Integration tests assert the GIN's `oid` and `relfilenode` survive conversion, self-heal and
+  an empty-field addition.
 
 ### Blockers to check before rollout
 

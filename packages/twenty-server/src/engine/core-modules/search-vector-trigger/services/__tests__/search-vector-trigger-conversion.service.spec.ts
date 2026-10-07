@@ -6,11 +6,12 @@ import {
 } from 'src/engine/core-modules/search-vector-trigger/services/search-vector-trigger-conversion.service';
 import { upsertSearchVectorBackfillJob } from 'src/engine/core-modules/search-vector-trigger/utils/search-vector-backfill.util';
 import {
+  checkSearchVectorIndex,
   countSearchVectorMismatches,
-  getExistingSearchVectorColumnState,
   getSearchVectorColumnState,
   hasSearchVectorTrigger,
   selectMismatchCount,
+  selectRowCount,
 } from 'src/engine/core-modules/search-vector-trigger/utils/search-vector-table-queries.util';
 import {
   convertGeneratedSearchVectorColumn,
@@ -35,11 +36,12 @@ jest.mock(
     ...jest.requireActual(
       'src/engine/core-modules/search-vector-trigger/utils/search-vector-table-queries.util',
     ),
+    checkSearchVectorIndex: jest.fn(),
     countSearchVectorMismatches: jest.fn().mockResolvedValue(0),
-    getExistingSearchVectorColumnState: jest.fn(),
     getSearchVectorColumnState: jest.fn(),
     hasSearchVectorTrigger: jest.fn(),
     selectMismatchCount: jest.fn(),
+    selectRowCount: jest.fn(),
   }),
 );
 jest.mock(
@@ -92,6 +94,7 @@ const buildService = ({
       flatObjectMetadataMaps: { byUniversalIdentifier: {} },
       flatFieldMetadataMaps: { byUniversalIdentifier: {}, byId: {} },
       flatSearchFieldMetadataMaps: { byUniversalIdentifier: {} },
+      flatIndexMaps: { byUniversalIdentifier: {}, universalIdentifierById: {} },
     }),
     invalidateAndRecompute: jest.fn(),
   };
@@ -134,6 +137,7 @@ const plan = (tableName: string) => ({
   tableName,
   leanColumnExpression: 'lean',
   triggerRowExpression: 'trigger',
+  searchVectorIndexName: `IDX_${tableName}_gin`,
 });
 
 const result = (
@@ -199,6 +203,13 @@ describe('SearchVectorTriggerConversionService.convertWorkspace', () => {
         events.push(`verify ${qualifiedTable}`);
 
         return 0;
+      });
+    jest
+      .mocked(checkSearchVectorIndex)
+      .mockImplementation(async (_queryRunner, { qualifiedTable }) => {
+        events.push(`index ${qualifiedTable}`);
+
+        return 'healthy';
       });
 
     return {
@@ -391,7 +402,102 @@ describe('SearchVectorTriggerConversionService.convertWorkspace', () => {
       'lock released',
       'verify "workspace_abc"."person"',
       'verify "workspace_abc"."company"',
+      'index "workspace_abc"."person"',
+      'index "workspace_abc"."company"',
+      'index "workspace_abc"."task"',
     ]);
+  });
+
+  it('reports index health on a dry run without rebuilding anything', async () => {
+    const { service } = setup();
+
+    jest.mocked(checkSearchVectorIndex).mockResolvedValueOnce('missing');
+
+    const report = await service.convertWorkspace({
+      workspaceId: 'w1',
+      dryRun: true,
+    });
+
+    expect(report.tables[0]).toEqual(
+      expect.objectContaining({ tableName: 'person', indexHealth: 'missing' }),
+    );
+    expect(checkSearchVectorIndex).toHaveBeenCalledWith(expect.anything(), {
+      schemaName: 'workspace_abc',
+      qualifiedTable: '"workspace_abc"."person"',
+      indexName: 'IDX_person_gin',
+      repair: false,
+    });
+  });
+
+  it('rebuilds a broken index with --repair, under its metadata name', async () => {
+    const { service } = setup();
+
+    jest.mocked(checkSearchVectorIndex).mockResolvedValueOnce('repaired');
+
+    const report = await service.convertWorkspace({
+      workspaceId: 'w1',
+      dryRun: false,
+      repair: true,
+    });
+
+    expect(report.status).toBe('converted');
+    expect(report.tables[0]).toEqual(
+      expect.objectContaining({ tableName: 'person', indexHealth: 'repaired' }),
+    );
+    expect(checkSearchVectorIndex).toHaveBeenCalledWith(expect.anything(), {
+      schemaName: 'workspace_abc',
+      qualifiedTable: '"workspace_abc"."person"',
+      indexName: 'IDX_person_gin',
+      repair: true,
+    });
+  });
+
+  it('reports a table whose check throws and keeps checking the others', async () => {
+    const { service, switchTable } = setup({
+      check: (tableName) => {
+        if (tableName === 'company') {
+          throw new Error('searchVector column not found');
+        }
+
+        return result('dryRun');
+      },
+    });
+
+    const report = await service.convertWorkspace({
+      workspaceId: 'w1',
+      dryRun: true,
+    });
+
+    expect(report.status).toBe('incomplete');
+    expect(report.tables.map((table) => table.status)).toEqual([
+      'dryRun',
+      'failed',
+      'dryRun',
+    ]);
+    expect(switchTable).not.toHaveBeenCalled();
+  });
+
+  it('reports incomplete when an index rebuild fails', async () => {
+    const { service } = setup();
+
+    jest
+      .mocked(checkSearchVectorIndex)
+      .mockRejectedValueOnce(new Error('could not create index'));
+
+    const report = await service.convertWorkspace({
+      workspaceId: 'w1',
+      dryRun: false,
+      repair: true,
+    });
+
+    expect(report.status).toBe('incomplete');
+    expect(report.tables[0]).toEqual(
+      expect.objectContaining({
+        tableName: 'person',
+        status: 'failed',
+        error: 'could not create index',
+      }),
+    );
   });
 
   it('takes no lock on a dry run', async () => {
@@ -448,8 +554,12 @@ describe('SearchVectorTriggerConversionService.convertWorkspace', () => {
 
     expect(report.status).toBe('incomplete');
     expect(report.tables).toEqual([
-      { tableName: 'person', ...result('converted') },
-      { tableName: 'company', ...result('lockTimeout') },
+      { tableName: 'person', ...result('converted'), indexHealth: 'healthy' },
+      {
+        tableName: 'company',
+        ...result('lockTimeout'),
+        indexHealth: 'healthy',
+      },
     ]);
     expect(switchedTableNames(switchTable)).toEqual(['person', 'company']);
     expect(
@@ -518,7 +628,7 @@ describe('SearchVectorTriggerConversionService.convertWorkspace', () => {
 
     expect(report.status).toBe('incomplete');
     expect(report.tables).toEqual([
-      { tableName: 'person', ...result('converted') },
+      { tableName: 'person', ...result('converted'), indexHealth: 'healthy' },
       {
         tableName: 'company',
         status: 'failed',
@@ -609,7 +719,16 @@ describe('SearchVectorTriggerConversionService.buildWorkspaceTablePlans', () => 
     isCustom: true,
     fieldIds: [],
     fieldUniversalIdentifiers: [`${nameSingular}-object-id`],
+    indexMetadataIds: [`${nameSingular}-gin-id`],
     searchFieldCount,
+  });
+
+  // One searchVector GIN per object, on the field whose id is the object's own id.
+  const searchVectorIndex = (nameSingular: string) => ({
+    id: `${nameSingular}-gin-id`,
+    universalIdentifier: `${nameSingular}-gin`,
+    name: `IDX_${nameSingular}_gin`,
+    flatIndexFieldMetadatas: [{ fieldMetadataId: `${nameSingular}-object-id` }],
   });
 
   const buildServiceWithObjects = (
@@ -625,6 +744,20 @@ describe('SearchVectorTriggerConversionService.buildWorkspaceTablePlans', () => 
       },
       flatFieldMetadataMaps: { byUniversalIdentifier: {}, byId: {} },
       flatSearchFieldMetadataMaps: { byUniversalIdentifier: {} },
+      flatIndexMaps: {
+        byUniversalIdentifier: Object.fromEntries(
+          objects.map((object) => [
+            `${object.nameSingular}-gin`,
+            searchVectorIndex(object.nameSingular),
+          ]),
+        ),
+        universalIdentifierById: Object.fromEntries(
+          objects.map((object) => [
+            `${object.nameSingular}-gin-id`,
+            `${object.nameSingular}-gin`,
+          ]),
+        ),
+      },
     });
 
     // Each object's search vector field id is its own id, so the search list follows the object.
@@ -687,6 +820,7 @@ describe('SearchVectorTriggerConversionService.buildWorkspaceTablePlans', () => 
         'flatObjectMetadataMaps',
         'flatFieldMetadataMaps',
         'flatSearchFieldMetadataMaps',
+        'flatIndexMaps',
       ],
     );
   });
@@ -703,8 +837,11 @@ describe('SearchVectorTriggerConversionService.buildWorkspaceTablePlans', () => 
       { refreshCache: false },
     );
 
-    expect(plans.map((tablePlan) => tablePlan.objectMetadataId)).toEqual([
-      'person-object-id',
+    expect(plans).toEqual([
+      expect.objectContaining({
+        objectMetadataId: 'person-object-id',
+        searchVectorIndexName: 'IDX_person_gin',
+      }),
     ]);
     expect(unplannedTables).toEqual([
       expect.objectContaining({ status: 'skipped', mismatchCount: 0 }),
@@ -751,21 +888,18 @@ describe('SearchVectorTriggerConversionService.convertTable', () => {
     lockedMismatchCount = 0,
     hasTrigger = false,
   }: {
-    columnState: 'generated' | 'plain';
+    columnState: 'generated' | 'plain' | 'missing';
     mismatchCount: number;
     lockedMismatchCount?: number;
     hasTrigger?: boolean;
   }) => {
-    jest
-      .mocked(getExistingSearchVectorColumnState)
-      .mockResolvedValue(columnState);
     jest.mocked(getSearchVectorColumnState).mockResolvedValue(columnState);
     jest.mocked(countSearchVectorMismatches).mockResolvedValue(mismatchCount);
     jest.mocked(selectMismatchCount).mockResolvedValue(lockedMismatchCount);
     jest.mocked(hasSearchVectorTrigger).mockResolvedValue(hasTrigger);
   };
 
-  const ddlFor = (columnState: 'generated' | 'plain') =>
+  const ddlFor = (columnState: 'generated' | 'plain' | 'missing') =>
     columnState === 'generated'
       ? convertGeneratedSearchVectorColumn
       : installSearchVectorTrigger;
@@ -873,6 +1007,51 @@ describe('SearchVectorTriggerConversionService.convertTable', () => {
     expect(queryRunner.query).not.toHaveBeenCalledWith(
       expect.stringContaining('LOCK TABLE'),
     );
+  });
+
+  it('refuses a table without a searchVector column unless --repair is passed', async () => {
+    const { service } = buildService();
+
+    givenTable({ columnState: 'missing', mismatchCount: 0 });
+
+    await expect(convert(service, { dryRun: true })).rejects.toThrow(
+      'searchVector column not found on workspace_abc.person; rerun with --repair',
+    );
+  });
+
+  it('reports every row of a table without a searchVector column as needing repair', async () => {
+    const { service, queryRunner } = buildService();
+
+    givenTable({ columnState: 'missing', mismatchCount: 0 });
+    jest.mocked(selectRowCount).mockResolvedValue(5);
+
+    await expect(convert(service, { dryRun: true, repair })).resolves.toEqual(
+      result('needsRepair', 5),
+    );
+    expect(queryRunner.query).not.toHaveBeenCalledWith(
+      expect.stringContaining('ADD COLUMN'),
+    );
+  });
+
+  it('adds a missing searchVector column as plain, installs the trigger and backfills every row', async () => {
+    const { service, queryRunner } = buildService();
+
+    givenTable({ columnState: 'missing', mismatchCount: 0 });
+    jest.mocked(selectRowCount).mockResolvedValue(5);
+
+    await expect(convert(service, { dryRun: false, repair })).resolves.toEqual(
+      result('repaired', 5),
+    );
+    expect(queryRunner.query).toHaveBeenCalledWith(
+      'ALTER TABLE "workspace_abc"."person" ADD COLUMN "searchVector" tsvector',
+    );
+    expect(installSearchVectorTrigger).toHaveBeenCalledTimes(1);
+    expect(selectMismatchCount).not.toHaveBeenCalled();
+    expect(upsertSearchVectorBackfillJob).toHaveBeenCalledWith(queryRunner, {
+      workspaceId: 'w1',
+      objectMetadataId: 'person-object-id',
+      request: { reason: 'REPAIR', filter: null },
+    });
   });
 
   it('reports lockTimeout when the switch cannot get its table lock', async () => {
