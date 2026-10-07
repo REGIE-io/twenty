@@ -1,0 +1,1550 @@
+{
+  "objects": [
+    {
+      "nameSingular": "regieStaticList",
+      "namePlural": "regieStaticLists",
+      "labelSingular": "Regie Static List",
+      "labelPlural": "Regie Static Lists"
+    },
+    {
+      "nameSingular": "regieListMembership",
+      "namePlural": "regieListMemberships",
+      "labelSingular": "Regie List Membership",
+      "labelPlural": "Regie List Memberships"
+    },
+    {
+      "nameSingular": "regieSyncSource",
+      "namePlural": "regieSyncSources",
+      "labelSingular": "CRM Sync Source",
+      "labelPlural": "CRM Sync Sources"
+    }
+  ],
+  "fields": [
+    {
+      "objectNameSingular": "opportunity",
+      "name": "salesforceId",
+      "label": "Salesforce ID",
+      "type": "TEXT"
+    },
+    {
+      "objectNameSingular": "opportunity",
+      "name": "salesforceStageName",
+      "label": "Salesforce Stage",
+      "type": "TEXT"
+    },
+    {
+      "objectNameSingular": "opportunity",
+      "name": "salesforceOwnerId",
+      "label": "Salesforce Owner ID",
+      "type": "TEXT"
+    },
+    {
+      "objectNameSingular": "opportunity",
+      "name": "salesforceProbability",
+      "label": "Salesforce Probability",
+      "type": "NUMBER"
+    },
+    {
+      "objectNameSingular": "opportunity",
+      "name": "salesforceIsClosed",
+      "label": "Salesforce Is Closed",
+      "type": "BOOLEAN"
+    },
+    {
+      "objectNameSingular": "opportunity",
+      "name": "salesforceIsWon",
+      "label": "Salesforce Is Won",
+      "type": "BOOLEAN"
+    },
+    {
+      "objectNameSingular": "opportunity",
+      "name": "salesforceIsPrivate",
+      "label": "Salesforce Is Private",
+      "type": "BOOLEAN"
+    },
+    {
+      "objectNameSingular": "opportunity",
+      "name": "externalCrmId",
+      "label": "External CRM ID",
+      "type": "TEXT"
+    },
+    {
+      "objectNameSingular": "opportunity",
+      "name": "externalCrmOwnerId",
+      "label": "External CRM Owner ID",
+      "type": "TEXT"
+    },
+    {
+      "objectNameSingular": "opportunity",
+      "name": "crmStageName",
+      "label": "CRM Stage",
+      "type": "TEXT"
+    },
+    {
+      "objectNameSingular": "opportunity",
+      "name": "crmProbability",
+      "label": "CRM Probability",
+      "type": "NUMBER"
+    },
+    {
+      "objectNameSingular": "opportunity",
+      "name": "crmIsClosed",
+      "label": "CRM Is Closed",
+      "type": "BOOLEAN"
+    },
+    {
+      "objectNameSingular": "opportunity",
+      "name": "crmIsWon",
+      "label": "CRM Is Won",
+      "type": "BOOLEAN"
+    },
+    {
+      "objectNameSingular": "opportunity",
+      "name": "crmIsPrivate",
+      "label": "CRM Is Private",
+      "type": "BOOLEAN"
+    },
+    {
+      "objectNameSingular": "calendarEvent",
+      "name": "salesforceId",
+      "label": "Salesforce ID",
+      "type": "TEXT",
+      "settings": {
+        "additionalSearch": {
+          "version": 1,
+          "target": "calendar_event",
+          "searchable": false
+        }
+      }
+    },
+    {
+      "objectNameSingular": "calendarEvent",
+      "name": "salesforceOwnerId",
+      "label": "Salesforce Owner ID",
+      "type": "TEXT",
+      "settings": {
+        "additionalSearch": {
+          "version": 1,
+          "target": "calendar_event",
+          "searchable": false
+        }
+      }
+    },
+    {
+      "objectNameSingular": "calendarEvent",
+      "name": "salesforceIsPrivate",
+      "label": "Salesforce Is Private",
+      "type": "BOOLEAN",
+      "settings": {
+        "additionalSearch": {
+          "version": 1,
+          "target": "calendar_event",
+          "searchable": false
+        }
+      }
+    },
+    {
+      "objectNameSingular": "calendarEvent",
+      "name": "externalCrmId",
+      "label": "External CRM ID",
+      "type": "TEXT",
+      "settings": {
+        "additionalSearch": {
+          "version": 1,
+          "target": "calendar_event",
+          "searchable": false
+        }
+      }
+    },
+    {
+      "objectNameSingular": "calendarEvent",
+      "name": "externalCrmOwnerId",
+      "label": "External CRM Owner ID",
+      "type": "TEXT",
+      "settings": {
+        "additionalSearch": {
+          "version": 1,
+          "target": "calendar_event",
+          "searchable": false
+        }
+      }
+    },
+    {
+      "objectNameSingular": "calendarEvent",
+      "name": "crmIsPrivate",
+      "label": "CRM Is Private",
+      "type": "BOOLEAN",
+      "settings": {
+        "additionalSearch": {
+          "version": 1,
+          "target": "calendar_event",
+          "searchable": false
+        }
+      }
+    },
+    {
+      "objectNameSingular": "company",
+      "name": "industry",
+      "label": "Industry",
+      "type": "TEXT",
+      "settings": {
+        "additionalSearch": {
+          "version": 1,
+          "target": "account",
+          "searchable": true
+        }
+      }
+    },
+    {
+      "objectNameSingular": "company",
+      "name": "employees",
+      "label": "Employees",
+      "type": "NUMBER",
+      "settings": {
+        "additionalSearch": {
+          "version": 1,
+          "target": "account",
+          "searchable": false
+        }
+      }
+    },
+    {
+      "objectNameSingular": "company",
+      "name": "city",
+      "label": "City",
+      "type": "TEXT",
+      "settings": {
+        "additionalSearch": {
+          "version": 1,
+          "target": "account",
+          "searchable": true
+        }
+      }
+    },
+    {
+      "objectNameSingular": "company",
+      "name": "state",
+      "label": "State",
+      "type": "TEXT",
+      "settings": {
+        "additionalSearch": {
+          "version": 1,
+          "target": "account",
+          "searchable": true
+        }
+      }
+    },
+    {
+      "objectNameSingular": "company",
+      "name": "country",
+      "label": "Country",
+      "type": "TEXT",
+      "settings": {
+        "additionalSearch": {
+          "version": 1,
+          "target": "account",
+          "searchable": true
+        }
+      }
+    },
+    {
+      "objectNameSingular": "company",
+      "name": "hubspotId",
+      "label": "HubSpot ID",
+      "type": "TEXT",
+      "settings": {
+        "additionalSearch": {
+          "version": 1,
+          "target": "account",
+          "searchable": false
+        }
+      }
+    },
+    {
+      "objectNameSingular": "company",
+      "name": "salesforceId",
+      "label": "Salesforce ID",
+      "type": "TEXT",
+      "settings": {
+        "additionalSearch": {
+          "version": 1,
+          "target": "account",
+          "searchable": false
+        }
+      }
+    },
+    {
+      "objectNameSingular": "company",
+      "name": "externalCrmId",
+      "label": "External CRM ID",
+      "type": "TEXT",
+      "settings": {
+        "additionalSearch": {
+          "version": 1,
+          "target": "account",
+          "searchable": false
+        }
+      }
+    },
+    {
+      "objectNameSingular": "task",
+      "name": "taskType",
+      "label": "Task Type",
+      "type": "TEXT",
+      "settings": {
+        "additionalSearch": {
+          "version": 1,
+          "target": "task",
+          "searchable": false
+        }
+      }
+    },
+    {
+      "objectNameSingular": "task",
+      "name": "personId",
+      "label": "Person ID",
+      "type": "TEXT",
+      "settings": {
+        "additionalSearch": {
+          "version": 1,
+          "target": "task",
+          "searchable": false
+        }
+      }
+    },
+    {
+      "objectNameSingular": "task",
+      "name": "subject",
+      "label": "Subject",
+      "type": "TEXT",
+      "settings": {
+        "additionalSearch": {
+          "version": 1,
+          "target": "task",
+          "searchable": false
+        }
+      }
+    },
+    {
+      "objectNameSingular": "task",
+      "name": "to",
+      "label": "To",
+      "type": "TEXT",
+      "settings": {
+        "additionalSearch": {
+          "version": 1,
+          "target": "task",
+          "searchable": false
+        }
+      }
+    },
+    {
+      "objectNameSingular": "task",
+      "name": "hubspotId",
+      "label": "HubSpot ID",
+      "type": "TEXT",
+      "settings": {
+        "additionalSearch": {
+          "version": 1,
+          "target": "task",
+          "searchable": false
+        }
+      }
+    },
+    {
+      "objectNameSingular": "task",
+      "name": "salesforceId",
+      "label": "Salesforce ID",
+      "type": "TEXT",
+      "settings": {
+        "additionalSearch": {
+          "version": 1,
+          "target": "task",
+          "searchable": false
+        }
+      }
+    },
+    {
+      "objectNameSingular": "task",
+      "name": "phone",
+      "label": "Phone",
+      "type": "TEXT",
+      "settings": {
+        "additionalSearch": {
+          "version": 1,
+          "target": "task",
+          "searchable": false
+        }
+      }
+    },
+    {
+      "objectNameSingular": "task",
+      "name": "isSkipped",
+      "label": "Is Skipped",
+      "type": "TEXT",
+      "settings": {
+        "additionalSearch": {
+          "version": 1,
+          "target": "task",
+          "searchable": false
+        }
+      }
+    },
+    {
+      "objectNameSingular": "task",
+      "name": "ccEmails",
+      "label": "CC Emails",
+      "type": "TEXT",
+      "settings": {
+        "additionalSearch": {
+          "version": 1,
+          "target": "task",
+          "searchable": false
+        }
+      }
+    },
+    {
+      "objectNameSingular": "task",
+      "name": "bccEmails",
+      "label": "BCC Emails",
+      "type": "TEXT",
+      "settings": {
+        "additionalSearch": {
+          "version": 1,
+          "target": "task",
+          "searchable": false
+        }
+      }
+    },
+    {
+      "objectNameSingular": "task",
+      "name": "context",
+      "label": "Context",
+      "type": "RAW_JSON",
+      "settings": {
+        "additionalSearch": {
+          "version": 1,
+          "target": "task",
+          "searchable": false
+        }
+      }
+    },
+    {
+      "objectNameSingular": "task",
+      "name": "emailId",
+      "label": "Email ID",
+      "type": "TEXT",
+      "settings": {
+        "additionalSearch": {
+          "version": 1,
+          "target": "task",
+          "searchable": false
+        }
+      }
+    },
+    {
+      "objectNameSingular": "task",
+      "name": "threadId",
+      "label": "Thread ID",
+      "type": "TEXT",
+      "settings": {
+        "additionalSearch": {
+          "version": 1,
+          "target": "task",
+          "searchable": false
+        }
+      }
+    },
+    {
+      "objectNameSingular": "task",
+      "name": "draftSources",
+      "label": "Draft Sources",
+      "type": "TEXT",
+      "settings": {
+        "additionalSearch": {
+          "version": 1,
+          "target": "task",
+          "searchable": false
+        }
+      }
+    },
+    {
+      "objectNameSingular": "task",
+      "name": "prospectName",
+      "label": "Prospect Name",
+      "type": "TEXT",
+      "settings": {
+        "additionalSearch": {
+          "version": 1,
+          "target": "task",
+          "searchable": false
+        }
+      }
+    },
+    {
+      "objectNameSingular": "task",
+      "name": "completedAt",
+      "label": "Completed At",
+      "type": "DATE_TIME",
+      "settings": {
+        "additionalSearch": {
+          "version": 1,
+          "target": "task",
+          "searchable": false
+        }
+      }
+    },
+    {
+      "objectNameSingular": "task",
+      "name": "dispositionDueAt",
+      "label": "Disposition Due At",
+      "type": "DATE_TIME",
+      "settings": {
+        "additionalSearch": {
+          "version": 1,
+          "target": "task",
+          "searchable": false
+        }
+      }
+    },
+    {
+      "objectNameSingular": "task",
+      "name": "vendorCallId",
+      "label": "Vendor Call ID",
+      "type": "TEXT",
+      "settings": {
+        "additionalSearch": {
+          "version": 1,
+          "target": "task",
+          "searchable": false
+        }
+      }
+    },
+    {
+      "objectNameSingular": "task",
+      "name": "unsubscribeLink",
+      "label": "Unsubscribe Link",
+      "type": "TEXT",
+      "settings": {
+        "additionalSearch": {
+          "version": 1,
+          "target": "task",
+          "searchable": false
+        }
+      }
+    },
+    {
+      "objectNameSingular": "task",
+      "name": "accountId",
+      "label": "Account ID",
+      "type": "TEXT",
+      "settings": {
+        "additionalSearch": {
+          "version": 1,
+          "target": "task",
+          "searchable": false
+        }
+      }
+    },
+    {
+      "objectNameSingular": "task",
+      "name": "sourceType",
+      "label": "Source Type",
+      "type": "TEXT",
+      "settings": {
+        "additionalSearch": {
+          "version": 1,
+          "target": "task",
+          "searchable": false
+        }
+      }
+    },
+    {
+      "objectNameSingular": "task",
+      "name": "sourceId",
+      "label": "Source ID",
+      "type": "TEXT",
+      "settings": {
+        "additionalSearch": {
+          "version": 1,
+          "target": "task",
+          "searchable": false
+        }
+      }
+    },
+    {
+      "objectNameSingular": "task",
+      "name": "isDeleted",
+      "label": "Is Deleted",
+      "type": "BOOLEAN",
+      "settings": {
+        "additionalSearch": {
+          "version": 1,
+          "target": "task",
+          "searchable": false
+        }
+      }
+    },
+    {
+      "objectNameSingular": "task",
+      "name": "isReplyToInbound",
+      "label": "Is Reply To Inbound",
+      "type": "BOOLEAN",
+      "settings": {
+        "additionalSearch": {
+          "version": 1,
+          "target": "task",
+          "searchable": false
+        }
+      }
+    },
+    {
+      "objectNameSingular": "task",
+      "name": "voicemailText",
+      "label": "Voicemail Text",
+      "type": "TEXT",
+      "settings": {
+        "additionalSearch": {
+          "version": 1,
+          "target": "task",
+          "searchable": false
+        }
+      }
+    },
+    {
+      "objectNameSingular": "task",
+      "name": "voicemailUrl",
+      "label": "Voicemail URL",
+      "type": "TEXT",
+      "settings": {
+        "additionalSearch": {
+          "version": 1,
+          "target": "task",
+          "searchable": false
+        }
+      }
+    },
+    {
+      "objectNameSingular": "task",
+      "name": "externalCrmId",
+      "label": "External CRM ID",
+      "type": "TEXT",
+      "settings": {
+        "additionalSearch": {
+          "version": 1,
+          "target": "task",
+          "searchable": false
+        }
+      }
+    },
+    {
+      "objectNameSingular": "task",
+      "name": "regieSource",
+      "label": "Regie Source",
+      "type": "TEXT",
+      "settings": {
+        "additionalSearch": {
+          "version": 1,
+          "target": "task",
+          "searchable": false
+        }
+      }
+    },
+    {
+      "objectNameSingular": "task",
+      "name": "regieExternalSystem",
+      "label": "Regie External System",
+      "type": "TEXT",
+      "settings": {
+        "additionalSearch": {
+          "version": 1,
+          "target": "task",
+          "searchable": false
+        }
+      }
+    },
+    {
+      "objectNameSingular": "task",
+      "name": "regieExternalRecordId",
+      "label": "Regie External Record ID",
+      "type": "TEXT",
+      "settings": {
+        "additionalSearch": {
+          "version": 1,
+          "target": "task",
+          "searchable": false
+        }
+      }
+    },
+    {
+      "objectNameSingular": "task",
+      "name": "regieCreatedBy",
+      "label": "Regie Created By",
+      "type": "TEXT",
+      "settings": {
+        "additionalSearch": {
+          "version": 1,
+          "target": "task",
+          "searchable": false
+        }
+      }
+    },
+    {
+      "objectNameSingular": "person",
+      "name": "doNotContact",
+      "label": "Do Not Contact",
+      "type": "BOOLEAN",
+      "settings": {
+        "additionalSearch": {
+          "version": 1,
+          "target": "person",
+          "searchable": false
+        }
+      }
+    },
+    {
+      "objectNameSingular": "person",
+      "name": "emailOptOut",
+      "label": "Email Opt Out",
+      "type": "BOOLEAN",
+      "settings": {
+        "additionalSearch": {
+          "version": 1,
+          "target": "person",
+          "searchable": false
+        }
+      }
+    },
+    {
+      "objectNameSingular": "person",
+      "name": "doNotCall",
+      "label": "Do Not Call",
+      "type": "BOOLEAN",
+      "settings": {
+        "additionalSearch": {
+          "version": 1,
+          "target": "person",
+          "searchable": false
+        }
+      }
+    },
+    {
+      "objectNameSingular": "person",
+      "name": "hubspotId",
+      "label": "HubSpot ID",
+      "type": "TEXT",
+      "settings": {
+        "additionalSearch": {
+          "version": 1,
+          "target": "person",
+          "searchable": false
+        }
+      }
+    },
+    {
+      "objectNameSingular": "person",
+      "name": "salesforceId",
+      "label": "Salesforce ID",
+      "type": "TEXT",
+      "settings": {
+        "additionalSearch": {
+          "version": 1,
+          "target": "person",
+          "searchable": false
+        }
+      }
+    },
+    {
+      "objectNameSingular": "person",
+      "name": "city",
+      "label": "City",
+      "type": "TEXT",
+      "settings": {
+        "additionalSearch": {
+          "version": 1,
+          "target": "person",
+          "searchable": true
+        }
+      }
+    },
+    {
+      "objectNameSingular": "person",
+      "name": "state",
+      "label": "State",
+      "type": "TEXT",
+      "settings": {
+        "additionalSearch": {
+          "version": 1,
+          "target": "person",
+          "searchable": true
+        }
+      }
+    },
+    {
+      "objectNameSingular": "person",
+      "name": "country",
+      "label": "Country",
+      "type": "TEXT",
+      "settings": {
+        "additionalSearch": {
+          "version": 1,
+          "target": "person",
+          "searchable": true
+        }
+      }
+    },
+    {
+      "objectNameSingular": "person",
+      "name": "lastEmailedAt",
+      "label": "Last Emailed At",
+      "type": "DATE_TIME",
+      "settings": {
+        "additionalSearch": {
+          "version": 1,
+          "target": "person",
+          "searchable": false
+        }
+      }
+    },
+    {
+      "objectNameSingular": "person",
+      "name": "lastCalledAt",
+      "label": "Last Called At",
+      "type": "DATE_TIME",
+      "settings": {
+        "additionalSearch": {
+          "version": 1,
+          "target": "person",
+          "searchable": false
+        }
+      }
+    },
+    {
+      "objectNameSingular": "person",
+      "name": "lastLinkedInAt",
+      "label": "Last LinkedIn At",
+      "type": "DATE_TIME",
+      "settings": {
+        "additionalSearch": {
+          "version": 1,
+          "target": "person",
+          "searchable": false
+        }
+      }
+    },
+    {
+      "objectNameSingular": "person",
+      "name": "externalCrmId",
+      "label": "External CRM ID",
+      "type": "TEXT",
+      "settings": {
+        "additionalSearch": {
+          "version": 1,
+          "target": "person",
+          "searchable": false
+        }
+      }
+    },
+    {
+      "objectNameSingular": "regieStaticList",
+      "name": "name",
+      "label": "Name",
+      "type": "TEXT"
+    },
+    {
+      "objectNameSingular": "regieStaticList",
+      "name": "targetType",
+      "label": "Target Type",
+      "type": "SELECT",
+      "options": [
+        {
+          "value": "PERSON",
+          "label": "PERSON",
+          "color": "gray",
+          "position": 0
+        },
+        {
+          "value": "ACCOUNT",
+          "label": "ACCOUNT",
+          "color": "gray",
+          "position": 1
+        },
+        {
+          "value": "TASK",
+          "label": "TASK",
+          "color": "gray",
+          "position": 2
+        }
+      ]
+    },
+    {
+      "objectNameSingular": "regieStaticList",
+      "name": "populationStatus",
+      "label": "Population Status",
+      "type": "SELECT",
+      "options": [
+        {
+          "value": "READY",
+          "label": "READY",
+          "color": "gray",
+          "position": 0
+        },
+        {
+          "value": "POPULATING",
+          "label": "POPULATING",
+          "color": "gray",
+          "position": 1
+        },
+        {
+          "value": "PARTIAL",
+          "label": "PARTIAL",
+          "color": "gray",
+          "position": 2
+        },
+        {
+          "value": "FAILED",
+          "label": "FAILED",
+          "color": "gray",
+          "position": 3
+        }
+      ]
+    },
+    {
+      "objectNameSingular": "regieStaticList",
+      "name": "sourceType",
+      "label": "Source Type",
+      "type": "SELECT",
+      "options": [
+        {
+          "value": "MANUAL",
+          "label": "MANUAL",
+          "color": "gray",
+          "position": 0
+        },
+        {
+          "value": "DYNAMIC_SNAPSHOT",
+          "label": "DYNAMIC_SNAPSHOT",
+          "color": "gray",
+          "position": 1
+        },
+        {
+          "value": "CSV_IMPORT",
+          "label": "CSV_IMPORT",
+          "color": "gray",
+          "position": 2
+        }
+      ]
+    },
+    {
+      "objectNameSingular": "regieStaticList",
+      "name": "sourceRef",
+      "label": "Source Reference",
+      "type": "TEXT"
+    },
+    {
+      "objectNameSingular": "regieStaticList",
+      "name": "snapshotStartedAt",
+      "label": "Snapshot Started At",
+      "type": "DATE_TIME"
+    },
+    {
+      "objectNameSingular": "regieStaticList",
+      "name": "snapshotFilter",
+      "label": "Snapshot Filter",
+      "type": "TEXT"
+    },
+    {
+      "objectNameSingular": "regieStaticList",
+      "name": "sourceFilterRevision",
+      "label": "Source Filter Revision",
+      "type": "TEXT"
+    },
+    {
+      "objectNameSingular": "regieStaticList",
+      "name": "populationProcessed",
+      "label": "Population Processed",
+      "type": "NUMBER"
+    },
+    {
+      "objectNameSingular": "regieStaticList",
+      "name": "populationAdded",
+      "label": "Population Added",
+      "type": "NUMBER"
+    },
+    {
+      "objectNameSingular": "regieStaticList",
+      "name": "populationSkipped",
+      "label": "Population Skipped",
+      "type": "NUMBER"
+    },
+    {
+      "objectNameSingular": "regieStaticList",
+      "name": "populationFailed",
+      "label": "Population Failed",
+      "type": "NUMBER"
+    },
+    {
+      "objectNameSingular": "regieStaticList",
+      "name": "creationOperationKeyHash",
+      "label": "Creation Operation Key Hash",
+      "type": "TEXT"
+    },
+    {
+      "objectNameSingular": "regieStaticList",
+      "name": "creationRequestHash",
+      "label": "Creation Request Hash",
+      "type": "TEXT"
+    },
+    {
+      "objectNameSingular": "regieListMembership",
+      "name": "membershipKey",
+      "label": "Membership Key",
+      "type": "TEXT"
+    },
+    {
+      "objectNameSingular": "regieListMembership",
+      "name": "source",
+      "label": "Source",
+      "type": "SELECT",
+      "options": [
+        {
+          "value": "MANUAL",
+          "label": "MANUAL",
+          "color": "gray",
+          "position": 0
+        },
+        {
+          "value": "SNAPSHOT",
+          "label": "SNAPSHOT",
+          "color": "gray",
+          "position": 1
+        },
+        {
+          "value": "CSV",
+          "label": "CSV",
+          "color": "gray",
+          "position": 2
+        },
+        {
+          "value": "API",
+          "label": "API",
+          "color": "gray",
+          "position": 3
+        }
+      ]
+    },
+    {
+      "objectNameSingular": "regieSyncSource",
+      "name": "sourceKey",
+      "label": "Source Key",
+      "type": "TEXT"
+    },
+    {
+      "objectNameSingular": "regieSyncSource",
+      "name": "syncSystem",
+      "label": "Sync System",
+      "type": "SELECT",
+      "options": [
+        {
+          "value": "SALESFORCE",
+          "label": "SALESFORCE",
+          "color": "gray",
+          "position": 0
+        },
+        {
+          "value": "HUBSPOT",
+          "label": "HUBSPOT",
+          "color": "gray",
+          "position": 1
+        }
+      ]
+    },
+    {
+      "objectNameSingular": "regieSyncSource",
+      "name": "localObjectType",
+      "label": "Local Object Type",
+      "type": "SELECT",
+      "options": [
+        {
+          "value": "PERSON",
+          "label": "PERSON",
+          "color": "gray",
+          "position": 0
+        },
+        {
+          "value": "COMPANY",
+          "label": "COMPANY",
+          "color": "gray",
+          "position": 1
+        },
+        {
+          "value": "TASK",
+          "label": "TASK",
+          "color": "gray",
+          "position": 2
+        },
+        {
+          "value": "OPPORTUNITY",
+          "label": "OPPORTUNITY",
+          "color": "gray",
+          "position": 3
+        },
+        {
+          "value": "CALENDAR_EVENT",
+          "label": "CALENDAR_EVENT",
+          "color": "gray",
+          "position": 4
+        }
+      ]
+    },
+    {
+      "objectNameSingular": "regieSyncSource",
+      "name": "externalObjectApiName",
+      "label": "External Object",
+      "type": "TEXT"
+    },
+    {
+      "objectNameSingular": "regieSyncSource",
+      "name": "externalRecordId",
+      "label": "External Record ID",
+      "type": "TEXT"
+    },
+    {
+      "objectNameSingular": "regieSyncSource",
+      "name": "connectionGeneration",
+      "label": "Connection Generation",
+      "type": "NUMBER"
+    },
+    {
+      "objectNameSingular": "regieSyncSource",
+      "name": "lifecycleState",
+      "label": "Lifecycle",
+      "type": "SELECT",
+      "options": [
+        {
+          "value": "ACTIVE",
+          "label": "ACTIVE",
+          "color": "gray",
+          "position": 0
+        },
+        {
+          "value": "CONVERTED",
+          "label": "CONVERTED",
+          "color": "gray",
+          "position": 1
+        },
+        {
+          "value": "MERGED",
+          "label": "MERGED",
+          "color": "gray",
+          "position": 2
+        },
+        {
+          "value": "DELETED",
+          "label": "DELETED",
+          "color": "gray",
+          "position": 3
+        }
+      ]
+    },
+    {
+      "objectNameSingular": "regieSyncSource",
+      "name": "deliveryState",
+      "label": "Delivery State",
+      "type": "SELECT",
+      "options": [
+        {
+          "value": "SYNCED",
+          "label": "SYNCED",
+          "color": "gray",
+          "position": 0
+        },
+        {
+          "value": "PENDING",
+          "label": "PENDING",
+          "color": "gray",
+          "position": 1
+        },
+        {
+          "value": "CHECKING",
+          "label": "CHECKING",
+          "color": "gray",
+          "position": 2
+        },
+        {
+          "value": "FAILED",
+          "label": "FAILED",
+          "color": "gray",
+          "position": 3
+        },
+        {
+          "value": "PAUSED",
+          "label": "PAUSED",
+          "color": "gray",
+          "position": 4
+        }
+      ]
+    },
+    {
+      "objectNameSingular": "regieSyncSource",
+      "name": "isWriteTarget",
+      "label": "Write Target",
+      "type": "BOOLEAN"
+    },
+    {
+      "objectNameSingular": "regieSyncSource",
+      "name": "lastAttemptAt",
+      "label": "Last Attempt At",
+      "type": "DATE_TIME"
+    },
+    {
+      "objectNameSingular": "regieSyncSource",
+      "name": "lastSyncedAt",
+      "label": "Last Synced At",
+      "type": "DATE_TIME"
+    },
+    {
+      "objectNameSingular": "regieSyncSource",
+      "name": "lastError",
+      "label": "Last Error",
+      "type": "TEXT"
+    },
+    {
+      "objectNameSingular": "calendarEvent",
+      "name": "person",
+      "label": "person",
+      "type": "RELATION",
+      "relation": {
+        "type": "MANY_TO_ONE",
+        "targetObjectNameSingular": "person",
+        "targetFieldName": "salesforceCalendarEvents",
+        "targetFieldLabel": "Salesforce Calendar Events",
+        "targetFieldIcon": "IconCalendarEvent",
+        "onDelete": "SET_NULL"
+      }
+    },
+    {
+      "objectNameSingular": "calendarEvent",
+      "name": "company",
+      "label": "company",
+      "type": "RELATION",
+      "relation": {
+        "type": "MANY_TO_ONE",
+        "targetObjectNameSingular": "company",
+        "targetFieldName": "salesforceCalendarEvents",
+        "targetFieldLabel": "Salesforce Calendar Events",
+        "targetFieldIcon": "IconCalendarEvent",
+        "onDelete": "SET_NULL"
+      }
+    },
+    {
+      "objectNameSingular": "calendarEvent",
+      "name": "opportunity",
+      "label": "opportunity",
+      "type": "RELATION",
+      "relation": {
+        "type": "MANY_TO_ONE",
+        "targetObjectNameSingular": "opportunity",
+        "targetFieldName": "salesforceCalendarEvents",
+        "targetFieldLabel": "Salesforce Calendar Events",
+        "targetFieldIcon": "IconCalendarEvent",
+        "onDelete": "SET_NULL"
+      }
+    },
+    {
+      "objectNameSingular": "regieListMembership",
+      "name": "list",
+      "label": "list",
+      "type": "RELATION",
+      "relation": {
+        "type": "MANY_TO_ONE",
+        "targetObjectNameSingular": "regieStaticList",
+        "targetFieldName": "members",
+        "targetFieldLabel": "Members",
+        "targetFieldIcon": "IconList",
+        "onDelete": "CASCADE"
+      }
+    },
+    {
+      "objectNameSingular": "regieListMembership",
+      "name": "person",
+      "label": "person",
+      "type": "RELATION",
+      "relation": {
+        "type": "MANY_TO_ONE",
+        "targetObjectNameSingular": "person",
+        "targetFieldName": "regieListMemberships",
+        "targetFieldLabel": "Regie List Memberships",
+        "targetFieldIcon": "IconList",
+        "onDelete": "CASCADE"
+      }
+    },
+    {
+      "objectNameSingular": "regieListMembership",
+      "name": "account",
+      "label": "account",
+      "type": "RELATION",
+      "relation": {
+        "type": "MANY_TO_ONE",
+        "targetObjectNameSingular": "company",
+        "targetFieldName": "regieListMemberships",
+        "targetFieldLabel": "Regie List Memberships",
+        "targetFieldIcon": "IconList",
+        "onDelete": "CASCADE"
+      }
+    },
+    {
+      "objectNameSingular": "regieListMembership",
+      "name": "task",
+      "label": "task",
+      "type": "RELATION",
+      "relation": {
+        "type": "MANY_TO_ONE",
+        "targetObjectNameSingular": "task",
+        "targetFieldName": "regieListMemberships",
+        "targetFieldLabel": "Regie List Memberships",
+        "targetFieldIcon": "IconList",
+        "onDelete": "CASCADE"
+      }
+    },
+    {
+      "objectNameSingular": "regieSyncSource",
+      "name": "person",
+      "label": "person",
+      "type": "RELATION",
+      "relation": {
+        "type": "MANY_TO_ONE",
+        "targetObjectNameSingular": "person",
+        "targetFieldName": "regieSyncSources",
+        "targetFieldLabel": "CRM Sync Sources",
+        "targetFieldIcon": "IconRefresh",
+        "onDelete": "CASCADE"
+      }
+    },
+    {
+      "objectNameSingular": "regieSyncSource",
+      "name": "company",
+      "label": "company",
+      "type": "RELATION",
+      "relation": {
+        "type": "MANY_TO_ONE",
+        "targetObjectNameSingular": "company",
+        "targetFieldName": "regieSyncSources",
+        "targetFieldLabel": "CRM Sync Sources",
+        "targetFieldIcon": "IconRefresh",
+        "onDelete": "CASCADE"
+      }
+    },
+    {
+      "objectNameSingular": "regieSyncSource",
+      "name": "task",
+      "label": "task",
+      "type": "RELATION",
+      "relation": {
+        "type": "MANY_TO_ONE",
+        "targetObjectNameSingular": "task",
+        "targetFieldName": "regieSyncSources",
+        "targetFieldLabel": "CRM Sync Sources",
+        "targetFieldIcon": "IconRefresh",
+        "onDelete": "CASCADE"
+      }
+    },
+    {
+      "objectNameSingular": "regieSyncSource",
+      "name": "opportunity",
+      "label": "opportunity",
+      "type": "RELATION",
+      "relation": {
+        "type": "MANY_TO_ONE",
+        "targetObjectNameSingular": "opportunity",
+        "targetFieldName": "regieSyncSources",
+        "targetFieldLabel": "CRM Sync Sources",
+        "targetFieldIcon": "IconRefresh",
+        "onDelete": "CASCADE"
+      }
+    },
+    {
+      "objectNameSingular": "regieSyncSource",
+      "name": "calendarEvent",
+      "label": "calendarEvent",
+      "type": "RELATION",
+      "relation": {
+        "type": "MANY_TO_ONE",
+        "targetObjectNameSingular": "calendarEvent",
+        "targetFieldName": "regieSyncSources",
+        "targetFieldLabel": "CRM Sync Sources",
+        "targetFieldIcon": "IconRefresh",
+        "onDelete": "CASCADE"
+      }
+    },
+    {
+      "objectNameSingular": "person",
+      "name": "recordOwner",
+      "label": "recordOwner",
+      "type": "RELATION",
+      "relation": {
+        "type": "MANY_TO_ONE",
+        "targetObjectNameSingular": "workspaceMember",
+        "targetFieldName": "ownedPeople",
+        "targetFieldLabel": "Owned People",
+        "targetFieldIcon": "IconUserCircle",
+        "onDelete": "SET_NULL"
+      }
+    }
+  ],
+  "fieldSettings": [
+    {
+      "objectNameSingular": "company",
+      "name": "linkedinLink",
+      "settings": {
+        "additionalSearch": {
+          "version": 1,
+          "target": "account",
+          "searchable": true
+        }
+      }
+    },
+    {
+      "objectNameSingular": "person",
+      "name": "linkedinLink",
+      "settings": {
+        "additionalSearch": {
+          "version": 1,
+          "target": "person",
+          "searchable": true
+        }
+      }
+    }
+  ],
+  "indexes": [
+    {
+      "objectNameSingular": "regieListMembership",
+      "fieldNames": ["membershipKey"],
+      "isUnique": true
+    },
+    {
+      "objectNameSingular": "regieStaticList",
+      "fieldNames": ["creationOperationKeyHash"],
+      "isUnique": true
+    },
+    {
+      "objectNameSingular": "regieSyncSource",
+      "fieldNames": ["sourceKey"],
+      "isUnique": true
+    },
+    {
+      "objectNameSingular": "regieSyncSource",
+      "fieldNames": ["externalRecordId", "externalObjectApiName"],
+      "isUnique": false
+    },
+    {
+      "objectNameSingular": "company",
+      "fieldNames": ["hubspotId"],
+      "isUnique": false
+    },
+    {
+      "objectNameSingular": "person",
+      "fieldNames": ["hubspotId"],
+      "isUnique": false
+    },
+    {
+      "objectNameSingular": "task",
+      "fieldNames": ["hubspotId"],
+      "isUnique": false
+    },
+    {
+      "objectNameSingular": "company",
+      "fieldNames": ["salesforceId"],
+      "isUnique": false
+    },
+    {
+      "objectNameSingular": "person",
+      "fieldNames": ["salesforceId"],
+      "isUnique": false
+    },
+    {
+      "objectNameSingular": "task",
+      "fieldNames": ["salesforceId"],
+      "isUnique": false
+    },
+    {
+      "objectNameSingular": "company",
+      "fieldNames": ["externalCrmId"],
+      "isUnique": false
+    },
+    {
+      "objectNameSingular": "person",
+      "fieldNames": ["externalCrmId"],
+      "isUnique": false
+    },
+    {
+      "objectNameSingular": "task",
+      "fieldNames": ["externalCrmId"],
+      "isUnique": false
+    },
+    {
+      "objectNameSingular": "opportunity",
+      "fieldNames": ["salesforceId"],
+      "isUnique": false
+    },
+    {
+      "objectNameSingular": "opportunity",
+      "fieldNames": ["salesforceStageName"],
+      "isUnique": false
+    },
+    {
+      "objectNameSingular": "opportunity",
+      "fieldNames": ["salesforceOwnerId"],
+      "isUnique": false
+    },
+    {
+      "objectNameSingular": "opportunity",
+      "fieldNames": ["externalCrmId"],
+      "isUnique": false
+    },
+    {
+      "objectNameSingular": "opportunity",
+      "fieldNames": ["externalCrmOwnerId"],
+      "isUnique": false
+    },
+    {
+      "objectNameSingular": "opportunity",
+      "fieldNames": ["crmStageName"],
+      "isUnique": false
+    },
+    {
+      "objectNameSingular": "calendarEvent",
+      "fieldNames": ["salesforceId"],
+      "isUnique": false
+    },
+    {
+      "objectNameSingular": "calendarEvent",
+      "fieldNames": ["salesforceOwnerId"],
+      "isUnique": false
+    },
+    {
+      "objectNameSingular": "calendarEvent",
+      "fieldNames": ["externalCrmId"],
+      "isUnique": false
+    },
+    {
+      "objectNameSingular": "calendarEvent",
+      "fieldNames": ["externalCrmOwnerId"],
+      "isUnique": false
+    }
+  ],
+  "views": [
+    {
+      "objectNameSingular": "person",
+      "name": "All People",
+      "icon": "IconUser",
+      "type": "TABLE"
+    },
+    {
+      "objectNameSingular": "company",
+      "name": "All Companies",
+      "icon": "IconBuildingSkyscraper",
+      "type": "TABLE"
+    }
+  ]
+}

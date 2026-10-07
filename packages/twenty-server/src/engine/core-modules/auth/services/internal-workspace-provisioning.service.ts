@@ -29,6 +29,7 @@ type CreateWorkspaceInput = {
   serviceUserEmail?: string;
   ephemeral?: boolean;
   organizationId?: string;
+  apiKeyName?: string;
 };
 
 type RegieWorkspaceMarkerMap = {
@@ -98,7 +99,16 @@ export class InternalWorkspaceProvisioningService {
         result.workspace,
       )) ?? result.workspace;
 
-    return this.toWorkspaceProvisioningResponse(workspace, input.primaryDomain);
+    const apiKey = input.apiKeyName
+      ? await this.issueWorkspaceApiKey(workspace.id, {
+          name: input.apiKeyName,
+        })
+      : undefined;
+
+    return {
+      ...this.toWorkspaceProvisioningResponse(workspace, input.primaryDomain),
+      ...(apiKey ? { apiKey } : {}),
+    };
   }
 
   async activateWorkspace(workspaceId: string) {
@@ -135,6 +145,13 @@ export class InternalWorkspaceProvisioningService {
       throw new NotFoundException('Workspace was not found');
     }
 
+    return await this.issueWorkspaceApiKey(workspaceId, input);
+  }
+
+  private async issueWorkspaceApiKey(
+    workspaceId: string,
+    input: CreateWorkspaceApiKeyInput,
+  ) {
     const apiKey = await this.apiKeyService.createWorkspaceAdminApiKeyToken({
       workspaceId,
       name: input.name?.trim() || 'regie-crm-api',
