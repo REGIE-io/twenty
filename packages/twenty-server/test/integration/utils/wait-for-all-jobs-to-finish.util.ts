@@ -133,6 +133,14 @@ export const waitForAllJobsToFinish = async (): Promise<void> => {
   }
 };
 
+// Local runs share a long-lived Redis: a run killed mid-job leaves an active job locked
+// by its dead worker, which BullMQ reclaims only after its 30s stalled check.
+export const discardJobsLeftByPreviousRun = async (): Promise<void> => {
+  await Promise.all(
+    getQueues().map((queue) => queue.obliterate({ force: true })),
+  );
+};
+
 export const closeQueueConnections = async (): Promise<void> => {
   if (queues) {
     await Promise.allSettled(queues.map((queue) => queue.close()));

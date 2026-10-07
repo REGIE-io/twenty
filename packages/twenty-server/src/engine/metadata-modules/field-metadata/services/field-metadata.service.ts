@@ -383,7 +383,7 @@ export class FieldMetadataService {
     };
   }
 
-  private async getFieldUpdateFlatEntityMaps(workspaceId: string) {
+  async getFieldUpdateFlatEntityMaps(workspaceId: string) {
     return this.flatEntityMapsCacheService.getOrRecomputeManyOrAllFlatEntityMaps(
       {
         workspaceId,
@@ -400,7 +400,7 @@ export class FieldMetadataService {
     );
   }
 
-  private transpileUpdateFieldInputOrThrow({
+  transpileUpdateFieldInputOrThrow({
     updateFieldInput,
     workspaceId,
     flatEntityMaps,
@@ -549,7 +549,7 @@ export class FieldMetadataService {
     );
   }
 
-  private async transpileCreateFieldInputsOrThrow({
+  async transpileCreateFieldInputsOrThrow({
     createFieldInputs,
     flatObjectMetadataMaps,
     flatFieldMetadataMaps,

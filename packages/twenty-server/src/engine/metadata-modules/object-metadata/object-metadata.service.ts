@@ -41,6 +41,13 @@ import { type UniversalFlatObjectMetadata } from 'src/engine/workspace-manager/w
 const getNextPosition = (items: { position: number }[]): number =>
   items.length > 0 ? Math.max(...items.map((item) => item.position)) + 1 : 0;
 
+export type ObjectToCreateOperations = {
+  flatObjectMetadataToCreate: UniversalFlatObjectMetadata & { id: string };
+  flatFieldMetadataToCreateOnObject: UniversalFlatFieldMetadata[];
+  flatNavigationMenuItemToCreate: FlatNavigationMenuItem;
+  flatCommandMenuItemToCreate: FlatCommandMenuItem;
+};
+
 @Injectable()
 export class ObjectMetadataService {
   constructor(
@@ -468,7 +475,9 @@ export class ObjectMetadataService {
     return createdFlatObjectMetadata;
   }
 
-  async createManyObjects({
+  // Exposed so callers can fold object creation into a larger migration while keeping
+  // the navigation and command menu items createManyObjects provisions.
+  async buildCreateManyObjectsOperations({
     createObjectInputs,
     workspaceId,
     ownerFlatApplication,
@@ -476,7 +485,10 @@ export class ObjectMetadataService {
     createObjectInputs: CreateObjectInput[];
     workspaceId: string;
     ownerFlatApplication?: FlatApplication;
-  }): Promise<FlatObjectMetadata[]> {
+  }): Promise<{
+    objectsToCreate: ObjectToCreateOperations[];
+    resolvedOwnerFlatApplication: FlatApplication;
+  }> {
     const { workspaceCustomFlatApplication } =
       await this.applicationService.findWorkspaceTwentyStandardAndCustomApplicationOrThrow(
         {
@@ -545,6 +557,25 @@ export class ObjectMetadataService {
         };
       },
     );
+
+    return { objectsToCreate, resolvedOwnerFlatApplication };
+  }
+
+  async createManyObjects({
+    createObjectInputs,
+    workspaceId,
+    ownerFlatApplication,
+  }: {
+    createObjectInputs: CreateObjectInput[];
+    workspaceId: string;
+    ownerFlatApplication?: FlatApplication;
+  }): Promise<FlatObjectMetadata[]> {
+    const { objectsToCreate, resolvedOwnerFlatApplication } =
+      await this.buildCreateManyObjectsOperations({
+        createObjectInputs,
+        workspaceId,
+        ownerFlatApplication,
+      });
 
     const validateAndBuildResult =
       await this.workspaceMigrationValidateBuildAndRunService.validateBuildAndRunWorkspaceMigration(
