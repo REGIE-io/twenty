@@ -21,17 +21,23 @@ node dist/command/command.js upgrade:2-32:allow-duplicate-crm-identities --works
 node dist/command/command.js upgrade:2-32:allow-duplicate-crm-identities --workspace-id <workspace-id>
 ```
 
-First validate in an isolated workspace. Coordinate a pause of affected Go writes and inbound workers,
-deploy Twenty server/worker and apply across provisioned workspaces, deploy Go's
-provider-ID-only import behavior, then resume. Omitting `--workspace-id` selects the
-provisioned workspace fleet. Explicitly invoke this command for an instance already
+First validate in an isolated workspace. Deploy Go's duplicate-protection guards
+([Go #2622](https://github.com/REGIE-io/go/pull/2622)) before removing Twenty uniqueness.
+Deploy Twenty server/worker and apply across provisioned workspaces, then enable
+provider-ID-only CRM imports after the Go importer from
+[Go #2615](https://github.com/REGIE-io/go/pull/2615) reaches the target environment.
+No global write pause is planned: inspect the canary's lock contention and retry
+workspaces whose transaction hits the five-second lock timeout. Omitting
+`--workspace-id` selects the provisioned workspace fleet. Explicitly invoke this command for an instance already
 at 2.32 if its normal upgrade runner does not revisit that version.
 
 Verify field and index metadata are non-unique, and inspect `pg_index` for valid,
 non-unique physical indexes on `person.emailsPrimaryEmail` and
 `company.domainNamePrimaryLinkUrl`. Verify two distinct IDs with the same values
-persist and an ID replay updates only its row. The companion Go change permits
-duplicates in manual/bulk/CSV paths too; native Twenty API/UI creation also permits them.
+persist and an ID replay updates only its row. The Go importer permits distinct CRM
+source IDs to share these values. Go-origin manual, bulk, chat, and CSV creation retain
+their duplicate rejection/reuse rules;
+native Twenty API/UI creation permits duplicate values.
 
 After duplicates exist, restore neither the old unique indexes nor Go's old fallback
 matching automatically. Pause inbound workers and fix forward. Reinstating uniqueness
@@ -62,11 +68,11 @@ people from explicit relationships, never shared domains. Twenty frontend code i
 unchanged: this PR adds no history labels or periodic refresh. Shared history is
 returned when the existing timeline queries run.
 
-The companion Go PR now also covers manual/bulk/CSV creation, explicit-ID updates,
-enrichment candidates and unresolved inbound sender selection. Hold affected writes
-through the paired cutover; the Go control-plane/backend additive migrations must be
-applied before enabling those paths. See the Go duplicate-CRM-imports runbook for the
-complete sequence. Continue in the existing Twenty #163 and Go #2502 PRs.
+The current Go scope is CRM imports only, with canonical `externalCrmId` matching
+and preserved Go-origin duplicate rules. Go #2502 is closed. Go #2615 contains the
+importer and recovery tooling; Go #2622 backports CSV/edit guards to `main`.
+No Go control-plane/backend migration is required for those changes. Historical
+merges and existing associations are preserved.
 
 ## Shared-address timeline lookup indexes
 
@@ -87,8 +93,9 @@ Run the command with `--dry-run --workspace-id <workspace-id>` first, then witho
 A failed workspace rolls back both index builds; rerunning a completed workspace
 is a no-op. Missing unprovisioned objects are skipped. An existing reserved index
 name with an incompatible definition or invalid index fails closed for operator
-repair. Index builds are not concurrent: use the coordinated paused-write cutover
-for large workspaces, as for the duplicate-identity migration.
+repair. Index builds are not concurrent and can briefly block writes while they
+hold their table locks. Check canary duration and retry a lock-timeout failure in
+a quieter window; do not remove the timeout to force a contended workspace through.
 
 Apply this command before enabling shared-address timeline traffic on upgraded
 workspaces. New standard participant tables receive the indexes at creation.

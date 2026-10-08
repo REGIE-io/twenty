@@ -31,23 +31,32 @@ network_configuration="$(jq -c '
       assignPublicIp: .assignPublicIp
     }}
 ' <<<"$service_json")"
+# One-off tasks (upgrade, cursor checks) need more headroom than the long-lived
+# services, so raise the Fargate task memory to 8 GB for this run only. The
+# container-level override lifts any hard limit inherited from the task
+# definition, and cpu is pinned to a value that is valid for 8 GB on Fargate.
 overrides="$(jq -cn \
   --arg container "$container" \
   --argjson command "$command_json" \
-  '{containerOverrides: [{
-    name: $container,
-    command: $command,
-    environment: [
-      {
-        name: "DISABLE_CRON_JOBS_REGISTRATION",
-        value: "true"
-      },
-      {
-        name: "NODE_OPTIONS",
-        value: "--max-old-space-size=6144"
-      }
-    ]
-  }]}')"
+  '{
+    cpu: "2048",
+    memory: "8192",
+    containerOverrides: [{
+      name: $container,
+      command: $command,
+      memory: 8192,
+      environment: [
+        {
+          name: "DISABLE_CRON_JOBS_REGISTRATION",
+          value: "true"
+        },
+        {
+          name: "NODE_OPTIONS",
+          value: "--max-old-space-size=6144"
+        }
+      ]
+    }]
+  }')"
 
 run_json="$(aws ecs run-task \
   --cluster "$cluster" \
