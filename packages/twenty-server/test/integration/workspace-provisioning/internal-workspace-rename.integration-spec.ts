@@ -168,7 +168,9 @@ describe('internal workspace rename and lookup', () => {
     );
 
     expect(renameResponse.status).toBe(404);
+    expect(renameResponse.body.message).toBe('Workspace was not found');
     expect(lookupResponse.status).toBe(404);
+    expect(lookupResponse.body.message).toBe('Workspace was not found');
   });
 
   it('rejects a lookup without a slug', async () => {
