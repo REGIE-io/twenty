@@ -2,11 +2,14 @@ import {
   Body,
   Controller,
   Delete,
+  Get,
   HttpCode,
   HttpStatus,
   Param,
   ParseUUIDPipe,
+  Patch,
   Post,
+  Query,
   UseGuards,
   UsePipes,
   ValidationPipe,
@@ -15,7 +18,9 @@ import {
 import {
   InternalWorkspaceApiKeyDto,
   InternalWorkspaceE2eMarkerDto,
+  InternalWorkspaceLookupDto,
   InternalWorkspaceProvisioningDto,
+  InternalWorkspaceRenameDto,
 } from 'src/engine/core-modules/auth/dto/internal-workspace-provisioning.dto';
 import { InternalWorkspaceProvisioningService } from 'src/engine/core-modules/auth/services/internal-workspace-provisioning.service';
 import { InternalMetadataTokenGuard } from 'src/engine/core-modules/workspace/internal/guards/internal-metadata-token.guard';
@@ -39,6 +44,27 @@ export class InternalWorkspaceProvisioningController {
   @HttpCode(HttpStatus.OK)
   async createWorkspace(@Body() body: InternalWorkspaceProvisioningDto) {
     return await this.internalWorkspaceProvisioningService.createWorkspace(
+      body,
+    );
+  }
+
+  @Get()
+  @HttpCode(HttpStatus.OK)
+  async findWorkspaceBySlug(@Query() query: InternalWorkspaceLookupDto) {
+    return await this.internalWorkspaceProvisioningService.findWorkspaceBySlug(
+      query.slug,
+    );
+  }
+
+  @Patch(':workspaceId')
+  @HttpCode(HttpStatus.OK)
+  async renameWorkspace(
+    @Param('workspaceId', new ParseUUIDPipe({ version: '4' }))
+    workspaceId: string,
+    @Body() body: InternalWorkspaceRenameDto,
+  ) {
+    return await this.internalWorkspaceProvisioningService.renameWorkspace(
+      workspaceId,
       body,
     );
   }
