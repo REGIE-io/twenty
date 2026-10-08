@@ -8,6 +8,18 @@ import {
 import { isDefined } from 'twenty-shared/utils';
 import { ColumnType, type QueryRunner } from 'typeorm';
 
+import { createSearchVectorBackfillJobs } from 'src/engine/core-modules/search-vector-trigger/utils/search-vector-backfill.util';
+import {
+  disableSearchVectorTrigger,
+  ensureSearchVectorTriggerMode,
+  findSearchVectorTriggerSource,
+  isFieldReadBySearchVectorTrigger,
+  isSearchVectorTriggerMode,
+  refreshOrSelfHealSearchVectorTrigger,
+  refreshSearchVectorTriggerIfConverted,
+  reinstallSearchVectorTrigger,
+  type SearchVectorTriggerSource,
+} from 'src/engine/core-modules/search-vector-trigger/utils/search-vector-trigger-maintenance.util';
 import { computeMorphOrRelationFieldJoinColumnName } from 'src/engine/metadata-modules/field-metadata/utils/compute-morph-or-relation-field-join-column-name.util';
 import { createIndexInWorkspaceSchema } from 'src/engine/workspace-manager/workspace-migration/workspace-migration-runner/action-handlers/index/utils/index-action-handler.utils';
 import { WorkspaceMigrationRunnerActionHandler } from 'src/engine/workspace-manager/workspace-migration/workspace-migration-runner/interfaces/workspace-migration-runner-action-handler-service.interface';
@@ -90,6 +102,9 @@ type OptionsUpdateHandlerArgs<T extends FieldMetadataType = FieldMetadataType> =
     toOptions: FlatFieldMetadata['options'];
     flatObjectMetadata: FlatObjectMetadata;
     workspaceId: string;
+    // Undefined when the object has no searchVector; built from the new options.
+    searchVectorTriggerSource?: SearchVectorTriggerSource;
+    isSearchVectorTriggerEnabled: boolean;
   };
 
 @Injectable()
@@ -183,6 +198,9 @@ export class UpdateFieldActionHandlerService extends WorkspaceMigrationRunnerAct
       },
       workspaceId,
       getSearchFieldMetadatasByTsVectorFieldId,
+      searchListChanges,
+      isSearchVectorFormulaChange,
+      isSearchVectorTriggerEnabled,
     } = context;
     const { entityId, update } = flatAction;
 
@@ -205,7 +223,23 @@ export class UpdateFieldActionHandlerService extends WorkspaceMigrationRunnerAct
 
     let wasDefaultValueHandledByEnumUpdate = false;
 
+    const findTriggerSourceWithField = (
+      updatedFlatFieldMetadata: FlatFieldMetadata,
+    ) =>
+      findSearchVectorTriggerSource({
+        queryRunner,
+        schemaName,
+        tableName,
+        flatObjectMetadata,
+        flatFieldMetadataMaps,
+        flatSearchFieldMetadataMaps,
+        getSearchFieldMetadatasByTsVectorFieldId,
+        updatedFlatFieldMetadata,
+      });
+
     if (isDefined(update.name)) {
+      const fromName = optimisticFlatFieldMetadata.name;
+
       await this.handleFieldNameUpdate({
         queryRunner,
         schemaName,
@@ -215,6 +249,23 @@ export class UpdateFieldActionHandlerService extends WorkspaceMigrationRunnerAct
         toName: update.name,
       });
       optimisticFlatFieldMetadata.name = update.name;
+
+      // Trigger functions read columns by name, so rebuild before a later write hits the old one.
+      // A field the function never read changes nothing, so it skips the rebuild.
+      const searchVectorTriggerSource = findTriggerSourceWithField(
+        optimisticFlatFieldMetadata,
+      );
+
+      if (
+        isDefined(searchVectorTriggerSource) &&
+        (await isFieldReadBySearchVectorTrigger(queryRunner, {
+          schemaName,
+          tableName,
+          fieldName: fromName,
+        }))
+      ) {
+        await refreshSearchVectorTriggerIfConverted(searchVectorTriggerSource);
+      }
     }
 
     if (
@@ -238,6 +289,11 @@ export class UpdateFieldActionHandlerService extends WorkspaceMigrationRunnerAct
         toOptions: update.options,
         workspaceId,
         update,
+        searchVectorTriggerSource: findTriggerSourceWithField({
+          ...optimisticFlatFieldMetadata,
+          options: update.options ?? [],
+        }),
+        isSearchVectorTriggerEnabled: isSearchVectorTriggerEnabled === true,
       });
       optimisticFlatFieldMetadata.options = update.options ?? [];
     }
@@ -369,47 +425,74 @@ export class UpdateFieldActionHandlerService extends WorkspaceMigrationRunnerAct
           flatSearchFieldMetadataMaps,
         });
 
-      const searchVectorAsExpression = deriveCheckedSearchVectorExpression({
-        flatObjectMetadata,
-        objectFlatFieldMetadatas,
-        targetSearchFieldMetadatas,
-      });
-
-      const columnDefinitions = generateColumnDefinitions({
-        flatFieldMetadata: optimisticFlatFieldMetadata,
-        flatObjectMetadata,
-        workspaceId,
-        searchVectorAsExpression,
-      });
-
-      await this.workspaceSchemaManagerService.columnManager.dropColumns({
-        queryRunner,
-        schemaName,
-        tableName,
-        columnNames: [optimisticFlatFieldMetadata.name],
-      });
-      await this.workspaceSchemaManagerService.columnManager.addColumns({
-        queryRunner,
-        schemaName,
-        tableName,
-        columnDefinitions,
-      });
-
-      const [searchVectorFlatIndexMetadata] = findFieldRelatedIndexes({
-        flatFieldMetadata: optimisticFlatFieldMetadata,
-        flatObjectMetadata,
-        flatIndexMaps,
-      });
-
-      if (isDefined(searchVectorFlatIndexMetadata)) {
-        await createIndexInWorkspaceSchema({
-          flatIndexMetadata: searchVectorFlatIndexMetadata,
-          flatObjectMetadata,
-          flatFieldMetadataMaps,
-          workspaceSchemaManagerService: this.workspaceSchemaManagerService,
+      // A converted table keeps its plain column; only the trigger function changes. With the
+      // flag on, a still-generated table or a lost trigger is healed in place, never rebuilt.
+      const isTriggerMode = await refreshOrSelfHealSearchVectorTrigger({
+        source: {
           queryRunner,
-          workspaceId,
+          schemaName,
+          tableName,
+          flatObjectMetadata,
+          objectFlatFieldMetadatas,
+          targetSearchFieldMetadatas,
+        },
+        backfillChange:
+          isSearchVectorFormulaChange === true
+            ? { type: 'formula' }
+            : {
+                type: 'searchList',
+                searchListChanges: (searchListChanges ?? []).filter(
+                  (searchListChange) =>
+                    searchListChange.tsVectorFieldUniversalIdentifier ===
+                    optimisticFlatFieldMetadata.universalIdentifier,
+                ),
+              },
+        isSearchVectorTriggerEnabled: isSearchVectorTriggerEnabled === true,
+      });
+
+      if (!isTriggerMode) {
+        const searchVectorAsExpression = deriveCheckedSearchVectorExpression({
+          flatObjectMetadata,
+          objectFlatFieldMetadatas,
+          targetSearchFieldMetadatas,
         });
+
+        const columnDefinitions = generateColumnDefinitions({
+          flatFieldMetadata: optimisticFlatFieldMetadata,
+          flatObjectMetadata,
+          workspaceId,
+          searchVectorAsExpression,
+        });
+
+        await this.workspaceSchemaManagerService.columnManager.dropColumns({
+          queryRunner,
+          schemaName,
+          tableName,
+          columnNames: [optimisticFlatFieldMetadata.name],
+        });
+        await this.workspaceSchemaManagerService.columnManager.addColumns({
+          queryRunner,
+          schemaName,
+          tableName,
+          columnDefinitions,
+        });
+
+        const [searchVectorFlatIndexMetadata] = findFieldRelatedIndexes({
+          flatFieldMetadata: optimisticFlatFieldMetadata,
+          flatObjectMetadata,
+          flatIndexMaps,
+        });
+
+        if (isDefined(searchVectorFlatIndexMetadata)) {
+          await createIndexInWorkspaceSchema({
+            flatIndexMetadata: searchVectorFlatIndexMetadata,
+            flatObjectMetadata,
+            flatFieldMetadataMaps,
+            workspaceSchemaManagerService: this.workspaceSchemaManagerService,
+            queryRunner,
+            workspaceId,
+          });
+        }
       }
     }
   }
@@ -658,6 +741,8 @@ export class UpdateFieldActionHandlerService extends WorkspaceMigrationRunnerAct
     toOptions,
     flatObjectMetadata,
     workspaceId,
+    searchVectorTriggerSource,
+    isSearchVectorTriggerEnabled,
   }: OptionsUpdateHandlerArgs) {
     const fromOptions = flatFieldMetadata.options;
     const fromOptionsById = new Map(
@@ -699,7 +784,33 @@ export class UpdateFieldActionHandlerService extends WorkspaceMigrationRunnerAct
     const isIndexedInSearchVector =
       flatFieldMetadata.searchFieldMetadataUniversalIdentifiers.length > 0;
 
-    if (isIndexedInSearchVector) {
+    // On a converted table the swap's UPDATE would fire a trigger still holding old literals.
+    // A heal parses its formula against the enum type before the swap adds the new values, so it
+    // is built from the current options; only a searched field can make it heal.
+    const isTriggerMode =
+      isDefined(searchVectorTriggerSource) &&
+      (isIndexedInSearchVector
+        ? await ensureSearchVectorTriggerMode(
+            {
+              ...searchVectorTriggerSource,
+              objectFlatFieldMetadatas:
+                searchVectorTriggerSource.objectFlatFieldMetadatas.map(
+                  (objectFlatFieldMetadata) =>
+                    objectFlatFieldMetadata.id === flatFieldMetadata.id
+                      ? flatFieldMetadata
+                      : objectFlatFieldMetadata,
+                ),
+            },
+            isSearchVectorTriggerEnabled,
+          )
+        : await isSearchVectorTriggerMode(
+            queryRunner,
+            searchVectorTriggerSource,
+          ));
+
+    if (isTriggerMode) {
+      await disableSearchVectorTrigger(queryRunner, { schemaName, tableName });
+    } else if (isIndexedInSearchVector) {
       await this.workspaceSchemaManagerService.columnManager.dropColumns({
         queryRunner,
         schemaName,
@@ -716,6 +827,20 @@ export class UpdateFieldActionHandlerService extends WorkspaceMigrationRunnerAct
         columnDefinition: enumColumnDefinition,
         enumValues: toOptions?.map((opt) => opt.value) ?? [],
         oldToNewEnumOptionMap: valueMapping,
+      });
+    }
+
+    // Recreating the trigger also re-enables it.
+    if (isTriggerMode) {
+      await reinstallSearchVectorTrigger(searchVectorTriggerSource);
+      await createSearchVectorBackfillJobs({
+        source: searchVectorTriggerSource,
+        change: {
+          type: 'options',
+          fieldMetadataId: flatFieldMetadata.id,
+          fromOptions: fromOptions ?? [],
+          toOptions: toOptions ?? [],
+        },
       });
     }
   }

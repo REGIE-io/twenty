@@ -16,6 +16,7 @@ import { buildWorkspaceTableColumnSets } from 'src/database/commands/workspace-e
 import { formatSqlValue } from 'src/database/commands/workspace-export/utils/format-sql-value.util';
 import { generateWorkspaceSchemaDdl } from 'src/database/commands/workspace-export/utils/generate-workspace-schema-ddl.util';
 import { getCoreEntityMetadatasWithWorkspaceId } from 'src/database/commands/workspace-export/utils/get-core-entity-metadatas-with-workspace-id.util';
+import { findSearchVectorTriggerModeTableNames } from 'src/engine/core-modules/search-vector-trigger/utils/search-vector-table-queries.util';
 import { WorkspaceEntity } from 'src/engine/core-modules/workspace/workspace.entity';
 import { FieldMetadataEntity } from 'src/engine/metadata-modules/field-metadata/field-metadata.entity';
 import { ObjectMetadataEntity } from 'src/engine/metadata-modules/object-metadata/object-metadata.entity';
@@ -138,12 +139,19 @@ export class WorkspaceExportService {
         `\nCREATE SCHEMA IF NOT EXISTS ${escapeIdentifier(schemaName)};\n\n`,
       );
 
+      const triggerModeTableNames = await this.findTriggerModeTableNames(
+        schemaName,
+        objectMetadatas,
+        queryRunner,
+      );
+
       this.writeWorkspaceSchemaDdl(
         workspaceId,
         schemaName,
         objectMetadatas,
         fieldsByObjectId,
         searchFieldMetadatasByObjectId,
+        triggerModeTableNames,
         stream,
       );
 
@@ -153,6 +161,7 @@ export class WorkspaceExportService {
         objectMetadatas,
         fieldsByObjectId,
         tableFilter,
+        triggerModeTableNames,
         queryRunner,
         stream,
       );
@@ -349,12 +358,36 @@ export class WorkspaceExportService {
     }
   }
 
+  private async findTriggerModeTableNames(
+    schemaName: string,
+    objectMetadatas: ObjectMetadataEntity[],
+    queryRunner: QueryRunner,
+  ): Promise<Set<string>> {
+    // One catalog query for the schema, rather than two round trips per object.
+    const schemaTriggerModeTableNames =
+      await findSearchVectorTriggerModeTableNames(queryRunner, schemaName);
+
+    return new Set(
+      objectMetadatas
+        .filter((objectMetadata) => objectMetadata.isActive)
+        .map((objectMetadata) =>
+          computeTableName(
+            objectMetadata.nameSingular,
+            objectMetadata.application?.universalIdentifier !==
+              TWENTY_STANDARD_APPLICATION.universalIdentifier,
+          ),
+        )
+        .filter((tableName) => schemaTriggerModeTableNames.has(tableName)),
+    );
+  }
+
   private writeWorkspaceSchemaDdl(
     workspaceId: string,
     schemaName: string,
     objectMetadatas: ObjectMetadataEntity[],
     fieldsByObjectId: Map<string, FieldMetadataEntity[]>,
     searchFieldMetadatasByObjectId: Map<string, SearchFieldMetadataEntity[]>,
+    triggerModeTableNames: ReadonlySet<string>,
     stream: WriteStream,
   ): void {
     this.logger.log('Generating workspace schema DDL from metadata...');
@@ -365,6 +398,7 @@ export class WorkspaceExportService {
       objectMetadatas,
       fieldsByObjectId,
       searchFieldMetadatasByObjectId,
+      triggerModeTableNames,
     );
 
     this.logger.log(`  ${ddlStatements.length} DDL statements`);
@@ -382,6 +416,7 @@ export class WorkspaceExportService {
     objectMetadatas: ObjectMetadataEntity[],
     fieldsByObjectId: Map<string, FieldMetadataEntity[]>,
     tableFilter: string[] | undefined,
+    triggerModeTableNames: ReadonlySet<string>,
     queryRunner: QueryRunner,
     stream: WriteStream,
   ): Promise<void> {
@@ -405,6 +440,7 @@ export class WorkspaceExportService {
         workspaceId,
         objectMetadata,
         objectFieldMetadatas,
+        triggerModeTableNames.has(tableName),
       );
 
       try {

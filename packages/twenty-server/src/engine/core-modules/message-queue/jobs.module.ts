@@ -41,6 +41,9 @@ import { WorkspaceModule } from 'src/engine/core-modules/workspace/workspace.mod
 import { PhoneSearchIndexModule } from 'src/engine/core-modules/phone-search-index/phone-search-index.module';
 import { PhoneSearchIndexJob } from 'src/engine/core-modules/phone-search-index/jobs/phone-search-index.job';
 import { PhoneSearchIndexReconcilerCronJob } from 'src/engine/core-modules/phone-search-index/jobs/phone-search-index-reconciler.cron.job';
+import { SearchVectorBackfillReconcileCronJob } from 'src/engine/core-modules/search-vector-trigger/jobs/search-vector-backfill-reconcile.cron.job';
+import { SearchVectorBackfillJob } from 'src/engine/core-modules/search-vector-trigger/jobs/search-vector-backfill.job';
+import { SearchVectorTriggerModule } from 'src/engine/core-modules/search-vector-trigger/search-vector-trigger.module';
 import { AiAgentMonitorModule } from 'src/engine/metadata-modules/ai/ai-agent-monitor/ai-agent-monitor.module';
 import { AiChatModule } from 'src/engine/metadata-modules/ai/ai-chat/ai-chat.module';
 import { LogicFunctionModule } from 'src/engine/metadata-modules/logic-function/logic-function.module';
@@ -107,6 +110,7 @@ import { WorkflowModule } from 'src/modules/workflow/workflow.module';
     OnboardingModule,
     BillingReminderModule,
     PhoneSearchIndexModule,
+    SearchVectorTriggerModule,
   ],
   providers: [
     BillingReminderCronJob,
@@ -129,6 +133,8 @@ import { WorkflowModule } from 'src/modules/workflow/workflow.module';
     InstallPreInstalledAppsJob,
     PhoneSearchIndexJob,
     PhoneSearchIndexReconcilerCronJob,
+    SearchVectorBackfillJob,
+    SearchVectorBackfillReconcileCronJob,
   ],
 })
 export class JobsModule {

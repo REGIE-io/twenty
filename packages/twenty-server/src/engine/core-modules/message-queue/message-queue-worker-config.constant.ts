@@ -197,4 +197,13 @@ export const MESSAGE_QUEUE_WORKER_CONFIG: Record<
       boundedShutdownDrain: false,
     },
   },
+  [MessageQueue.searchVectorBackfillQueue]: {
+    priority: 6,
+    workerOptions: {
+      concurrency: 1,
+      lockDuration: 30_000,
+      maxStalledCount: 1,
+      boundedShutdownDrain: false,
+    },
+  },
 };

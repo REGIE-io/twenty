@@ -256,6 +256,7 @@ describe('WorkspaceEntityManager', () => {
         IS_WORKFLOW_DISPATCH_FROM_CORE_ENABLED: false,
         IS_NATIVE_CALL_RECORDING_TABS_ENABLED: false,
         IS_ORM_V2_READ_PATH_ENABLED: false,
+        IS_SEARCH_VECTOR_TRIGGER_ENABLED: false,
       },
       userWorkspaceRoleMap: {},
       apiKeyRoleMap: {},
