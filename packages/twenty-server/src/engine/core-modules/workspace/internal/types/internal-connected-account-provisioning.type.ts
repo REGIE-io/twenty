@@ -1,4 +1,5 @@
 import {
+  type CalendarChannelSyncStatus,
   type CalendarChannelVisibility,
   type ConnectedAccountProvider,
   type MessageChannelVisibility,
@@ -36,4 +37,8 @@ export type DetachConnectedAccountResult = {
   // stay attributable and the sync cursor survives for a later re-enable.
   disabledCalendarChannelIds: string[];
   disabledMessageChannelIds: string[];
+};
+
+export type CalendarChannelSyncStatusResult = {
+  syncStatus: CalendarChannelSyncStatus;
 };
