@@ -130,6 +130,9 @@ describe('WorkerHealthIndicator', () => {
       expect(result.worker.error).toBe(HEALTH_ERROR_MESSAGES.WORKER_TIMEOUT);
     }
     jest.useRealTimers();
+    // isHealthy stops waiting at the timeout but its queue loop keeps going; let it finish so
+    // its calls do not land in the next test.
+    await new Promise((resolve) => setImmediate(resolve));
   });
 
   it('should check all message queues', async () => {

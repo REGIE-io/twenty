@@ -297,6 +297,7 @@ export class CreateObjectActionHandlerService extends WorkspaceMigrationRunnerAc
                   targetSearchFieldMetadatas: findTargetSearchFieldMetadatas(
                     flatFieldMetadata.id,
                   ),
+                  isNewTable: true,
                 })
               : undefined,
         }).map((columnDefinition) =>

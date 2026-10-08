@@ -156,6 +156,18 @@ describe('deriveCheckedSearchVectorExpression', () => {
       ).not.toThrow();
     });
 
+    // An upgrade can create a standard object before the step that adds its search rows.
+    it('skips the check for a table being created, which has no rows to lose', () => {
+      expect(() =>
+        deriveCheckedSearchVectorExpression({
+          flatObjectMetadata: personObject,
+          objectFlatFieldMetadatas: personFields,
+          targetSearchFieldMetadatas: [searchRow('jobTitle')],
+          isNewTable: true,
+        }),
+      ).not.toThrow();
+    });
+
     it('never checks objects outside the standard application', () => {
       expect(() =>
         deriveCheckedSearchVectorExpression({
