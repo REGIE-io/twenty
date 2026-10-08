@@ -30,7 +30,8 @@ const truncateToByteLength = (value: string, maxByteLength: number): string => {
   return truncated;
 };
 
-const computeFunctionName = (tableName: string): string => {
+// Also names the trigger; derived from the table name, so a table rename must rename both.
+export const getSearchVectorFunctionName = (tableName: string): string => {
   const plainName = `${tableName}${FUNCTION_SUFFIX}`;
 
   if (Buffer.byteLength(plainName, 'utf8') <= POSTGRES_IDENTIFIER_MAX_LENGTH) {
@@ -64,7 +65,7 @@ export const buildSearchVectorTriggerStatements = ({
 }): SearchVectorTriggerStatements => {
   assertSafeTsVectorExpression(triggerRowExpression);
 
-  const functionName = computeFunctionName(tableName);
+  const functionName = getSearchVectorFunctionName(tableName);
   const qualifiedFunction = `${escapeIdentifier(schemaName)}.${escapeIdentifier(functionName)}`;
   const qualifiedTable = `${escapeIdentifier(schemaName)}.${escapeIdentifier(tableName)}`;
 

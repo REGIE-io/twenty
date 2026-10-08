@@ -40,9 +40,13 @@ describe('SearchVectorTriggerConversionService.convertTable', () => {
       synchronize: false,
     });
     await dataSource.initialize();
-    service = new SearchVectorTriggerConversionService(dataSource, {
-      getOrRecompute: jest.fn(),
-    } as never);
+    // Only convertTable runs here: the cache, flag and lock services are never reached.
+    service = new SearchVectorTriggerConversionService(
+      dataSource,
+      { getOrRecompute: jest.fn() } as never,
+      {} as never,
+      {} as never,
+    );
   });
 
   beforeEach(async () => {
@@ -410,9 +414,13 @@ describe('SearchVectorTriggerConversionService.convertTable with every searchabl
       synchronize: false,
     });
     await dataSource.initialize();
-    service = new SearchVectorTriggerConversionService(dataSource, {
-      getOrRecompute: jest.fn(),
-    } as never);
+    // Only convertTable runs here: the cache, flag and lock services are never reached.
+    service = new SearchVectorTriggerConversionService(
+      dataSource,
+      { getOrRecompute: jest.fn() } as never,
+      {} as never,
+      {} as never,
+    );
   });
 
   beforeEach(async () => {

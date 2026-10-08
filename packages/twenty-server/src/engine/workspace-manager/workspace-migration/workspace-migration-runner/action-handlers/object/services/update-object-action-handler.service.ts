@@ -2,6 +2,10 @@ import { Injectable } from '@nestjs/common';
 
 import { isDefined } from 'twenty-shared/utils';
 
+import {
+  isSearchVectorTriggerMode,
+  renameSearchVectorTrigger,
+} from 'src/engine/core-modules/search-vector-trigger/utils/search-vector-trigger-maintenance.util';
 import { WorkspaceMigrationRunnerActionHandler } from 'src/engine/workspace-manager/workspace-migration/workspace-migration-runner/interfaces/workspace-migration-runner-action-handler-service.interface';
 
 import {
@@ -177,12 +181,26 @@ export class UpdateObjectActionHandlerService extends WorkspaceMigrationRunnerAc
       const newTableName = computeObjectTargetTable(updatedFlatObjectMetadata);
 
       if (currentTableName !== newTableName) {
+        // Trigger and function names derive from the table name, so they are renamed with it.
+        const isTriggerMode = await isSearchVectorTriggerMode(queryRunner, {
+          schemaName,
+          tableName: currentTableName,
+        });
+
         await this.workspaceSchemaManagerService.tableManager.renameTable({
           queryRunner,
           schemaName,
           oldTableName: currentTableName,
           newTableName,
         });
+
+        if (isTriggerMode) {
+          await renameSearchVectorTrigger(queryRunner, {
+            schemaName,
+            fromTableName: currentTableName,
+            toTableName: newTableName,
+          });
+        }
 
         const objectFlatFieldMetadatas =
           findManyFlatEntityByIdInFlatEntityMapsOrThrow({

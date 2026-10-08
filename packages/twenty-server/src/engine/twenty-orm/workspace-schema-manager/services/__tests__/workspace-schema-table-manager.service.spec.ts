@@ -99,6 +99,20 @@ describe('WorkspaceSchemaTableManagerService', () => {
       );
     });
 
+    it('creates a plain tsvector column that a search-vector trigger fills', async () => {
+      await service.createTable({
+        queryRunner,
+        schemaName: 'workspace_1',
+        tableName: 'person',
+        columnDefinitions: [
+          { ...searchVectorColumn(), isFilledByTrigger: true },
+        ],
+      });
+
+      expect(query.mock.calls[0][0]).toContain(`"searchVector" tsvector`);
+      expect(query.mock.calls[0][0]).not.toContain('GENERATED');
+    });
+
     it('refuses to create a table whose tsvector column has no expression', async () => {
       await expect(
         service.createTable({

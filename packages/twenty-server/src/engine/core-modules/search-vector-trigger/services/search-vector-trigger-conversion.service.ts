@@ -1,85 +1,80 @@
 import { Injectable } from '@nestjs/common';
 import { InjectDataSource } from '@nestjs/typeorm';
-import { isDefined } from 'twenty-shared/utils';
-import { type DataSource, type QueryRunner } from 'typeorm';
+import { FeatureFlagKey } from 'twenty-shared/types';
+import { type DataSource } from 'typeorm';
 
-import { POSTGRESQL_ERROR_CODES } from 'src/engine/api/graphql/workspace-query-runner/constants/postgres-error-codes.constants';
+import { PostgresAdvisoryLockService } from 'src/database/typeorm/postgres-advisory-lock.service';
+import { FeatureFlagService } from 'src/engine/core-modules/feature-flag/services/feature-flag.service';
 import {
-  buildSearchVectorTriggerStatements,
-  type SearchVectorTriggerStatements,
-} from 'src/engine/core-modules/search-vector-trigger/utils/build-search-vector-trigger-statements.util';
+  checkSearchVectorIndexes,
+  checkSearchVectorTable,
+  switchSearchVectorTable,
+  type SearchVectorTable,
+  type SearchVectorTableConversionReportRow,
+  type SearchVectorTableConversionResult,
+  type SearchVectorTableRepair,
+  toRepair,
+  verifySearchVectorTables,
+} from 'src/engine/core-modules/search-vector-trigger/utils/search-vector-table-conversion.util';
 import {
-  getSearchVectorColumnState,
-  hasSearchVectorTrigger,
-  selectMismatchCount,
-} from 'src/engine/core-modules/search-vector-trigger/utils/search-vector-table-queries.util';
-import { findManyFlatEntityByIdInFlatEntityMaps } from 'src/engine/metadata-modules/flat-entity/utils/find-many-flat-entity-by-id-in-flat-entity-maps.util';
-import { deriveCheckedSearchVectorExpression } from 'src/engine/metadata-modules/flat-search-field-metadata/utils/derive-checked-search-vector-expression.util';
-import { findTsVectorFlatFieldMetadataForObject } from 'src/engine/metadata-modules/flat-search-field-metadata/utils/find-ts-vector-flat-field-metadata-for-object.util';
-import { getTargetSearchFieldMetadatasForTsVectorField } from 'src/engine/metadata-modules/flat-search-field-metadata/utils/get-target-search-field-metadatas-for-ts-vector-field.util';
-import { computeObjectTargetTable } from 'src/engine/utils/compute-object-target-table.util';
+  buildSearchVectorTablePlans,
+  getSearchVectorConversionLockName,
+  haveSearchVectorTablePlansChanged,
+  type SearchVectorTablePlan,
+  type SearchVectorUnplannedTable,
+} from 'src/engine/core-modules/search-vector-trigger/utils/search-vector-trigger-maintenance.util';
 import { WorkspaceCacheService } from 'src/engine/workspace-cache/services/workspace-cache.service';
-import { getWorkspaceSchemaName } from 'src/engine/workspace-datasource/utils/get-workspace-schema-name.util';
-import {
-  assertSafeTsVectorExpression,
-  escapeIdentifier,
-} from 'src/engine/workspace-manager/workspace-migration/utils/remove-sql-injection.util';
 
-export type SearchVectorTableConversionResult = {
-  status:
-    | 'converted'
-    | 'alreadyConverted'
-    | 'mismatch'
-    | 'dryRun'
-    | 'lockTimeout';
-  mismatchCount: number;
-};
-
-export type SearchVectorTablePlan = {
-  schemaName: string;
-  tableName: string;
-  leanColumnExpression: string;
-  triggerRowExpression: string;
-};
-
-export type SearchVectorTableConversionReportRow = {
-  tableName: string;
-  status: SearchVectorTableConversionResult['status'] | 'failed';
-  mismatchCount: number;
-  error?: string;
+export type SearchVectorWorkspaceTablePlans = {
+  plans: SearchVectorTablePlan[];
+  unplannedTables: SearchVectorUnplannedTable[];
 };
 
 export type SearchVectorWorkspaceConversionReport = {
-  status: 'converted' | 'mismatch' | 'dryRun' | 'incomplete';
+  // changed: a search list changed between the check and the lock; a rerun converts.
+  status:
+    | 'converted'
+    | 'mismatch'
+    | 'blocked'
+    | 'busy'
+    | 'changed'
+    | 'dryRun'
+    | 'incomplete';
   tables: SearchVectorTableConversionReportRow[];
 };
 
-type TimeoutAdjustableQueryRunner = QueryRunner & {
-  databaseConnection?: {
-    query_timeout?: number;
-    connectionParameters?: { query_timeout?: number };
-  };
+// mismatchCounts follows plans, one count per table.
+type SearchVectorWorkspaceCheck = SearchVectorWorkspaceTablePlans & {
+  report: SearchVectorWorkspaceConversionReport;
+  mismatchCounts: number[];
 };
 
-const CONVERSION_LOCK_TIMEOUT = '8s';
-const MISMATCH_CHECK_STATEMENT_TIMEOUT = '30min';
-const CLIENT_QUERY_TIMEOUT_MS = 35 * 60 * 1000;
+const CONVERSION_LOCK_ATTEMPTS = 5;
+const CONVERSION_LOCK_RETRY_DELAY_MS = 2000;
+const DONE_TABLE_STATUSES: SearchVectorTableConversionReportRow['status'][] = [
+  'converted',
+  'alreadyConverted',
+  'repaired',
+];
 
 @Injectable()
 export class SearchVectorTriggerConversionService {
   constructor(
     @InjectDataSource() private readonly dataSource: DataSource,
     private readonly workspaceCacheService: WorkspaceCacheService,
+    private readonly featureFlagService: FeatureFlagService,
+    private readonly postgresAdvisoryLockService: PostgresAdvisoryLockService,
   ) {}
 
   async buildWorkspaceTablePlans(
     workspaceId: string,
     { refreshCache }: { refreshCache: boolean },
-  ): Promise<SearchVectorTablePlan[]> {
+  ): Promise<SearchVectorWorkspaceTablePlans> {
     const mapKeys = [
       'flatObjectMetadataMaps',
       'flatFieldMetadataMaps',
       'flatSearchFieldMetadataMaps',
+      'flatIndexMaps',
     ] as const;
     if (refreshCache) {
       await this.workspaceCacheService.invalidateAndRecompute(workspaceId, [
@@ -91,104 +86,168 @@ export class SearchVectorTriggerConversionService {
       flatObjectMetadataMaps,
       flatFieldMetadataMaps,
       flatSearchFieldMetadataMaps,
+      flatIndexMaps,
     } = await this.workspaceCacheService.getOrRecompute(workspaceId, [
       ...mapKeys,
     ]);
 
-    const plans: SearchVectorTablePlan[] = [];
-
-    for (const flatObjectMetadata of Object.values(
-      flatObjectMetadataMaps.byUniversalIdentifier,
-    )) {
-      if (!isDefined(flatObjectMetadata)) {
-        continue;
-      }
-
-      const tsVectorField = findTsVectorFlatFieldMetadataForObject({
-        fieldUniversalIdentifiers: flatObjectMetadata.fieldUniversalIdentifiers,
-        flatFieldMetadataMaps,
-      });
-
-      if (!isDefined(tsVectorField)) {
-        continue;
-      }
-
-      const objectFlatFieldMetadatas = findManyFlatEntityByIdInFlatEntityMaps({
-        flatEntityMaps: flatFieldMetadataMaps,
-        flatEntityIds: flatObjectMetadata.fieldIds,
-      });
-      const targetSearchFieldMetadatas =
-        getTargetSearchFieldMetadatasForTsVectorField({
-          tsVectorFieldMetadataId: tsVectorField.id,
-          flatSearchFieldMetadataMaps,
-        });
-
-      const expressionInput = {
-        flatObjectMetadata,
-        objectFlatFieldMetadatas,
-        targetSearchFieldMetadatas,
-      };
-
-      plans.push({
-        schemaName: getWorkspaceSchemaName(workspaceId),
-        tableName: computeObjectTargetTable(flatObjectMetadata),
-        leanColumnExpression: deriveCheckedSearchVectorExpression({
-          ...expressionInput,
-          shape: 'leanColumn',
-        }),
-        triggerRowExpression: deriveCheckedSearchVectorExpression({
-          ...expressionInput,
-          shape: 'triggerRow',
-        }),
-      });
-    }
-
-    return plans;
+    return buildSearchVectorTablePlans({
+      workspaceId,
+      flatObjectMetadataMaps,
+      flatFieldMetadataMaps,
+      flatSearchFieldMetadataMaps,
+      flatIndexMaps,
+    });
   }
 
   async convertWorkspace({
     workspaceId,
     dryRun,
+    repair = false,
   }: {
     workspaceId: string;
     dryRun: boolean;
+    repair?: boolean;
   }): Promise<SearchVectorWorkspaceConversionReport> {
-    const plans = await this.buildWorkspaceTablePlans(workspaceId, {
-      refreshCache: !dryRun,
-    });
+    // The long scans run without the workspace lock, so migrations keep working meanwhile.
+    const checked = await this.checkWorkspace({ workspaceId, dryRun, repair });
 
-    // Check every table before converting any, so a mismatch on a late table cannot leave
-    // the workspace half-converted.
-    const checks: SearchVectorWorkspaceConversionReport['tables'] = [];
-
-    for (const plan of plans) {
-      const check = await this.convertTable({ ...plan, dryRun: true });
-
-      checks.push({ tableName: plan.tableName, ...check });
+    if (dryRun || checked.report.status !== 'dryRun') {
+      return this.checkIndexes({
+        report: checked.report,
+        plans: checked.plans,
+        repair: false,
+      });
     }
 
-    if (checks.some((check) => check.status === 'mismatch')) {
-      return { status: 'mismatch', tables: checks };
+    for (let attempt = 1; attempt <= CONVERSION_LOCK_ATTEMPTS; attempt++) {
+      const lockResult = await this.postgresAdvisoryLockService.tryWithLock(
+        getSearchVectorConversionLockName(workspaceId),
+        () => this.switchWorkspace({ workspaceId, repair, checked }),
+      );
+
+      if (lockResult.acquired) {
+        const report =
+          lockResult.value.status === 'converted'
+            ? await this.verifyWorkspace({
+                workspaceId,
+                report: lockResult.value,
+                plans: checked.plans,
+              })
+            : lockResult.value;
+
+        // After the lock is released: a concurrent index build waits out every open transaction.
+        return this.checkIndexes({
+          report,
+          plans: checked.plans,
+          repair: repair && report.status === 'converted',
+        });
+      }
+
+      if (attempt < CONVERSION_LOCK_ATTEMPTS) {
+        await new Promise((resolve) =>
+          setTimeout(resolve, CONVERSION_LOCK_RETRY_DELAY_MS),
+        );
+      }
     }
 
-    if (dryRun) {
-      return { status: 'dryRun', tables: checks };
-    }
+    // A migration of this workspace kept the lock; a rerun converts once it is done. The check is
+    // kept for the report, but a rerun scans again, as counts are only valid for their snapshot.
+    return { status: 'busy', tables: checked.report.tables };
+  }
 
-    // Each table is re-checked here on purpose: rows may have changed since phase 1. Stop at
-    // the first table that is not done, so a rerun picks up from a known point.
-    const conversions: SearchVectorWorkspaceConversionReport['tables'] = [];
+  // Check every table before converting any, so a mismatch on a late table cannot leave the
+  // workspace half-converted.
+  private async checkWorkspace({
+    workspaceId,
+    dryRun,
+    repair,
+  }: {
+    workspaceId: string;
+    dryRun: boolean;
+    repair: boolean;
+  }): Promise<SearchVectorWorkspaceCheck> {
+    const { plans, unplannedTables } = await this.buildWorkspaceTablePlans(
+      workspaceId,
+      { refreshCache: !dryRun },
+    );
+    const checks: SearchVectorWorkspaceConversionReport['tables'] = [
+      ...unplannedTables,
+    ];
+    const mismatchCounts: number[] = [];
 
     for (const plan of plans) {
       try {
-        const conversion = await this.convertTable({ ...plan, dryRun: false });
+        const check = await this.checkTable({
+          ...plan,
+          repair: repair ? toRepair(workspaceId, plan) : undefined,
+        });
+
+        checks.push({ tableName: plan.tableName, ...check });
+        mismatchCounts.push(check.mismatchCount);
+      } catch (error) {
+        // Reported per table, so the run still reports every other table.
+        checks.push({
+          tableName: plan.tableName,
+          status: 'failed',
+          mismatchCount: 0,
+          error: error instanceof Error ? error.message : String(error),
+        });
+        mismatchCounts.push(0);
+      }
+    }
+
+    const status = checks.some((check) => check.status === 'failed')
+      ? 'incomplete'
+      : checks.some((check) => check.status === 'blocked')
+        ? 'blocked'
+        : checks.some((check) => check.status === 'mismatch')
+          ? 'mismatch'
+          : 'dryRun';
+
+    return {
+      report: { status, tables: checks },
+      plans,
+      unplannedTables,
+      mismatchCounts,
+    };
+  }
+
+  // Runs under the exclusive workspace lock, which only covers the quick DDL of each table.
+  private async switchWorkspace({
+    workspaceId,
+    repair,
+    checked,
+  }: {
+    workspaceId: string;
+    repair: boolean;
+    checked: SearchVectorWorkspaceCheck;
+  }): Promise<SearchVectorWorkspaceConversionReport> {
+    const { plans } = await this.buildWorkspaceTablePlans(workspaceId, {
+      refreshCache: true,
+    });
+
+    // A migration ran between the check and the lock; the checked formulas may be stale.
+    if (haveSearchVectorTablePlansChanged(checked.plans, plans)) {
+      return { status: 'changed', tables: checked.report.tables };
+    }
+
+    // Stop at the first table that is not done, so a rerun picks up from a known point.
+    const conversions: SearchVectorWorkspaceConversionReport['tables'] = [
+      ...checked.unplannedTables,
+    ];
+
+    for (const [index, plan] of checked.plans.entries()) {
+      try {
+        const conversion = await this.switchTable({
+          ...plan,
+          mismatchCount: checked.mismatchCounts[index],
+          repair: repair ? toRepair(workspaceId, plan) : undefined,
+        });
 
         conversions.push({ tableName: plan.tableName, ...conversion });
 
-        if (
-          conversion.status !== 'converted' &&
-          conversion.status !== 'alreadyConverted'
-        ) {
+        if (!DONE_TABLE_STATUSES.includes(conversion.status)) {
           return {
             status:
               conversion.status === 'mismatch' ? 'mismatch' : 'incomplete',
@@ -209,275 +268,101 @@ export class SearchVectorTriggerConversionService {
       }
     }
 
-    // PR 2 records the workspace as converted here, once the runner can keep trigger mode.
+    // Set under the lock, so the next migration already creates new tables in trigger mode.
+    await this.featureFlagService.upsertWorkspaceFeatureFlag({
+      workspaceId,
+      featureFlag: FeatureFlagKey.IS_SEARCH_VECTOR_TRIGGER_ENABLED,
+      value: true,
+    });
+
     return { status: 'converted', tables: conversions };
   }
 
-  async convertTable({
-    schemaName,
-    tableName,
-    leanColumnExpression,
-    triggerRowExpression,
-    dryRun,
-    lockTimeout = CONVERSION_LOCK_TIMEOUT,
+  private async verifyWorkspace({
+    workspaceId,
+    report,
+    plans,
   }: {
-    schemaName: string;
-    tableName: string;
-    leanColumnExpression: string;
-    triggerRowExpression: string;
-    dryRun: boolean;
-    lockTimeout?: string;
-  }): Promise<SearchVectorTableConversionResult> {
-    if (!/^\d+(ms|s)$/.test(lockTimeout)) {
-      throw new Error(`Invalid lock timeout: ${lockTimeout}`);
-    }
-
-    assertSafeTsVectorExpression(leanColumnExpression);
-
-    const qualifiedTable = `${escapeIdentifier(schemaName)}.${escapeIdentifier(tableName)}`;
-    const statements = buildSearchVectorTriggerStatements({
-      schemaName,
-      tableName,
-      triggerRowExpression,
+    workspaceId: string;
+    report: SearchVectorWorkspaceConversionReport;
+    plans: SearchVectorTablePlan[];
+  }): Promise<SearchVectorWorkspaceConversionReport> {
+    const tables = await verifySearchVectorTables(this.dataSource, {
+      workspaceId,
+      tables: report.tables,
+      plans,
     });
 
-    const queryRunner = this.dataSource.createQueryRunner();
-    let restoreClientTimeout: () => void = () => {};
-
-    try {
-      await queryRunner.connect();
-      restoreClientTimeout = this.raiseClientQueryTimeout(queryRunner);
-
-      const columnState = await getSearchVectorColumnState(
-        queryRunner,
-        schemaName,
-        tableName,
-      );
-
-      if (columnState === 'missing') {
-        throw new Error(
-          `searchVector column not found on ${schemaName}.${tableName}`,
-        );
-      }
-
-      if (columnState === 'plain') {
-        // A plain column of unknown origin may hold NULL or stale vectors; installing a
-        // trigger would only fix rows on their next write, so refuse instead of reporting done.
-        const plainMismatchCount = await this.countMismatches(
-          queryRunner,
-          qualifiedTable,
-          leanColumnExpression,
-        );
-
-        if (plainMismatchCount > 0) {
-          return { status: 'mismatch', mismatchCount: plainMismatchCount };
-        }
-
-        const hasTrigger = await hasSearchVectorTrigger(queryRunner, {
-          qualifiedTable,
-          triggerName: statements.functionName,
-          qualifiedFunction: `${escapeIdentifier(schemaName)}.${escapeIdentifier(statements.functionName)}`,
-        });
-
-        // Only a working trigger makes a plain column converted; without one the next write
-        // goes stale, so the table still needs converting.
-        if (dryRun) {
-          return {
-            status: hasTrigger ? 'alreadyConverted' : 'dryRun',
-            mismatchCount: 0,
-          };
-        }
-
-        await queryRunner.startTransaction();
-        await queryRunner.query(`SET LOCAL lock_timeout = '${lockTimeout}'`);
-
-        if (!hasTrigger) {
-          // Nothing maintains the column yet, so a write after the scan above would stay
-          // stale. Block writes and recheck before installing the trigger.
-          await queryRunner.query(
-            `LOCK TABLE ${qualifiedTable} IN SHARE ROW EXCLUSIVE MODE`,
-          );
-          await queryRunner.query(
-            `SET LOCAL statement_timeout = '${MISMATCH_CHECK_STATEMENT_TIMEOUT}'`,
-          );
-
-          const lockedMismatchCount = await selectMismatchCount(
-            queryRunner,
-            qualifiedTable,
-            leanColumnExpression,
-          );
-
-          if (lockedMismatchCount > 0) {
-            await queryRunner.rollbackTransaction();
-
-            return { status: 'mismatch', mismatchCount: lockedMismatchCount };
-          }
-        }
-
-        await this.installTrigger({
-          queryRunner,
-          qualifiedTable,
-          statements,
-          triggerRowExpression,
-        });
-        await queryRunner.commitTransaction();
-
-        return {
-          status: hasTrigger ? 'alreadyConverted' : 'converted',
-          mismatchCount: 0,
-        };
-      }
-
-      const mismatchCount = await this.countMismatches(
-        queryRunner,
-        qualifiedTable,
-        leanColumnExpression,
-      );
-
-      if (mismatchCount > 0) {
-        return { status: 'mismatch', mismatchCount };
-      }
-
-      if (dryRun) {
-        return { status: 'dryRun', mismatchCount: 0 };
-      }
-
-      await queryRunner.startTransaction();
-      await queryRunner.query(`SET LOCAL lock_timeout = '${lockTimeout}'`);
-      await queryRunner.query(statements.createFunction);
-      // Same transaction: after DROP EXPRESSION the column accepts direct writes, so the
-      // trigger must exist before anyone else can write the table.
-      await queryRunner.query(
-        `ALTER TABLE ${qualifiedTable} ALTER COLUMN "searchVector" DROP EXPRESSION`,
-      );
-      await this.installTrigger({
-        queryRunner,
-        qualifiedTable,
-        statements,
-        triggerRowExpression,
-        skipCreateFunction: true,
-      });
-      await queryRunner.commitTransaction();
-
-      return { status: 'converted', mismatchCount: 0 };
-    } catch (error) {
-      if (queryRunner.isTransactionActive) {
-        try {
-          await queryRunner.rollbackTransaction();
-        } catch {
-          // Keep the original error; a failed rollback must not mask it.
-        }
-      }
-
-      if (this.isLockTimeoutError(error)) {
-        return { status: 'lockTimeout', mismatchCount: 0 };
-      }
-
-      throw error;
-    } finally {
-      restoreClientTimeout();
-      await queryRunner.release();
-    }
-  }
-
-  private async installTrigger({
-    queryRunner,
-    qualifiedTable,
-    statements,
-    triggerRowExpression,
-    skipCreateFunction = false,
-  }: {
-    queryRunner: QueryRunner;
-    qualifiedTable: string;
-    statements: SearchVectorTriggerStatements;
-    triggerRowExpression: string;
-    skipCreateFunction?: boolean;
-  }): Promise<void> {
-    if (!skipCreateFunction) {
-      await queryRunner.query(statements.createFunction);
-    }
-    await queryRunner.query(statements.dropTrigger);
-    await queryRunner.query(statements.createTrigger);
-    // Parse-check the trigger body against the table even when it is empty; plpgsql would
-    // otherwise only fail at the first write.
-    await queryRunner.query(`SET LOCAL search_path = pg_catalog, public`);
-    await queryRunner.query(
-      `SELECT ${triggerRowExpression} FROM ${qualifiedTable} AS new LIMIT 0`,
-    );
-    // Runtime check: fire the trigger once so a broken expression rolls the conversion
-    // back instead of failing every later write.
-    await queryRunner.query(
-      `UPDATE ${qualifiedTable} SET "id" = "id" WHERE "id" = (SELECT "id" FROM ${qualifiedTable} LIMIT 1)`,
-    );
-  }
-
-  private async countMismatches(
-    queryRunner: QueryRunner,
-    qualifiedTable: string,
-    leanColumnExpression: string,
-  ): Promise<number> {
-    await queryRunner.startTransaction();
-
-    try {
-      await queryRunner.query(`SET TRANSACTION READ ONLY`);
-      await queryRunner.query(
-        `SET LOCAL statement_timeout = '${MISMATCH_CHECK_STATEMENT_TIMEOUT}'`,
-      );
-      const mismatchCount = await selectMismatchCount(
-        queryRunner,
-        qualifiedTable,
-        leanColumnExpression,
-      );
-
-      await queryRunner.commitTransaction();
-
-      return mismatchCount;
-    } catch (error) {
-      try {
-        await queryRunner.rollbackTransaction();
-      } catch {
-        // Keep the original error.
-      }
-      throw error;
-    }
-  }
-
-  // The pg client timer only rejects the promise and never cancels the server query, so the
-  // client limit is raised here and the server-side statement_timeout does the cancelling.
-  private raiseClientQueryTimeout(queryRunner: QueryRunner): () => void {
-    const databaseConnection = (queryRunner as TimeoutAdjustableQueryRunner)
-      .databaseConnection;
-
-    if (!isDefined(databaseConnection)) {
-      return () => {};
-    }
-
-    const originalQueryTimeout = databaseConnection.query_timeout;
-    const connectionParameters = databaseConnection.connectionParameters;
-    const originalParameterTimeout = connectionParameters?.query_timeout;
-
-    databaseConnection.query_timeout = CLIENT_QUERY_TIMEOUT_MS;
-    if (isDefined(connectionParameters)) {
-      connectionParameters.query_timeout = CLIENT_QUERY_TIMEOUT_MS;
-    }
-
-    return () => {
-      databaseConnection.query_timeout = originalQueryTimeout;
-      if (isDefined(connectionParameters)) {
-        connectionParameters.query_timeout = originalParameterTimeout;
-      }
+    return {
+      status: tables.some((table) => table.status === 'failed')
+        ? 'incomplete'
+        : 'converted',
+      tables,
     };
   }
 
-  private isLockTimeoutError(error: unknown): boolean {
-    const candidate = error as {
-      code?: string;
-      driverError?: { code?: string };
-    } | null;
+  private async checkIndexes({
+    report,
+    plans,
+    repair,
+  }: {
+    report: SearchVectorWorkspaceConversionReport;
+    plans: SearchVectorTablePlan[];
+    repair: boolean;
+  }): Promise<SearchVectorWorkspaceConversionReport> {
+    const tables = await checkSearchVectorIndexes(this.dataSource, {
+      tables: report.tables,
+      plans,
+      repair,
+    });
+    const hasFailedIndexCheck =
+      (report.status === 'converted' || report.status === 'dryRun') &&
+      tables.some((table) => table.status === 'failed');
 
-    return (
-      candidate?.code === POSTGRESQL_ERROR_CODES.LOCK_NOT_AVAILABLE ||
-      candidate?.driverError?.code === POSTGRESQL_ERROR_CODES.LOCK_NOT_AVAILABLE
-    );
+    return {
+      status: hasFailedIndexCheck ? 'incomplete' : report.status,
+      tables,
+    };
+  }
+
+  // Checks and switches one table, as one run would.
+  async convertTable({
+    dryRun,
+    repair,
+    lockTimeout,
+    ...table
+  }: SearchVectorTable & {
+    dryRun: boolean;
+    repair?: SearchVectorTableRepair;
+    lockTimeout?: string;
+  }): Promise<SearchVectorTableConversionResult> {
+    const check = await this.checkTable({ ...table, repair });
+
+    if (dryRun || check.status === 'mismatch') {
+      return check;
+    }
+
+    return this.switchTable({
+      ...table,
+      mismatchCount: check.mismatchCount,
+      repair,
+      lockTimeout,
+    });
+  }
+
+  async checkTable(
+    table: SearchVectorTable & { repair?: SearchVectorTableRepair },
+  ): Promise<SearchVectorTableConversionResult> {
+    return checkSearchVectorTable(this.dataSource, table);
+  }
+
+  async switchTable(
+    table: SearchVectorTable & {
+      mismatchCount: number;
+      repair?: SearchVectorTableRepair;
+      lockTimeout?: string;
+    },
+  ): Promise<SearchVectorTableConversionResult> {
+    return switchSearchVectorTable(this.dataSource, table);
   }
 }

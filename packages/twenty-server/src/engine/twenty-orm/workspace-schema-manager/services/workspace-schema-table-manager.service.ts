@@ -10,7 +10,8 @@ import { buildSqlColumnDefinition } from 'src/engine/twenty-orm/workspace-schema
 import { escapeIdentifier } from 'src/engine/workspace-manager/workspace-migration/utils/remove-sql-injection.util';
 
 // A tsvector column without its expression is created as a plain column that is never
-// populated, so search silently returns nothing. Fail the migration instead.
+// populated, so search silently returns nothing. Fail the migration instead, unless a
+// search-vector trigger fills the column.
 const assertTsVectorColumnsHaveExpression = ({
   schemaName,
   tableName,
@@ -24,6 +25,7 @@ const assertTsVectorColumnsHaveExpression = ({
     .filter(
       (columnDefinition) =>
         columnDefinition.type === 'tsvector' &&
+        columnDefinition.isFilledByTrigger !== true &&
         !isNonEmptyString(columnDefinition.asExpression),
     )
     .map((columnDefinition) => columnDefinition.name);
