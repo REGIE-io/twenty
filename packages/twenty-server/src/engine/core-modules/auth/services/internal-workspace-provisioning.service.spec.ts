@@ -1,4 +1,10 @@
-import { BadRequestException, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ConflictException,
+  NotFoundException,
+} from '@nestjs/common';
+
+import { QueryFailedError } from 'typeorm';
 
 import { InternalWorkspaceProvisioningService } from 'src/engine/core-modules/auth/services/internal-workspace-provisioning.service';
 
@@ -68,6 +74,16 @@ describe('InternalWorkspaceProvisioningService', () => {
         },
       ]),
     };
+    const workspaceRepository = {
+      update: jest.fn().mockResolvedValue({ affected: 1 }),
+      findOne: jest.fn().mockResolvedValue(workspace),
+    };
+    const subdomainManagerService = {
+      isSubdomainAvailable: jest.fn().mockResolvedValue(true),
+    };
+    const coreEntityCacheService = {
+      invalidate: jest.fn(),
+    };
 
     const service = new InternalWorkspaceProvisioningService(
       signInUpService as any,
@@ -75,6 +91,9 @@ describe('InternalWorkspaceProvisioningService', () => {
       workspaceService as any,
       apiKeyService as any,
       keyValuePairService as any,
+      workspaceRepository as any,
+      subdomainManagerService as any,
+      coreEntityCacheService as any,
     );
 
     return {
@@ -84,6 +103,9 @@ describe('InternalWorkspaceProvisioningService', () => {
       workspaceService,
       apiKeyService,
       keyValuePairService,
+      workspaceRepository,
+      subdomainManagerService,
+      coreEntityCacheService,
     };
   };
 
@@ -478,5 +500,138 @@ describe('InternalWorkspaceProvisioningService', () => {
       purgeEligible: false,
     });
     expect(workspaceService.deleteWorkspace).not.toHaveBeenCalled();
+  });
+  describe('renameWorkspace', () => {
+    const pooledWorkspace = { ...workspace, subdomain: 'pool-1a2b3c4d' };
+
+    it('moves a pooled workspace to the tenant slug and name', async () => {
+      const {
+        service,
+        workspaceService,
+        workspaceRepository,
+        coreEntityCacheService,
+      } = makeService();
+
+      workspaceService.findOneWorkspaceById.mockResolvedValue(pooledWorkspace);
+
+      await expect(
+        service.renameWorkspace(workspace.id, {
+          name: ' Acme ',
+          slug: ' acme ',
+          primaryDomain: 'https://acme.twenty.test',
+        }),
+      ).resolves.toEqual({
+        ok: true,
+        id: workspace.id,
+        workspaceId: workspace.id,
+        workspaceUrl: 'https://acme.twenty.test',
+        workspaceName: 'Acme',
+        workspaceSubdomain: 'acme',
+      });
+      expect(workspaceRepository.update).toHaveBeenCalledWith(workspace.id, {
+        displayName: 'Acme',
+        subdomain: 'acme',
+      });
+      expect(coreEntityCacheService.invalidate).toHaveBeenCalledWith(
+        'workspaceEntity',
+        workspace.id,
+      );
+    });
+
+    it('is a no-op when the workspace already has the slug and name', async () => {
+      const { service, workspaceRepository, subdomainManagerService } =
+        makeService();
+
+      await expect(
+        service.renameWorkspace(workspace.id, { name: 'Acme', slug: 'acme' }),
+      ).resolves.toMatchObject({ workspaceSubdomain: 'acme' });
+      expect(
+        subdomainManagerService.isSubdomainAvailable,
+      ).not.toHaveBeenCalled();
+      expect(workspaceRepository.update).not.toHaveBeenCalled();
+    });
+
+    it('rejects a slug another workspace holds, even a deleted one', async () => {
+      const { service, workspaceService, subdomainManagerService } =
+        makeService();
+
+      workspaceService.findOneWorkspaceById.mockResolvedValue(pooledWorkspace);
+      subdomainManagerService.isSubdomainAvailable.mockResolvedValue(false);
+
+      await expect(
+        service.renameWorkspace(workspace.id, { name: 'Acme', slug: 'acme' }),
+      ).rejects.toBeInstanceOf(ConflictException);
+    });
+
+    it('maps a slug taken between the check and the write to a conflict', async () => {
+      const { service, workspaceService, workspaceRepository } = makeService();
+      const uniqueViolation = Object.assign(
+        new QueryFailedError('UPDATE', [], new Error('duplicate key')),
+        { code: '23505' },
+      );
+
+      workspaceService.findOneWorkspaceById.mockResolvedValue(pooledWorkspace);
+      workspaceRepository.update.mockRejectedValue(uniqueViolation);
+
+      await expect(
+        service.renameWorkspace(workspace.id, { name: 'Acme', slug: 'acme' }),
+      ).rejects.toBeInstanceOf(ConflictException);
+    });
+
+    it('rejects an invalid slug', async () => {
+      const { service, workspaceService } = makeService();
+
+      workspaceService.findOneWorkspaceById.mockResolvedValue(pooledWorkspace);
+
+      await expect(
+        service.renameWorkspace(workspace.id, {
+          name: 'Acme',
+          slug: 'Not A Slug!',
+        }),
+      ).rejects.toBeInstanceOf(BadRequestException);
+    });
+
+    it('throws when the workspace is missing or deleted', async () => {
+      const { service, workspaceService } = makeService();
+
+      workspaceService.findOneWorkspaceById.mockResolvedValue(null);
+
+      await expect(
+        service.renameWorkspace(workspace.id, { name: 'Acme', slug: 'acme' }),
+      ).rejects.toBeInstanceOf(NotFoundException);
+    });
+  });
+
+  describe('findWorkspaceBySlug', () => {
+    it('finds a workspace by slug, including a deleted one', async () => {
+      const { service, workspaceRepository } = makeService();
+
+      workspaceRepository.findOne.mockResolvedValue({
+        ...workspace,
+        deletedAt: new Date('2026-10-01T00:00:00.000Z'),
+      });
+
+      await expect(
+        service.findWorkspaceBySlug(' acme '),
+      ).resolves.toMatchObject({
+        workspaceId: workspace.id,
+        workspaceSubdomain: 'acme',
+        deleted: true,
+      });
+      expect(workspaceRepository.findOne).toHaveBeenCalledWith({
+        where: { subdomain: 'acme' },
+        withDeleted: true,
+      });
+    });
+
+    it('throws when no workspace ever had the slug', async () => {
+      const { service, workspaceRepository } = makeService();
+
+      workspaceRepository.findOne.mockResolvedValue(null);
+
+      await expect(service.findWorkspaceBySlug('acme')).rejects.toBeInstanceOf(
+        NotFoundException,
+      );
+    });
   });
 });

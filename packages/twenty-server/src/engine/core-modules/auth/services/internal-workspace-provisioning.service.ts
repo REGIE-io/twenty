@@ -1,8 +1,15 @@
 import {
   BadRequestException,
+  ConflictException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
+import { InjectRepository } from '@nestjs/typeorm';
+
+import { isDefined } from 'twenty-shared/utils';
+import { QueryFailedError, Repository } from 'typeorm';
+
+import { CoreEntityCacheService } from 'src/engine/core-entity-cache/services/core-entity-cache.service';
 
 import { ApiKeyService } from 'src/engine/core-modules/api-key/services/api-key.service';
 import {
@@ -13,6 +20,8 @@ import {
   type RegieE2eWorkspaceMarker,
 } from 'src/engine/core-modules/auth/constants/regie-e2e-workspace-marker.constant';
 import { SignInUpService } from 'src/engine/core-modules/auth/services/sign-in-up.service';
+import { SubdomainManagerService } from 'src/engine/core-modules/domain/subdomain-manager/services/subdomain-manager.service';
+import { isSubdomainValid } from 'src/engine/core-modules/domain/subdomain-manager/utils/is-subdomain-valid.util';
 import { KeyValuePairType } from 'src/engine/core-modules/key-value-pair/key-value-pair.entity';
 import { KeyValuePairService } from 'src/engine/core-modules/key-value-pair/key-value-pair.service';
 import { UserService } from 'src/engine/core-modules/user/services/user.service';
@@ -21,6 +30,7 @@ import { WorkspaceService } from 'src/engine/core-modules/workspace/services/wor
 import { WorkspaceEntity } from 'src/engine/core-modules/workspace/workspace.entity';
 
 const DEFAULT_SERVICE_USER_EMAIL = 'twenty-workspace-provisioning@regie.ai';
+const UNIQUE_VIOLATION_PG_CODE = '23505';
 
 type CreateWorkspaceInput = {
   name?: string;
@@ -41,6 +51,12 @@ type CreateWorkspaceApiKeyInput = {
   expiresAt?: string;
 };
 
+type RenameWorkspaceInput = {
+  name?: string;
+  slug?: string;
+  primaryDomain?: string;
+};
+
 type BackfillE2eWorkspaceMarkerInput = {
   organizationId?: string;
   workspaceSlug?: string;
@@ -54,6 +70,10 @@ export class InternalWorkspaceProvisioningService {
     private readonly workspaceService: WorkspaceService,
     private readonly apiKeyService: ApiKeyService,
     private readonly keyValuePairService: KeyValuePairService<RegieWorkspaceMarkerMap>,
+    @InjectRepository(WorkspaceEntity)
+    private readonly workspaceRepository: Repository<WorkspaceEntity>,
+    private readonly subdomainManagerService: SubdomainManagerService,
+    private readonly coreEntityCacheService: CoreEntityCacheService,
   ) {}
 
   async createWorkspace(input: CreateWorkspaceInput) {
@@ -132,6 +152,88 @@ export class InternalWorkspaceProvisioningService {
       )) ?? workspace;
 
     return this.toWorkspaceProvisioningResponse(activatedWorkspace);
+  }
+
+  async renameWorkspace(workspaceId: string, input: RenameWorkspaceInput) {
+    const displayName = this.requiredTrimmed(input.name, 'name');
+    const subdomain = this.requiredTrimmed(input.slug, 'slug');
+    const workspace =
+      await this.workspaceService.findOneWorkspaceById(workspaceId);
+
+    if (!workspace) {
+      throw new NotFoundException('Workspace was not found');
+    }
+
+    if (
+      workspace.subdomain === subdomain &&
+      workspace.displayName === displayName
+    ) {
+      return this.toWorkspaceProvisioningResponse(
+        workspace,
+        input.primaryDomain,
+      );
+    }
+
+    if (workspace.subdomain !== subdomain) {
+      await this.assertSubdomainAvailable(subdomain);
+    }
+
+    try {
+      await this.workspaceRepository.update(workspaceId, {
+        displayName,
+        subdomain,
+      });
+    } catch (error) {
+      if (this.isUniqueViolation(error)) {
+        throw new ConflictException('Subdomain already taken');
+      }
+      throw error;
+    }
+
+    await this.coreEntityCacheService.invalidate(
+      'workspaceEntity',
+      workspaceId,
+    );
+
+    return this.toWorkspaceProvisioningResponse(
+      { ...workspace, displayName, subdomain },
+      input.primaryDomain,
+    );
+  }
+
+  async findWorkspaceBySlug(slug: string) {
+    const subdomain = this.requiredTrimmed(slug, 'slug');
+    const workspace = await this.workspaceRepository.findOne({
+      where: { subdomain },
+      withDeleted: true,
+    });
+
+    if (!workspace) {
+      throw new NotFoundException('Workspace was not found');
+    }
+
+    return {
+      ...this.toWorkspaceProvisioningResponse(workspace),
+      deleted: isDefined(workspace.deletedAt),
+    };
+  }
+
+  private async assertSubdomainAvailable(subdomain: string) {
+    if (!isSubdomainValid(subdomain)) {
+      throw new BadRequestException('Subdomain is not valid');
+    }
+
+    if (!(await this.subdomainManagerService.isSubdomainAvailable(subdomain))) {
+      throw new ConflictException('Subdomain already taken');
+    }
+  }
+
+  private isUniqueViolation(error: unknown): boolean {
+    return (
+      error instanceof QueryFailedError &&
+      (error as QueryFailedError & { code?: string }).code ===
+        UNIQUE_VIOLATION_PG_CODE
+    );
   }
 
   async createWorkspaceApiKey(

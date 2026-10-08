@@ -53,3 +53,23 @@ export class InternalWorkspaceE2eMarkerDto {
   @IsString()
   workspaceSlug: string;
 }
+
+export class InternalWorkspaceRenameDto {
+  @IsString()
+  @IsNotEmpty()
+  name: string;
+
+  @IsString()
+  @IsNotEmpty()
+  slug: string;
+
+  @IsOptional()
+  @IsString()
+  primaryDomain?: string;
+}
+
+export class InternalWorkspaceLookupDto {
+  @IsString()
+  @IsNotEmpty()
+  slug: string;
+}
