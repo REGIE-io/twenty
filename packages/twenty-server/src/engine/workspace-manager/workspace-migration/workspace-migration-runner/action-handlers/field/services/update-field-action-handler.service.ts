@@ -8,10 +8,13 @@ import {
 import { isDefined } from 'twenty-shared/utils';
 import { ColumnType, type QueryRunner } from 'typeorm';
 
+import { createSearchVectorBackfillJobs } from 'src/engine/core-modules/search-vector-trigger/utils/search-vector-backfill.util';
 import {
   disableSearchVectorTrigger,
+  ensureSearchVectorTriggerMode,
   findSearchVectorTriggerSource,
   isSearchVectorTriggerMode,
+  refreshOrSelfHealSearchVectorTrigger,
   refreshSearchVectorTriggerIfConverted,
   reinstallSearchVectorTrigger,
   type SearchVectorTriggerSource,
@@ -100,6 +103,7 @@ type OptionsUpdateHandlerArgs<T extends FieldMetadataType = FieldMetadataType> =
     workspaceId: string;
     // Undefined when the object has no searchVector; built from the new options.
     searchVectorTriggerSource?: SearchVectorTriggerSource;
+    isSearchVectorTriggerEnabled: boolean;
   };
 
 @Injectable()
@@ -193,6 +197,9 @@ export class UpdateFieldActionHandlerService extends WorkspaceMigrationRunnerAct
       },
       workspaceId,
       getSearchFieldMetadatasByTsVectorFieldId,
+      searchListChanges,
+      isSearchVectorFormulaChange,
+      isSearchVectorTriggerEnabled,
     } = context;
     const { entityId, update } = flatAction;
 
@@ -275,6 +282,7 @@ export class UpdateFieldActionHandlerService extends WorkspaceMigrationRunnerAct
           ...optimisticFlatFieldMetadata,
           options: update.options ?? [],
         }),
+        isSearchVectorTriggerEnabled: isSearchVectorTriggerEnabled === true,
       });
       optimisticFlatFieldMetadata.options = update.options ?? [];
     }
@@ -406,14 +414,29 @@ export class UpdateFieldActionHandlerService extends WorkspaceMigrationRunnerAct
           flatSearchFieldMetadataMaps,
         });
 
-      // A converted table keeps its plain column; only the trigger function changes.
-      const isTriggerMode = await refreshSearchVectorTriggerIfConverted({
-        queryRunner,
-        schemaName,
-        tableName,
-        flatObjectMetadata,
-        objectFlatFieldMetadatas,
-        targetSearchFieldMetadatas,
+      // A converted table keeps its plain column; only the trigger function changes. With the
+      // flag on, a still-generated table or a lost trigger is healed in place, never rebuilt.
+      const isTriggerMode = await refreshOrSelfHealSearchVectorTrigger({
+        source: {
+          queryRunner,
+          schemaName,
+          tableName,
+          flatObjectMetadata,
+          objectFlatFieldMetadatas,
+          targetSearchFieldMetadatas,
+        },
+        backfillChange:
+          isSearchVectorFormulaChange === true
+            ? { type: 'formula' }
+            : {
+                type: 'searchList',
+                searchListChanges: (searchListChanges ?? []).filter(
+                  (searchListChange) =>
+                    searchListChange.tsVectorFieldUniversalIdentifier ===
+                    optimisticFlatFieldMetadata.universalIdentifier,
+                ),
+              },
+        isSearchVectorTriggerEnabled: isSearchVectorTriggerEnabled === true,
       });
 
       if (!isTriggerMode) {
@@ -708,6 +731,7 @@ export class UpdateFieldActionHandlerService extends WorkspaceMigrationRunnerAct
     flatObjectMetadata,
     workspaceId,
     searchVectorTriggerSource,
+    isSearchVectorTriggerEnabled,
   }: OptionsUpdateHandlerArgs) {
     const fromOptions = flatFieldMetadata.options;
     const fromOptionsById = new Map(
@@ -750,9 +774,28 @@ export class UpdateFieldActionHandlerService extends WorkspaceMigrationRunnerAct
       flatFieldMetadata.searchFieldMetadataUniversalIdentifiers.length > 0;
 
     // On a converted table the swap's UPDATE would fire a trigger still holding old literals.
+    // A heal parses its formula against the enum type before the swap adds the new values, so it
+    // is built from the current options; only a searched field can make it heal.
     const isTriggerMode =
       isDefined(searchVectorTriggerSource) &&
-      (await isSearchVectorTriggerMode(queryRunner, searchVectorTriggerSource));
+      (isIndexedInSearchVector
+        ? await ensureSearchVectorTriggerMode(
+            {
+              ...searchVectorTriggerSource,
+              objectFlatFieldMetadatas:
+                searchVectorTriggerSource.objectFlatFieldMetadatas.map(
+                  (objectFlatFieldMetadata) =>
+                    objectFlatFieldMetadata.id === flatFieldMetadata.id
+                      ? flatFieldMetadata
+                      : objectFlatFieldMetadata,
+                ),
+            },
+            isSearchVectorTriggerEnabled,
+          )
+        : await isSearchVectorTriggerMode(
+            queryRunner,
+            searchVectorTriggerSource,
+          ));
 
     if (isTriggerMode) {
       await disableSearchVectorTrigger(queryRunner, { schemaName, tableName });
@@ -779,6 +822,15 @@ export class UpdateFieldActionHandlerService extends WorkspaceMigrationRunnerAct
     // Recreating the trigger also re-enables it.
     if (isTriggerMode) {
       await reinstallSearchVectorTrigger(searchVectorTriggerSource);
+      await createSearchVectorBackfillJobs({
+        source: searchVectorTriggerSource,
+        change: {
+          type: 'options',
+          fieldMetadataId: flatFieldMetadata.id,
+          fromOptions: fromOptions ?? [],
+          toOptions: toOptions ?? [],
+        },
+      });
     }
   }
 }

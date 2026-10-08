@@ -135,7 +135,10 @@ export class DeleteFieldActionHandlerService extends WorkspaceMigrationRunnerAct
         });
 
     if (isDefined(searchVectorTriggerSource)) {
-      await refreshSearchVectorTriggerIfConverted(searchVectorTriggerSource);
+      await refreshSearchVectorTriggerIfConverted(searchVectorTriggerSource, {
+        type: 'fieldDelete',
+        fieldMetadataId: flatFieldMetadata.id,
+      });
     }
 
     const enumOperations = collectEnumOperationsForField({
