@@ -1,6 +1,7 @@
 import { isDefined } from 'twenty-shared/utils';
 import { type DataSource, type QueryRunner } from 'typeorm';
 
+import { getSearchVectorFunctionName } from 'src/engine/core-modules/search-vector-trigger/utils/build-search-vector-trigger-statements.util';
 import { escapeIdentifier } from 'src/engine/workspace-manager/workspace-migration/utils/remove-sql-injection.util';
 
 type SearchVectorColumnState = 'generated' | 'plain' | 'missing';
@@ -363,4 +364,55 @@ export const checkSearchVectorIndex = async (
   const { health: repairedHealth } = await readHealth();
 
   return repairedHealth === 'healthy' ? 'repaired' : repairedHealth;
+};
+
+// The trigger-mode test of hasSearchVectorTrigger for a whole schema in one query, so a caller
+// walking every object does not make two round trips per table.
+export const findSearchVectorTriggerModeTableNames = async (
+  queryRunner: QueryRunner,
+  schemaName: string,
+): Promise<Set<string>> => {
+  const candidates = (await queryRunner.query(
+    `SELECT c.relname AS "tableName", t.tgname AS "triggerName", p.proname AS "functionName"
+       FROM pg_attribute a
+       JOIN pg_class c ON c.oid = a.attrelid
+       JOIN pg_namespace n ON n.oid = c.relnamespace
+       JOIN pg_trigger t ON t.tgrelid = c.oid
+        AND NOT t.tgisinternal AND t.tgenabled <> 'D' AND t.tgtype = $2
+       JOIN pg_proc p ON p.oid = t.tgfoid
+        AND p.pronamespace = n.oid AND p.pronargs = 0
+      WHERE n.nspname = $1 AND a.attname = 'searchVector'
+        AND NOT a.attisdropped AND a.attgenerated = ''`,
+    [schemaName, SEARCH_VECTOR_TRIGGER_TYPE],
+  )) as Array<{ tableName: string; triggerName: string; functionName: string }>;
+
+  return new Set(
+    candidates
+      .filter(
+        ({ tableName, triggerName, functionName }) =>
+          triggerName === getSearchVectorFunctionName(tableName) &&
+          functionName === triggerName,
+      )
+      .map(({ tableName }) => tableName),
+  );
+};
+
+// The function reads columns as NEW."<column>", and every column of a field starts with the
+// field's name, so a prefix match can only refresh too often, never miss a column still read.
+export const doesSearchVectorTriggerReadField = async (
+  queryRunner: QueryRunner,
+  {
+    qualifiedFunction,
+    fieldName,
+  }: { qualifiedFunction: string; fieldName: string },
+): Promise<boolean> => {
+  const [{ readsField }] = (await queryRunner.query(
+    `SELECT COALESCE(
+       (SELECT position($2 in prosrc) > 0 FROM pg_proc
+         WHERE oid = to_regprocedure($1 || '()')),
+       false) AS "readsField"`,
+    [qualifiedFunction, `NEW."${fieldName.replace(/"/g, '""')}`],
+  )) as Array<{ readsField: boolean }>;
+
+  return readsField;
 };

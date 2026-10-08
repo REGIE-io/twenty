@@ -6,6 +6,7 @@ import { isDefined } from 'twenty-shared/utils';
 import {
   dropSearchVectorTrigger,
   findSearchVectorTriggerSource,
+  isFieldReadBySearchVectorTrigger,
   refreshSearchVectorTriggerIfConverted,
 } from 'src/engine/core-modules/search-vector-trigger/utils/search-vector-trigger-maintenance.util';
 import { WorkspaceMigrationRunnerActionHandler } from 'src/engine/workspace-manager/workspace-migration/workspace-migration-runner/interfaces/workspace-migration-runner-action-handler-service.interface';
@@ -134,7 +135,14 @@ export class DeleteFieldActionHandlerService extends WorkspaceMigrationRunnerAct
           deletedFieldMetadataId: flatFieldMetadata.id,
         });
 
-    if (isDefined(searchVectorTriggerSource)) {
+    if (
+      isDefined(searchVectorTriggerSource) &&
+      (await isFieldReadBySearchVectorTrigger(queryRunner, {
+        schemaName,
+        tableName,
+        fieldName: flatFieldMetadata.name,
+      }))
+    ) {
       await refreshSearchVectorTriggerIfConverted(searchVectorTriggerSource, {
         type: 'fieldDelete',
         fieldMetadataId: flatFieldMetadata.id,

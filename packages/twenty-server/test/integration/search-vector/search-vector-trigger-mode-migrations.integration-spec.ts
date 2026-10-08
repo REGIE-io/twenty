@@ -20,6 +20,7 @@ import {
 } from 'src/engine/core-modules/search-vector-trigger/utils/build-search-vector-trigger-statements.util';
 import { type SearchVectorBackfillService } from 'src/engine/core-modules/search-vector-trigger/services/search-vector-backfill.service';
 import { type SearchVectorTriggerConversionService } from 'src/engine/core-modules/search-vector-trigger/services/search-vector-trigger-conversion.service';
+import { findSearchVectorTriggerModeTableNames } from 'src/engine/core-modules/search-vector-trigger/utils/search-vector-table-queries.util';
 import { isSearchVectorTriggerMode } from 'src/engine/core-modules/search-vector-trigger/utils/search-vector-trigger-maintenance.util';
 import { getDefaultFlatFieldMetadata } from 'src/engine/metadata-modules/flat-field-metadata/utils/get-default-flat-field-metadata-from-create-field-input.util';
 import { buildFlatSearchFieldMetadataForField } from 'src/engine/metadata-modules/flat-search-field-metadata/utils/build-flat-search-field-metadata-for-field.util';
@@ -395,6 +396,28 @@ const isTriggerMode = async (schemaName: string, tableName: string) => {
   }
 };
 
+// A rebuild drops and recreates the trigger (new oid) and replaces the function (new xmin).
+const readTriggerIdentity = async (schemaName: string, tableName: string) => {
+  const [identity] = await query<{ triggerOid: string; functionXmin: string }>(
+    `SELECT t.oid::text AS "triggerOid", p.xmin::text AS "functionXmin"
+       FROM pg_trigger t JOIN pg_proc p ON p.oid = t.tgfoid
+      WHERE t.tgrelid = to_regclass($1) AND t.tgname = $2`,
+    [`"${schemaName}"."${tableName}"`, getSearchVectorFunctionName(tableName)],
+  );
+
+  return identity;
+};
+
+const readTriggerModeTableNames = async (schemaName: string) => {
+  const queryRunner = global.testDataSource.createQueryRunner();
+
+  try {
+    return await findSearchVectorTriggerModeTableNames(queryRunner, schemaName);
+  } finally {
+    await queryRunner.release();
+  }
+};
+
 const readFunctionDefinition = async (
   schemaName: string,
   tableName: string,
@@ -487,6 +510,9 @@ describe('searchVector trigger mode across workspace migrations', () => {
     await convertTableByHand(object.schemaName, tableName);
 
     await expectTriggerMode();
+    expect(await readTriggerModeTableNames(object.schemaName)).toContain(
+      tableName,
+    );
   });
 
   it('refreshes the trigger when a TEXT field becomes searchable', async () => {
@@ -774,6 +800,40 @@ describe('searchVector trigger mode across workspace migrations', () => {
     await createRecord(OBJECT.nameSingular, { moniker: 'zzafterdelete' });
   });
 
+  it('leaves the trigger alone when a field it never read is renamed or deleted', async () => {
+    const noteField = await createField({
+      objectMetadataId: object.id,
+      name: 'internalNote',
+      type: FieldMetadataType.TEXT,
+    });
+    const triggerBefore = await readTriggerIdentity(
+      object.schemaName,
+      tableName,
+    );
+
+    expect(triggerBefore).toBeDefined();
+
+    await updateOneFieldMetadata({
+      expectToFail: false,
+      gqlFields: `id`,
+      input: {
+        idToUpdate: noteField.id,
+        updatePayload: { name: 'privateNote', label: 'privateNote' },
+      },
+    });
+
+    expect(await readTriggerIdentity(object.schemaName, tableName)).toEqual(
+      triggerBefore,
+    );
+
+    await deleteField(noteField.id);
+
+    expect(await readTriggerIdentity(object.schemaName, tableName)).toEqual(
+      triggerBefore,
+    );
+    await createRecord(OBJECT.nameSingular, { moniker: 'zzunreadfieldtoken' });
+  });
+
   it('carries the trigger over when the object is renamed', async () => {
     const previousTableName = tableName;
 
@@ -869,6 +929,9 @@ describe('searchVector generated mode across workspace migrations', () => {
     expect(
       await readFunctionDefinition(object.schemaName, tableName),
     ).toBeNull();
+    expect(await readTriggerModeTableNames(object.schemaName)).not.toContain(
+      tableName,
+    );
 
     const recordId = await createRecord(GENERATED_OBJECT.nameSingular, {
       alias: 'zzgeneratedtoken',

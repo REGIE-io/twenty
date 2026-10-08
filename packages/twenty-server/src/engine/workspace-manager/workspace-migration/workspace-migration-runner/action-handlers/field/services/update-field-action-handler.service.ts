@@ -13,6 +13,7 @@ import {
   disableSearchVectorTrigger,
   ensureSearchVectorTriggerMode,
   findSearchVectorTriggerSource,
+  isFieldReadBySearchVectorTrigger,
   isSearchVectorTriggerMode,
   refreshOrSelfHealSearchVectorTrigger,
   refreshSearchVectorTriggerIfConverted,
@@ -237,6 +238,8 @@ export class UpdateFieldActionHandlerService extends WorkspaceMigrationRunnerAct
       });
 
     if (isDefined(update.name)) {
+      const fromName = optimisticFlatFieldMetadata.name;
+
       await this.handleFieldNameUpdate({
         queryRunner,
         schemaName,
@@ -248,11 +251,19 @@ export class UpdateFieldActionHandlerService extends WorkspaceMigrationRunnerAct
       optimisticFlatFieldMetadata.name = update.name;
 
       // Trigger functions read columns by name, so rebuild before a later write hits the old one.
+      // A field the function never read changes nothing, so it skips the rebuild.
       const searchVectorTriggerSource = findTriggerSourceWithField(
         optimisticFlatFieldMetadata,
       );
 
-      if (isDefined(searchVectorTriggerSource)) {
+      if (
+        isDefined(searchVectorTriggerSource) &&
+        (await isFieldReadBySearchVectorTrigger(queryRunner, {
+          schemaName,
+          tableName,
+          fieldName: fromName,
+        }))
+      ) {
         await refreshSearchVectorTriggerIfConverted(searchVectorTriggerSource);
       }
     }

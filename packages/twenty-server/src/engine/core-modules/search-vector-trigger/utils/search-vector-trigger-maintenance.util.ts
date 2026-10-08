@@ -16,6 +16,7 @@ import {
   upsertSearchVectorBackfillJob,
 } from 'src/engine/core-modules/search-vector-trigger/utils/search-vector-backfill.util';
 import {
+  doesSearchVectorTriggerReadField,
   getSearchVectorColumnState,
   hasSearchVectorTrigger,
   readSearchVectorIndexHealth,
@@ -309,6 +310,24 @@ export const isSearchVectorTriggerMode = async (
     qualifiedFunction: qualifyName(schemaName, functionName),
   });
 };
+
+// Search-vector updates run last in a migration, so the installed function can still read a
+// field that has just left the search list: only the function itself says whether it reads it.
+export const isFieldReadBySearchVectorTrigger = (
+  queryRunner: QueryRunner,
+  {
+    schemaName,
+    tableName,
+    fieldName,
+  }: SearchVectorTable & { fieldName: string },
+): Promise<boolean> =>
+  doesSearchVectorTriggerReadField(queryRunner, {
+    qualifiedFunction: qualifyName(
+      schemaName,
+      getSearchVectorFunctionName(tableName),
+    ),
+    fieldName,
+  });
 
 export const reinstallSearchVectorTrigger = async ({
   queryRunner,

@@ -16,7 +16,7 @@ import { buildWorkspaceTableColumnSets } from 'src/database/commands/workspace-e
 import { formatSqlValue } from 'src/database/commands/workspace-export/utils/format-sql-value.util';
 import { generateWorkspaceSchemaDdl } from 'src/database/commands/workspace-export/utils/generate-workspace-schema-ddl.util';
 import { getCoreEntityMetadatasWithWorkspaceId } from 'src/database/commands/workspace-export/utils/get-core-entity-metadatas-with-workspace-id.util';
-import { isSearchVectorTriggerMode } from 'src/engine/core-modules/search-vector-trigger/utils/search-vector-trigger-maintenance.util';
+import { findSearchVectorTriggerModeTableNames } from 'src/engine/core-modules/search-vector-trigger/utils/search-vector-table-queries.util';
 import { WorkspaceEntity } from 'src/engine/core-modules/workspace/workspace.entity';
 import { FieldMetadataEntity } from 'src/engine/metadata-modules/field-metadata/field-metadata.entity';
 import { ObjectMetadataEntity } from 'src/engine/metadata-modules/object-metadata/object-metadata.entity';
@@ -363,25 +363,22 @@ export class WorkspaceExportService {
     objectMetadatas: ObjectMetadataEntity[],
     queryRunner: QueryRunner,
   ): Promise<Set<string>> {
-    const triggerModeTableNames = new Set<string>();
+    // One catalog query for the schema, rather than two round trips per object.
+    const schemaTriggerModeTableNames =
+      await findSearchVectorTriggerModeTableNames(queryRunner, schemaName);
 
-    for (const objectMetadata of objectMetadatas) {
-      if (!objectMetadata.isActive) continue;
-
-      const tableName = computeTableName(
-        objectMetadata.nameSingular,
-        objectMetadata.application?.universalIdentifier !==
-          TWENTY_STANDARD_APPLICATION.universalIdentifier,
-      );
-
-      if (
-        await isSearchVectorTriggerMode(queryRunner, { schemaName, tableName })
-      ) {
-        triggerModeTableNames.add(tableName);
-      }
-    }
-
-    return triggerModeTableNames;
+    return new Set(
+      objectMetadatas
+        .filter((objectMetadata) => objectMetadata.isActive)
+        .map((objectMetadata) =>
+          computeTableName(
+            objectMetadata.nameSingular,
+            objectMetadata.application?.universalIdentifier !==
+              TWENTY_STANDARD_APPLICATION.universalIdentifier,
+          ),
+        )
+        .filter((tableName) => schemaTriggerModeTableNames.has(tableName)),
+    );
   }
 
   private writeWorkspaceSchemaDdl(
