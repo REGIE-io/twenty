@@ -3,6 +3,7 @@ import {
   Injectable,
   InternalServerErrorException,
   Logger,
+  NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 
@@ -25,6 +26,7 @@ import { ACQUIRE_ATTACH_CONNECTED_ACCOUNT_LOCK_STATEMENT } from 'src/engine/core
 import {
   type AttachConnectedAccountInput,
   type AttachConnectedAccountResult,
+  type CalendarChannelSyncStatusResult,
   type DetachConnectedAccountResult,
 } from 'src/engine/core-modules/workspace/internal/types/internal-connected-account-provisioning.type';
 import { buildAttachConnectedAccountLockName } from 'src/engine/core-modules/workspace/internal/utils/build-attach-connected-account-lock-name.util';
@@ -183,6 +185,27 @@ export class InternalConnectedAccountProvisioningService {
       disabledCalendarChannelIds: calendarChannelIds,
       disabledMessageChannelIds: messageChannelIds,
     };
+  }
+
+  async getCalendarChannelSyncStatus({
+    workspaceId,
+    calendarChannelId,
+  }: {
+    workspaceId: string;
+    calendarChannelId: string;
+  }): Promise<CalendarChannelSyncStatusResult> {
+    const channel = await this.calendarChannelRepository.findOneBy({
+      id: calendarChannelId,
+      workspaceId,
+    });
+
+    if (!isDefined(channel)) {
+      throw new NotFoundException(
+        `Calendar channel ${calendarChannelId} not found in workspace ${workspaceId}.`,
+      );
+    }
+
+    return { syncStatus: channel.syncStatus };
   }
 
   private async assertWorkspaceExists(workspaceId: string): Promise<void> {
