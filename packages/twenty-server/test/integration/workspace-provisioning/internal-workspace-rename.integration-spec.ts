@@ -28,7 +28,6 @@ const internal = () => {
 const uniqueSlug = (prefix: string) =>
   `${prefix}-${crypto.randomUUID().slice(0, 8)}`;
 
-// crm keeps pooled workspaces under pool-* slugs and renames one when a tenant claims it.
 describe('internal workspace rename and lookup', () => {
   let configGetSpy: jest.SpyInstance;
   const workspaceIds: string[] = [];
@@ -66,8 +65,6 @@ describe('internal workspace rename and lookup', () => {
   });
 
   afterAll(async () => {
-    // Not through the internal DELETE route: it also soft-deletes the shared
-    // provisioning user once that user has no other workspace.
     await global.testDataSource.query(
       'DELETE FROM core.workspace WHERE id = ANY($1::uuid[])',
       [workspaceIds],
