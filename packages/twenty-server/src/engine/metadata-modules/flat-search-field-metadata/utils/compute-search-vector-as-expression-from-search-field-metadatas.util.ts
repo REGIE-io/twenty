@@ -4,9 +4,15 @@ import { isSearchableFieldType } from 'twenty-shared/utils';
 import { isAdditionalSearchableFieldType } from 'src/engine/workspace-manager/utils/is-additional-searchable-field-type.util';
 import {
   type FieldTypeAndNameMetadata,
+  getLeanTsVectorExpressionFromFields,
   getTsVectorColumnExpressionFromFields,
   type SearchableFieldOption,
 } from 'src/engine/workspace-manager/utils/get-ts-vector-column-expression.util';
+
+export type SearchVectorExpressionShape =
+  | 'generatedColumn'
+  | 'leanColumn'
+  | 'triggerRow';
 
 export type SearchVectorTargetField = {
   name: string;
@@ -45,6 +51,7 @@ export const buildSearchVectorTargetField = ({
 // asExpression churn — tsvector matching is order-insensitive.
 export const computeSearchVectorAsExpressionFromSearchFieldMetadatas = (
   targetSearchableFields: SearchVectorTargetField[],
+  shape: SearchVectorExpressionShape = 'generatedColumn',
 ): string => {
   const orderedSearchableFields: FieldTypeAndNameMetadata[] = [
     ...targetSearchableFields,
@@ -71,5 +78,11 @@ export const computeSearchVectorAsExpressionFromSearchFieldMetadatas = (
       return [{ name: targetField.name, type, options: targetField.options }];
     });
 
-  return getTsVectorColumnExpressionFromFields(orderedSearchableFields);
+  if (shape === 'generatedColumn') {
+    return getTsVectorColumnExpressionFromFields(orderedSearchableFields);
+  }
+
+  return getLeanTsVectorExpressionFromFields(orderedSearchableFields, {
+    columnReference: shape === 'triggerRow' ? 'triggerRow' : 'column',
+  });
 };

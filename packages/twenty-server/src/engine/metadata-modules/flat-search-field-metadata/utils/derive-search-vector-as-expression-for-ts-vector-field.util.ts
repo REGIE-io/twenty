@@ -4,6 +4,7 @@ import { isDefined } from 'twenty-shared/utils';
 import {
   buildSearchVectorTargetField,
   computeSearchVectorAsExpressionFromSearchFieldMetadatas,
+  type SearchVectorExpressionShape,
 } from 'src/engine/metadata-modules/flat-search-field-metadata/utils/compute-search-vector-as-expression-from-search-field-metadatas.util';
 import { type FlatSearchFieldMetadata } from 'src/engine/metadata-modules/flat-search-field-metadata/types/flat-search-field-metadata.type';
 import { type SearchableFieldOption } from 'src/engine/workspace-manager/utils/get-ts-vector-column-expression.util';
@@ -12,8 +13,10 @@ import { assertSafeTsVectorExpression } from 'src/engine/workspace-manager/works
 export const deriveSearchVectorAsExpressionForTsVectorField = ({
   targetSearchFieldMetadatas,
   indexedFieldById,
+  shape = 'generatedColumn',
 }: {
   targetSearchFieldMetadatas: FlatSearchFieldMetadata[];
+  shape?: SearchVectorExpressionShape;
   indexedFieldById: ReadonlyMap<
     string,
     {
@@ -47,6 +50,7 @@ export const deriveSearchVectorAsExpressionForTsVectorField = ({
 
   const expression = computeSearchVectorAsExpressionFromSearchFieldMetadatas(
     targetSearchableFields,
+    shape,
   );
 
   assertSafeTsVectorExpression(expression);
