@@ -14,6 +14,7 @@ import { findFlatEntityByIdInFlatEntityMaps } from 'src/engine/metadata-modules/
 import { findFlatEntityByUniversalIdentifier } from 'src/engine/metadata-modules/flat-entity/utils/find-flat-entity-by-universal-identifier.util';
 import { type FlatIndexMetadata } from 'src/engine/metadata-modules/flat-index-metadata/types/flat-index-metadata.type';
 import { MAX_CUSTOM_INDEXES_PER_OBJECT } from 'twenty-shared/constants';
+import { type FlatApplication } from 'src/engine/core-modules/application/types/flat-application.type';
 import { type CreateIndexInput } from 'src/engine/metadata-modules/index-metadata/dtos/create-index.input';
 import {
   IndexMetadataException,
@@ -24,6 +25,60 @@ import { validateIndexTypeAgainstFieldsOrThrow } from 'src/engine/metadata-modul
 import { validateNoDuplicateUniqueIndexOrThrow } from 'src/engine/metadata-modules/index-metadata/utils/validate-no-duplicate-unique-index.util';
 import { WorkspaceMigrationBuilderException } from 'src/engine/workspace-manager/workspace-migration/exceptions/workspace-migration-builder-exception';
 import { WorkspaceMigrationValidateBuildAndRunService } from 'src/engine/workspace-manager/workspace-migration/services/workspace-migration-validate-build-and-run-service';
+
+const assertIndexFieldInputsOrThrow = ({
+  fields: fieldInputs,
+}: CreateIndexInput): void => {
+  if (fieldInputs.length === 0) {
+    throw new IndexMetadataException(
+      'At least one field is required to create an index',
+      IndexMetadataExceptionCode.INDEX_FIELDS_REQUIRED,
+      {
+        userFriendlyMessage: msg`Pick at least one field for the index.`,
+      },
+    );
+  }
+
+  // Duplicate check considers (fieldMetadataId, subFieldName) pair so the
+  // user CAN pick "Address > City" and "Address > Postcode" in the same
+  // composite index, but not the exact same column twice.
+  const dedupKeys = fieldInputs.map(
+    (input) => `${input.fieldMetadataId}::${input.subFieldName ?? ''}`,
+  );
+
+  if (new Set(dedupKeys).size !== dedupKeys.length) {
+    throw new IndexMetadataException(
+      'Duplicate field+sub-field in index field list',
+      IndexMetadataExceptionCode.DUPLICATE_INDEX_FIELDS,
+      {
+        userFriendlyMessage: msg`The same column cannot appear twice in an index.`,
+      },
+    );
+  }
+};
+
+// Two identical definitions in one batch would each pass the checks against existing
+// indexes, then collide in the same migration.
+const assertNoRepeatedIndexDefinitionOrThrow = (
+  createIndexInputs: CreateIndexInput[],
+): void => {
+  const definitionKeys = createIndexInputs.map(
+    (input) =>
+      `${input.objectMetadataId}|${input.fields
+        .map((field) => `${field.fieldMetadataId}::${field.subFieldName ?? ''}`)
+        .join(',')}`,
+  );
+
+  if (new Set(definitionKeys).size !== definitionKeys.length) {
+    throw new IndexMetadataException(
+      'The same index definition appears more than once in one batch',
+      IndexMetadataExceptionCode.DUPLICATE_INDEX_FIELDS,
+      {
+        userFriendlyMessage: msg`The same index cannot be created twice in one request.`,
+      },
+    );
+  }
+};
 
 @Injectable()
 export class IndexMetadataService {
@@ -40,41 +95,107 @@ export class IndexMetadataService {
     createIndexInput: CreateIndexInput;
     workspaceId: string;
   }): Promise<FlatIndexMetadata> {
-    const { fields: fieldInputs } = createIndexInput;
-    const isUnique = createIndexInput.isUnique ?? false;
+    const [createdFlatIndexMetadata] = await this.createMany({
+      createIndexInputs: [createIndexInput],
+      workspaceId,
+    });
 
-    if (fieldInputs.length === 0) {
-      throw new IndexMetadataException(
-        'At least one field is required to create an index',
-        IndexMetadataExceptionCode.INDEX_FIELDS_REQUIRED,
-        {
-          userFriendlyMessage: msg`Pick at least one field for the index.`,
-        },
+    return createdFlatIndexMetadata;
+  }
+
+  // One workspace migration for the whole batch: each migration pays a full cache rebuild
+  // after commit, which costs far more than creating one index.
+  async createMany({
+    createIndexInputs,
+    workspaceId,
+  }: {
+    createIndexInputs: CreateIndexInput[];
+    workspaceId: string;
+  }): Promise<FlatIndexMetadata[]> {
+    createIndexInputs.forEach(assertIndexFieldInputsOrThrow);
+    assertNoRepeatedIndexDefinitionOrThrow(createIndexInputs);
+
+    const flatEntityMaps =
+      await this.getIndexCreationFlatEntityMaps(workspaceId);
+    const { workspaceCustomFlatApplication } =
+      await this.applicationService.findWorkspaceTwentyStandardAndCustomApplicationOrThrow(
+        { workspaceId },
       );
-    }
+    const createdAt = new Date().toISOString();
+    const pendingCustomIndexCountByObjectId = new Map<string, number>();
 
-    // Duplicate check considers (fieldMetadataId, subFieldName) pair so the
-    // user CAN pick "Address > City" and "Address > Postcode" in the same
-    // composite index, but not the exact same column twice.
-    const dedupKeys = fieldInputs.map(
-      (input) => `${input.fieldMetadataId}::${input.subFieldName ?? ''}`,
+    const universalFlatIndexMetadatas = createIndexInputs.map(
+      (createIndexInput) => {
+        const pendingCustomIndexCount =
+          pendingCustomIndexCountByObjectId.get(
+            createIndexInput.objectMetadataId,
+          ) ?? 0;
+
+        pendingCustomIndexCountByObjectId.set(
+          createIndexInput.objectMetadataId,
+          pendingCustomIndexCount + 1,
+        );
+
+        return this.buildUniversalFlatIndexMetadataOrThrow({
+          createIndexInput,
+          flatEntityMaps,
+          workspaceCustomFlatApplication,
+          createdAt,
+          pendingCustomIndexCount,
+        });
+      },
     );
 
-    if (new Set(dedupKeys).size !== dedupKeys.length) {
-      throw new IndexMetadataException(
-        'Duplicate field+sub-field in index field list',
-        IndexMetadataExceptionCode.DUPLICATE_INDEX_FIELDS,
+    const validateAndBuildResult =
+      await this.workspaceMigrationValidateBuildAndRunService.validateBuildAndRunWorkspaceMigration(
         {
-          userFriendlyMessage: msg`The same column cannot appear twice in an index.`,
+          allFlatEntityOperationByMetadataName: {
+            index: {
+              flatEntityToCreate: universalFlatIndexMetadatas,
+              flatEntityToDelete: [],
+              flatEntityToUpdate: [],
+            },
+          },
+          workspaceId,
+          applicationUniversalIdentifier:
+            workspaceCustomFlatApplication.universalIdentifier,
         },
+      );
+
+    if (validateAndBuildResult.status === 'fail') {
+      throw new WorkspaceMigrationBuilderException(
+        validateAndBuildResult,
+        'Validation errors occurred while creating index',
       );
     }
 
-    const {
-      flatObjectMetadataMaps: existingFlatObjectMetadataMaps,
-      flatFieldMetadataMaps: existingFlatFieldMetadataMaps,
-      flatIndexMaps: existingFlatIndexMaps,
-    } = await this.flatEntityMapsCacheService.getOrRecomputeManyOrAllFlatEntityMaps(
+    const { flatIndexMaps: recomputedFlatIndexMaps } =
+      await this.flatEntityMapsCacheService.getOrRecomputeManyOrAllFlatEntityMaps(
+        {
+          workspaceId,
+          flatMapsKeys: ['flatIndexMaps'],
+        },
+      );
+
+    return universalFlatIndexMetadatas.map(({ universalIdentifier }) => {
+      const createdFlatIndexMetadata = findFlatEntityByUniversalIdentifier({
+        universalIdentifier,
+        flatEntityMaps: recomputedFlatIndexMaps,
+      });
+
+      if (!isDefined(createdFlatIndexMetadata)) {
+        throw new IndexMetadataException(
+          `Index ${universalIdentifier} was created but is missing from the recomputed cache`,
+          IndexMetadataExceptionCode.INDEX_CREATION_FAILED,
+        );
+      }
+
+      return createdFlatIndexMetadata;
+    });
+  }
+
+  private async getIndexCreationFlatEntityMaps(workspaceId: string) {
+    return this.flatEntityMapsCacheService.getOrRecomputeManyOrAllFlatEntityMaps(
       {
         workspaceId,
         flatMapsKeys: [
@@ -84,6 +205,30 @@ export class IndexMetadataService {
         ],
       },
     );
+  }
+
+  private buildUniversalFlatIndexMetadataOrThrow({
+    createIndexInput,
+    flatEntityMaps,
+    workspaceCustomFlatApplication,
+    createdAt,
+    pendingCustomIndexCount,
+  }: {
+    createIndexInput: CreateIndexInput;
+    flatEntityMaps: Awaited<
+      ReturnType<IndexMetadataService['getIndexCreationFlatEntityMaps']>
+    >;
+    workspaceCustomFlatApplication: FlatApplication;
+    createdAt: string;
+    pendingCustomIndexCount: number;
+  }) {
+    const { fields: fieldInputs } = createIndexInput;
+    const isUnique = createIndexInput.isUnique ?? false;
+    const {
+      flatObjectMetadataMaps: existingFlatObjectMetadataMaps,
+      flatFieldMetadataMaps: existingFlatFieldMetadataMaps,
+      flatIndexMaps: existingFlatIndexMaps,
+    } = flatEntityMaps;
 
     const flatObjectMetadata = findFlatEntityByIdInFlatEntityMaps({
       flatEntityMaps: existingFlatObjectMetadataMaps,
@@ -214,7 +359,10 @@ export class IndexMetadataService {
           flatIndex.isCustom,
       ).length;
 
-    if (existingCustomIndexCount >= MAX_CUSTOM_INDEXES_PER_OBJECT) {
+    if (
+      existingCustomIndexCount + pendingCustomIndexCount >=
+      MAX_CUSTOM_INDEXES_PER_OBJECT
+    ) {
       throw new IndexMetadataException(
         `Custom index limit of ${MAX_CUSTOM_INDEXES_PER_OBJECT} reached for object ${createIndexInput.objectMetadataId}`,
         IndexMetadataExceptionCode.CUSTOM_INDEX_LIMIT_REACHED,
@@ -224,14 +372,7 @@ export class IndexMetadataService {
       );
     }
 
-    const { workspaceCustomFlatApplication } =
-      await this.applicationService.findWorkspaceTwentyStandardAndCustomApplicationOrThrow(
-        { workspaceId },
-      );
-
     const indexMetadataUniversalIdentifier = v4();
-    const createdAt = new Date().toISOString();
-
     const universalFlatIndexMetadata = generateFlatIndexMetadataWithNameOrThrow(
       {
         flatObjectMetadata,
@@ -264,50 +405,7 @@ export class IndexMetadataService {
       },
     );
 
-    const validateAndBuildResult =
-      await this.workspaceMigrationValidateBuildAndRunService.validateBuildAndRunWorkspaceMigration(
-        {
-          allFlatEntityOperationByMetadataName: {
-            index: {
-              flatEntityToCreate: [universalFlatIndexMetadata],
-              flatEntityToDelete: [],
-              flatEntityToUpdate: [],
-            },
-          },
-          workspaceId,
-          applicationUniversalIdentifier:
-            workspaceCustomFlatApplication.universalIdentifier,
-        },
-      );
-
-    if (validateAndBuildResult.status === 'fail') {
-      throw new WorkspaceMigrationBuilderException(
-        validateAndBuildResult,
-        'Validation errors occurred while creating index',
-      );
-    }
-
-    const { flatIndexMaps: recomputedFlatIndexMaps } =
-      await this.flatEntityMapsCacheService.getOrRecomputeManyOrAllFlatEntityMaps(
-        {
-          workspaceId,
-          flatMapsKeys: ['flatIndexMaps'],
-        },
-      );
-
-    const createdFlatIndexMetadata = findFlatEntityByUniversalIdentifier({
-      universalIdentifier: indexMetadataUniversalIdentifier,
-      flatEntityMaps: recomputedFlatIndexMaps,
-    });
-
-    if (!isDefined(createdFlatIndexMetadata)) {
-      throw new IndexMetadataException(
-        `Index ${indexMetadataUniversalIdentifier} was created but is missing from the recomputed cache`,
-        IndexMetadataExceptionCode.INDEX_CREATION_FAILED,
-      );
-    }
-
-    return createdFlatIndexMetadata;
+    return universalFlatIndexMetadata;
   }
 
   async deleteOne({

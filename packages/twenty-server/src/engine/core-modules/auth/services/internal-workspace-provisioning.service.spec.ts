@@ -32,7 +32,6 @@ describe('InternalWorkspaceProvisioningService', () => {
     ...workspace,
     subdomain: 'org-e2e-run-1',
   };
-
   const makeService = () => {
     const signInUpService = {
       signUpOnNewWorkspace: jest.fn().mockResolvedValue({ user, workspace }),
@@ -112,6 +111,7 @@ describe('InternalWorkspaceProvisioningService', () => {
         subdomain: 'acme',
         shouldBypassWorkspaceCreationChecks: true,
         shouldRecordDpaAcceptance: false,
+        shouldFetchWorkspaceLogo: false,
       },
     );
     expect(workspaceService.activateWorkspace).toHaveBeenCalledWith(
@@ -125,6 +125,53 @@ describe('InternalWorkspaceProvisioningService', () => {
       workspaceUrl: 'https://crm.acme.test',
       workspaceName: 'Acme Activated',
       workspaceSubdomain: 'acme',
+    });
+  });
+
+  it('does not issue an API key unless asked', async () => {
+    const { service, apiKeyService } = makeService();
+
+    const result = await service.createWorkspace({
+      name: 'Acme',
+      slug: 'acme',
+    });
+
+    expect(
+      apiKeyService.createWorkspaceAdminApiKeyToken,
+    ).not.toHaveBeenCalled();
+    expect(result).not.toHaveProperty('apiKey');
+  });
+
+  it('issues the API key after activation, in the api-keys endpoint shape', async () => {
+    const { service, apiKeyService, workspaceService } = makeService();
+
+    const result = await service.createWorkspace({
+      name: 'Acme',
+      slug: 'acme',
+      primaryDomain: 'https://crm.acme.test',
+      apiKeyName: 'regie-crm-api',
+    });
+
+    expect(
+      workspaceService.activateWorkspace.mock.invocationCallOrder[0],
+    ).toBeLessThan(
+      apiKeyService.createWorkspaceAdminApiKeyToken.mock.invocationCallOrder[0],
+    );
+    expect(apiKeyService.createWorkspaceAdminApiKeyToken).toHaveBeenCalledWith({
+      workspaceId: workspace.id,
+      name: 'regie-crm-api',
+      expiresAt: undefined,
+    });
+    expect(result).toEqual({
+      ok: true,
+      id: workspace.id,
+      workspaceId: workspace.id,
+      workspaceUrl: 'https://crm.acme.test',
+      workspaceName: 'Acme Activated',
+      workspaceSubdomain: 'acme',
+      apiKey: await service.createWorkspaceApiKey(workspace.id, {
+        name: 'regie-crm-api',
+      }),
     });
   });
 
@@ -198,6 +245,7 @@ describe('InternalWorkspaceProvisioningService', () => {
         subdomain: 'acme',
         shouldBypassWorkspaceCreationChecks: true,
         shouldRecordDpaAcceptance: false,
+        shouldFetchWorkspaceLogo: false,
       },
     );
   });

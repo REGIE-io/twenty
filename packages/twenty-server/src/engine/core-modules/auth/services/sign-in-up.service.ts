@@ -555,6 +555,7 @@ export class SignInUpService {
       subdomain?: string;
       shouldBypassWorkspaceCreationChecks?: boolean;
       shouldRecordDpaAcceptance?: boolean;
+      shouldFetchWorkspaceLogo?: boolean;
     },
   ) {
     const email =
@@ -635,7 +636,7 @@ export class SignInUpService {
               queryRunner,
             );
 
-          if (isWorkEmailFound) {
+          if (isWorkEmailFound && options?.shouldFetchWorkspaceLogo !== false) {
             const logoUrl = `${TWENTY_ICONS_BASE_URL}/${getDomainFromEmailOrThrow(email)}`;
             const logoFile =
               await this.fileCorePictureService.uploadWorkspaceLogoFromUrl({

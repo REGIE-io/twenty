@@ -19,10 +19,8 @@ import { CacheStorageService } from 'src/engine/core-modules/cache-storage/servi
 import { CacheStorageNamespace } from 'src/engine/core-modules/cache-storage/types/cache-storage-namespace.enum';
 import { PromiseMemoizer } from 'src/engine/twenty-orm/storage/promise-memoizer.storage';
 
-const LOCAL_TTL_MS = 100; // 100ms
 const LOCAL_ENTRY_TTL_MS = 30 * 60 * 1000; // 30 minutes
 const LOCAL_CACHE_EXPIRATION_SWEEP_INTERVAL_MS = 60 * 1000;
-const MEMOIZER_TTL_MS = 10_000; // 10 seconds
 const STALE_VERSION_TTL_MS = 5_000; // 5 seconds
 const MAX_LOCAL_STALE_VERSIONS = 5;
 const MAX_LOCAL_CACHE_ENTRIES = 5_000;
@@ -42,9 +40,7 @@ export class CoreEntityCacheService implements OnModuleInit {
     CoreEntityCacheKeyName,
     CoreEntityCacheProvider<CacheDataType>
   >();
-  private readonly memoizer = new PromiseMemoizer<CacheableValue>(
-    MEMOIZER_TTL_MS,
-  );
+  private readonly memoizer = new PromiseMemoizer<CacheableValue>(0);
   private lastLocalCacheExpirationSweepAt: number | undefined;
 
   private readonly logger = new Logger(CoreEntityCacheService.name);
@@ -90,30 +86,18 @@ export class CoreEntityCacheService implements OnModuleInit {
       return null;
     }
 
-    const memoKey = `${cacheKeyName}-${entityId}` as const;
+    const localKey = this.buildCacheKey(entityId, cacheKeyName);
+    const hashKey = `${localKey}:hash`;
+    // Checking Redis on every call makes another process's write visible as soon as that
+    // process has answered; callers share work only when they saw the same version.
+    const redisHash = await this.cacheStorage.get<string>(hashKey);
+    const memoKey = `${cacheKeyName}-${entityId}@${redisHash ?? ''}` as const;
 
     const result = await this.memoizer.memoizePromiseAndExecute(
       memoKey,
       async () => {
-        const localKey = this.buildCacheKey(entityId, cacheKeyName);
         const localEntry = this.localCache.get(localKey);
         const now = Date.now();
-
-        if (
-          isDefined(localEntry) &&
-          now - localEntry.lastHashCheckedAt < LOCAL_TTL_MS
-        ) {
-          const version = localEntry.versions.get(localEntry.latestHash);
-
-          if (isDefined(version)) {
-            version.lastReadAt = now;
-
-            return version.data;
-          }
-        }
-
-        const hashKey = `${localKey}:hash`;
-        const redisHash = await this.cacheStorage.get<string>(hashKey);
 
         if (
           isDefined(localEntry) &&

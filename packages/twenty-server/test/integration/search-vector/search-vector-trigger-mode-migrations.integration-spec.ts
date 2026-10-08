@@ -6,8 +6,10 @@ import { createOneFieldMetadata } from 'test/integration/metadata/suites/field-m
 import { deleteOneFieldMetadata } from 'test/integration/metadata/suites/field-metadata/utils/delete-one-field-metadata.util';
 import { updateOneFieldMetadata } from 'test/integration/metadata/suites/field-metadata/utils/update-one-field-metadata.util';
 import { createOneObjectMetadata } from 'test/integration/metadata/suites/object-metadata/utils/create-one-object-metadata.util';
+import { getMockCreateObjectInput } from 'test/integration/metadata/suites/object-metadata/utils/generate-mock-create-object-metadata-input';
 import { deleteOneObjectMetadata } from 'test/integration/metadata/suites/object-metadata/utils/delete-one-object-metadata.util';
 import { updateOneObjectMetadata } from 'test/integration/metadata/suites/object-metadata/utils/update-one-object-metadata.util';
+import { makeRestAPIRequest } from 'test/integration/rest/utils/make-rest-api-request.util';
 import { getAppProviderByClassName } from 'test/integration/utils/get-app-provider-by-class-name.util';
 import { FieldMetadataType } from 'twenty-shared/types';
 import { isDefined } from 'twenty-shared/utils';
@@ -57,6 +59,10 @@ const SELF_HEAL_OBJECT = {
   nameSingular: 'svSelfHealItem',
   namePlural: 'svSelfHealItems',
 };
+const BATCH_OBJECTS = [
+  { nameSingular: 'svBatchFirstItem', namePlural: 'svBatchFirstItems' },
+  { nameSingular: 'svBatchSecondItem', namePlural: 'svBatchSecondItems' },
+];
 
 type CreatedObject = { id: string; workspaceId: string; schemaName: string };
 
@@ -128,6 +134,7 @@ const deleteLeftoverObjects = async () => {
         REPAIR_OBJECT.nameSingular,
         CONVERTED_WORKSPACE_OBJECT.nameSingular,
         SELF_HEAL_OBJECT.nameSingular,
+        ...BATCH_OBJECTS.map(({ nameSingular }) => nameSingular),
       ],
     ],
   );
@@ -1268,6 +1275,7 @@ describe('searchVector conversion of a workspace', () => {
   let convertedObject: CreatedObject | undefined;
   let selfHealObject: CreatedObject | undefined;
   let newObject: CreatedObject | undefined;
+  let batchObjectIds: string[] = [];
   let workspaceId: string;
   let lostTriggerRecordId: string;
   const convertedTableName = tableNameOf(REPAIR_OBJECT.nameSingular);
@@ -1298,6 +1306,11 @@ describe('searchVector conversion of a workspace', () => {
 
   afterAll(async () => {
     jest.restoreAllMocks();
+
+    for (const batchObjectId of batchObjectIds) {
+      await deleteBackfillJobs([batchObjectId]);
+      await deleteObject(batchObjectId);
+    }
 
     const createdObjects = [newObject, selfHealObject, convertedObject].filter(
       isDefined,
@@ -1471,6 +1484,62 @@ describe('searchVector conversion of a workspace', () => {
         'zznewobjecttoken',
       ),
     ).toBe(true);
+  });
+
+  // A batch builds every table in one pass, so each one needs its own trigger installed too.
+  it('creates objects in trigger mode when several are created in one batch', async () => {
+    const response = await makeRestAPIRequest({
+      method: 'post',
+      path: '/metadata/objects/batch',
+      body: {
+        objects: BATCH_OBJECTS.map(({ nameSingular, namePlural }) =>
+          getMockCreateObjectInput({
+            nameSingular,
+            namePlural,
+            labelSingular: nameSingular,
+            labelPlural: namePlural,
+          }),
+        ),
+      },
+    });
+
+    expect(response.status).toBeLessThan(300);
+
+    const createdBatchObjects = await query<{
+      id: string;
+      nameSingular: string;
+    }>(
+      `SELECT id, "nameSingular" FROM core."objectMetadata" WHERE "nameSingular" = ANY($1)`,
+      [BATCH_OBJECTS.map(({ nameSingular }) => nameSingular)],
+    );
+
+    batchObjectIds = createdBatchObjects.map(({ id }) => id);
+    expect(createdBatchObjects).toHaveLength(BATCH_OBJECTS.length);
+
+    const schemaName = getWorkspaceSchemaName(workspaceId);
+
+    for (const { nameSingular } of BATCH_OBJECTS) {
+      const tableName = tableNameOf(nameSingular);
+
+      expect(await readAttGenerated(schemaName, tableName)).toBe('');
+      expect(await isTriggerMode(schemaName, tableName)).toBe(true);
+      expect(await readFunctionDefinition(schemaName, tableName)).toContain(
+        'NEW."name"',
+      );
+
+      const recordId = await createRecord(nameSingular, {
+        name: 'zzbatchobjecttoken',
+      });
+
+      expect(
+        await vectorMatches(
+          schemaName,
+          tableName,
+          recordId,
+          'zzbatchobjecttoken',
+        ),
+      ).toBe(true);
+    }
   });
 
   it('switches a still-generated table in place on its next search list change', async () => {
