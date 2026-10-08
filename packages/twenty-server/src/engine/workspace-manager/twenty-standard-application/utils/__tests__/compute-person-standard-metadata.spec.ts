@@ -57,4 +57,41 @@ describe('Person standard metadata build', () => {
       }),
     ).toEqual(['phonesPrimaryPhoneNumber']);
   });
+
+  it('should index primary emails as BTREE and additional emails as one GIN column', () => {
+    const indexes = Object.values(
+      allFlatEntityMaps.flatIndexMaps.byUniversalIdentifier,
+    ).filter((index) =>
+      index?.universalFlatIndexFieldMetadatas.some(
+        ({ fieldMetadataUniversalIdentifier }) =>
+          fieldMetadataUniversalIdentifier ===
+          STANDARD_OBJECTS.person.fields.emails.universalIdentifier,
+      ),
+    );
+
+    expect(
+      indexes.map((index) => ({
+        indexType: index?.indexType,
+        isUnique: index?.isUnique,
+        columns: computeFlatIndexFieldColumnNames({
+          flatIndexFieldMetadatas: index?.flatIndexFieldMetadatas ?? [],
+          flatFieldMetadataMaps: allFlatEntityMaps.flatFieldMetadataMaps,
+        }),
+      })),
+    ).toEqual(
+      expect.arrayContaining([
+        {
+          indexType: IndexType.BTREE,
+          isUnique: false,
+          columns: ['emailsPrimaryEmail'],
+        },
+        {
+          indexType: IndexType.GIN,
+          isUnique: false,
+          columns: ['emailsAdditionalEmails'],
+        },
+      ]),
+    );
+    expect(indexes).toHaveLength(2);
+  });
 });
