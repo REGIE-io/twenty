@@ -77,22 +77,28 @@ const findMissingStandardSearchFieldNames = ({
 // Shared by the migration runner and the trigger conversion so both build the formula
 // from the same fields. GO-660: an empty or custom-only list silently built a formula that
 // indexed nothing, so a missing standard field fails the migration instead.
+// isNewTable skips that check: a table being created has no rows to lose, and an upgrade
+// can create a standard object before the later step that adds its search rows.
 export const deriveCheckedSearchVectorExpression = ({
   flatObjectMetadata,
   objectFlatFieldMetadatas,
   targetSearchFieldMetadatas,
   shape,
+  isNewTable = false,
 }: {
   flatObjectMetadata: FlatObjectMetadata;
   objectFlatFieldMetadatas: FlatFieldMetadata[];
   targetSearchFieldMetadatas: FlatSearchFieldMetadata[];
   shape?: SearchVectorExpressionShape;
+  isNewTable?: boolean;
 }): string => {
-  const missingFieldNames = findMissingStandardSearchFieldNames({
-    flatObjectMetadata,
-    objectFlatFieldMetadatas,
-    targetSearchFieldMetadatas,
-  });
+  const missingFieldNames = isNewTable
+    ? []
+    : findMissingStandardSearchFieldNames({
+        flatObjectMetadata,
+        objectFlatFieldMetadatas,
+        targetSearchFieldMetadatas,
+      });
 
   if (missingFieldNames.length > 0) {
     throw new WorkspaceMigrationActionExecutionException({
