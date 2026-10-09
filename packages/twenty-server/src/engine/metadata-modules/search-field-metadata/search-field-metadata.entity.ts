@@ -30,6 +30,10 @@ import { SyncableEntity } from 'src/engine/workspace-manager/types/syncable-enti
 ])
 @Index('IDX_SEARCH_FIELD_METADATA_WORKSPACE_ID', ['workspaceId'])
 @Index('IDX_SEARCH_FIELD_METADATA_OBJECT_METADATA_ID', ['objectMetadataId'])
+@Index('IDX_SEARCH_FIELD_METADATA_FIELD_METADATA_ID', ['fieldMetadataId'])
+@Index('IDX_SEARCH_FIELD_METADATA_TS_VECTOR_FIELD_METADATA_ID', [
+  'tsVectorFieldMetadataId',
+])
 export class SearchFieldMetadataEntity extends SyncableEntity {
   @PrimaryGeneratedColumn('uuid')
   id: string;
