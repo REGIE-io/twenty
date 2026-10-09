@@ -8,6 +8,8 @@ import { PreventNestToAutoLogGraphqlErrorsFilter } from 'src/engine/core-modules
 import { ResolverValidationPipe } from 'src/engine/core-modules/graphql/pipes/resolver-validation.pipe';
 import { SearchArgs } from 'src/engine/core-modules/search/dtos/search-args';
 import { SearchPeopleByPhoneArgs } from 'src/engine/core-modules/search/dtos/search-people-by-phone.args';
+import { SearchPeopleByPhonesArgs } from 'src/engine/core-modules/search/dtos/search-people-by-phones.args';
+import { BulkPhoneSearchResultDTO } from 'src/engine/core-modules/search/dtos/bulk-phone-search-result.dto';
 import { PhoneSearchResultConnectionDTO } from 'src/engine/core-modules/search/dtos/phone-search-result.dto';
 import { SearchResultConnectionDTO } from 'src/engine/core-modules/search/dtos/search-result-connection.dto';
 import { SearchApiExceptionFilter } from 'src/engine/core-modules/search/filters/search-api-exception.filter';
@@ -49,6 +51,27 @@ export class SearchResolver {
       );
 
     return this.phoneSearchService.searchPeopleByPhone({
+      workspace,
+      args,
+      flatObjectMetadataMaps,
+      flatFieldMetadataMaps,
+    });
+  }
+
+  @Query(() => BulkPhoneSearchResultDTO)
+  async searchPeopleByPhones(
+    @AuthWorkspace() workspace: WorkspaceEntity,
+    @Args() args: SearchPeopleByPhonesArgs,
+  ) {
+    const { flatObjectMetadataMaps, flatFieldMetadataMaps } =
+      await this.workspaceManyOrAllFlatEntityMapsCacheService.getOrRecomputeManyOrAllFlatEntityMaps(
+        {
+          workspaceId: workspace.id,
+          flatMapsKeys: ['flatObjectMetadataMaps', 'flatFieldMetadataMaps'],
+        },
+      );
+
+    return this.phoneSearchService.searchPeopleByPhones({
       workspace,
       args,
       flatObjectMetadataMaps,
