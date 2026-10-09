@@ -149,6 +149,7 @@ export class CreateObjectActionHandlerService extends WorkspaceMigrationRunnerAc
             flatSearchFieldMetadataMaps:
               allFlatEntityMaps.flatSearchFieldMetadataMaps,
           }),
+        isNewTable: true,
       });
 
     const columnDefinitions = flatFieldMetadatas.flatMap((flatFieldMetadata) =>
