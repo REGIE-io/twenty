@@ -1,7 +1,42 @@
 import { TWENTY_STANDARD_APPLICATION_UNIVERSAL_IDENTIFIER } from '@/application/constants/TwentyStandardApplicationUniversalIdentifier';
+import { getFieldUniversalIdentifier } from '@/application/deterministic-identifier/get-field-universal-identifier.util';
 import { getSystemRelationFieldUniversalIdentifier } from '@/application/deterministic-identifier/get-system-relation-field-universal-identifier.util';
 import { STANDARD_OBJECT_UNIVERSAL_IDENTIFIERS } from '@/metadata/constants/standard-object-universal-identifiers.constant';
 import { buildStandardObjectSystemFields } from '@/metadata/utils/internal/build-standard-object-system-fields.util';
+
+function buildRegieStandardField({
+  objectUniversalIdentifier,
+  name,
+}: {
+  objectUniversalIdentifier: string;
+  name: string;
+}) {
+  return {
+    universalIdentifier: getFieldUniversalIdentifier({
+      applicationUniversalIdentifier:
+        TWENTY_STANDARD_APPLICATION_UNIVERSAL_IDENTIFIER,
+      objectUniversalIdentifier,
+      name,
+    }),
+  };
+}
+
+function buildRegieStandardRelationField({
+  objectUniversalIdentifier,
+  relationTargetObjectUniversalIdentifier,
+}: {
+  objectUniversalIdentifier: string;
+  relationTargetObjectUniversalIdentifier: string;
+}) {
+  return {
+    universalIdentifier: getSystemRelationFieldUniversalIdentifier({
+      applicationUniversalIdentifier:
+        TWENTY_STANDARD_APPLICATION_UNIVERSAL_IDENTIFIER,
+      objectUniversalIdentifier,
+      relationTargetObjectUniversalIdentifier,
+    }),
+  };
+}
 
 // Important notice:
 // - Never ever mutate an existing universal identifier
@@ -337,6 +372,12 @@ export const STANDARD_OBJECT_FIELDS = {
     callRecordings: {
       universalIdentifier: '48d6d151-18e2-4111-b405-d85fb9d860d8',
     },
+    regieSyncSources: buildRegieStandardRelationField({
+      objectUniversalIdentifier:
+        STANDARD_OBJECT_UNIVERSAL_IDENTIFIERS.calendarEvent,
+      relationTargetObjectUniversalIdentifier:
+        STANDARD_OBJECT_UNIVERSAL_IDENTIFIERS.regieSyncSource,
+    }),
   },
   callRecording: {
     ...buildStandardObjectSystemFields(
@@ -444,6 +485,16 @@ export const STANDARD_OBJECT_FIELDS = {
           STANDARD_OBJECT_UNIVERSAL_IDENTIFIERS.timelineActivity,
       }),
     },
+    regieListMemberships: buildRegieStandardRelationField({
+      objectUniversalIdentifier: STANDARD_OBJECT_UNIVERSAL_IDENTIFIERS.company,
+      relationTargetObjectUniversalIdentifier:
+        STANDARD_OBJECT_UNIVERSAL_IDENTIFIERS.regieListMembership,
+    }),
+    regieSyncSources: buildRegieStandardRelationField({
+      objectUniversalIdentifier: STANDARD_OBJECT_UNIVERSAL_IDENTIFIERS.company,
+      relationTargetObjectUniversalIdentifier:
+        STANDARD_OBJECT_UNIVERSAL_IDENTIFIERS.regieSyncSource,
+    }),
   },
   dashboard: {
     ...buildStandardObjectSystemFields(
@@ -777,6 +828,12 @@ export const STANDARD_OBJECT_FIELDS = {
           STANDARD_OBJECT_UNIVERSAL_IDENTIFIERS.timelineActivity,
       }),
     },
+    regieSyncSources: buildRegieStandardRelationField({
+      objectUniversalIdentifier:
+        STANDARD_OBJECT_UNIVERSAL_IDENTIFIERS.opportunity,
+      relationTargetObjectUniversalIdentifier:
+        STANDARD_OBJECT_UNIVERSAL_IDENTIFIERS.regieSyncSource,
+    }),
   },
   person: {
     ...buildStandardObjectSystemFields(
@@ -844,6 +901,16 @@ export const STANDARD_OBJECT_FIELDS = {
     listMemberships: {
       universalIdentifier: '8b8d1be0-4c94-4413-a2c9-c7ede205a81d',
     },
+    regieListMemberships: buildRegieStandardRelationField({
+      objectUniversalIdentifier: STANDARD_OBJECT_UNIVERSAL_IDENTIFIERS.person,
+      relationTargetObjectUniversalIdentifier:
+        STANDARD_OBJECT_UNIVERSAL_IDENTIFIERS.regieListMembership,
+    }),
+    regieSyncSources: buildRegieStandardRelationField({
+      objectUniversalIdentifier: STANDARD_OBJECT_UNIVERSAL_IDENTIFIERS.person,
+      relationTargetObjectUniversalIdentifier:
+        STANDARD_OBJECT_UNIVERSAL_IDENTIFIERS.regieSyncSource,
+    }),
   },
   task: {
     ...buildStandardObjectSystemFields(
@@ -875,6 +942,16 @@ export const STANDARD_OBJECT_FIELDS = {
           STANDARD_OBJECT_UNIVERSAL_IDENTIFIERS.timelineActivity,
       }),
     },
+    regieListMemberships: buildRegieStandardRelationField({
+      objectUniversalIdentifier: STANDARD_OBJECT_UNIVERSAL_IDENTIFIERS.task,
+      relationTargetObjectUniversalIdentifier:
+        STANDARD_OBJECT_UNIVERSAL_IDENTIFIERS.regieListMembership,
+    }),
+    regieSyncSources: buildRegieStandardRelationField({
+      objectUniversalIdentifier: STANDARD_OBJECT_UNIVERSAL_IDENTIFIERS.task,
+      relationTargetObjectUniversalIdentifier:
+        STANDARD_OBJECT_UNIVERSAL_IDENTIFIERS.regieSyncSource,
+    }),
   },
   taskTarget: {
     ...buildStandardObjectSystemFields(
@@ -1093,5 +1170,220 @@ export const STANDARD_OBJECT_FIELDS = {
     numberFormat: {
       universalIdentifier: '20202020-7f40-4e7f-b126-11c0eda6b141',
     },
+  },
+  regieStaticList: {
+    ...buildStandardObjectSystemFields(
+      STANDARD_OBJECT_UNIVERSAL_IDENTIFIERS.regieStaticList,
+    ),
+    name: buildRegieStandardField({
+      objectUniversalIdentifier:
+        STANDARD_OBJECT_UNIVERSAL_IDENTIFIERS.regieStaticList,
+      name: 'name',
+    }),
+    targetType: buildRegieStandardField({
+      objectUniversalIdentifier:
+        STANDARD_OBJECT_UNIVERSAL_IDENTIFIERS.regieStaticList,
+      name: 'targetType',
+    }),
+    populationStatus: buildRegieStandardField({
+      objectUniversalIdentifier:
+        STANDARD_OBJECT_UNIVERSAL_IDENTIFIERS.regieStaticList,
+      name: 'populationStatus',
+    }),
+    sourceType: buildRegieStandardField({
+      objectUniversalIdentifier:
+        STANDARD_OBJECT_UNIVERSAL_IDENTIFIERS.regieStaticList,
+      name: 'sourceType',
+    }),
+    sourceRef: buildRegieStandardField({
+      objectUniversalIdentifier:
+        STANDARD_OBJECT_UNIVERSAL_IDENTIFIERS.regieStaticList,
+      name: 'sourceRef',
+    }),
+    snapshotStartedAt: buildRegieStandardField({
+      objectUniversalIdentifier:
+        STANDARD_OBJECT_UNIVERSAL_IDENTIFIERS.regieStaticList,
+      name: 'snapshotStartedAt',
+    }),
+    snapshotFilter: buildRegieStandardField({
+      objectUniversalIdentifier:
+        STANDARD_OBJECT_UNIVERSAL_IDENTIFIERS.regieStaticList,
+      name: 'snapshotFilter',
+    }),
+    sourceFilterRevision: buildRegieStandardField({
+      objectUniversalIdentifier:
+        STANDARD_OBJECT_UNIVERSAL_IDENTIFIERS.regieStaticList,
+      name: 'sourceFilterRevision',
+    }),
+    populationProcessed: buildRegieStandardField({
+      objectUniversalIdentifier:
+        STANDARD_OBJECT_UNIVERSAL_IDENTIFIERS.regieStaticList,
+      name: 'populationProcessed',
+    }),
+    populationAdded: buildRegieStandardField({
+      objectUniversalIdentifier:
+        STANDARD_OBJECT_UNIVERSAL_IDENTIFIERS.regieStaticList,
+      name: 'populationAdded',
+    }),
+    populationSkipped: buildRegieStandardField({
+      objectUniversalIdentifier:
+        STANDARD_OBJECT_UNIVERSAL_IDENTIFIERS.regieStaticList,
+      name: 'populationSkipped',
+    }),
+    populationFailed: buildRegieStandardField({
+      objectUniversalIdentifier:
+        STANDARD_OBJECT_UNIVERSAL_IDENTIFIERS.regieStaticList,
+      name: 'populationFailed',
+    }),
+    creationOperationKeyHash: buildRegieStandardField({
+      objectUniversalIdentifier:
+        STANDARD_OBJECT_UNIVERSAL_IDENTIFIERS.regieStaticList,
+      name: 'creationOperationKeyHash',
+    }),
+    creationRequestHash: buildRegieStandardField({
+      objectUniversalIdentifier:
+        STANDARD_OBJECT_UNIVERSAL_IDENTIFIERS.regieStaticList,
+      name: 'creationRequestHash',
+    }),
+    members: buildRegieStandardRelationField({
+      objectUniversalIdentifier:
+        STANDARD_OBJECT_UNIVERSAL_IDENTIFIERS.regieStaticList,
+      relationTargetObjectUniversalIdentifier:
+        STANDARD_OBJECT_UNIVERSAL_IDENTIFIERS.regieListMembership,
+    }),
+  },
+  regieListMembership: {
+    ...buildStandardObjectSystemFields(
+      STANDARD_OBJECT_UNIVERSAL_IDENTIFIERS.regieListMembership,
+    ),
+    membershipKey: buildRegieStandardField({
+      objectUniversalIdentifier:
+        STANDARD_OBJECT_UNIVERSAL_IDENTIFIERS.regieListMembership,
+      name: 'membershipKey',
+    }),
+    source: buildRegieStandardField({
+      objectUniversalIdentifier:
+        STANDARD_OBJECT_UNIVERSAL_IDENTIFIERS.regieListMembership,
+      name: 'source',
+    }),
+    list: buildRegieStandardRelationField({
+      objectUniversalIdentifier:
+        STANDARD_OBJECT_UNIVERSAL_IDENTIFIERS.regieListMembership,
+      relationTargetObjectUniversalIdentifier:
+        STANDARD_OBJECT_UNIVERSAL_IDENTIFIERS.regieStaticList,
+    }),
+    person: buildRegieStandardRelationField({
+      objectUniversalIdentifier:
+        STANDARD_OBJECT_UNIVERSAL_IDENTIFIERS.regieListMembership,
+      relationTargetObjectUniversalIdentifier:
+        STANDARD_OBJECT_UNIVERSAL_IDENTIFIERS.person,
+    }),
+    account: buildRegieStandardRelationField({
+      objectUniversalIdentifier:
+        STANDARD_OBJECT_UNIVERSAL_IDENTIFIERS.regieListMembership,
+      relationTargetObjectUniversalIdentifier:
+        STANDARD_OBJECT_UNIVERSAL_IDENTIFIERS.company,
+    }),
+    task: buildRegieStandardRelationField({
+      objectUniversalIdentifier:
+        STANDARD_OBJECT_UNIVERSAL_IDENTIFIERS.regieListMembership,
+      relationTargetObjectUniversalIdentifier:
+        STANDARD_OBJECT_UNIVERSAL_IDENTIFIERS.task,
+    }),
+  },
+  regieSyncSource: {
+    ...buildStandardObjectSystemFields(
+      STANDARD_OBJECT_UNIVERSAL_IDENTIFIERS.regieSyncSource,
+    ),
+    sourceKey: buildRegieStandardField({
+      objectUniversalIdentifier:
+        STANDARD_OBJECT_UNIVERSAL_IDENTIFIERS.regieSyncSource,
+      name: 'sourceKey',
+    }),
+    syncSystem: buildRegieStandardField({
+      objectUniversalIdentifier:
+        STANDARD_OBJECT_UNIVERSAL_IDENTIFIERS.regieSyncSource,
+      name: 'syncSystem',
+    }),
+    localObjectType: buildRegieStandardField({
+      objectUniversalIdentifier:
+        STANDARD_OBJECT_UNIVERSAL_IDENTIFIERS.regieSyncSource,
+      name: 'localObjectType',
+    }),
+    externalObjectApiName: buildRegieStandardField({
+      objectUniversalIdentifier:
+        STANDARD_OBJECT_UNIVERSAL_IDENTIFIERS.regieSyncSource,
+      name: 'externalObjectApiName',
+    }),
+    externalRecordId: buildRegieStandardField({
+      objectUniversalIdentifier:
+        STANDARD_OBJECT_UNIVERSAL_IDENTIFIERS.regieSyncSource,
+      name: 'externalRecordId',
+    }),
+    connectionGeneration: buildRegieStandardField({
+      objectUniversalIdentifier:
+        STANDARD_OBJECT_UNIVERSAL_IDENTIFIERS.regieSyncSource,
+      name: 'connectionGeneration',
+    }),
+    lifecycleState: buildRegieStandardField({
+      objectUniversalIdentifier:
+        STANDARD_OBJECT_UNIVERSAL_IDENTIFIERS.regieSyncSource,
+      name: 'lifecycleState',
+    }),
+    deliveryState: buildRegieStandardField({
+      objectUniversalIdentifier:
+        STANDARD_OBJECT_UNIVERSAL_IDENTIFIERS.regieSyncSource,
+      name: 'deliveryState',
+    }),
+    isWriteTarget: buildRegieStandardField({
+      objectUniversalIdentifier:
+        STANDARD_OBJECT_UNIVERSAL_IDENTIFIERS.regieSyncSource,
+      name: 'isWriteTarget',
+    }),
+    lastAttemptAt: buildRegieStandardField({
+      objectUniversalIdentifier:
+        STANDARD_OBJECT_UNIVERSAL_IDENTIFIERS.regieSyncSource,
+      name: 'lastAttemptAt',
+    }),
+    lastSyncedAt: buildRegieStandardField({
+      objectUniversalIdentifier:
+        STANDARD_OBJECT_UNIVERSAL_IDENTIFIERS.regieSyncSource,
+      name: 'lastSyncedAt',
+    }),
+    lastError: buildRegieStandardField({
+      objectUniversalIdentifier:
+        STANDARD_OBJECT_UNIVERSAL_IDENTIFIERS.regieSyncSource,
+      name: 'lastError',
+    }),
+    person: buildRegieStandardRelationField({
+      objectUniversalIdentifier:
+        STANDARD_OBJECT_UNIVERSAL_IDENTIFIERS.regieSyncSource,
+      relationTargetObjectUniversalIdentifier:
+        STANDARD_OBJECT_UNIVERSAL_IDENTIFIERS.person,
+    }),
+    company: buildRegieStandardRelationField({
+      objectUniversalIdentifier:
+        STANDARD_OBJECT_UNIVERSAL_IDENTIFIERS.regieSyncSource,
+      relationTargetObjectUniversalIdentifier:
+        STANDARD_OBJECT_UNIVERSAL_IDENTIFIERS.company,
+    }),
+    task: buildRegieStandardRelationField({
+      objectUniversalIdentifier:
+        STANDARD_OBJECT_UNIVERSAL_IDENTIFIERS.regieSyncSource,
+      relationTargetObjectUniversalIdentifier:
+        STANDARD_OBJECT_UNIVERSAL_IDENTIFIERS.task,
+    }),
+    opportunity: buildRegieStandardRelationField({
+      objectUniversalIdentifier:
+        STANDARD_OBJECT_UNIVERSAL_IDENTIFIERS.regieSyncSource,
+      relationTargetObjectUniversalIdentifier:
+        STANDARD_OBJECT_UNIVERSAL_IDENTIFIERS.opportunity,
+    }),
+    calendarEvent: buildRegieStandardRelationField({
+      objectUniversalIdentifier:
+        STANDARD_OBJECT_UNIVERSAL_IDENTIFIERS.regieSyncSource,
+      relationTargetObjectUniversalIdentifier:
+        STANDARD_OBJECT_UNIVERSAL_IDENTIFIERS.calendarEvent,
+    }),
   },
 } satisfies Record<string, Record<string, { universalIdentifier: string }>>;

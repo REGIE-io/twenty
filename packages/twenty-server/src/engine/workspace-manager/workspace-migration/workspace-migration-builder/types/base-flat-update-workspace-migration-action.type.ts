@@ -9,4 +9,9 @@ export type BaseFlatUpdateWorkspaceMigrationAction<T extends AllMetadataName> =
     metadataName: T;
     entityId: string;
     update: FlatEntityUpdate<T>;
+    identityUpdate?: {
+      universalIdentifier: string;
+      applicationId: string;
+      isSystem?: boolean;
+    };
   };

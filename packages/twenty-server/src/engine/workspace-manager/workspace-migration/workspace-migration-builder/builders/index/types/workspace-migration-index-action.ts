@@ -12,7 +12,7 @@ export type UniversalCreateIndexAction =
 
 export type UniversalUpdateIndexAction =
   BaseUniversalUpdateWorkspaceMigrationAction<'index'> & {
-    updatedUniversalFlatIndex: UniversalFlatIndexMetadata;
+    updatedUniversalFlatIndex?: UniversalFlatIndexMetadata;
   };
 
 export type UniversalDeleteIndexAction =
@@ -27,5 +27,5 @@ export type FlatDeleteIndexAction =
 export type FlatUpdateIndexAction =
   BaseFlatUpdateWorkspaceMigrationAction<'index'> & {
     // Note: Literally drop and create under the hood
-    updatedFlatIndex: FlatIndexMetadata;
+    updatedFlatIndex?: FlatIndexMetadata;
   };
