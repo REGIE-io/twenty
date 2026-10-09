@@ -49,7 +49,9 @@ export class AllowDuplicateCrmIdentitiesCommand extends ProvisionedWorkspaceComm
       const indexes = Object.values(flatIndexMaps.byUniversalIdentifier).filter(isDefined).filter((index) =>
         !index.isCustom && index.objectMetadataId === field.objectMetadataId &&
         index.flatIndexFieldMetadatas.length === 1 &&
-        index.flatIndexFieldMetadatas[0].fieldMetadataId === field.id,
+        index.flatIndexFieldMetadatas[0].fieldMetadataId === field.id &&
+        // The person additional-emails GIN index is a sub-field index, not the lookup index.
+        !isDefined(index.flatIndexFieldMetadatas[0].subFieldName),
       );
       if (!isDefined(object) || indexes.length !== 1) {
         throw new Error(`Expected one standard lookup index for ${field.name} in ${workspaceId}`);

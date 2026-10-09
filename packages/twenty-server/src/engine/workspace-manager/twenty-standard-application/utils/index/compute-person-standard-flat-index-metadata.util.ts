@@ -47,6 +47,22 @@ export const buildPersonStandardFlatIndexMetadatas = ({
     }),
     isUnique: false,
   },
+  emailsAdditionalEmailsGinIndex: createStandardIndexFlatMetadata({
+    objectName,
+    workspaceId,
+    context: {
+      indexName: 'emailsAdditionalEmailsGinIndex',
+      relatedFieldNames: ['emails'],
+      subFieldNamesByFieldName: {
+        emails: 'additionalEmails',
+      },
+      indexType: IndexType.GIN,
+    },
+    standardObjectMetadataRelatedEntityIds,
+    dependencyFlatEntityMaps,
+    twentyStandardApplicationId,
+    now,
+  }),
   phonesPrimaryPhoneNumberIndex: createStandardIndexFlatMetadata({
     objectName,
     workspaceId,
