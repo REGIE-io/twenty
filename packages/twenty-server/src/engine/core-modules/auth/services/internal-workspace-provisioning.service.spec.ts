@@ -538,9 +538,13 @@ describe('InternalWorkspaceProvisioningService', () => {
       );
     });
 
-    it('is a no-op when the workspace already has the slug and name', async () => {
-      const { service, workspaceRepository, subdomainManagerService } =
-        makeService();
+    it('repeats a finished rename without writing, but still refreshes the cache', async () => {
+      const {
+        service,
+        workspaceRepository,
+        subdomainManagerService,
+        coreEntityCacheService,
+      } = makeService();
 
       await expect(
         service.renameWorkspace(workspace.id, { name: 'Acme', slug: 'acme' }),
@@ -549,6 +553,10 @@ describe('InternalWorkspaceProvisioningService', () => {
         subdomainManagerService.isSubdomainAvailable,
       ).not.toHaveBeenCalled();
       expect(workspaceRepository.update).not.toHaveBeenCalled();
+      expect(coreEntityCacheService.invalidate).toHaveBeenCalledWith(
+        'workspaceEntity',
+        workspace.id,
+      );
     });
 
     it('rejects a slug another workspace holds, even a deleted one', async () => {

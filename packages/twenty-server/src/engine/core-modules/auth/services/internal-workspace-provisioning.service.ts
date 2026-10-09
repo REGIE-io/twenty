@@ -165,29 +165,10 @@ export class InternalWorkspaceProvisioningService {
     }
 
     if (
-      workspace.subdomain === subdomain &&
-      workspace.displayName === displayName
+      workspace.subdomain !== subdomain ||
+      workspace.displayName !== displayName
     ) {
-      return this.toWorkspaceProvisioningResponse(
-        workspace,
-        input.primaryDomain,
-      );
-    }
-
-    if (workspace.subdomain !== subdomain) {
-      await this.assertSubdomainAvailable(subdomain);
-    }
-
-    try {
-      await this.workspaceRepository.update(workspaceId, {
-        displayName,
-        subdomain,
-      });
-    } catch (error) {
-      if (this.isUniqueViolation(error)) {
-        throw new ConflictException('Subdomain already taken');
-      }
-      throw error;
+      await this.updateWorkspaceIdentity(workspace, { displayName, subdomain });
     }
 
     await this.coreEntityCacheService.invalidate(
@@ -199,6 +180,24 @@ export class InternalWorkspaceProvisioningService {
       { ...workspace, displayName, subdomain },
       input.primaryDomain,
     );
+  }
+
+  private async updateWorkspaceIdentity(
+    workspace: WorkspaceEntity,
+    identity: { displayName: string; subdomain: string },
+  ) {
+    if (workspace.subdomain !== identity.subdomain) {
+      await this.assertSubdomainAvailable(identity.subdomain);
+    }
+
+    try {
+      await this.workspaceRepository.update(workspace.id, identity);
+    } catch (error) {
+      if (this.isUniqueViolation(error)) {
+        throw new ConflictException('Subdomain already taken');
+      }
+      throw error;
+    }
   }
 
   async findWorkspaceBySlug(slug: string) {
