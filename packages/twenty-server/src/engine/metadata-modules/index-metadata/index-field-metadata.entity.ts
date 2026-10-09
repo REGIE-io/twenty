@@ -29,6 +29,7 @@ export class IndexFieldMetadataEntity implements Required<IndexFieldMetadataEnti
   workspace: Relation<WorkspaceEntity>;
 
   @Column({ nullable: false })
+  @Index('IDX_INDEX_FIELD_METADATA_INDEX_METADATA_ID', ['indexMetadataId'])
   indexMetadataId: string;
 
   @ManyToOne(

@@ -65,6 +65,7 @@ import { JsonbProperty } from 'src/engine/workspace-manager/workspace-migration/
   'workspaceId',
 ])
 @Index('IDX_FIELD_METADATA_WORKSPACE_ID', ['workspaceId'])
+@Index('IDX_FIELD_METADATA_APPLICATION_ID', ['applicationId'])
 export class FieldMetadataEntity<
   TFieldMetadataType extends FieldMetadataType = FieldMetadataType,
 >
