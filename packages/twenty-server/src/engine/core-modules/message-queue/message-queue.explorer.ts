@@ -20,6 +20,7 @@ import { MessageQueueMetadataAccessor } from 'src/engine/core-modules/message-qu
 import { type MessageQueueService } from 'src/engine/core-modules/message-queue/services/message-queue.service';
 import { MESSAGE_QUEUE_WORKER_CONFIG } from 'src/engine/core-modules/message-queue/message-queue-worker-config.constant';
 import { MessageQueue } from 'src/engine/core-modules/message-queue/message-queue.constants';
+import { getDisabledJobNames } from 'src/engine/core-modules/message-queue/utils/get-disabled-job-names.util';
 import { getQueueToken } from 'src/engine/core-modules/message-queue/utils/get-queue-token.util';
 import { shouldCreateWorkerForQueue } from 'src/engine/core-modules/message-queue/utils/should-create-worker-for-queue.util';
 import { TwentyConfigService } from 'src/engine/core-modules/twenty-config/twenty-config.service';
@@ -75,6 +76,12 @@ export class MessageQueueExplorer implements OnModuleInit {
 
     this.warnAboutUnknownQueueNames([...enabledQueues, ...excludedQueues]);
 
+    const disabledJobNames = getDisabledJobNames(this.twentyConfigService);
+
+    if (disabledJobNames.size > 0) {
+      this.logger.log(`Disabled jobs: ${[...disabledJobNames].join(', ')}`);
+    }
+
     const groupedProcessorEntries = Object.entries(groupedProcessors) as [
       MessageQueue,
       ProcessorGroup[],
@@ -104,6 +111,7 @@ export class MessageQueueExplorer implements OnModuleInit {
         processorGroupCollection,
         messageQueueService,
         MESSAGE_QUEUE_WORKER_CONFIG[queueName].workerOptions,
+        disabledJobNames,
       );
     }
   }
@@ -182,8 +190,13 @@ export class MessageQueueExplorer implements OnModuleInit {
     processorGroupCollection: ProcessorGroup[],
     queue: MessageQueueService,
     options: MessageQueueWorkerOptions,
+    disabledJobNames: ReadonlySet<string>,
   ) {
     queue.work(async (job) => {
+      if (disabledJobNames.has(job.name)) {
+        return;
+      }
+
       for (const processorGroup of processorGroupCollection) {
         await this.handleProcessor(processorGroup, job);
       }

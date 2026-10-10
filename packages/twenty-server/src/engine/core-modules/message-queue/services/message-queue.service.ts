@@ -24,6 +24,7 @@ export class MessageQueueService {
   constructor(
     @Inject(QUEUE_DRIVER) protected driver: MessageQueueDriver,
     protected queueName: MessageQueue,
+    protected disabledJobNames: ReadonlySet<string> = new Set(),
   ) {
     if (typeof this.driver.register === 'function') {
       this.driver.register(queueName);
@@ -35,6 +36,10 @@ export class MessageQueueService {
     data: T,
     options?: QueueJobOptions,
   ): Promise<void> {
+    if (this.disabledJobNames.has(jobName)) {
+      return Promise.resolve();
+    }
+
     return this.driver.add(this.queueName, jobName, data, options);
   }
 
@@ -43,6 +48,10 @@ export class MessageQueueService {
     dataItems: T[],
     options?: QueueJobOptions,
   ): Promise<void> {
+    if (this.disabledJobNames.has(jobName)) {
+      return Promise.resolve();
+    }
+
     return this.driver.bulkAdd(this.queueName, jobName, dataItems, options);
   }
 
@@ -67,6 +76,10 @@ export class MessageQueueService {
     options: QueueCronJobOptions;
     jobId?: string;
   }): Promise<void> {
+    if (this.disabledJobNames.has(jobName)) {
+      return this.removeCron({ jobName, jobId });
+    }
+
     return this.driver.addCron({
       queueName: this.queueName,
       jobName,
