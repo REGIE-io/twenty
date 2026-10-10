@@ -1,8 +1,15 @@
 import {
   BadRequestException,
+  ConflictException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
+import { InjectRepository } from '@nestjs/typeorm';
+
+import { isDefined } from 'twenty-shared/utils';
+import { QueryFailedError, Repository } from 'typeorm';
+
+import { CoreEntityCacheService } from 'src/engine/core-entity-cache/services/core-entity-cache.service';
 
 import { ApiKeyService } from 'src/engine/core-modules/api-key/services/api-key.service';
 import {
@@ -13,6 +20,8 @@ import {
   type RegieE2eWorkspaceMarker,
 } from 'src/engine/core-modules/auth/constants/regie-e2e-workspace-marker.constant';
 import { SignInUpService } from 'src/engine/core-modules/auth/services/sign-in-up.service';
+import { SubdomainManagerService } from 'src/engine/core-modules/domain/subdomain-manager/services/subdomain-manager.service';
+import { isSubdomainValid } from 'src/engine/core-modules/domain/subdomain-manager/utils/is-subdomain-valid.util';
 import { KeyValuePairType } from 'src/engine/core-modules/key-value-pair/key-value-pair.entity';
 import { KeyValuePairService } from 'src/engine/core-modules/key-value-pair/key-value-pair.service';
 import { UserService } from 'src/engine/core-modules/user/services/user.service';
@@ -21,6 +30,7 @@ import { WorkspaceService } from 'src/engine/core-modules/workspace/services/wor
 import { WorkspaceEntity } from 'src/engine/core-modules/workspace/workspace.entity';
 
 const DEFAULT_SERVICE_USER_EMAIL = 'twenty-workspace-provisioning@regie.ai';
+const UNIQUE_VIOLATION_PG_CODE = '23505';
 
 type CreateWorkspaceInput = {
   name?: string;
@@ -29,6 +39,7 @@ type CreateWorkspaceInput = {
   serviceUserEmail?: string;
   ephemeral?: boolean;
   organizationId?: string;
+  apiKeyName?: string;
 };
 
 type RegieWorkspaceMarkerMap = {
@@ -38,6 +49,12 @@ type RegieWorkspaceMarkerMap = {
 type CreateWorkspaceApiKeyInput = {
   name?: string;
   expiresAt?: string;
+};
+
+type RenameWorkspaceInput = {
+  name?: string;
+  slug?: string;
+  primaryDomain?: string;
 };
 
 type BackfillE2eWorkspaceMarkerInput = {
@@ -53,6 +70,10 @@ export class InternalWorkspaceProvisioningService {
     private readonly workspaceService: WorkspaceService,
     private readonly apiKeyService: ApiKeyService,
     private readonly keyValuePairService: KeyValuePairService<RegieWorkspaceMarkerMap>,
+    @InjectRepository(WorkspaceEntity)
+    private readonly workspaceRepository: Repository<WorkspaceEntity>,
+    private readonly subdomainManagerService: SubdomainManagerService,
+    private readonly coreEntityCacheService: CoreEntityCacheService,
   ) {}
 
   async createWorkspace(input: CreateWorkspaceInput) {
@@ -79,8 +100,8 @@ export class InternalWorkspaceProvisioningService {
         displayName,
         subdomain,
         shouldBypassWorkspaceCreationChecks: true,
-        // Internal service-to-service provisioning has no human accepting the click-through DPA.
         shouldRecordDpaAcceptance: false,
+        shouldFetchWorkspaceLogo: false,
       },
     );
     if (e2eMarker) {
@@ -98,7 +119,16 @@ export class InternalWorkspaceProvisioningService {
         result.workspace,
       )) ?? result.workspace;
 
-    return this.toWorkspaceProvisioningResponse(workspace, input.primaryDomain);
+    const apiKey = input.apiKeyName
+      ? await this.issueWorkspaceApiKey(workspace.id, {
+          name: input.apiKeyName,
+        })
+      : undefined;
+
+    return {
+      ...this.toWorkspaceProvisioningResponse(workspace, input.primaryDomain),
+      ...(apiKey ? { apiKey } : {}),
+    };
   }
 
   async activateWorkspace(workspaceId: string) {
@@ -124,6 +154,87 @@ export class InternalWorkspaceProvisioningService {
     return this.toWorkspaceProvisioningResponse(activatedWorkspace);
   }
 
+  async renameWorkspace(workspaceId: string, input: RenameWorkspaceInput) {
+    const displayName = this.requiredTrimmed(input.name, 'name');
+    const subdomain = this.requiredTrimmed(input.slug, 'slug');
+    const workspace =
+      await this.workspaceService.findOneWorkspaceById(workspaceId);
+
+    if (!workspace) {
+      throw new NotFoundException('Workspace was not found');
+    }
+
+    if (
+      workspace.subdomain !== subdomain ||
+      workspace.displayName !== displayName
+    ) {
+      await this.updateWorkspaceIdentity(workspace, { displayName, subdomain });
+    }
+
+    await this.coreEntityCacheService.invalidate(
+      'workspaceEntity',
+      workspaceId,
+    );
+
+    return this.toWorkspaceProvisioningResponse(
+      { ...workspace, displayName, subdomain },
+      input.primaryDomain,
+    );
+  }
+
+  private async updateWorkspaceIdentity(
+    workspace: WorkspaceEntity,
+    identity: { displayName: string; subdomain: string },
+  ) {
+    if (workspace.subdomain !== identity.subdomain) {
+      await this.assertSubdomainAvailable(identity.subdomain);
+    }
+
+    try {
+      await this.workspaceRepository.update(workspace.id, identity);
+    } catch (error) {
+      if (this.isUniqueViolation(error)) {
+        throw new ConflictException('Subdomain already taken');
+      }
+      throw error;
+    }
+  }
+
+  async findWorkspaceBySlug(slug: string) {
+    const subdomain = this.requiredTrimmed(slug, 'slug');
+    const workspace = await this.workspaceRepository.findOne({
+      where: { subdomain },
+      withDeleted: true,
+    });
+
+    if (!workspace) {
+      throw new NotFoundException('Workspace was not found');
+    }
+
+    return {
+      ...this.toWorkspaceProvisioningResponse(workspace),
+      deleted: isDefined(workspace.deletedAt),
+    };
+  }
+
+  private async assertSubdomainAvailable(subdomain: string) {
+    if (!isSubdomainValid(subdomain)) {
+      throw new BadRequestException('Subdomain is not valid');
+    }
+
+    if (!(await this.subdomainManagerService.isSubdomainAvailable(subdomain))) {
+      throw new ConflictException('Subdomain already taken');
+    }
+  }
+
+  private isUniqueViolation(error: unknown): boolean {
+    return (
+      error instanceof QueryFailedError &&
+      (error as QueryFailedError & { code?: string }).code ===
+        UNIQUE_VIOLATION_PG_CODE
+    );
+  }
+
   async createWorkspaceApiKey(
     workspaceId: string,
     input: CreateWorkspaceApiKeyInput,
@@ -135,6 +246,13 @@ export class InternalWorkspaceProvisioningService {
       throw new NotFoundException('Workspace was not found');
     }
 
+    return await this.issueWorkspaceApiKey(workspaceId, input);
+  }
+
+  private async issueWorkspaceApiKey(
+    workspaceId: string,
+    input: CreateWorkspaceApiKeyInput,
+  ) {
     const apiKey = await this.apiKeyService.createWorkspaceAdminApiKeyToken({
       workspaceId,
       name: input.name?.trim() || 'regie-crm-api',
