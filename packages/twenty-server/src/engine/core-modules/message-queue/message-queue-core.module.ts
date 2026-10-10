@@ -22,9 +22,11 @@ import {
 } from 'src/engine/core-modules/message-queue/message-queue.module-definition';
 import { ApplicationJobEnqueueThrottlerService } from 'src/engine/core-modules/message-queue/services/application-job-enqueue-throttler.service';
 import { MessageQueueService } from 'src/engine/core-modules/message-queue/services/message-queue.service';
+import { getDisabledJobNames } from 'src/engine/core-modules/message-queue/utils/get-disabled-job-names.util';
 import { getQueueToken } from 'src/engine/core-modules/message-queue/utils/get-queue-token.util';
 import { MetricsModule } from 'src/engine/core-modules/metrics/metrics.module';
 import { ThrottlerModule } from 'src/engine/core-modules/throttler/throttler.module';
+import { TwentyConfigService } from 'src/engine/core-modules/twenty-config/twenty-config.service';
 
 @Global()
 @Module({})
@@ -133,10 +135,17 @@ export class MessageQueueCoreModule extends ConfigurableModuleClass {
   static createQueueProviders(): Provider[] {
     return Object.values(MessageQueue).map((queueName) => ({
       provide: getQueueToken(queueName),
-      useFactory: (driver: MessageQueueDriver) => {
-        return new MessageQueueService(driver, queueName);
+      useFactory: (
+        driver: MessageQueueDriver,
+        twentyConfigService: TwentyConfigService,
+      ) => {
+        return new MessageQueueService(
+          driver,
+          queueName,
+          getDisabledJobNames(twentyConfigService),
+        );
       },
-      inject: [QUEUE_DRIVER],
+      inject: [QUEUE_DRIVER, TwentyConfigService],
     }));
   }
 }
