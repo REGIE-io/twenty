@@ -18,6 +18,11 @@ export type Scalars = {
   UUID: { input: any; output: any; }
 };
 
+export type BulkPhoneSearchResult = {
+  __typename?: 'BulkPhoneSearchResult';
+  results: Array<PhoneSearchLookupResult>;
+};
+
 export enum CalendarChannelVisibility {
   METADATA = 'METADATA',
   SHARE_EVERYTHING = 'SHARE_EVERYTHING'
@@ -346,6 +351,33 @@ export type ObjectRecordFilterInput = {
   updatedAt?: InputMaybe<DateTimeFilter>;
 };
 
+export type PhoneSearchLookupError = {
+  __typename?: 'PhoneSearchLookupError';
+  code: Scalars['String']['output'];
+  message: Scalars['String']['output'];
+};
+
+export type PhoneSearchLookupInput = {
+  clientReference: Scalars['String']['input'];
+  phoneNumber: Scalars['String']['input'];
+};
+
+export type PhoneSearchLookupResult = {
+  __typename?: 'PhoneSearchLookupResult';
+  clientReference: Scalars['String']['output'];
+  error?: Maybe<PhoneSearchLookupError>;
+  hasMore: Scalars['Boolean']['output'];
+  matches: Array<PhoneSearchRecord>;
+  phoneNumber: Scalars['String']['output'];
+  status: PhoneSearchLookupStatus;
+};
+
+export enum PhoneSearchLookupStatus {
+  FOUND = 'FOUND',
+  INVALID = 'INVALID',
+  NOT_FOUND = 'NOT_FOUND'
+}
+
 export type PhoneSearchRecord = {
   __typename?: 'PhoneSearchRecord';
   recordId: Scalars['UUID']['output'];
@@ -390,6 +422,7 @@ export type Query = {
   isMaintenanceModeBannerDismissed: Scalars['Boolean']['output'];
   search: SearchResultConnection;
   searchPeopleByPhone: PhoneSearchResultConnection;
+  searchPeopleByPhones: BulkPhoneSearchResult;
   workflowStepConnectedAccountHandle?: Maybe<ConnectedAccountHandleDto>;
   workflowVersionContent: WorkflowVersionContent;
 };
@@ -467,6 +500,12 @@ export type QuerySearchPeopleByPhoneArgs = {
   after?: InputMaybe<Scalars['String']['input']>;
   limit: Scalars['Int']['input'];
   phoneNumber: Scalars['String']['input'];
+};
+
+
+export type QuerySearchPeopleByPhonesArgs = {
+  lookups: Array<PhoneSearchLookupInput>;
+  matchLimitPerPhone?: Scalars['Int']['input'];
 };
 
 

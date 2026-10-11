@@ -4,6 +4,7 @@ import request from 'supertest';
 import { createCustomRoleWithObjectPermissions } from 'test/integration/graphql/utils/create-custom-role-with-object-permissions.util';
 import { createOneOperation } from 'test/integration/graphql/utils/create-one-operation.util';
 import { deleteRole } from 'test/integration/graphql/utils/delete-one-role.util';
+import { searchPeopleByPhones } from 'test/integration/graphql/utils/search-people-by-phones.util';
 import { searchPeopleByPhone } from 'test/integration/graphql/utils/search-people-by-phone.util';
 import { updateWorkspaceMemberRole } from 'test/integration/graphql/utils/update-workspace-member-role.util';
 import { upsertFieldPermissions } from 'test/integration/graphql/utils/upsert-field-permissions.util';
@@ -267,5 +268,39 @@ describe('searchPeopleByPhone field permissions', () => {
     expect(
       response.data?.searchPeopleByPhone.edges.map(({ node }) => node.recordId),
     ).toEqual([createdPersonIds[3]]);
+  });
+
+  it('applies field and record permissions independently to bulk results', async () => {
+    const response = await searchPeopleByPhones({
+      lookups: [
+        { clientReference: 'readable', phoneNumber: '+14155551400' },
+        { clientReference: 'restricted', phoneNumber: '+14155551401' },
+        { clientReference: 'mixed-fields', phoneNumber: '+14155551402' },
+        { clientReference: 'record-filtered', phoneNumber: '+14155551403' },
+      ],
+      accessToken: APPLE_JONY_MEMBER_ACCESS_TOKEN,
+    });
+
+    expect(response.errors).toBeUndefined();
+    expect(
+      response.data?.searchPeopleByPhones.results.map((result) => ({
+        clientReference: result.clientReference,
+        matches: result.matches,
+      })),
+    ).toEqual([
+      {
+        clientReference: 'readable',
+        matches: [{ recordId: createdPersonIds[0] }],
+      },
+      { clientReference: 'restricted', matches: [] },
+      {
+        clientReference: 'mixed-fields',
+        matches: [{ recordId: createdPersonIds[2] }],
+      },
+      {
+        clientReference: 'record-filtered',
+        matches: [{ recordId: createdPersonIds[3] }],
+      },
+    ]);
   });
 });
