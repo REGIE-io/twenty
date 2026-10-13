@@ -12,6 +12,7 @@ import { SearchVectorTriggerConversionService } from 'src/engine/core-modules/se
 type ConvertSearchVectorToTriggerCommandOptions =
   ProvisionedWorkspaceCommandOptions & {
     repair?: boolean;
+    allWorkspaces?: boolean;
   };
 
 @Command({
@@ -38,13 +39,31 @@ export class ConvertSearchVectorToTriggerCommand extends ProvisionedWorkspaceCom
     return true;
   }
 
-  // Rollout is per workspace on purpose; a missing -w must not sweep the whole fleet.
+  @Option({
+    flags: '--all-workspaces',
+    description: 'Run on every workspace instead of the ones passed with -w',
+    required: false,
+  })
+  parseAllWorkspaces(): boolean {
+    return true;
+  }
+
+  // A missing -w must not sweep the whole fleet; that takes an explicit --all-workspaces.
   override async run(
     passedParams: string[],
     options: ConvertSearchVectorToTriggerCommandOptions,
   ): Promise<void> {
-    if (!isDefined(options.workspaceId) || options.workspaceId.size === 0) {
-      throw new Error('Pass at least one workspace with -w.');
+    const hasWorkspaceIds =
+      isDefined(options.workspaceId) && options.workspaceId.size > 0;
+
+    if (hasWorkspaceIds && options.allWorkspaces === true) {
+      throw new Error('Pass either -w or --all-workspaces, not both.');
+    }
+
+    if (!hasWorkspaceIds && options.allWorkspaces !== true) {
+      throw new Error(
+        'Pass at least one workspace with -w, or --all-workspaces.',
+      );
     }
 
     await super.run(passedParams, options);
