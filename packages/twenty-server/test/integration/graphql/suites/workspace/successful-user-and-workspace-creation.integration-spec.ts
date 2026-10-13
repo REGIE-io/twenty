@@ -16,6 +16,7 @@ import { isDefined } from 'twenty-shared/utils';
 import { WorkspaceActivationStatus } from 'twenty-shared/workspace';
 
 import { OnboardingStatus } from 'src/engine/core-modules/onboarding/enums/onboarding-status.enum';
+import { isSearchVectorTriggerMode } from 'src/engine/core-modules/search-vector-trigger/utils/search-vector-trigger-maintenance.util';
 import { TWENTY_STANDARD_APPLICATION } from 'src/engine/workspace-manager/twenty-standard-application/constants/twenty-standard-applications';
 
 describe('Successful user and workspace creation', () => {
@@ -81,6 +82,23 @@ describe('Successful user and workspace creation', () => {
     expect(activateWorkspaceData.activationStatus).toBe(
       WorkspaceActivationStatus.ACTIVE,
     );
+
+    const [{ databaseSchema }] = await testDataSource.query(
+      'SELECT "databaseSchema" FROM core.workspace WHERE id = $1',
+      [activateWorkspaceData.id],
+    );
+    const queryRunner = testDataSource.createQueryRunner();
+
+    try {
+      await expect(
+        isSearchVectorTriggerMode(queryRunner, {
+          schemaName: databaseSchema,
+          tableName: 'person',
+        }),
+      ).resolves.toBe(true);
+    } finally {
+      await queryRunner.release();
+    }
 
     const {
       data: { currentUser: currentUserAfterActivation },
