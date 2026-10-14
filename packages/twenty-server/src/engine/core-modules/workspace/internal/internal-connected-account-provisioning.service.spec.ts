@@ -10,7 +10,12 @@ import {
   MessageChannelVisibility,
 } from 'twenty-shared/types';
 
-import { ACQUIRE_ATTACH_CONNECTED_ACCOUNT_LOCK_STATEMENT } from 'src/engine/core-modules/workspace/internal/constants/internal-connected-account-provisioning.constants';
+import { FindOperator } from 'typeorm';
+
+import {
+  ACQUIRE_ATTACH_CONNECTED_ACCOUNT_LOCK_STATEMENT,
+  CALENDAR_ONLY_CONNECTED_ACCOUNT_NAME,
+} from 'src/engine/core-modules/workspace/internal/constants/internal-connected-account-provisioning.constants';
 import { InternalConnectedAccountProvisioningService } from 'src/engine/core-modules/workspace/internal/internal-connected-account-provisioning.service';
 import { CalendarChannelEntity } from 'src/engine/metadata-modules/calendar-channel/entities/calendar-channel.entity';
 import { ConnectedAccountEntity } from 'src/engine/metadata-modules/connected-account/entities/connected-account.entity';
@@ -36,6 +41,7 @@ type StoredConnectedAccount = {
   userWorkspaceId: string;
   provider: ConnectedAccountProvider;
   handle: string;
+  name: string | null;
   accessToken: string | null;
   refreshToken: string | null;
   lastCredentialsRefreshedAt: Date | null;
@@ -73,10 +79,11 @@ const accountKey = ({
   userWorkspaceId,
   provider,
   handle,
+  name,
 }: Pick<
   StoredConnectedAccount,
-  'workspaceId' | 'userWorkspaceId' | 'provider' | 'handle'
->) => `${workspaceId}:${userWorkspaceId}:${provider}:${handle}`;
+  'workspaceId' | 'userWorkspaceId' | 'provider' | 'handle' | 'name'
+>) => `${workspaceId}:${userWorkspaceId}:${provider}:${handle}:${name}`;
 
 const makeServiceHarness = () => {
   const connectedAccounts = new Map<string, StoredConnectedAccount>();
@@ -114,12 +121,15 @@ const makeServiceHarness = () => {
     ),
   };
 
-  const findAccountBy = (criteria: Partial<StoredConnectedAccount>) =>
+  const findAccountBy = (criteria: Record<string, unknown>) =>
     Array.from(connectedAccounts.values()).find((account) =>
-      Object.entries(criteria).every(
-        ([field, value]) =>
-          account[field as keyof StoredConnectedAccount] === value,
-      ),
+      Object.entries(criteria).every(([field, value]) => {
+        const stored = account[field as keyof StoredConnectedAccount];
+
+        return value instanceof FindOperator && value.type === 'isNull'
+          ? stored === null || stored === undefined
+          : stored === value;
+      }),
     ) ?? null;
 
   const transactionalConnectedAccountRepository = {
@@ -142,6 +152,7 @@ const makeServiceHarness = () => {
       const saved = {
         lastCredentialsRefreshedAt: null,
         authFailedAt: null,
+        name: null,
         ...values,
         id: `connected-account-${++connectedAccountSequence}`,
       } as StoredConnectedAccount;
@@ -488,6 +499,46 @@ describe('InternalConnectedAccountProvisioningService', () => {
       expect(stores.connectedAccounts.size).toBe(1);
       expect(stores.calendarChannels.size).toBe(1);
       expect(stores.messageChannels.size).toBe(1);
+    });
+
+    it('keeps a calendar-only account separate from the mailbox account on the same address', async () => {
+      const { service, stores } = makeServiceHarness();
+
+      await service.attachConnectedAccount({
+        ...ATTACH_INPUT,
+        withCalendarChannel: false,
+      });
+      const calendar = await service.attachConnectedAccount({
+        ...ATTACH_INPUT,
+        withMessageChannel: false,
+        calendarOnly: true,
+      });
+
+      expect(calendar.connectedAccountId).toBe('connected-account-2');
+      expect(
+        Array.from(stores.connectedAccounts.values()).map(({ handle, name }) => ({
+          handle,
+          name,
+        })),
+      ).toEqual([
+        { handle: HANDLE, name: null },
+        { handle: HANDLE, name: CALENDAR_ONLY_CONNECTED_ACCOUNT_NAME },
+      ]);
+    });
+
+    it('reuses the calendar-only account when it is attached again', async () => {
+      const { service, stores } = makeServiceHarness();
+      const calendarOnly = {
+        ...ATTACH_INPUT,
+        withMessageChannel: false,
+        calendarOnly: true,
+      };
+
+      await service.attachConnectedAccount(calendarOnly);
+      const result = await service.attachConnectedAccount(calendarOnly);
+
+      expect(result.created).toBe(false);
+      expect(stores.connectedAccounts.size).toBe(1);
     });
 
     // Re-attach is how Regie hands over a reconnected grant, so the old pair must not
