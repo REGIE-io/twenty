@@ -103,7 +103,7 @@ function fixture(options = {}) {
     args: {
       github,
       context: { repo, payload: { workflow_run: run } },
-      core: { info() {} },
+      core: { info() {}, warning() {} },
     },
     calls,
     promotion,
@@ -320,7 +320,7 @@ test('uses the repository token for PR writes and the PAT for CI and merge', asy
     },
   };
   args.github.rest.pulls.create = async () => {
-    throw new Error('PAT cannot create PRs');
+    throw Object.assign(new Error('PAT cannot create PRs'), { status: 403 });
   };
   args.github.rest.pulls.update = async () => {
     throw new Error('PAT cannot update PRs');
