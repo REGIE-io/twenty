@@ -75,7 +75,7 @@ jobs:
           github-token: ${{ secrets.DEPENDABOT_AUTOMERGE_PAT }}
           script: |
             const { syncMainToStage, productionRunContext } = require('./.github/scripts/sync-main-to-stage.cjs');
-            // The existing PAT can trigger CI/merges but cannot create PRs.
+            // Keep a repository-token fallback when the PAT lacks PR-write scope.
             const pullRequestGithub = new github.constructor({ auth: process.env.REPOSITORY_TOKEN });
             const promotionContext = context.eventName === 'workflow_dispatch'
               ? productionRunContext(context, process.env.PRODUCTION_RUN_ID)

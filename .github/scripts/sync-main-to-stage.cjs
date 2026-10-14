@@ -112,7 +112,7 @@ async function syncMainToStage({
       item.head.ref === branch && item.head.repo?.full_name === fullName,
   );
   if (!pr) {
-    ({ data: pr } = await pullRequestGithub.rest.pulls.create({
+    const request = {
       ...repo,
       base: 'stage',
       head: branch,
@@ -123,7 +123,18 @@ async function syncMainToStage({
         'This branch is pinned to the deployed revision. Required stage CI and auto-merge remain enforced.',
         'After merge, the standard stage workflow runs the database upgrade and convergence check before rolling services.',
       ].join('\n'),
-    }));
+    };
+    try {
+      // A user-authored PR can auto-merge under the repository's extra-approval
+      // rule for bot-authored changes. Prefer the PAT when its scope permits it.
+      ({ data: pr } = await github.rest.pulls.create(request));
+    } catch (error) {
+      if (error.status !== 403 || pullRequestGithub === github) throw error;
+      ({ data: pr } = await pullRequestGithub.rest.pulls.create(request));
+      core.warning(
+        'The automation PAT needs Pull requests: write. This bot-authored fallback PR requires maintainer approval.',
+      );
+    }
   }
   if (pr.head.sha !== sha)
     throw new Error('Promotion pull request head does not match deployment.');
