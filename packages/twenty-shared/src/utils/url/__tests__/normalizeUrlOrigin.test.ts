@@ -87,6 +87,31 @@ describe('normalizeUrlOrigin', () => {
       expected:
         'https://www.google.com/maps/place/Birdie+-+Eventlocation/data=!4m7!3m6!1s0x479e7674e1702985:0xe482992505cb1ba4!8m2!3d48.1584971!4d11.5538261!16s%2Fg%2F1ptwh8096!19sChIJhSlw4XR2nkcRpBvLBSWZguQ?authuser=0&hl=en&rclk=1',
     },
+    {
+      title: 'should lowercase the host of a value without a scheme',
+      input: 'www.Acme.com',
+      expected: 'www.acme.com',
+    },
+    {
+      title: 'should lowercase only the host of a value without a scheme',
+      input: 'Acme.COM/About-Us?Ref=X#Top',
+      expected: 'acme.com/About-Us?Ref=X#Top',
+    },
+    {
+      title: 'should keep the port of a value without a scheme',
+      input: 'WWW.Acme.com:8080/Path',
+      expected: 'www.acme.com:8080/Path',
+    },
+    {
+      title: 'should leave a value without a host unchanged',
+      input: 'N/A',
+      expected: 'N/A',
+    },
+    {
+      title: 'should leave a mailto value unchanged',
+      input: 'mailto:John@Acme.com',
+      expected: 'mailto:John@Acme.com',
+    },
   ])('$title', ({ input, expected }) => {
     expect(normalizeUrlOrigin(input)).toBe(expected);
   });
