@@ -5,7 +5,6 @@ import { LowercaseLinkHostsCommand } from 'src/database/commands/upgrade-version
 import { getWorkspaceSchemaName } from 'src/engine/workspace-datasource/utils/get-workspace-schema-name.util';
 
 const BATCH_SIZE = 1000;
-const FIRST_ID = '00000000-0000-0000-0000-000000000000';
 const SCHEMED_ORIGIN_PATTERN = String.raw`^(\s*[a-z][a-z0-9+.-]*://[^/?#@]*)(?=[/?#]|$)`;
 const SCHEMELESS_HOST_PATTERN = String.raw`^([a-z0-9-]+(?:\.[a-z0-9-]+)+)(?=(?::[0-9]+)?(?:[/?#]|$))`;
 
@@ -13,15 +12,13 @@ const workspaceId = uuid();
 const schemaName = getWorkspaceSchemaName(workspaceId);
 
 type LinkTable = 'company' | 'person';
-type UpdateOutcome = { records: Array<{ id: string }> } | Error;
 
-const fakeId = (index: number) =>
-  `00000000-0000-0000-0000-${String(index).padStart(12, '0')}`;
-
-const fakeRecords = (first: number, last: number) =>
-  Array.from({ length: last - first + 1 }, (_, offset) => ({
-    id: fakeId(first + offset),
-  }));
+const fakeIds = (first: number, last: number) =>
+  Array.from(
+    { length: last - first + 1 },
+    (_, offset) =>
+      `00000000-0000-0000-0000-${String(first + offset).padStart(12, '0')}`,
+  );
 
 const tableOfStatement = (sql: string): LinkTable => {
   if (sql.includes('"company"')) {
@@ -35,19 +32,20 @@ const tableOfStatement = (sql: string): LinkTable => {
   throw new Error(`Unexpected table in query: ${sql}`);
 };
 
+const isUpdate = (sql: string) => sql.includes('UPDATE');
+
+const isFind = (sql: string) =>
+  !isUpdate(sql) && sql.includes('prefix <> lower(prefix)');
+
 const buildCommand = ({
   existingTables,
   linksToLowercase,
-  updateOutcomes,
+  updateError,
 }: {
   existingTables: LinkTable[];
-  linksToLowercase: number;
-  updateOutcomes: Record<LinkTable, UpdateOutcome[]>;
+  linksToLowercase: Record<LinkTable, number>;
+  updateError?: Error;
 }) => {
-  const pendingUpdateOutcomes: Record<LinkTable, UpdateOutcome[]> = {
-    company: [...updateOutcomes.company],
-    person: [...updateOutcomes.person],
-  };
   const query = jest
     .fn<Promise<unknown>, [string, unknown[]?, boolean?]>()
     .mockImplementation(async (sql, parameters) => {
@@ -59,22 +57,18 @@ const buildCommand = ({
           : [];
       }
 
-      if (sql.includes('count(*)')) {
-        return [{ count: linksToLowercase }];
+      if (isUpdate(sql)) {
+        if (isDefined(updateError)) {
+          throw updateError;
+        }
+
+        return { records: [] };
       }
 
-      if (sql.includes('UPDATE')) {
-        const outcome = pendingUpdateOutcomes[tableOfStatement(sql)].shift();
-
-        if (!isDefined(outcome)) {
-          throw new Error('Unexpected extra UPDATE');
-        }
-
-        if (outcome instanceof Error) {
-          throw outcome;
-        }
-
-        return outcome;
+      if (isFind(sql)) {
+        return fakeIds(1, linksToLowercase[tableOfStatement(sql)]).map(
+          (id) => ({ id }),
+        );
       }
 
       throw new Error(`Unexpected query: ${sql}`);
@@ -100,17 +94,17 @@ const buildCommand = ({
     });
   const callsContaining = (fragment: string) =>
     query.mock.calls.filter(([sql]) => sql.includes(fragment));
+  const finds = () => query.mock.calls.filter(([sql]) => isFind(sql));
   const updatesOn = (table: LinkTable) =>
     callsContaining(`UPDATE "${schemaName}"."${table}"`);
 
-  return { run, query, release, callsContaining, updatesOn };
+  return { run, query, release, callsContaining, finds, updatesOn };
 };
 
 it('skips a link column the workspace does not have', async () => {
   const { run, query, release, callsContaining, updatesOn } = buildCommand({
     existingTables: ['company'],
-    linksToLowercase: 0,
-    updateOutcomes: { company: [{ records: [] }], person: [] },
+    linksToLowercase: { company: 2, person: 0 },
   });
 
   await run(false);
@@ -120,22 +114,19 @@ it('skips a link column the workspace does not have', async () => {
     [schemaName, 'person', 'linkedinLinkPrimaryLinkUrl'],
   );
   expect(updatesOn('company')).toHaveLength(1);
-  expect(updatesOn('person')).toHaveLength(0);
-  expect(callsContaining('count(*)')).toHaveLength(0);
   expect(callsContaining('"person"')).toHaveLength(0);
   expect(release).toHaveBeenCalledTimes(1);
 });
 
 it('counts without writing on a dry run', async () => {
-  const { run, release, callsContaining } = buildCommand({
+  const { run, release, callsContaining, finds } = buildCommand({
     existingTables: ['company', 'person'],
-    linksToLowercase: 7,
-    updateOutcomes: { company: [], person: [] },
+    linksToLowercase: { company: 7, person: 3 },
   });
 
   await run(true);
 
-  expect(callsContaining('count(*)')).toEqual([
+  expect(finds()).toEqual([
     [
       expect.stringContaining('"company"'),
       [SCHEMED_ORIGIN_PATTERN, SCHEMELESS_HOST_PATTERN],
@@ -149,17 +140,10 @@ it('counts without writing on a dry run', async () => {
   expect(release).toHaveBeenCalledTimes(1);
 });
 
-it('resumes after the last updated id until a batch comes back short', async () => {
+it('updates the rows it found in batches', async () => {
   const { run, release, updatesOn } = buildCommand({
     existingTables: ['company', 'person'],
-    linksToLowercase: 0,
-    updateOutcomes: {
-      company: [
-        { records: fakeRecords(1, BATCH_SIZE) },
-        { records: fakeRecords(BATCH_SIZE + 1, BATCH_SIZE + 3) },
-      ],
-      person: [{ records: [] }],
-    },
+    linksToLowercase: { company: BATCH_SIZE + 3, person: 0 },
   });
 
   await run(false);
@@ -167,7 +151,7 @@ it('resumes after the last updated id until a batch comes back short', async () 
   expect(updatesOn('company')).toEqual([
     [
       expect.stringContaining('SET "domainNamePrimaryLinkUrl"'),
-      [SCHEMED_ORIGIN_PATTERN, SCHEMELESS_HOST_PATTERN, FIRST_ID, BATCH_SIZE],
+      [SCHEMED_ORIGIN_PATTERN, SCHEMELESS_HOST_PATTERN, fakeIds(1, BATCH_SIZE)],
       true,
     ],
     [
@@ -175,19 +159,12 @@ it('resumes after the last updated id until a batch comes back short', async () 
       [
         SCHEMED_ORIGIN_PATTERN,
         SCHEMELESS_HOST_PATTERN,
-        fakeId(BATCH_SIZE),
-        BATCH_SIZE,
+        fakeIds(BATCH_SIZE + 1, BATCH_SIZE + 3),
       ],
       true,
     ],
   ]);
-  expect(updatesOn('person')).toEqual([
-    [
-      expect.stringContaining('SET "linkedinLinkPrimaryLinkUrl"'),
-      [SCHEMED_ORIGIN_PATTERN, SCHEMELESS_HOST_PATTERN, FIRST_ID, BATCH_SIZE],
-      true,
-    ],
-  ]);
+  expect(updatesOn('person')).toHaveLength(0);
   expect(release).toHaveBeenCalledTimes(1);
 });
 
@@ -195,8 +172,8 @@ it('releases the query runner when a batch fails', async () => {
   const failure = new Error('statement timeout');
   const { run, release } = buildCommand({
     existingTables: ['company', 'person'],
-    linksToLowercase: 0,
-    updateOutcomes: { company: [failure], person: [] },
+    linksToLowercase: { company: 1, person: 0 },
+    updateError: failure,
   });
 
   await expect(run(false)).rejects.toBe(failure);
