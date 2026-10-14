@@ -2,8 +2,15 @@ name: Sync deployed main to stage
 
 # Never react to the stage workflow: stage -> main releases must not create a loop.
 on:
+  workflow_dispatch:
+    inputs:
+      production_run_id:
+        description: 'Replay a successful push-triggered production run (current main only)'
+        required: true
+        type: string
   pull_request:
     branches: [main, develop, stage]
+    types: [opened, synchronize, reopened, labeled]
     paths:
       - '.github/scripts/sync-main-to-stage*'
       - '.github/workflows/sync-main-to-stage.yml'
@@ -21,6 +28,7 @@ concurrency:
 
 jobs:
   test:
+    if: github.event.action != 'labeled' || github.event.label.name == 'run-ci'
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
@@ -31,11 +39,16 @@ jobs:
 
   promote:
     needs: test
+    permissions:
+      contents: write
+      pull-requests: write
+      actions: read
     if: >-
-      github.event.workflow_run.conclusion == 'success' &&
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.workflow_run.conclusion == 'success' &&
       github.event.workflow_run.event == 'push' &&
       github.event.workflow_run.head_branch == 'main' &&
-      github.event.workflow_run.head_repository.full_name == github.repository
+      github.event.workflow_run.head_repository.full_name == github.repository)
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
@@ -55,8 +68,16 @@ jobs:
 
       - name: Promote exact deployed main revision
         uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7.1.0
+        env:
+          REPOSITORY_TOKEN: ${{ github.token }}
+          PRODUCTION_RUN_ID: ${{ inputs.production_run_id }}
         with:
           github-token: ${{ secrets.DEPENDABOT_AUTOMERGE_PAT }}
           script: |
-            const { syncMainToStage } = require('./.github/scripts/sync-main-to-stage.cjs');
-            await syncMainToStage({ github, context, core });
+            const { syncMainToStage, productionRunContext } = require('./.github/scripts/sync-main-to-stage.cjs');
+            // The existing PAT can trigger CI/merges but cannot create PRs.
+            const pullRequestGithub = new github.constructor({ auth: process.env.REPOSITORY_TOKEN });
+            const promotionContext = context.eventName === 'workflow_dispatch'
+              ? productionRunContext(context, process.env.PRODUCTION_RUN_ID)
+              : context;
+            await syncMainToStage({ github, pullRequestGithub, context: promotionContext, core });
