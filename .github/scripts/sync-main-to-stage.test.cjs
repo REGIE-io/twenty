@@ -287,6 +287,28 @@ test('merges an already-clean PR with an exact-head guard', async () => {
   assert.equal(merge.args.merge_method, 'merge');
 });
 
+test('uses the repository token for PR writes and the PAT for CI and merge', async () => {
+  const { args, calls } = fixture();
+  args.pullRequestGithub = {
+    rest: {
+      pulls: {
+        create: args.github.rest.pulls.create,
+        update: args.github.rest.pulls.update,
+      },
+    },
+  };
+  args.github.rest.pulls.create = async () => {
+    throw new Error('PAT cannot create PRs');
+  };
+  args.github.rest.pulls.update = async () => {
+    throw new Error('PAT cannot update PRs');
+  };
+  await syncMainToStage(args);
+  assert.ok(calls.some((c) => c.name === 'createPr'));
+  assert.ok(calls.some((c) => c.name === 'label'));
+  assert.ok(calls.some((c) => c.name === 'autoMerge'));
+});
+
 // Execute the real workflow guard with isolated git/GitHub responses. No network,
 // live branch mutation, or application dependencies are needed.
 for (const scenario of [
