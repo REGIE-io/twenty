@@ -84,6 +84,8 @@ import { EncryptEmptyApplicationVariablesSlowInstanceCommand } from 'src/databas
 import { AddWritabilityToMetadataFastInstanceCommand } from 'src/database/commands/upgrade-version-command/2-32/2-32-instance-command-fast-1786713600000-add-writability-to-metadata';
 import { AddPhoneSearchLookupFastInstanceCommand } from 'src/database/commands/upgrade-version-command/2-32/2-32-instance-command-fast-1786800000000-add-phone-search-lookup';
 import { AddWorkspaceDeletionLifecycleFastInstanceCommand } from 'src/database/commands/upgrade-version-command/2-32/2-32-instance-command-fast-1789196612599-add-workspace-deletion-lifecycle';
+import { CreateSearchVectorBackfillJobTableSlowInstanceCommand } from 'src/database/commands/upgrade-version-command/2-32/2-32-instance-command-slow-1791957830595-create-search-vector-backfill-job-table';
+import { AddMetadataDeleteForeignKeyIndexesSlowInstanceCommand } from 'src/database/commands/upgrade-version-command/2-32/2-32-instance-command-slow-1791540000000-add-metadata-delete-fk-indexes';
 import { AddRelationTargetFieldMetadataIdToViewFilterEarly2_4FastInstanceCommand } from 'src/database/commands/upgrade-version-command/2-4/2-4-instance-command-fast-1747234400000-add-relation-target-field-metadata-id-to-view-filter';
 import { AddMetadataToBillingPriceFastInstanceCommand } from 'src/database/commands/upgrade-version-command/2-4/2-4-instance-command-fast-1777100000000-add-metadata-to-billing-price';
 import { AddEmailGroupChannelTypeFastInstanceCommand } from 'src/database/commands/upgrade-version-command/2-4/2-4-instance-command-fast-1778256809018-add-email-group-channel-type';
@@ -149,7 +151,15 @@ import { AddPageLayoutCascadeDeleteIndexesFastInstanceCommand } from './2-25/2-2
 import { AddMessageChannelDisplayNameFastInstanceCommand } from './2-25/2-25-instance-command-fast-1784904030252-add-message-channel-display-name';
 import { AddAppTokenSsoExchangeIndexFastInstanceCommand } from './2-25/2-25-instance-command-fast-1785143586000-add-app-token-sso-exchange-index';
 import { AddMessageCampaignWidgetTypeFastInstanceCommand } from './2-25/2-25-instance-command-fast-1785229950000-add-message-campaign-widget-type';
-import { AddIsHiddenToAgentMessageFastInstanceCommand } from './2-25/2-25-instance-command-fast-1785230296e oa
+import { AddIsHiddenToAgentMessageFastInstanceCommand } from './2-25/2-25-instance-command-fast-1785230296000-add-is-hidden-to-agent-message';
+import { AddListOperandsToViewFilterEnumFastInstanceCommand } from './2-27/2-27-instance-command-fast-1785900200000-add-list-operands-to-view-filter-enum';
+
+export const INSTANCE_COMMANDS = [
+  AddViewFieldGroupIdIndexOnViewFieldFastInstanceCommand,
+  MigrateMessagingCalendarToCoreFastInstanceCommand,
+  AddEmailThreadWidgetTypeFastInstanceCommand,
+  AddTableWidgetViewTypeFastInstanceCommand,
+  AddStandalonePageFastInstanceCommand,
   AddPermissionFlagRoleIdIndexFastInstanceCommand,
   AddWorkspaceIdToIndirectEntitiesFastInstanceCommand,
   BackfillWorkspaceIdOnIndirectEntitiesSlowInstanceCommand,
