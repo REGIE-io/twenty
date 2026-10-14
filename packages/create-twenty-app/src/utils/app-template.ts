@@ -41,8 +41,6 @@ export const copyBaseApplicationProject = async ({
   await updatePackageJson({ appName, appDirectory });
 };
 
-// npm strips dotfiles/dotdirs (.gitignore, .github/) from published packages,
-// so we store them without the leading dot and rename after copying.
 const renameDotfiles = async ({ appDirectory }: { appDirectory: string }) => {
   const renames = [
     { from: 'gitignore', to: '.gitignore' },
