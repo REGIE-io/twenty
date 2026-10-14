@@ -1,12 +1,16 @@
-import { type QueryRunner } from 'typeorm';
+import { type DataSource, type QueryRunner } from 'typeorm';
 
 import { RegisteredInstanceCommand } from 'src/engine/core-modules/upgrade/decorators/registered-instance-command.decorator';
-import { type FastInstanceCommand } from 'src/engine/core-modules/upgrade/interfaces/fast-instance-command.interface';
+import { type SlowInstanceCommand } from 'src/engine/core-modules/upgrade/interfaces/slow-instance-command.interface';
 
-@RegisteredInstanceCommand('2.32.0', 1791885754038)
-export class CreateSearchVectorBackfillJobTableFastInstanceCommand
-  implements FastInstanceCommand
+// Slow only so it sorts after the 2.32 slow commands already applied on prod: the runner
+// orders fast before slow within a version, so a new fast command there would be skipped.
+@RegisteredInstanceCommand('2.32.0', 1791957830595, { type: 'slow' })
+export class CreateSearchVectorBackfillJobTableSlowInstanceCommand
+  implements SlowInstanceCommand
 {
+  async runDataMigration(_dataSource: DataSource): Promise<void> {}
+
   public async up(queryRunner: QueryRunner): Promise<void> {
     await queryRunner.query(
       `CREATE TABLE IF NOT EXISTS "core"."searchVectorBackfillJob" (
