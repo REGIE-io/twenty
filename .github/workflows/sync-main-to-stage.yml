@@ -74,13 +74,10 @@ jobs:
         with:
           github-token: ${{ secrets.DEPENDABOT_AUTOMERGE_PAT }}
           script: |
-            const { syncMainToStage } = require('./.github/scripts/sync-main-to-stage.cjs');
+            const { syncMainToStage, productionRunContext } = require('./.github/scripts/sync-main-to-stage.cjs');
             // The existing PAT can trigger CI/merges but cannot create PRs.
             const pullRequestGithub = new github.constructor({ auth: process.env.REPOSITORY_TOKEN });
-            let promotionContext = context;
-            if (context.eventName === 'workflow_dispatch') {
-              const id = Number(process.env.PRODUCTION_RUN_ID);
-              if (!Number.isSafeInteger(id) || id <= 0) throw new Error('Invalid production run ID.');
-              promotionContext = { ...context, payload: { workflow_run: { id } } };
-            }
+            const promotionContext = context.eventName === 'workflow_dispatch'
+              ? productionRunContext(context, process.env.PRODUCTION_RUN_ID)
+              : context;
             await syncMainToStage({ github, pullRequestGithub, context: promotionContext, core });

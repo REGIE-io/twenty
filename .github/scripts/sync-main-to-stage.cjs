@@ -1,6 +1,14 @@
 const PROMOTION_PREFIX = 'codex/promote-main-to-stage-';
 const DEPLOY_WORKFLOW = 'deploy-prod.yml';
 
+function productionRunContext(context, value) {
+  const id = Number(value);
+  if (!Number.isSafeInteger(id) || id <= 0)
+    throw new Error('Invalid production run ID.');
+  // Actions context.repo is a prototype getter, so spreading context loses it.
+  return { repo: context.repo, payload: { workflow_run: { id } } };
+}
+
 async function syncMainToStage({
   github,
   pullRequestGithub = github,
@@ -204,4 +212,4 @@ async function syncMainToStage({
   return { number: pr.number, sha };
 }
 
-module.exports = { syncMainToStage };
+module.exports = { syncMainToStage, productionRunContext };

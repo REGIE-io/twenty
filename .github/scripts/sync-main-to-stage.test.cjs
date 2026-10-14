@@ -3,11 +3,33 @@ const { test } = require('node:test');
 const { mkdtempSync, writeFileSync, readFileSync, rmSync } = require('node:fs');
 const { join } = require('node:path');
 const { spawnSync } = require('node:child_process');
-const { syncMainToStage } = require('./sync-main-to-stage.cjs');
+const {
+  syncMainToStage,
+  productionRunContext,
+} = require('./sync-main-to-stage.cjs');
 
 const SHA = 'a'.repeat(40);
 const STAGE = 'b'.repeat(40);
 const PREFIX = 'codex/promote-main-to-stage-';
+
+test('replay preserves the Actions context repo getter and validates the run ID', () => {
+  const repo = { owner: 'REGIE-io', repo: 'twenty' };
+  const context = Object.create({
+    get repo() {
+      return repo;
+    },
+  });
+  assert.deepEqual(productionRunContext(context, '123'), {
+    repo,
+    payload: { workflow_run: { id: 123 } },
+  });
+  for (const value of ['', 'x', '-1', '1.5']) {
+    assert.throws(
+      () => productionRunContext(context, value),
+      /Invalid production run ID/,
+    );
+  }
+});
 
 function fixture(options = {}) {
   const calls = [];
