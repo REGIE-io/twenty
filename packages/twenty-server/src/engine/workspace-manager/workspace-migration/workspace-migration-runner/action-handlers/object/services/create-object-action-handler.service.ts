@@ -1,10 +1,13 @@
 import { Injectable } from '@nestjs/common';
 
 import { FieldMetadataType } from 'twenty-shared/types';
+import { isDefined } from 'twenty-shared/utils';
+import { type QueryRunner } from 'typeorm';
 import { v4 } from 'uuid';
 
 import { WorkspaceMigrationRunnerActionHandler } from 'src/engine/workspace-manager/workspace-migration/workspace-migration-runner/interfaces/workspace-migration-runner-action-handler-service.interface';
 
+import { reinstallSearchVectorTrigger } from 'src/engine/core-modules/search-vector-trigger/utils/search-vector-trigger-maintenance.util';
 import { ALL_METADATA_ENTITY_BY_METADATA_NAME } from 'src/engine/metadata-modules/flat-entity/constant/all-metadata-entity-by-metadata-name.constant';
 import { isCompositeFlatFieldMetadata } from 'src/engine/metadata-modules/flat-field-metadata/utils/is-composite-flat-field-metadata.util';
 import { isEnumFlatFieldMetadata } from 'src/engine/metadata-modules/flat-field-metadata/utils/is-enum-flat-field-metadata.util';
@@ -94,88 +97,53 @@ export class CreateObjectActionHandlerService extends WorkspaceMigrationRunnerAc
     };
   }
 
+  override canBatchCreate = true;
+
   async executeForMetadata(
     context: WorkspaceMigrationActionRunnerContext<FlatCreateObjectAction>,
   ): Promise<void> {
-    const { queryRunner, flatAction } = context;
-    const { flatEntity: flatObjectMetadata, flatFieldMetadatas } = flatAction;
+    await this.executeForMetadataBatch([context]);
+  }
+
+  override async executeForMetadataBatch(
+    contexts: WorkspaceMigrationActionRunnerContext<FlatCreateObjectAction>[],
+  ): Promise<void> {
+    if (contexts.length === 0) {
+      return;
+    }
+
+    const { queryRunner } = contexts[0];
 
     await this.insertFlatEntitiesInRepository({
       queryRunner,
-      flatEntities: [flatObjectMetadata],
+      flatEntities: contexts.map((context) => context.flatAction.flatEntity),
     });
 
-    const scalarFieldMetadatas = flatFieldMetadatas.map((flatFieldMetadata) =>
-      flatEntityToScalarFlatEntity({
-        metadataName: 'fieldMetadata',
-        flatEntity: flatFieldMetadata,
-      }),
+    const scalarFieldMetadatas = contexts.flatMap((context) =>
+      context.flatAction.flatFieldMetadatas.map((flatFieldMetadata) =>
+        flatEntityToScalarFlatEntity({
+          metadataName: 'fieldMetadata',
+          flatEntity: flatFieldMetadata,
+        }),
+      ),
     );
 
-    const fieldMetadataRepository = queryRunner.manager.getRepository(
-      ALL_METADATA_ENTITY_BY_METADATA_NAME['fieldMetadata'],
-    );
+    if (scalarFieldMetadatas.length === 0) {
+      return;
+    }
 
-    await fieldMetadataRepository.insert(scalarFieldMetadatas);
+    await queryRunner.manager
+      .getRepository(ALL_METADATA_ENTITY_BY_METADATA_NAME['fieldMetadata'])
+      .insert(scalarFieldMetadatas);
   }
 
   async executeForWorkspaceSchema(
     context: WorkspaceMigrationActionRunnerContext<FlatCreateObjectAction>,
   ): Promise<void> {
-    const {
-      flatAction,
-      queryRunner,
-      workspaceId,
-      allFlatEntityMaps,
-      getSearchFieldMetadatasByTsVectorFieldId,
-    } = context;
-    const { flatEntity: flatObjectMetadata, flatFieldMetadatas } = flatAction;
-
-    const { schemaName, tableName } = getWorkspaceSchemaContextForMigration({
-      workspaceId,
-      objectMetadata: flatObjectMetadata,
-    });
-
-    const deriveSearchVectorExpression = (
-      tsVectorFieldMetadataId: string,
-    ): string =>
-      deriveCheckedSearchVectorExpression({
-        flatObjectMetadata,
-        objectFlatFieldMetadatas: flatFieldMetadatas,
-        targetSearchFieldMetadatas:
-          getSearchFieldMetadatasByTsVectorFieldId?.(tsVectorFieldMetadataId) ??
-          getTargetSearchFieldMetadatasForTsVectorField({
-            tsVectorFieldMetadataId,
-            flatSearchFieldMetadataMaps:
-              allFlatEntityMaps.flatSearchFieldMetadataMaps,
-          }),
-      });
-
-    const columnDefinitions = flatFieldMetadatas.flatMap((flatFieldMetadata) =>
-      generateColumnDefinitions({
-        flatFieldMetadata,
-        flatObjectMetadata,
-        workspaceId,
-        searchVectorAsExpression: isFlatFieldMetadataOfType(
-          flatFieldMetadata,
-          FieldMetadataType.TS_VECTOR,
-        )
-          ? deriveSearchVectorExpression(flatFieldMetadata.id)
-          : undefined,
-      }),
-    );
-
-    const enumOrCompositeFlatFieldMetadatas = flatFieldMetadatas.filter(
-      (flatFieldMetadata) =>
-        isEnumFlatFieldMetadata(flatFieldMetadata) ||
-        isCompositeFlatFieldMetadata(flatFieldMetadata),
-    );
-
-    const enumOperations = collectEnumOperationsForObject({
-      flatFieldMetadatas: enumOrCompositeFlatFieldMetadatas,
-      tableName,
-      operation: EnumOperation.CREATE,
-    });
+    const { queryRunner, workspaceId, flatAction } = context;
+    const tableDefinition = this.buildCreateTableDefinition(context);
+    const { schemaName, tableName, columnDefinitions, enumOperations } =
+      tableDefinition;
 
     await executeBatchEnumOperations({
       enumOperations,
@@ -191,10 +159,185 @@ export class CreateObjectActionHandlerService extends WorkspaceMigrationRunnerAc
       columnDefinitions,
     });
 
+    await this.installSearchVectorTriggerIfConverted(
+      queryRunner,
+      tableDefinition,
+    );
+
     await ensureParticipantHandleIndex({
       queryRunner,
       workspaceId,
+      objectMetadata: flatAction.flatEntity,
+    });
+  }
+
+  override async executeForWorkspaceSchemaBatch(
+    contexts: WorkspaceMigrationActionRunnerContext<FlatCreateObjectAction>[],
+  ): Promise<void> {
+    if (contexts.length === 0) {
+      return;
+    }
+
+    const { queryRunner, workspaceId } = contexts[0];
+    const tableDefinitions = contexts.map((context) =>
+      this.buildCreateTableDefinition(context),
+    );
+    const { schemaName } = tableDefinitions[0];
+
+    await executeBatchEnumOperations({
+      enumOperations: tableDefinitions.flatMap(
+        (tableDefinition) => tableDefinition.enumOperations,
+      ),
+      queryRunner,
+      schemaName,
+      workspaceSchemaManagerService: this.workspaceSchemaManagerService,
+    });
+
+    await this.workspaceSchemaManagerService.tableManager.createTables({
+      queryRunner,
+      schemaName,
+      tables: tableDefinitions.map(({ tableName, columnDefinitions }) => ({
+        tableName,
+        columnDefinitions,
+      })),
+    });
+
+    for (const tableDefinition of tableDefinitions) {
+      await this.installSearchVectorTriggerIfConverted(
+        queryRunner,
+        tableDefinition,
+      );
+    }
+
+    for (const context of contexts) {
+      await ensureParticipantHandleIndex({
+        queryRunner,
+        workspaceId,
+        objectMetadata: context.flatAction.flatEntity,
+      });
+    }
+  }
+
+  private async installSearchVectorTriggerIfConverted(
+    queryRunner: QueryRunner,
+    {
+      schemaName,
+      tableName,
+      searchVectorTrigger,
+    }: ReturnType<
+      CreateObjectActionHandlerService['buildCreateTableDefinition']
+    >,
+  ): Promise<void> {
+    if (!isDefined(searchVectorTrigger)) {
+      return;
+    }
+
+    await reinstallSearchVectorTrigger({
+      queryRunner,
+      schemaName,
+      tableName,
+      ...searchVectorTrigger,
+    });
+  }
+
+  // Both paths build their tables here: the batched path once skipped the searchVector
+  // expression, which creates a tsvector column that is never populated.
+  private buildCreateTableDefinition(
+    context: WorkspaceMigrationActionRunnerContext<FlatCreateObjectAction>,
+  ) {
+    const {
+      flatAction,
+      workspaceId,
+      allFlatEntityMaps,
+      getSearchFieldMetadatasByTsVectorFieldId,
+      isSearchVectorTriggerEnabled,
+    } = context;
+    const { flatEntity: flatObjectMetadata, flatFieldMetadatas } = flatAction;
+
+    const { schemaName, tableName } = getWorkspaceSchemaContextForMigration({
+      workspaceId,
       objectMetadata: flatObjectMetadata,
     });
+
+    const findTargetSearchFieldMetadatas = (tsVectorFieldMetadataId: string) =>
+      getSearchFieldMetadatasByTsVectorFieldId?.(tsVectorFieldMetadataId) ??
+      getTargetSearchFieldMetadatasForTsVectorField({
+        tsVectorFieldMetadataId,
+        flatSearchFieldMetadataMaps:
+          allFlatEntityMaps.flatSearchFieldMetadataMaps,
+      });
+
+    const tsVectorFlatFieldMetadata = flatFieldMetadatas.find(
+      (flatFieldMetadata) =>
+        isFlatFieldMetadataOfType(
+          flatFieldMetadata,
+          FieldMetadataType.TS_VECTOR,
+        ),
+    );
+
+    const columnDefinitions = flatFieldMetadatas.flatMap(
+      (flatFieldMetadata) => {
+        const isTsVectorField = isFlatFieldMetadataOfType(
+          flatFieldMetadata,
+          FieldMetadataType.TS_VECTOR,
+        );
+        // In a converted workspace the column stays plain and a trigger fills it.
+        const isFilledByTrigger =
+          isTsVectorField && isSearchVectorTriggerEnabled === true;
+
+        return generateColumnDefinitions({
+          flatFieldMetadata,
+          flatObjectMetadata,
+          workspaceId,
+          searchVectorAsExpression:
+            isTsVectorField && !isFilledByTrigger
+              ? deriveCheckedSearchVectorExpression({
+                  flatObjectMetadata,
+                  objectFlatFieldMetadatas: flatFieldMetadatas,
+                  targetSearchFieldMetadatas: findTargetSearchFieldMetadatas(
+                    flatFieldMetadata.id,
+                  ),
+                  isNewTable: true,
+                })
+              : undefined,
+        }).map((columnDefinition) =>
+          isFilledByTrigger
+            ? { ...columnDefinition, isFilledByTrigger }
+            : columnDefinition,
+        );
+      },
+    );
+
+    const enumOrCompositeFlatFieldMetadatas = flatFieldMetadatas.filter(
+      (flatFieldMetadata) =>
+        isEnumFlatFieldMetadata(flatFieldMetadata) ||
+        isCompositeFlatFieldMetadata(flatFieldMetadata),
+    );
+
+    const enumOperations = collectEnumOperationsForObject({
+      flatFieldMetadatas: enumOrCompositeFlatFieldMetadatas,
+      tableName,
+      operation: EnumOperation.CREATE,
+    });
+
+    // In a converted workspace the column is plain, so the table needs its trigger at creation.
+    const searchVectorTrigger =
+      isSearchVectorTriggerEnabled && isDefined(tsVectorFlatFieldMetadata)
+        ? {
+            flatObjectMetadata,
+            objectFlatFieldMetadatas: flatFieldMetadatas,
+            targetSearchFieldMetadatas: findTargetSearchFieldMetadatas(
+              tsVectorFlatFieldMetadata.id,
+            ),
+          }
+        : undefined;
+
+    return {
+      schemaName,
+      tableName,
+      columnDefinitions,
+      enumOperations,
+      searchVectorTrigger,
+    };
   }
 }

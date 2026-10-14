@@ -8,6 +8,12 @@ on:
     branches: [main]
   workflow_dispatch:
 
+# Parallel runs race on the `regie-prod-latest` tag and the upgrade advisory lock. Never cancel:
+# a cancelled run can stop mid-upgrade.
+concurrency:
+  group: ${{ github.workflow }}
+  cancel-in-progress: false
+
 # OIDC: the job assumes the `twenty-publish` IAM role via a short-lived token — no stored keys.
 permissions:
   id-token: write

@@ -2,7 +2,7 @@ import {
   FieldMetadataType,
   compositeTypeDefinitions,
 } from 'twenty-shared/types';
-import type { SearchableFieldType } from 'twenty-shared/utils';
+import { isDefined, type SearchableFieldType } from 'twenty-shared/utils';
 
 import {
   computeColumnName,
@@ -192,6 +192,41 @@ const getMultiSelectExpression = (
   };
 
   return `${buildTests((option) => option.value)} || ' ' || ${buildTests((option) => option.label)}`;
+};
+
+// JSON columns the expression reads beside a composite's searchable subfields (see below).
+const SEARCHED_JSON_PROPERTY_NAME_BY_TYPE: Partial<
+  Record<FieldMetadataType, string>
+> = {
+  [FieldMetadataType.PHONES]: 'additionalPhones',
+  [FieldMetadataType.LINKS]: 'secondaryLinks',
+  [FieldMetadataType.EMAILS]: 'additionalEmails',
+};
+
+// Every column the expression reads for a field, so a backfill can find the rows whose words it holds.
+export const getSearchedColumnNamesForField = ({
+  name,
+  type,
+}: {
+  name: string;
+  type: FieldMetadataType;
+}): string[] => {
+  const compositeType = compositeTypeDefinitions.get(type);
+
+  if (!isCompositeFieldMetadataType(type) || !isDefined(compositeType)) {
+    return [computeColumnName(name)];
+  }
+
+  return compositeType.properties
+    .filter(
+      (property) =>
+        isSearchableSubfield(
+          compositeType.type,
+          property.type,
+          property.name,
+        ) || property.name === SEARCHED_JSON_PROPERTY_NAME_BY_TYPE[type],
+    )
+    .map((property) => computeCompositeColumnName(name, property));
 };
 
 const getColumnExpressionsFromField = (

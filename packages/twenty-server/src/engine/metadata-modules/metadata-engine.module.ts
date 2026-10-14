@@ -28,6 +28,7 @@ import { MinimalMetadataModule } from 'src/engine/metadata-modules/minimal-metad
 import { ServerRouteTriggerModule } from 'src/engine/core-modules/server-route-trigger/server-route-trigger.module';
 import { RoleModule } from 'src/engine/metadata-modules/role/role.module';
 import { RouteTriggerModule } from 'src/engine/metadata-modules/route-trigger/route-trigger.module';
+import { SchemaApplyModule } from 'src/engine/metadata-modules/schema-apply/schema-apply.module';
 import { SearchFieldMetadataModule } from 'src/engine/metadata-modules/search-field-metadata/search-field-metadata.module';
 import { SkillModule } from 'src/engine/metadata-modules/skill/skill.module';
 import { ViewModule } from 'src/engine/metadata-modules/view/view.module';
@@ -60,6 +61,7 @@ import { WorkspaceMetadataVersionModule } from 'src/engine/metadata-modules/work
     PermissionsModule,
     PermissionFlagModule,
     RouteTriggerModule,
+    SchemaApplyModule,
     ServerRouteTriggerModule,
     WebhookModule,
     ConnectedAccountMetadataModule,

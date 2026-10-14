@@ -35,6 +35,7 @@ import { fromFieldMetadataEntityToFieldMetadataDto } from 'src/engine/metadata-m
 import { FlatEntityMapsRestApiExceptionFilter } from 'src/engine/metadata-modules/flat-entity/filters/flat-entity-maps-rest-api-exception.filter';
 import { fromFlatObjectMetadataToObjectMetadataDto } from 'src/engine/metadata-modules/flat-object-metadata/utils/from-flat-object-metadata-to-object-metadata-dto.util';
 import { UniqueFieldMetadataIdsService } from 'src/engine/metadata-modules/index-metadata/services/unique-field-metadata-ids.service';
+import { CreateManyObjectsInput } from 'src/engine/metadata-modules/object-metadata/dtos/create-many-objects.input';
 import { CreateObjectInput } from 'src/engine/metadata-modules/object-metadata/dtos/create-object.input';
 import { type ObjectMetadataWithFieldsDTO } from 'src/engine/metadata-modules/object-metadata/dtos/object-metadata-with-fields.dto';
 import { UpdateObjectPayload } from 'src/engine/metadata-modules/object-metadata/dtos/update-object.input';
@@ -181,6 +182,41 @@ export class ObjectMetadataController {
     return (await this.isNewMetadataFormat(workspaceId))
       ? result
       : toLegacyObjectMetadataCreateResponse(result);
+  }
+
+  @Post('batch')
+  async createMany(
+    @Body() input: CreateManyObjectsInput,
+    @AuthWorkspace() { id: workspaceId }: WorkspaceEntity,
+  ): Promise<{ data: ObjectMetadataWithFieldsDTO[] }> {
+    const flatObjects = await this.objectMetadataService.createManyObjects({
+      createObjectInputs: input.objects,
+      workspaceId,
+    });
+
+    const [fields, uniqueFieldMetadataIds] = await Promise.all([
+      this.fieldMetadataRepository.find({
+        where: {
+          objectMetadataId: In(flatObjects.map((object) => object.id)),
+          workspaceId,
+        },
+      }),
+      this.uniqueFieldMetadataIdsService.getForWorkspace(workspaceId),
+    ]);
+
+    return {
+      data: flatObjects.map((flatObject) => ({
+        ...fromFlatObjectMetadataToObjectMetadataDto(flatObject),
+        fields: fields
+          .filter((field) => field.objectMetadataId === flatObject.id)
+          .map((field) =>
+            fromFieldMetadataEntityToFieldMetadataDto(
+              field,
+              uniqueFieldMetadataIds,
+            ),
+          ),
+      })),
+    };
   }
 
   @Patch(':id')

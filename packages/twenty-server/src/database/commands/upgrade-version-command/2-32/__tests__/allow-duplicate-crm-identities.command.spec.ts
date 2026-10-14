@@ -20,7 +20,7 @@ test('new workspaces keep lookup indexes but do not use shared email/domain as u
   for (const uid of targets) {
     const field = maps.flatFieldMetadataMaps.byUniversalIdentifier[uid]!;
     const object = maps.flatObjectMetadataMaps.byUniversalIdentifier[field.objectMetadataUniversalIdentifier]!;
-    const indexes = Object.values(maps.flatIndexMaps.byUniversalIdentifier).filter(isDefined).filter((index) => index.flatIndexFieldMetadatas.some((part) => part.fieldMetadataId === field.id));
+    const indexes = Object.values(maps.flatIndexMaps.byUniversalIdentifier).filter(isDefined).filter((index) => index.flatIndexFieldMetadatas.some((part) => part.fieldMetadataId === field.id && part.subFieldName === null));
     expect(field.isUnique).toBe(false);
     expect(indexes).toHaveLength(1);
     expect(indexes[0].isUnique).toBe(false);

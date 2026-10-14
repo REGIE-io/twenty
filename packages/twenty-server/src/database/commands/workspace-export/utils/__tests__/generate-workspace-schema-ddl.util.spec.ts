@@ -111,4 +111,28 @@ describe('generateWorkspaceSchemaDdl', () => {
       `"searchVector" tsvector GENERATED ALWAYS AS (to_tsvector('simple', NULL)) STORED`,
     );
   });
+
+  it('should emit a plain searchVector plus its trigger for a trigger-mode table', () => {
+    const statements = generateWorkspaceSchemaDdl(
+      workspaceId,
+      'workspace_schema',
+      [objectMetadata],
+      fieldsByObjectId,
+      new Map([[objectMetadataId, [buildSearchFieldMetadata()]]]),
+      new Set(['_person']),
+    );
+
+    expect(statements.join('\n')).not.toContain('GENERATED ALWAYS AS');
+    expect(statements).toContainEqual(
+      expect.stringContaining('"searchVector" tsvector'),
+    );
+    expect(statements).toContainEqual(
+      expect.stringMatching(
+        /^CREATE OR REPLACE FUNCTION "workspace_schema"\."_person_search_vector"\(\)[\s\S]*NEW\."name"[\s\S]*;$/,
+      ),
+    );
+    expect(statements).toContainEqual(
+      'CREATE TRIGGER "_person_search_vector" BEFORE INSERT OR UPDATE ON "workspace_schema"."_person" FOR EACH ROW EXECUTE FUNCTION "workspace_schema"."_person_search_vector"();',
+    );
+  });
 });

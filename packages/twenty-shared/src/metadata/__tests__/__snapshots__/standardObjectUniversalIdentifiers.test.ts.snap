@@ -2167,6 +2167,9 @@ exports[`STANDARD_OBJECTS universal identifiers should never change without an e
       "companyIdIndex": {
         "universalIdentifier": "8a265a5c-d3ae-47dc-bdf9-b42cfa2ba639",
       },
+      "emailsAdditionalEmailsGinIndex": {
+        "universalIdentifier": "1b63dca6-ca94-47ef-aeab-24617110f583",
+      },
       "emailsUniqueIndex": {
         "universalIdentifier": "8183a8b2-9114-4f6c-8a5b-12e3f14e5e13",
       },

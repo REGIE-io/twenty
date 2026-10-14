@@ -48,8 +48,6 @@ import {
 } from 'src/engine/workspace-cache/utils/serialize-cache-blob.util';
 import { sweepLocalCache } from 'src/engine/workspace-cache/utils/sweep-local-cache.util';
 
-const LOCAL_TTL_MS = 100; // 100ms
-const MEMOIZER_TTL_MS = 10_000; // 10 seconds
 const STALE_VERSION_TTL_MS = 5_000; // 5 seconds
 const MAX_LOCAL_STALE_VERSIONS = 5; // 5 stale versions
 // Sized against 4 GiB pods (--max-old-space-size=3500): 7,500 sat at the heap ceiling.
@@ -97,9 +95,8 @@ export class WorkspaceCacheService implements OnModuleInit, OnModuleDestroy {
     WorkspaceCacheKeyName,
     number
   >();
-  private readonly memoizer = new PromiseMemoizer<CacheEntriesResult>(
-    MEMOIZER_TTL_MS,
-  );
+  // Shares in-flight work only: keeping a resolved value would hide another process's write.
+  private readonly memoizer = new PromiseMemoizer<CacheEntriesResult>(0);
 
   private readonly logger = new Logger(WorkspaceCacheService.name);
 
@@ -200,30 +197,26 @@ export class WorkspaceCacheService implements OnModuleInit, OnModuleDestroy {
   ): Promise<WorkspaceCacheResultWithHashes<K>> {
     this.assertValidCacheParameters(workspaceId, cacheKeyNames);
 
-    const memoKey =
-      `${workspaceId}-${[...cacheKeyNames].sort().join(',')}` as const;
+    // Checking Redis on every call makes another process's write visible as soon as that
+    // process has answered; callers share work only when they saw the same versions.
+    const redisHashes = await this.getCacheHashes(workspaceId, cacheKeyNames);
+    const memoKey = `${workspaceId}-${[...cacheKeyNames]
+      .sort()
+      .map((keyName) => `${keyName}@${redisHashes[keyName] ?? ''}`)
+      .join(',')}` as const;
 
     const result = await this.memoizer.memoizePromiseAndExecute(
       memoKey,
       async () => {
-        const { freshKeys, staleKeys } = this.checkLocalTTL(
-          workspaceId,
-          cacheKeyNames,
-        );
-        const freshEntries = this.getFromLocalCache(workspaceId, freshKeys);
-
-        if (staleKeys.length === 0) {
-          return freshEntries;
-        }
-
         const {
           validKeys,
           keysNeedingDataFromRedis,
           keysNeedingRecompute,
           adoptableHashes,
-        } = await this.validateLocalHashAgainstRedisHash(
+        } = this.compareLocalHashesWithRedisHashes(
           workspaceId,
-          staleKeys,
+          cacheKeyNames,
+          redisHashes,
         );
         const validatedEntries = this.getFromLocalCache(workspaceId, validKeys);
 
@@ -241,13 +234,11 @@ export class WorkspaceCacheService implements OnModuleInit, OnModuleDestroy {
 
         return {
           data: {
-            ...freshEntries.data,
             ...validatedEntries.data,
             ...redisEntries.data,
             ...recomputedEntries.data,
           },
           hashes: {
-            ...freshEntries.hashes,
             ...validatedEntries.hashes,
             ...redisEntries.hashes,
             ...recomputedEntries.hashes,
@@ -361,59 +352,23 @@ export class WorkspaceCacheService implements OnModuleInit, OnModuleDestroy {
     }
   }
 
-  private checkLocalTTL<K extends WorkspaceCacheKeyName>(
-    workspaceId: string,
-    cacheKeyNames: readonly K[],
-  ): { freshKeys: K[]; staleKeys: K[] } {
-    const freshKeys: K[] = [];
-    const staleKeys: K[] = [];
-    const now = Date.now();
-
-    for (const keyName of cacheKeyNames) {
-      const localKey = this.buildCacheKey(workspaceId, keyName);
-      const cached = this.localCache.get(localKey);
-
-      if (isDefined(cached) && now - cached.lastHashCheckedAt < LOCAL_TTL_MS) {
-        freshKeys.push(keyName);
-      } else {
-        staleKeys.push(keyName);
-      }
-    }
-
-    return { freshKeys, staleKeys };
-  }
-
-  private async validateLocalHashAgainstRedisHash(
+  private compareLocalHashesWithRedisHashes(
     workspaceId: string,
     cacheKeyNames: WorkspaceCacheKeyName[],
-  ): Promise<{
+    redisHashes: Partial<Record<WorkspaceCacheKeyName, string>>,
+  ): {
     validKeys: WorkspaceCacheKeyName[];
     keysNeedingDataFromRedis: WorkspaceCacheKeyName[];
     keysNeedingRecompute: WorkspaceCacheKeyName[];
     adoptableHashes: Partial<Record<WorkspaceCacheKeyName, string>>;
-  }> {
+  } {
     const validKeys: WorkspaceCacheKeyName[] = [];
     const keysNeedingDataFromRedis: WorkspaceCacheKeyName[] = [];
     const keysNeedingRecompute: WorkspaceCacheKeyName[] = [];
     const adoptableHashes: Partial<Record<WorkspaceCacheKeyName, string>> = {};
 
-    if (cacheKeyNames.length === 0) {
-      return {
-        validKeys,
-        keysNeedingDataFromRedis,
-        keysNeedingRecompute,
-        adoptableHashes,
-      };
-    }
-
-    const hashKeys = cacheKeyNames.map(
-      (keyName) => `${this.buildCacheKey(workspaceId, keyName)}:hash`,
-    );
-
-    const redisHashes = await this.cacheStorage.mget<string>(hashKeys);
-
-    for (const [index, keyName] of cacheKeyNames.entries()) {
-      const redisHash = redisHashes[index];
+    for (const keyName of cacheKeyNames) {
+      const redisHash = redisHashes[keyName];
       const localKey = this.buildCacheKey(workspaceId, keyName);
       const localEntry = this.localCache.get(localKey);
 

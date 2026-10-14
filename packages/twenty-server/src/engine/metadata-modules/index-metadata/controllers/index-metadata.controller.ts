@@ -18,9 +18,12 @@ import { SettingsPermissionGuard } from 'src/engine/guards/settings-permission.g
 import { WorkspaceAuthGuard } from 'src/engine/guards/workspace-auth.guard';
 import { WorkspaceManyOrAllFlatEntityMapsCacheService } from 'src/engine/metadata-modules/flat-entity/services/workspace-many-or-all-flat-entity-maps-cache.service';
 import { CreateIndexInput } from 'src/engine/metadata-modules/index-metadata/dtos/create-index.input';
+import { CreateManyIndexesInput } from 'src/engine/metadata-modules/index-metadata/dtos/create-many-indexes.input';
+import { IndexMetadataRestApiExceptionFilter } from 'src/engine/metadata-modules/index-metadata/filters/index-metadata-rest-api-exception.filter';
 import { IndexMetadataService } from 'src/engine/metadata-modules/index-metadata/services/index-metadata.service';
 import { PermissionsRestApiExceptionFilter } from 'src/engine/metadata-modules/permissions/utils/permissions-rest-api-exception.filter';
 import { ApplicationRestApiExceptionFilter } from 'src/engine/core-modules/application/application-rest-api-exception.filter';
+import { WorkspaceMigrationRunnerRestApiExceptionFilter } from 'src/engine/workspace-manager/workspace-migration/filters/workspace-migration-runner-rest-api-exception.filter';
 
 type RestIndexMetadata = {
   id: string;
@@ -43,7 +46,9 @@ type RestIndexMetadata = {
 )
 @UseFilters(
   PermissionsRestApiExceptionFilter,
+  IndexMetadataRestApiExceptionFilter,
   ApplicationRestApiExceptionFilter,
+  WorkspaceMigrationRunnerRestApiExceptionFilter,
 )
 @UsePipes(new ValidationPipe({ transform: true, whitelist: true }))
 export class IndexMetadataController {
@@ -81,6 +86,21 @@ export class IndexMetadataController {
         workspaceId,
       }),
     );
+  }
+
+  @Post('batch')
+  async createMany(
+    @Body() input: CreateManyIndexesInput,
+    @AuthWorkspace() { id: workspaceId }: WorkspaceEntity,
+  ): Promise<{ data: RestIndexMetadata[] }> {
+    const createdIndexes = await this.indexMetadataService.createMany({
+      createIndexInputs: input.indexes,
+      workspaceId,
+    });
+
+    return {
+      data: createdIndexes.map((index) => this.toRestIndexMetadata(index)),
+    };
   }
 
   private toRestIndexMetadata(index: {

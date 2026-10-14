@@ -1,9 +1,19 @@
 import { Injectable } from '@nestjs/common';
 
+import { FieldMetadataType } from 'twenty-shared/types';
+import { isDefined } from 'twenty-shared/utils';
+
+import {
+  dropSearchVectorTrigger,
+  findSearchVectorTriggerSource,
+  isFieldReadBySearchVectorTrigger,
+  refreshSearchVectorTriggerIfConverted,
+} from 'src/engine/core-modules/search-vector-trigger/utils/search-vector-trigger-maintenance.util';
 import { WorkspaceMigrationRunnerActionHandler } from 'src/engine/workspace-manager/workspace-migration/workspace-migration-runner/interfaces/workspace-migration-runner-action-handler-service.interface';
 
 import { FieldMetadataEntity } from 'src/engine/metadata-modules/field-metadata/field-metadata.entity';
 import { findFlatEntityByIdInFlatEntityMapsOrThrow } from 'src/engine/metadata-modules/flat-entity/utils/find-flat-entity-by-id-in-flat-entity-maps-or-throw.util';
+import { isFlatFieldMetadataOfType } from 'src/engine/metadata-modules/flat-field-metadata/utils/is-flat-field-metadata-of-type.util';
 import { WorkspaceSchemaManagerService } from 'src/engine/twenty-orm/workspace-schema-manager/workspace-schema-manager.service';
 import {
   type FlatDeleteFieldAction,
@@ -60,8 +70,14 @@ export class DeleteFieldActionHandlerService extends WorkspaceMigrationRunnerAct
     const {
       flatAction,
       queryRunner,
-      allFlatEntityMaps: { flatObjectMetadataMaps, flatFieldMetadataMaps },
+      allFlatEntityMaps: {
+        flatObjectMetadataMaps,
+        flatFieldMetadataMaps,
+        flatSearchFieldMetadataMaps,
+      },
       workspaceId,
+      getSearchFieldMetadatasByTsVectorFieldId,
+      objectUniversalIdentifiersBeingDeleted,
     } = context;
 
     const flatFieldMetadata = findFlatEntityByIdInFlatEntityMapsOrThrow({
@@ -93,6 +109,45 @@ export class DeleteFieldActionHandlerService extends WorkspaceMigrationRunnerAct
       columnNames: columnNamesToDrop,
       cascade: true,
     });
+
+    if (
+      isFlatFieldMetadataOfType(flatFieldMetadata, FieldMetadataType.TS_VECTOR)
+    ) {
+      await dropSearchVectorTrigger(queryRunner, { schemaName, tableName });
+    }
+
+    // A converted table's function still reads the dropped column; skipped when the table is being dropped.
+    const isObjectBeingDeleted =
+      objectUniversalIdentifiersBeingDeleted?.has(
+        flatObjectMetadata.universalIdentifier,
+      ) ?? false;
+
+    const searchVectorTriggerSource = isObjectBeingDeleted
+      ? undefined
+      : findSearchVectorTriggerSource({
+          queryRunner,
+          schemaName,
+          tableName,
+          flatObjectMetadata,
+          flatFieldMetadataMaps,
+          flatSearchFieldMetadataMaps,
+          getSearchFieldMetadatasByTsVectorFieldId,
+          deletedFieldMetadataId: flatFieldMetadata.id,
+        });
+
+    if (
+      isDefined(searchVectorTriggerSource) &&
+      (await isFieldReadBySearchVectorTrigger(queryRunner, {
+        schemaName,
+        tableName,
+        fieldName: flatFieldMetadata.name,
+      }))
+    ) {
+      await refreshSearchVectorTriggerIfConverted(searchVectorTriggerSource, {
+        type: 'fieldDelete',
+        fieldMetadataId: flatFieldMetadata.id,
+      });
+    }
 
     const enumOperations = collectEnumOperationsForField({
       flatFieldMetadata,

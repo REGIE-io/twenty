@@ -31,6 +31,17 @@ import { WorkspaceCacheService } from 'src/engine/workspace-cache/services/works
 import { EMPTY_ORCHESTRATOR_FAILURE_REPORT } from 'src/engine/workspace-manager/workspace-migration/constant/empty-orchestrator-failure-report.constant';
 import { WorkspaceMigrationBuilderException } from 'src/engine/workspace-manager/workspace-migration/exceptions/workspace-migration-builder-exception';
 import { WorkspaceMigrationValidateBuildAndRunService } from 'src/engine/workspace-manager/workspace-migration/services/workspace-migration-validate-build-and-run-service';
+import { type UniversalFlatFieldMetadata } from 'src/engine/workspace-manager/workspace-migration/universal-flat-entity/types/universal-flat-field-metadata.type';
+import {
+  type FieldUpdateTranspilation,
+  mergeIndependentFieldOperations,
+  toFieldCreateOperations,
+  toFieldUpdateOperations,
+} from 'src/engine/metadata-modules/field-metadata/services/utils/field-metadata-operations.util';
+
+type CreateFieldTranspilationArgs = Parameters<
+  typeof fromCreateFieldInputToFlatFieldMetadatasToCreate
+>[0];
 
 @Injectable()
 export class FieldMetadataService {
@@ -229,15 +240,151 @@ export class FieldMetadataService {
         )
       ).workspaceCustomFlatApplication;
 
-    const {
-      flatObjectMetadataMaps: existingFlatObjectMetadataMaps,
-      flatIndexMaps: existingFlatIndexMaps,
-      flatFieldMetadataMaps: existingFlatFieldMetadataMaps,
-      flatViewFilterMaps: existingFlatViewFilterMaps,
-      flatViewGroupMaps: existingFlatViewGroupMaps,
-      flatViewMaps: existingFlatViewMaps,
-      flatViewFieldMaps: existingFlatViewFieldMaps,
-    } = await this.flatEntityMapsCacheService.getOrRecomputeManyOrAllFlatEntityMaps(
+    const flatEntityMaps = await this.getFieldUpdateFlatEntityMaps(workspaceId);
+    const transpilation = this.transpileUpdateFieldInputOrThrow({
+      updateFieldInput,
+      workspaceId,
+      flatEntityMaps,
+      flatApplication: resolvedOwnerFlatApplication,
+      isSystemBuild,
+    });
+
+    const validateAndBuildResult =
+      await this.workspaceMigrationValidateBuildAndRunService.validateBuildAndRunWorkspaceMigration(
+        {
+          allFlatEntityOperationByMetadataName:
+            toFieldUpdateOperations(transpilation),
+          workspaceId,
+          isSystemBuild,
+          applicationUniversalIdentifier:
+            resolvedOwnerFlatApplication.universalIdentifier,
+        },
+      );
+
+    if (validateAndBuildResult.status === 'fail') {
+      throw new WorkspaceMigrationBuilderException(
+        validateAndBuildResult,
+        'Multiple validation errors occurred while updating field',
+      );
+    }
+
+    const { flatFieldMetadataMaps: recomputedFlatFieldMetadataMaps } =
+      await this.flatEntityMapsCacheService.getOrRecomputeManyOrAllFlatEntityMaps(
+        {
+          workspaceId,
+          flatMapsKeys: ['flatFieldMetadataMaps'],
+        },
+      );
+
+    return findFlatEntityByUniversalIdentifierOrThrow({
+      universalIdentifier:
+        transpilation.flatFieldMetadatasToUpdate[0].universalIdentifier,
+      flatEntityMaps: recomputedFlatFieldMetadataMaps,
+    });
+  }
+
+  // One workspace migration for every change: each metadata migration pays a full cache
+  // rebuild after commit, which dominates small changes like a settings patch.
+  async createAndUpdateManyFields({
+    createFieldInputs,
+    updateFieldInputs,
+    workspaceId,
+  }: {
+    createFieldInputs: Omit<CreateFieldInput, 'workspaceId'>[];
+    updateFieldInputs: Omit<UpdateFieldInput, 'workspaceId'>[];
+    workspaceId: string;
+  }): Promise<{ created: FlatFieldMetadata[]; updated: FlatFieldMetadata[] }> {
+    if (createFieldInputs.length === 0 && updateFieldInputs.length === 0) {
+      return { created: [], updated: [] };
+    }
+
+    const { workspaceCustomFlatApplication } =
+      await this.applicationService.findWorkspaceTwentyStandardAndCustomApplicationOrThrow(
+        { workspaceId },
+      );
+    const flatEntityMaps = await this.getFieldUpdateFlatEntityMaps(workspaceId);
+
+    const { transpilations: createTranspilations, ...createOperations } =
+      await this.transpileCreateFieldInputsOrThrow({
+        createFieldInputs,
+        flatObjectMetadataMaps: flatEntityMaps.flatObjectMetadataMaps,
+        flatFieldMetadataMaps: flatEntityMaps.flatFieldMetadataMaps,
+        flatApplication: workspaceCustomFlatApplication,
+      });
+
+    await this.assertPhoneSearchAvailableForCreatedFields({
+      workspaceId,
+      flatObjectMetadataMaps: flatEntityMaps.flatObjectMetadataMaps,
+      flatFieldMetadatasToCreate: createOperations.flatFieldMetadatasToCreate,
+    });
+
+    const updateTranspilations = updateFieldInputs.map((updateFieldInput) =>
+      this.transpileUpdateFieldInputOrThrow({
+        updateFieldInput,
+        workspaceId,
+        flatEntityMaps,
+        flatApplication: workspaceCustomFlatApplication,
+        isSystemBuild: false,
+      }),
+    );
+
+    const validateAndBuildResult =
+      await this.workspaceMigrationValidateBuildAndRunService.validateBuildAndRunWorkspaceMigration(
+        {
+          allFlatEntityOperationByMetadataName: mergeIndependentFieldOperations(
+            [
+              toFieldCreateOperations(createOperations),
+              ...updateTranspilations.map(toFieldUpdateOperations),
+            ],
+          ),
+          workspaceId,
+          isSystemBuild: false,
+          applicationUniversalIdentifier:
+            workspaceCustomFlatApplication.universalIdentifier,
+        },
+      );
+
+    if (validateAndBuildResult.status === 'fail') {
+      throw new WorkspaceMigrationBuilderException(
+        validateAndBuildResult,
+        'Multiple validation errors occurred while creating and updating fields',
+      );
+    }
+
+    const { flatFieldMetadataMaps: recomputedFlatFieldMetadataMaps } =
+      await this.flatEntityMapsCacheService.getOrRecomputeManyOrAllFlatEntityMaps(
+        {
+          workspaceId,
+          flatMapsKeys: ['flatFieldMetadataMaps'],
+        },
+      );
+
+    return {
+      created:
+        findManyFlatEntityByUniversalIdentifierInUniversalFlatEntityMapsOrThrow(
+          {
+            universalIdentifiers: createTranspilations.map(
+              ({ result: { flatFieldMetadatas } }) =>
+                flatFieldMetadatas[0].universalIdentifier,
+            ),
+            flatEntityMaps: recomputedFlatFieldMetadataMaps,
+          },
+        ),
+      updated:
+        findManyFlatEntityByUniversalIdentifierInUniversalFlatEntityMapsOrThrow(
+          {
+            universalIdentifiers: updateTranspilations.map(
+              ({ flatFieldMetadatasToUpdate }) =>
+                flatFieldMetadatasToUpdate[0].universalIdentifier,
+            ),
+            flatEntityMaps: recomputedFlatFieldMetadataMaps,
+          },
+        ),
+    };
+  }
+
+  async getFieldUpdateFlatEntityMaps(workspaceId: string) {
+    return this.flatEntityMapsCacheService.getOrRecomputeManyOrAllFlatEntityMaps(
       {
         workspaceId,
         flatMapsKeys: [
@@ -251,17 +398,33 @@ export class FieldMetadataService {
         ],
       },
     );
+  }
 
+  transpileUpdateFieldInputOrThrow({
+    updateFieldInput,
+    workspaceId,
+    flatEntityMaps,
+    flatApplication,
+    isSystemBuild,
+  }: {
+    updateFieldInput: Omit<UpdateFieldInput, 'workspaceId'>;
+    workspaceId: string;
+    flatEntityMaps: Awaited<
+      ReturnType<FieldMetadataService['getFieldUpdateFlatEntityMaps']>
+    >;
+    flatApplication: FlatApplication;
+    isSystemBuild: boolean;
+  }): FieldUpdateTranspilation {
     const inputTranspilationResult = fromUpdateFieldInputToFlatFieldMetadata({
-      flatFieldMetadataMaps: existingFlatFieldMetadataMaps,
-      flatIndexMaps: existingFlatIndexMaps,
-      flatObjectMetadataMaps: existingFlatObjectMetadataMaps,
+      flatFieldMetadataMaps: flatEntityMaps.flatFieldMetadataMaps,
+      flatIndexMaps: flatEntityMaps.flatIndexMaps,
+      flatObjectMetadataMaps: flatEntityMaps.flatObjectMetadataMaps,
       updateFieldInput: { ...updateFieldInput, workspaceId },
-      flatViewFilterMaps: existingFlatViewFilterMaps,
-      flatViewGroupMaps: existingFlatViewGroupMaps,
-      flatViewMaps: existingFlatViewMaps,
-      flatViewFieldMaps: existingFlatViewFieldMaps,
-      flatApplication: resolvedOwnerFlatApplication,
+      flatViewFilterMaps: flatEntityMaps.flatViewFilterMaps,
+      flatViewGroupMaps: flatEntityMaps.flatViewGroupMaps,
+      flatViewMaps: flatEntityMaps.flatViewMaps,
+      flatViewFieldMaps: flatEntityMaps.flatViewFieldMaps,
+      flatApplication,
       isSystemBuild,
     });
 
@@ -287,83 +450,7 @@ export class FieldMetadataService {
       );
     }
 
-    const {
-      flatFieldMetadatasToUpdate,
-      flatFieldMetadatasToCreate,
-      flatIndexMetadatasToUpdate,
-      flatIndexMetadatasToDelete,
-      flatIndexMetadatasToCreate,
-      flatViewGroupsToCreate,
-      flatViewGroupsToDelete,
-      flatViewGroupsToUpdate,
-      flatViewFiltersToDelete,
-      flatViewFiltersToUpdate,
-      flatViewFieldsToDelete,
-      flatViewsToUpdate,
-      flatViewsToDelete,
-    } = inputTranspilationResult.result;
-
-    const validateAndBuildResult =
-      await this.workspaceMigrationValidateBuildAndRunService.validateBuildAndRunWorkspaceMigration(
-        {
-          allFlatEntityOperationByMetadataName: {
-            fieldMetadata: {
-              flatEntityToCreate: flatFieldMetadatasToCreate,
-              flatEntityToDelete: [],
-              flatEntityToUpdate: flatFieldMetadatasToUpdate,
-            },
-            index: {
-              flatEntityToCreate: flatIndexMetadatasToCreate,
-              flatEntityToDelete: flatIndexMetadatasToDelete,
-              flatEntityToUpdate: flatIndexMetadatasToUpdate,
-            },
-            viewFilter: {
-              flatEntityToCreate: [],
-              flatEntityToDelete: flatViewFiltersToDelete,
-              flatEntityToUpdate: flatViewFiltersToUpdate,
-            },
-            viewGroup: {
-              flatEntityToCreate: flatViewGroupsToCreate,
-              flatEntityToDelete: flatViewGroupsToDelete,
-              flatEntityToUpdate: flatViewGroupsToUpdate,
-            },
-            view: {
-              flatEntityToCreate: [],
-              flatEntityToDelete: flatViewsToDelete,
-              flatEntityToUpdate: flatViewsToUpdate,
-            },
-            viewField: {
-              flatEntityToCreate: [],
-              flatEntityToDelete: flatViewFieldsToDelete,
-              flatEntityToUpdate: [],
-            },
-          },
-          workspaceId,
-          isSystemBuild,
-          applicationUniversalIdentifier:
-            resolvedOwnerFlatApplication.universalIdentifier,
-        },
-      );
-
-    if (validateAndBuildResult.status === 'fail') {
-      throw new WorkspaceMigrationBuilderException(
-        validateAndBuildResult,
-        'Multiple validation errors occurred while updating field',
-      );
-    }
-
-    const { flatFieldMetadataMaps: recomputedFlatFieldMetadataMaps } =
-      await this.flatEntityMapsCacheService.getOrRecomputeManyOrAllFlatEntityMaps(
-        {
-          workspaceId,
-          flatMapsKeys: ['flatFieldMetadataMaps'],
-        },
-      );
-
-    return findFlatEntityByUniversalIdentifierOrThrow({
-      universalIdentifier: flatFieldMetadatasToUpdate[0].universalIdentifier,
-      flatEntityMaps: recomputedFlatFieldMetadataMaps,
-    });
+    return inputTranspilationResult.result;
   }
 
   async createManyFields({
@@ -397,58 +484,22 @@ export class FieldMetadataService {
       'flatFieldMetadataMaps',
     ]);
 
-    const allTranspiledTranspilationInputs: Awaited<
-      ReturnType<typeof fromCreateFieldInputToFlatFieldMetadatasToCreate>
-    >[] = [];
-
-    for (const createFieldInput of createFieldInputs) {
-      allTranspiledTranspilationInputs.push(
-        await fromCreateFieldInputToFlatFieldMetadatasToCreate({
-          flatObjectMetadataMaps: existingFlatObjectMetadataMaps,
-          flatFieldMetadataMaps: existingFlatFieldMetadataMaps,
-          createFieldInput,
-          flatApplication: resolvedOwnerFlatApplication,
-        }),
-      );
-    }
-
-    throwOnFieldInputTranspilationsError(
-      allTranspiledTranspilationInputs,
-      'Multiple validation errors occurred while creating field',
-    );
-
     const {
-      flatFieldMetadatas: flatFieldMetadatasToCreate,
-      indexMetadatas: flatIndexMetadatasToCreate,
-    } = allTranspiledTranspilationInputs.reduce(
-      (acc, { result }) => ({
-        flatFieldMetadatas: [
-          ...acc.flatFieldMetadatas,
-          ...result.flatFieldMetadatas,
-        ],
-        indexMetadatas: [...acc.indexMetadatas, ...result.indexMetadatas],
-      }),
-      { flatFieldMetadatas: [], indexMetadatas: [] },
-    );
+      transpilations: allTranspiledTranspilationInputs,
+      flatFieldMetadatasToCreate,
+      flatIndexMetadatasToCreate,
+    } = await this.transpileCreateFieldInputsOrThrow({
+      createFieldInputs,
+      flatObjectMetadataMaps: existingFlatObjectMetadataMaps,
+      flatFieldMetadataMaps: existingFlatFieldMetadataMaps,
+      flatApplication: resolvedOwnerFlatApplication,
+    });
 
-    const person =
-      existingFlatObjectMetadataMaps.byUniversalIdentifier[
-        STANDARD_OBJECTS.person.universalIdentifier
-      ];
-    if (
-      person &&
-      flatFieldMetadatasToCreate.some(
-        (field) =>
-          field.type === FieldMetadataType.PHONES &&
-          field.objectMetadataUniversalIdentifier ===
-            person.universalIdentifier,
-      )
-    ) {
-      await this.phoneSearchMetadataGateService?.assertAvailable({
-        workspaceId,
-        objectMetadataId: person.id,
-      });
-    }
+    await this.assertPhoneSearchAvailableForCreatedFields({
+      workspaceId,
+      flatObjectMetadataMaps: existingFlatObjectMetadataMaps,
+      flatFieldMetadatasToCreate,
+    });
 
     const validateAndBuildResult =
       await this.workspaceMigrationValidateBuildAndRunService.validateBuildAndRunWorkspaceMigration(
@@ -496,6 +547,78 @@ export class FieldMetadataService {
         flatEntityMaps: recomputedFlatFieldMetadataMaps,
       },
     );
+  }
+
+  async transpileCreateFieldInputsOrThrow({
+    createFieldInputs,
+    flatObjectMetadataMaps,
+    flatFieldMetadataMaps,
+    flatApplication,
+  }: {
+    createFieldInputs: Omit<CreateFieldInput, 'workspaceId'>[];
+    flatObjectMetadataMaps: CreateFieldTranspilationArgs['flatObjectMetadataMaps'];
+    flatFieldMetadataMaps: CreateFieldTranspilationArgs['flatFieldMetadataMaps'];
+    flatApplication: FlatApplication;
+  }) {
+    const transpilations: Awaited<
+      ReturnType<typeof fromCreateFieldInputToFlatFieldMetadatasToCreate>
+    >[] = [];
+
+    for (const createFieldInput of createFieldInputs) {
+      transpilations.push(
+        await fromCreateFieldInputToFlatFieldMetadatasToCreate({
+          flatObjectMetadataMaps,
+          flatFieldMetadataMaps,
+          createFieldInput,
+          flatApplication,
+        }),
+      );
+    }
+
+    throwOnFieldInputTranspilationsError(
+      transpilations,
+      'Multiple validation errors occurred while creating field',
+    );
+
+    return {
+      transpilations,
+      flatFieldMetadatasToCreate: transpilations.flatMap(
+        ({ result }) => result.flatFieldMetadatas,
+      ),
+      flatIndexMetadatasToCreate: transpilations.flatMap(
+        ({ result }) => result.indexMetadatas,
+      ),
+    };
+  }
+
+  private async assertPhoneSearchAvailableForCreatedFields({
+    workspaceId,
+    flatObjectMetadataMaps,
+    flatFieldMetadatasToCreate,
+  }: {
+    workspaceId: string;
+    flatObjectMetadataMaps: CreateFieldTranspilationArgs['flatObjectMetadataMaps'];
+    flatFieldMetadatasToCreate: UniversalFlatFieldMetadata[];
+  }): Promise<void> {
+    const person =
+      flatObjectMetadataMaps.byUniversalIdentifier[
+        STANDARD_OBJECTS.person.universalIdentifier
+      ];
+
+    if (
+      person &&
+      flatFieldMetadatasToCreate.some(
+        (field) =>
+          field.type === FieldMetadataType.PHONES &&
+          field.objectMetadataUniversalIdentifier ===
+            person.universalIdentifier,
+      )
+    ) {
+      await this.phoneSearchMetadataGateService?.assertAvailable({
+        workspaceId,
+        objectMetadataId: person.id,
+      });
+    }
   }
 
   public async findOneWithinWorkspace(

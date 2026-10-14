@@ -260,6 +260,10 @@ export class BullMQDriver
       });
     });
 
+    this.workerMap[queueName].on('error', (error) => {
+      this.logger.error(`Worker error on queue ${queueName}`, error);
+    });
+
     this.workerMap[queueName].on('stalled', (jobId) => {
       this.logger.warn(
         `Job ${jobId} stalled on queue ${queueName}: its worker stopped processing it without completing or failing it`,

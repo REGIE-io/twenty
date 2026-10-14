@@ -36,7 +36,7 @@
     "@nestjs/graphql/ws": "8.21.0",
     "@remote-dom/react/@types/react": "^19.2.0",
     "graphql": "16.8.1",
-    "graphql-redis-subscriptions/ioredis": "5.10.1",
+    "graphql-redis-subscriptions/ioredis": "5.11.1",
     "@types/qs": "6.9.16",
     "@opentelemetry/api": "1.9.1",
     "chokidar": "^3.6.0",

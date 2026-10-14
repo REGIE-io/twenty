@@ -59,6 +59,7 @@ import { RedisClientModule } from 'src/engine/core-modules/redis-client/redis-cl
 import { RedisClientService } from 'src/engine/core-modules/redis-client/redis-client.service';
 import { SearchModule } from 'src/engine/core-modules/search/search.module';
 import { PhoneSearchIndexModule } from 'src/engine/core-modules/phone-search-index/phone-search-index.module';
+import { SearchVectorTriggerModule } from 'src/engine/core-modules/search-vector-trigger/search-vector-trigger.module';
 import { WorkspaceSSOModule } from 'src/engine/core-modules/sso/sso.module';
 import { WellKnownModule } from 'src/engine/core-modules/well-known/well-known.module';
 import { TelemetryModule } from 'src/engine/core-modules/telemetry/telemetry.module';
@@ -165,6 +166,7 @@ import { FileModule } from './file/file.module';
     CodeInterpreterModule.forRoot(),
     SearchModule,
     PhoneSearchIndexModule,
+    SearchVectorTriggerModule,
     ApiKeyModule,
     DpaModule,
     PageLayoutModule,

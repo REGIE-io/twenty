@@ -4,12 +4,7 @@ exports[`addPersonEmailFiltersToQueryBuilder case-insensitive email normalizatio
 [
   {
     "args": [
-      "(LOWER(TRIM("person"."emailsPrimaryEmail")) = ANY(:emails) OR EXISTS (
-      SELECT 1 FROM jsonb_array_elements_text(
-        CASE WHEN jsonb_typeof("person"."emailsAdditionalEmails") = 'array'
-          THEN "person"."emailsAdditionalEmails" ELSE '[]'::jsonb END
-      ) AS address(value) WHERE LOWER(TRIM(address.value)) = ANY(:emails)
-    ))",
+      "("person"."emailsPrimaryEmail" = ANY(:emails) OR (jsonb_typeof("person"."emailsAdditionalEmails") = 'array' AND "person"."emailsAdditionalEmails" ?| :emails::text[]))",
       {
         "emails": [
           "test@example.com",
@@ -30,12 +25,7 @@ exports[`addPersonEmailFiltersToQueryBuilder emails with empty exclusion array: 
 [
   {
     "args": [
-      "(LOWER(TRIM("person"."emailsPrimaryEmail")) = ANY(:emails) OR EXISTS (
-      SELECT 1 FROM jsonb_array_elements_text(
-        CASE WHEN jsonb_typeof("person"."emailsAdditionalEmails") = 'array'
-          THEN "person"."emailsAdditionalEmails" ELSE '[]'::jsonb END
-      ) AS address(value) WHERE LOWER(TRIM(address.value)) = ANY(:emails)
-    ))",
+      "("person"."emailsPrimaryEmail" = ANY(:emails) OR (jsonb_typeof("person"."emailsAdditionalEmails") = 'array' AND "person"."emailsAdditionalEmails" ?| :emails::text[]))",
       {
         "emails": [
           "test@example.com",
@@ -55,12 +45,7 @@ exports[`addPersonEmailFiltersToQueryBuilder empty emails array: should handle e
 [
   {
     "args": [
-      "(LOWER(TRIM("person"."emailsPrimaryEmail")) = ANY(:emails) OR EXISTS (
-      SELECT 1 FROM jsonb_array_elements_text(
-        CASE WHEN jsonb_typeof("person"."emailsAdditionalEmails") = 'array'
-          THEN "person"."emailsAdditionalEmails" ELSE '[]'::jsonb END
-      ) AS address(value) WHERE LOWER(TRIM(address.value)) = ANY(:emails)
-    ))",
+      "("person"."emailsPrimaryEmail" = ANY(:emails) OR (jsonb_typeof("person"."emailsAdditionalEmails") = 'array' AND "person"."emailsAdditionalEmails" ?| :emails::text[]))",
       {
         "emails": [],
       },
@@ -78,12 +63,7 @@ exports[`addPersonEmailFiltersToQueryBuilder multiple emails with exclusions: sh
 [
   {
     "args": [
-      "(LOWER(TRIM("person"."emailsPrimaryEmail")) = ANY(:emails) OR EXISTS (
-      SELECT 1 FROM jsonb_array_elements_text(
-        CASE WHEN jsonb_typeof("person"."emailsAdditionalEmails") = 'array'
-          THEN "person"."emailsAdditionalEmails" ELSE '[]'::jsonb END
-      ) AS address(value) WHERE LOWER(TRIM(address.value)) = ANY(:emails)
-    ))",
+      "("person"."emailsPrimaryEmail" = ANY(:emails) OR (jsonb_typeof("person"."emailsAdditionalEmails") = 'array' AND "person"."emailsAdditionalEmails" ?| :emails::text[]))",
       {
         "emails": [
           "test@example.com",
@@ -115,12 +95,7 @@ exports[`addPersonEmailFiltersToQueryBuilder multiple emails without exclusions:
 [
   {
     "args": [
-      "(LOWER(TRIM("person"."emailsPrimaryEmail")) = ANY(:emails) OR EXISTS (
-      SELECT 1 FROM jsonb_array_elements_text(
-        CASE WHEN jsonb_typeof("person"."emailsAdditionalEmails") = 'array'
-          THEN "person"."emailsAdditionalEmails" ELSE '[]'::jsonb END
-      ) AS address(value) WHERE LOWER(TRIM(address.value)) = ANY(:emails)
-    ))",
+      "("person"."emailsPrimaryEmail" = ANY(:emails) OR (jsonb_typeof("person"."emailsAdditionalEmails") = 'array' AND "person"."emailsAdditionalEmails" ?| :emails::text[]))",
       {
         "emails": [
           "test@example.com",
@@ -141,12 +116,7 @@ exports[`addPersonEmailFiltersToQueryBuilder single email with person ID exclusi
 [
   {
     "args": [
-      "(LOWER(TRIM("person"."emailsPrimaryEmail")) = ANY(:emails) OR EXISTS (
-      SELECT 1 FROM jsonb_array_elements_text(
-        CASE WHEN jsonb_typeof("person"."emailsAdditionalEmails") = 'array'
-          THEN "person"."emailsAdditionalEmails" ELSE '[]'::jsonb END
-      ) AS address(value) WHERE LOWER(TRIM(address.value)) = ANY(:emails)
-    ))",
+      "("person"."emailsPrimaryEmail" = ANY(:emails) OR (jsonb_typeof("person"."emailsAdditionalEmails") = 'array' AND "person"."emailsAdditionalEmails" ?| :emails::text[]))",
       {
         "emails": [
           "test@example.com",
@@ -178,12 +148,7 @@ exports[`addPersonEmailFiltersToQueryBuilder single email without exclusions: sh
 [
   {
     "args": [
-      "(LOWER(TRIM("person"."emailsPrimaryEmail")) = ANY(:emails) OR EXISTS (
-      SELECT 1 FROM jsonb_array_elements_text(
-        CASE WHEN jsonb_typeof("person"."emailsAdditionalEmails") = 'array'
-          THEN "person"."emailsAdditionalEmails" ELSE '[]'::jsonb END
-      ) AS address(value) WHERE LOWER(TRIM(address.value)) = ANY(:emails)
-    ))",
+      "("person"."emailsPrimaryEmail" = ANY(:emails) OR (jsonb_typeof("person"."emailsAdditionalEmails") = 'array' AND "person"."emailsAdditionalEmails" ?| :emails::text[]))",
       {
         "emails": [
           "test@example.com",
@@ -203,12 +168,7 @@ exports[`addPersonEmailFiltersToQueryBuilder three emails with unique parameter 
 [
   {
     "args": [
-      "(LOWER(TRIM("person"."emailsPrimaryEmail")) = ANY(:emails) OR EXISTS (
-      SELECT 1 FROM jsonb_array_elements_text(
-        CASE WHEN jsonb_typeof("person"."emailsAdditionalEmails") = 'array'
-          THEN "person"."emailsAdditionalEmails" ELSE '[]'::jsonb END
-      ) AS address(value) WHERE LOWER(TRIM(address.value)) = ANY(:emails)
-    ))",
+      "("person"."emailsPrimaryEmail" = ANY(:emails) OR (jsonb_typeof("person"."emailsAdditionalEmails") = 'array' AND "person"."emailsAdditionalEmails" ?| :emails::text[]))",
       {
         "emails": [
           "email1@example.com",

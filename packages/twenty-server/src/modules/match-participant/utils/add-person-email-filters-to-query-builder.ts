@@ -8,7 +8,8 @@ export interface AddPersonEmailFiltersToQueryBuilderOptions {
   excludePersonIds?: string[];
 }
 
-// A query builder rather than find(): matching additional emails needs the jsonb @> operator
+// Stored emails are lowercase and trimmed, so raw columns can use the primary BTREE
+// and additional-emails GIN indexes. jsonb_typeof stops ?| matching an object's keys.
 export function addPersonEmailFiltersToQueryBuilder({
   queryBuilder,
   emails,
@@ -21,12 +22,7 @@ export function addPersonEmailFiltersToQueryBuilder({
   ];
 
   queryBuilder = queryBuilder.where(
-    `(LOWER(TRIM("person"."emailsPrimaryEmail")) = ANY(:emails) OR EXISTS (
-      SELECT 1 FROM jsonb_array_elements_text(
-        CASE WHEN jsonb_typeof("person"."emailsAdditionalEmails") = 'array'
-          THEN "person"."emailsAdditionalEmails" ELSE '[]'::jsonb END
-      ) AS address(value) WHERE LOWER(TRIM(address.value)) = ANY(:emails)
-    ))`,
+    `("person"."emailsPrimaryEmail" = ANY(:emails) OR (jsonb_typeof("person"."emailsAdditionalEmails") = 'array' AND "person"."emailsAdditionalEmails" ?| :emails::text[]))`,
     { emails: normalizedEmails },
   );
 

@@ -813,6 +813,9 @@ export const STANDARD_OBJECTS = {
       emailsUniqueIndex: {
         universalIdentifier: '8183a8b2-9114-4f6c-8a5b-12e3f14e5e13',
       },
+      emailsAdditionalEmailsGinIndex: {
+        universalIdentifier: '1b63dca6-ca94-47ef-aeab-24617110f583',
+      },
       phonesPrimaryPhoneNumberIndex: {
         universalIdentifier: 'cd8e6b73-c6ec-4776-9454-4d1607345dd9',
       },

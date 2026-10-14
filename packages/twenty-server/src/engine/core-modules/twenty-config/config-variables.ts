@@ -1376,6 +1376,16 @@ export class ConfigVariables {
   WORKER_EXCLUDED_QUEUES: string[] = [];
 
   @ConfigVariablesMetadata({
+    group: ConfigVariablesGroup.ADVANCED_SETTINGS,
+    description:
+      'Comma-separated list of job names that are never queued or run (e.g. CallWebhookJobsJob). Registering a listed cron removes its schedule instead. Empty means every job runs.',
+    isEnvOnly: true,
+    type: ConfigVariableType.ARRAY,
+  })
+  @IsOptional()
+  DISABLED_JOBS: string[] = [];
+
+  @ConfigVariablesMetadata({
     group: ConfigVariablesGroup.SERVER_CONFIG,
     description: 'Node environment (development, production, etc.)',
     type: ConfigVariableType.ENUM,
