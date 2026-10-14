@@ -21,7 +21,7 @@ const LOWERCASABLE_PREFIX = `coalesce(
   (regexp_match("domainNamePrimaryLinkUrl", $2, 'i'))[1]
 )`;
 
-@RegisteredWorkspaceCommand('2.32.0', 1791936000000)
+@RegisteredWorkspaceCommand('2.32.0', 1791967456263)
 @Command({
   name: 'upgrade:2-32:lowercase-company-domain-hosts',
   description:

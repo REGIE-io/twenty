@@ -2,7 +2,7 @@ import { Module } from '@nestjs/common';
 import { AddParticipantHandleIndexesCommand } from 'src/database/commands/upgrade-version-command/2-32/2-32-workspace-command-1790812800000-add-participant-handle-indexes.command';
 import { AddPersonAdditionalEmailsGinIndexCommand } from 'src/database/commands/upgrade-version-command/2-32/2-32-workspace-command-1791417600000-add-person-additional-emails-gin-index.command';
 import { AllowDuplicateCrmIdentitiesCommand } from 'src/database/commands/upgrade-version-command/2-32/2-32-workspace-command-1790294400000-allow-duplicate-crm-identities.command';
-import { LowercaseCompanyDomainHostsCommand } from 'src/database/commands/upgrade-version-command/2-32/2-32-workspace-command-1791936000000-lowercase-company-domain-hosts.command';
+import { LowercaseCompanyDomainHostsCommand } from 'src/database/commands/upgrade-version-command/2-32/2-32-workspace-command-1791967456263-lowercase-company-domain-hosts.command';
 import { WorkspaceMetadataVersionModule } from 'src/engine/metadata-modules/workspace-metadata-version/workspace-metadata-version.module';
 import { WorkspaceSchemaManagerModule } from 'src/engine/twenty-orm/workspace-schema-manager/workspace-schema-manager.module';
 

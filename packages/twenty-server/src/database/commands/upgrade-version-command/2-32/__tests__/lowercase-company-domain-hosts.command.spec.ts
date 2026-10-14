@@ -1,7 +1,7 @@
 import { isDefined } from 'twenty-shared/utils';
 import { v4 as uuid } from 'uuid';
 
-import { LowercaseCompanyDomainHostsCommand } from 'src/database/commands/upgrade-version-command/2-32/2-32-workspace-command-1791936000000-lowercase-company-domain-hosts.command';
+import { LowercaseCompanyDomainHostsCommand } from 'src/database/commands/upgrade-version-command/2-32/2-32-workspace-command-1791967456263-lowercase-company-domain-hosts.command';
 import { getWorkspaceSchemaName } from 'src/engine/workspace-datasource/utils/get-workspace-schema-name.util';
 
 const BATCH_SIZE = 1000;
