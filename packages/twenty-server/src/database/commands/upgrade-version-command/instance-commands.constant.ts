@@ -152,7 +152,22 @@ import { AddMessageChannelDisplayNameFastInstanceCommand } from './2-25/2-25-ins
 import { AddAppTokenSsoExchangeIndexFastInstanceCommand } from './2-25/2-25-instance-command-fast-1785143586000-add-app-token-sso-exchange-index';
 import { AddMessageCampaignWidgetTypeFastInstanceCommand } from './2-25/2-25-instance-command-fast-1785229950000-add-message-campaign-widget-type';
 import { AddIsHiddenToAgentMessageFastInstanceCommand } from './2-25/2-25-instance-command-fast-1785230296000-add-is-hidden-to-agent-message';
+<<<<<<< Updated upstream
 import { AddListOperandsToViewFilterEnumFastInstanceCommand } from './2-27/2-27-instance-command-fast-1785900200000-add-list-operands-to-view-filter-enum';
+=======
+import { ReapplyStranded225InstanceCommandsFastInstanceCommand } from 'src/database/commands/upgrade-version-command/2-27/2-27-instance-command-fast-1785900000000-reapply-stranded-2-25-instance-commands';
+import { AddStartsWithViewFilterOperandFastInstanceCommand } from 'src/database/commands/upgrade-version-command/2-27/2-27-instance-command-fast-1786996800000-add-starts-with-view-filter-operand';
+import { CreateBillingCreditGrantTableFastInstanceCommand } from 'src/database/commands/upgrade-version-command/2-31/2-31-instance-command-fast-1786532184000-create-billing-credit-grant-table';
+import { BackfillCreditBalanceIntoGrantsSlowInstanceCommand } from 'src/database/commands/upgrade-version-command/2-31/2-31-instance-command-slow-1786532184001-backfill-credit-balance-into-grants';
+import { AddPreviousPeriodStartToBillingSubscriptionFastInstanceCommand } from 'src/database/commands/upgrade-version-command/2-31/2-31-instance-command-fast-1786532184002-add-previous-period-start-to-billing-subscription';
+import { AddIsDeprecatedToApplicationVariablesFastInstanceCommand } from 'src/database/commands/upgrade-version-command/2-31/2-31-instance-command-fast-1786533439000-add-is-deprecated-to-application-variables';
+import { EncryptEmptyApplicationVariablesSlowInstanceCommand } from 'src/database/commands/upgrade-version-command/2-31/2-31-instance-command-slow-1786533438000-encrypt-empty-application-variables';
+import { AddWritabilityToMetadataFastInstanceCommand } from 'src/database/commands/upgrade-version-command/2-32/2-32-instance-command-fast-1786713600000-add-writability-to-metadata';
+import { AddPhoneSearchLookupFastInstanceCommand } from 'src/database/commands/upgrade-version-command/2-32/2-32-instance-command-fast-1786800000000-add-phone-search-lookup';
+import { AddWorkspaceDeletionLifecycleFastInstanceCommand } from 'src/database/commands/upgrade-version-command/2-32/2-32-instance-command-fast-1789196612599-add-workspace-deletion-lifecycle';
+import { AddMetadataDeleteForeignKeyIndexesSlowInstanceCommand } from 'src/database/commands/upgrade-version-command/2-32/2-32-instance-command-slow-1791540000000-add-metadata-delete-fk-indexes';
+import { CreateSearchVectorBackfillJobTableSlowInstanceCommand } from 'src/database/commands/upgrade-version-command/2-32/2-32-instance-command-slow-1791957830595-create-search-vector-backfill-job-table';
+>>>>>>> Stashed changes
 
 export const INSTANCE_COMMANDS = [
   AddViewFieldGroupIdIndexOnViewFieldFastInstanceCommand,
@@ -307,5 +322,5 @@ export const INSTANCE_COMMANDS = [
   AddPhoneSearchLookupFastInstanceCommand,
   AddWorkspaceDeletionLifecycleFastInstanceCommand,
   AddMetadataDeleteForeignKeyIndexesSlowInstanceCommand,
-  CreateSearchVectorBackfillJobTableFastInstanceCommand,
+  CreateSearchVectorBackfillJobTableSlowInstanceCommand,
 ];
