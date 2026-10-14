@@ -1,0 +1,62 @@
+name: Sync deployed main to stage
+
+# Never react to the stage workflow: stage -> main releases must not create a loop.
+on:
+  pull_request:
+    branches: [main, develop, stage]
+    paths:
+      - '.github/scripts/sync-main-to-stage*'
+      - '.github/workflows/sync-main-to-stage.yml'
+      - '.github/workflows/stage-ancestry.yaml'
+  workflow_run:
+    workflows: ['Deploy to ECS (prod)']
+    types: [completed]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.event_name == 'workflow_run' && 'sync-deployed-main-to-stage' || format('stage-sync-test-{0}', github.event.pull_request.number) }}
+  cancel-in-progress: false
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          persist-credentials: false
+      - run: node --test .github/scripts/sync-main-to-stage.test.cjs
+
+  promote:
+    needs: test
+    if: >-
+      github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.event == 'push' &&
+      github.event.workflow_run.head_branch == 'main' &&
+      github.event.workflow_run.head_repository.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      # workflow_run uses trusted default-branch code, never source-PR code.
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          persist-credentials: false
+
+      - name: Verify automation credential
+        env:
+          AUTOMATION_TOKEN: ${{ secrets.DEPENDABOT_AUTOMERGE_PAT }}
+        run: |
+          if [ -z "$AUTOMATION_TOKEN" ]; then
+            echo '::error::DEPENDABOT_AUTOMERGE_PAT is required to trigger stage PR CI and deployment.'
+            exit 1
+          fi
+
+      - name: Promote exact deployed main revision
+        uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7.1.0
+        with:
+          github-token: ${{ secrets.DEPENDABOT_AUTOMERGE_PAT }}
+          script: |
+            const { syncMainToStage } = require('./.github/scripts/sync-main-to-stage.cjs');
+            await syncMainToStage({ github, context, core });

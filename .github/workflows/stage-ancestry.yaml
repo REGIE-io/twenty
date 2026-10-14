@@ -1,8 +1,8 @@
 name: Stage ancestry
 
 # Stage is a promotion branch. CI proves that a candidate behaves correctly; this
-# separate, automatic guard proves that the exact candidate was already integrated
-# through develop before it can be merged into stage.
+# separate guard requires prior develop integration or an exact main revision
+# whose production deployment has already succeeded.
 on:
   pull_request:
     branches: [stage]
@@ -10,6 +10,7 @@ on:
 
 permissions:
   contents: read
+  actions: read
 
 concurrency:
   group: stage-ancestry-${{ github.event.pull_request.number }}
@@ -27,22 +28,40 @@ jobs:
           ref: ${{ github.event.pull_request.head.sha }}
           fetch-depth: 0
 
-      - name: Fetch develop
-        run: git fetch --no-tags origin refs/heads/develop:refs/remotes/origin/develop
+      - name: Fetch promotion sources
+        run: git fetch --no-tags origin refs/heads/develop:refs/remotes/origin/develop refs/heads/main:refs/remotes/origin/main
 
-      - name: Require prior integration through develop
+      - name: Require develop integration or a deployed main revision
         env:
           PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          PR_HEAD_REF: ${{ github.event.pull_request.head.ref }}
+          PR_HEAD_REPO: ${{ github.event.pull_request.head.repo.full_name }}
           DEVELOP_REF: refs/remotes/origin/develop
+          GH_TOKEN: ${{ github.token }}
         run: |
           if git merge-base --is-ancestor "$PR_HEAD_SHA" "$DEVELOP_REF"; then
             echo "Pull request head $PR_HEAD_SHA is contained in develop."
             exit 0
           fi
 
+          # Automatic promotions contain no new code: require the pinned SHA to
+          # belong to main and to have passed the production rollout.
+          if [[ "$PR_HEAD_REPO" == "$GITHUB_REPOSITORY" &&
+                "$PR_HEAD_REF" == "codex/promote-main-to-stage-$PR_HEAD_SHA" ]] &&
+             git merge-base --is-ancestor "$PR_HEAD_SHA" refs/remotes/origin/main; then
+            deployed=$(gh api --method GET \
+              "repos/$GITHUB_REPOSITORY/actions/workflows/deploy-prod.yml/runs" \
+              -f head_sha="$PR_HEAD_SHA" -f branch=main -f event=push -f status=success \
+              --jq '.workflow_runs | length')
+            if [[ "$deployed" -gt 0 ]]; then
+              echo "Exact main revision $PR_HEAD_SHA has deployed successfully to production."
+              exit 0
+            fi
+          fi
+
           HEAD_SHORT=$(git rev-parse --short "$PR_HEAD_SHA")
           DEVELOP_SHORT=$(git rev-parse --short "$DEVELOP_REF")
-          echo "::error title=Stage promotion bypass::$HEAD_SHORT is not contained in develop at $DEVELOP_SHORT. Merge the change into develop before promoting it to stage."
+          echo "::error title=Stage promotion bypass::$HEAD_SHORT needs prior develop integration or a successful production deployment on a pinned main-promotion branch. Develop is $DEVELOP_SHORT."
           echo "Commits in this stage candidate that are not in develop:"
           git log --oneline --no-decorate --max-count=20 "$DEVELOP_REF..$PR_HEAD_SHA"
           exit 1
