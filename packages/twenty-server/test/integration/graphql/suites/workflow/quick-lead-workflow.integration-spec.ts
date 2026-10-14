@@ -4,7 +4,7 @@ import {
   getWorkflowRun,
   runWorkflowVersion,
   waitForWorkflowCompletion,
-  waitForWorkflowRunStatus,
+  waitForWorkflowRunStepStatus,
 } from 'test/integration/graphql/suites/workflow/utils/workflow-run-test.util';
 import { v4 as uuidv4 } from 'uuid';
 
@@ -126,9 +126,10 @@ describe('Quick Lead Workflow (e2e)', () => {
 
       createdWorkflowRunId = workflowRunId;
 
-      const workflowRun = await waitForWorkflowRunStatus(
+      const workflowRun = await waitForWorkflowRunStepStatus(
         workflowRunId,
-        'RUNNING',
+        FORM_STEP_ID,
+        'PENDING',
       );
 
       expect(workflowRun).toBeDefined();
@@ -242,9 +243,10 @@ describe('Quick Lead Workflow (e2e)', () => {
 
       expect(testWorkflowRunId).toBeDefined();
 
-      let workflowRun = await waitForWorkflowRunStatus(
+      let workflowRun = await waitForWorkflowRunStepStatus(
         testWorkflowRunId as string,
-        'RUNNING',
+        FORM_STEP_ID,
+        'PENDING',
       );
 
       expect(workflowRun?.status).toBe('RUNNING');
