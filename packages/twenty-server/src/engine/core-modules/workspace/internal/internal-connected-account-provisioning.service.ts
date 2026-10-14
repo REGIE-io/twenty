@@ -15,14 +15,17 @@ import {
   MessageChannelVisibility,
 } from 'twenty-shared/types';
 import { isDefined } from 'twenty-shared/utils';
-import { type EntityManager, In, Repository } from 'typeorm';
+import { type EntityManager, In, IsNull, Repository } from 'typeorm';
 
 import { CreateCalendarChannelService } from 'src/engine/core-modules/auth/services/create-calendar-channel.service';
 import { CreateMessageChannelService } from 'src/engine/core-modules/auth/services/create-message-channel.service';
 import { plaintextStringSchema } from 'src/engine/core-modules/secret-encryption/branded-strings/plaintext-string.type';
 import { UserWorkspaceEntity } from 'src/engine/core-modules/user-workspace/user-workspace.entity';
 import { UserEntity } from 'src/engine/core-modules/user/user.entity';
-import { ACQUIRE_ATTACH_CONNECTED_ACCOUNT_LOCK_STATEMENT } from 'src/engine/core-modules/workspace/internal/constants/internal-connected-account-provisioning.constants';
+import {
+  ACQUIRE_ATTACH_CONNECTED_ACCOUNT_LOCK_STATEMENT,
+  CALENDAR_ONLY_CONNECTED_ACCOUNT_NAME,
+} from 'src/engine/core-modules/workspace/internal/constants/internal-connected-account-provisioning.constants';
 import {
   type AttachConnectedAccountInput,
   type AttachConnectedAccountResult,
@@ -247,8 +250,8 @@ export class InternalConnectedAccountProvisioningService {
     return userWorkspace.id;
   }
 
-  // Keyed on workspace, member, provider and handle so a retried attach reuses the
-  // existing account rather than creating a duplicate.
+  // Keyed on workspace, member, provider, handle and calendar-only, so a retried attach
+  // reuses the existing account rather than creating a duplicate.
   private async findOrCreateConnectedAccount(
     input: AttachConnectedAccountInput,
     userWorkspaceId: string,
@@ -258,11 +261,15 @@ export class InternalConnectedAccountProvisioningService {
       ConnectedAccountEntity,
     );
 
+    const name =
+      input.calendarOnly === true ? CALENDAR_ONLY_CONNECTED_ACCOUNT_NAME : null;
     const existing = await connectedAccountRepository.findOneBy({
       workspaceId: input.workspaceId,
       userWorkspaceId,
       provider: input.provider,
       handle: input.handle,
+      // TypeORM drops a plain null from a where clause, so the mailbox lookup needs IsNull.
+      name: name ?? IsNull(),
     });
 
     // Tokens are encrypted with the workspace's key, exactly as Twenty's own OAuth
@@ -305,6 +312,7 @@ export class InternalConnectedAccountProvisioningService {
         userWorkspaceId,
         provider: input.provider,
         handle: input.handle,
+        name,
         accessToken: encryptedAccessToken,
         refreshToken: encryptedRefreshToken,
       }),

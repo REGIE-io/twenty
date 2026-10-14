@@ -4,3 +4,6 @@ export const ACQUIRE_ATTACH_CONNECTED_ACCOUNT_LOCK_STATEMENT =
   'SELECT pg_advisory_xact_lock(hashtextextended($1, 0))';
 
 export const ATTACH_CONNECTED_ACCOUNT_LOCK_PREFIX = 'attach-connected-account';
+
+// Marks a calendar-only account so it stays separate from the mailbox account on the same address.
+export const CALENDAR_ONLY_CONNECTED_ACCOUNT_NAME = 'Regie calendar';
