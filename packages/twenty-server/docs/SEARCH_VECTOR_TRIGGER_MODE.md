@@ -39,9 +39,9 @@ change its formula by being dropped and added back:
 Refinements agreed after the decisions:
 
 - **No per-row version column.** The trigger computes every value, so the backfill can never
-  write a stale vector. Coverage is proven by walking an `id` cursor to the end, bounded by
-  `createdAt <= cutoff`. The function is always replaced before the job is created, so rows
-  created after the cutoff already carry the new formula.
+  write a stale vector. Coverage is proven by walking an `id` cursor to the end of the table.
+  Rows are not filtered by `createdAt`, because clients can set it and a cutoff would skip
+  imported rows; `cutoffAt` only records when the run started.
 - **Input cap: 131,072 characters.** The trigger truncates the joined text before
   `to_tsvector`. Postgres errors above 1,048,575 *bytes* per tsvector and fails the whole save
   (true of today's generated column too). `left()` counts characters, so the cap is sized for
@@ -108,7 +108,7 @@ attempts, last error, timestamps.
 - Rows exist only while there is work: one per default/relabel/archive, or one per
   workspace×object when we change the formula fleet-wide.
 - A queue job runs one batch per message, `concurrency: 1`: a no-op `UPDATE … SET id = id`
-  over the next ~1,000 ids `WHERE id > cursor AND "createdAt" <= cutoff AND <filter>`, so the
+  over the next ~1,000 ids `WHERE id > cursor AND <filter>`, so the
   trigger recomputes them; then saves the cursor and commits.
 - Done when a batch finds no rows. A cron every minute re-queues PENDING, RETRYABLE and
   lease-expired jobs. An alert fires when a job has not moved in N minutes.
@@ -137,8 +137,8 @@ attempts, last error, timestamps.
 - **No off switch.** Turning the flag off does not revert tables. Problems are fixed forward:
   replace the function, then backfill. The runbook holds the emergency SQL (drop the trigger,
   replace the function, check a table's state).
-- **Backfill** as designed above: one `core` entity row per job, `id` cursor plus
-  `createdAt <= cutoff`, ~1,000 rows per batch, retries then FAILED, reconcile cron every
+- **Backfill** as designed above: one `core` entity row per job, `id` cursor over the
+  whole table, ~1,000 rows per batch, retries then FAILED, reconcile cron every
   minute, which also cleans up. Only changes that alter existing rows' words create a job (default
   value, option relabel or removal, archive or restore, searched-field delete, repair), limited
   to affected rows where possible. The single hook is `refreshSearchVectorTriggerIfConverted`

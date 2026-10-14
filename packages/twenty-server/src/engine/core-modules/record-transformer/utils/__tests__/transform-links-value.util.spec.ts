@@ -60,6 +60,22 @@ describe('transformLinksValue', () => {
       expect(transformLinksValue(input)).toEqual(expected);
     });
 
+    it('should lowercase the host without adding a protocol', () => {
+      const input = {
+        primaryLinkUrl: 'www.Example.com/Path',
+        primaryLinkLabel: 'Example',
+        secondaryLinks: null,
+      };
+
+      const expected = {
+        primaryLinkUrl: 'www.example.com/Path',
+        primaryLinkLabel: 'Example',
+        secondaryLinks: null,
+      };
+
+      expect(transformLinksValue(input)).toEqual(expected);
+    });
+
     it('should work fine with www', () => {
       const input = {
         primaryLinkUrl: 'www.example.com',
