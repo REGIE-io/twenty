@@ -22,4 +22,5 @@ export enum MessageQueue {
   aiQueue = 'ai-queue',
   aiStreamQueue = 'ai-stream-queue',
   phoneSearchIndexQueue = 'phone-search-index-queue',
+  searchVectorBackfillQueue = 'search-vector-backfill-queue',
 }

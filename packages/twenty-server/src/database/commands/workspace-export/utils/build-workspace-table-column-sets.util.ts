@@ -15,6 +15,7 @@ export const buildWorkspaceTableColumnSets = (
   workspaceId: string,
   objectMetadata: ObjectMetadataEntity,
   fieldMetadatas: FieldMetadataEntity[],
+  isSearchVectorTriggerMode = false,
 ): WorkspaceTableColumnSets => {
   const jsonColumns = new Set<string>();
   const generatedColumns = new Set<string>();
@@ -35,7 +36,9 @@ export const buildWorkspaceTableColumnSets = (
         jsonColumns.add(columnDefinition.name);
       }
 
-      if (columnDefinition.type === 'tsvector') {
+      // A trigger-mode searchVector is plain data; the import runs with triggers off
+      // (session_replication_role = replica), so the stored vectors are copied as they are.
+      if (columnDefinition.type === 'tsvector' && !isSearchVectorTriggerMode) {
         generatedColumns.add(columnDefinition.name);
       }
     }

@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 
+import { dropSearchVectorFunction } from 'src/engine/core-modules/search-vector-trigger/utils/search-vector-trigger-maintenance.util';
 import { WorkspaceMigrationRunnerActionHandler } from 'src/engine/workspace-manager/workspace-migration/workspace-migration-runner/interfaces/workspace-migration-runner-action-handler-service.interface';
 
 import { findFlatEntityByIdInFlatEntityMapsOrThrow } from 'src/engine/metadata-modules/flat-entity/utils/find-flat-entity-by-id-in-flat-entity-maps-or-throw.util';
@@ -91,6 +92,7 @@ export class DeleteObjectActionHandlerService extends WorkspaceMigrationRunnerAc
       tableName,
       cascade: true,
     });
+    await dropSearchVectorFunction(queryRunner, { schemaName, tableName });
 
     const objectFlatFieldMetadatas =
       findManyFlatEntityByIdInFlatEntityMapsOrThrow({

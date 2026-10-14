@@ -379,18 +379,18 @@ export class WorkspaceService {
     );
 
     try {
+      // Before init, so its tables are built with trigger-maintained search vectors.
+      await this.featureFlagService.enableFeatureFlags(
+        DEFAULT_FEATURE_FLAGS,
+        workspace.id,
+      );
+
       await this.workspaceManagerService.init({
         workspace,
         userId: user.id,
       });
 
-      await Promise.all([
-        this.featureFlagService.enableFeatureFlags(
-          DEFAULT_FEATURE_FLAGS,
-          workspace.id,
-        ),
-        this.userWorkspaceService.createWorkspaceMember(workspace.id, user),
-      ]);
+      await this.userWorkspaceService.createWorkspaceMember(workspace.id, user);
 
       // await this.installPreInstalledAppsOnCreatedWorkspace({
       //   workspaceId: workspace.id,

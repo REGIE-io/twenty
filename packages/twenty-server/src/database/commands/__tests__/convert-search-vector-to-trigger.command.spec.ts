@@ -35,10 +35,11 @@ describe('ConvertSearchVectorToTriggerCommand', () => {
     expect(convertWorkspaceMock).toHaveBeenCalledWith({
       workspaceId: WORKSPACE_ID,
       dryRun: true,
+      repair: false,
     });
   });
 
-  it('should not call the conversion service when run without --dry-run', async () => {
+  it('should convert when run without --dry-run', async () => {
     await command.runOnWorkspace({
       workspaceId: WORKSPACE_ID,
       options: {},
@@ -46,7 +47,26 @@ describe('ConvertSearchVectorToTriggerCommand', () => {
       total: 1,
     });
 
-    expect(convertWorkspaceMock).not.toHaveBeenCalled();
+    expect(convertWorkspaceMock).toHaveBeenCalledWith({
+      workspaceId: WORKSPACE_ID,
+      dryRun: false,
+      repair: false,
+    });
+  });
+
+  it('should pass --repair through to the conversion', async () => {
+    await command.runOnWorkspace({
+      workspaceId: WORKSPACE_ID,
+      options: { repair: true } as never,
+      index: 0,
+      total: 1,
+    });
+
+    expect(convertWorkspaceMock).toHaveBeenCalledWith({
+      workspaceId: WORKSPACE_ID,
+      dryRun: false,
+      repair: true,
+    });
   });
 
   it('should refuse to run without an explicit workspace id', async () => {
@@ -62,7 +82,7 @@ describe('ConvertSearchVectorToTriggerCommand', () => {
     );
 
     await expect(commandWithIterator.run([], { dryRun: true })).rejects.toThrow(
-      'Pass at least one workspace with -w.',
+      'Pass at least one workspace with -w, or --all-workspaces.',
     );
 
     expect(iterate).not.toHaveBeenCalled();
@@ -89,5 +109,46 @@ describe('ConvertSearchVectorToTriggerCommand', () => {
     expect(iterate).toHaveBeenCalledWith(
       expect.objectContaining({ workspaceIds: [WORKSPACE_ID] }),
     );
+  });
+
+  it('should iterate every workspace when --all-workspaces is passed', async () => {
+    const iterate = jest.fn().mockResolvedValue({ interrupted: false });
+    const commandWithIterator = new ConvertSearchVectorToTriggerCommand(
+      {
+        iterate,
+        listenToShutdownSignals: jest.fn(),
+      } as unknown as WorkspaceIteratorService,
+      {
+        convertWorkspace: convertWorkspaceMock,
+      } as unknown as SearchVectorTriggerConversionService,
+    );
+
+    await commandWithIterator.run([], { dryRun: true, allWorkspaces: true });
+
+    expect(iterate).toHaveBeenCalledWith(
+      expect.objectContaining({ workspaceIds: undefined }),
+    );
+  });
+
+  it('should refuse -w together with --all-workspaces', async () => {
+    const iterate = jest.fn();
+    const commandWithIterator = new ConvertSearchVectorToTriggerCommand(
+      {
+        iterate,
+        listenToShutdownSignals: jest.fn(),
+      } as unknown as WorkspaceIteratorService,
+      {
+        convertWorkspace: convertWorkspaceMock,
+      } as unknown as SearchVectorTriggerConversionService,
+    );
+
+    await expect(
+      commandWithIterator.run([], {
+        allWorkspaces: true,
+        workspaceId: new Set([WORKSPACE_ID]),
+      }),
+    ).rejects.toThrow('Pass either -w or --all-workspaces, not both.');
+
+    expect(iterate).not.toHaveBeenCalled();
   });
 });
