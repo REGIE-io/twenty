@@ -516,10 +516,12 @@ describe('InternalConnectedAccountProvisioningService', () => {
 
       expect(calendar.connectedAccountId).toBe('connected-account-2');
       expect(
-        Array.from(stores.connectedAccounts.values()).map(({ handle, name }) => ({
-          handle,
-          name,
-        })),
+        Array.from(stores.connectedAccounts.values()).map(
+          ({ handle, name }) => ({
+            handle,
+            name,
+          }),
+        ),
       ).toEqual([
         { handle: HANDLE, name: null },
         { handle: HANDLE, name: CALENDAR_ONLY_CONNECTED_ACCOUNT_NAME },
