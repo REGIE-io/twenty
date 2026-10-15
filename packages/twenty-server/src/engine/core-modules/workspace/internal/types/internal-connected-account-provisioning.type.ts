@@ -22,6 +22,7 @@ export type AttachConnectedAccountInput = {
   // set both to false to record the account only, which syncs nothing.
   withCalendarChannel?: boolean;
   withMessageChannel?: boolean;
+  calendarOnly?: boolean;
 };
 
 export type AttachConnectedAccountResult = {
