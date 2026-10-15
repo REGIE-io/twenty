@@ -8,6 +8,7 @@ import { v4 } from 'uuid';
 import { computeMorphOrRelationFieldJoinColumnName } from 'src/engine/metadata-modules/field-metadata/utils/compute-morph-or-relation-field-join-column-name.util';
 import { WorkspaceMigrationRunnerActionHandler } from 'src/engine/workspace-manager/workspace-migration/workspace-migration-runner/interfaces/workspace-migration-runner-action-handler-service.interface';
 
+import { belongsToTwentyStandardApp } from 'src/engine/metadata-modules/utils/belongs-to-twenty-standard-app.util';
 import { type MetadataFlatEntityMaps } from 'src/engine/metadata-modules/flat-entity/types/metadata-flat-entity-maps.type';
 import { findFlatEntityByIdInFlatEntityMapsOrThrow } from 'src/engine/metadata-modules/flat-entity/utils/find-flat-entity-by-id-in-flat-entity-maps-or-throw.util';
 import { type FlatFieldMetadata } from 'src/engine/metadata-modules/flat-field-metadata/types/flat-field-metadata.type';
@@ -25,12 +26,18 @@ import {
   type WorkspaceMigrationActionRunnerArgs,
 } from 'src/engine/workspace-manager/workspace-migration/workspace-migration-runner/types/workspace-migration-action-runner-args.type';
 import { generateColumnDefinitions } from 'src/engine/workspace-manager/workspace-migration/workspace-migration-runner/utils/generate-column-definitions.util';
+import {
+  WorkspaceMigrationActionExecutionException,
+  WorkspaceMigrationActionExecutionExceptionCode,
+} from 'src/engine/workspace-manager/workspace-migration/workspace-migration-runner/exceptions/workspace-migration-action-execution.exception';
 import { getWorkspaceSchemaContextForMigration } from 'src/engine/workspace-manager/workspace-migration/workspace-migration-runner/utils/get-workspace-schema-context-for-migration.util';
 import {
   collectEnumOperationsForField,
   EnumOperation,
   executeBatchEnumOperations,
 } from 'src/engine/workspace-manager/workspace-migration/workspace-migration-runner/utils/workspace-schema-enum-operations.util';
+
+const MAX_COLUMNS_FOR_CUSTOM_FIELDS = 1500;
 
 @Injectable()
 export class CreateFieldActionHandlerService extends WorkspaceMigrationRunnerActionHandler(
@@ -244,6 +251,19 @@ export class CreateFieldActionHandlerService extends WorkspaceMigrationRunnerAct
           }),
       );
 
+      const hasCustomField = objectFlatFieldMetadatas.some(
+        (flatFieldMetadata) => !belongsToTwentyStandardApp(flatFieldMetadata),
+      );
+
+      if (hasCustomField) {
+        await this.requireRoomForColumns({
+          queryRunner,
+          schemaName,
+          tableName,
+          newColumnCount: columnDefinitions.length,
+        });
+      }
+
       await this.workspaceSchemaManagerService.columnManager.addColumns({
         queryRunner,
         schemaName,
@@ -260,6 +280,34 @@ export class CreateFieldActionHandlerService extends WorkspaceMigrationRunnerAct
           tableName,
         });
       }
+    }
+  }
+
+  // Postgres refuses a table past 1,600 columns. Custom fields stop earlier, so the standard
+  // fields a Twenty upgrade adds always have room.
+  private async requireRoomForColumns({
+    queryRunner,
+    schemaName,
+    tableName,
+    newColumnCount,
+  }: {
+    queryRunner: QueryRunner;
+    schemaName: string;
+    tableName: string;
+    newColumnCount: number;
+  }): Promise<void> {
+    const usedColumnCount =
+      await this.workspaceSchemaManagerService.columnManager.countColumns({
+        queryRunner,
+        schemaName,
+        tableName,
+      });
+
+    if (usedColumnCount + newColumnCount > MAX_COLUMNS_FOR_CUSTOM_FIELDS) {
+      throw new WorkspaceMigrationActionExecutionException({
+        message: `${schemaName}.${tableName} has ${usedColumnCount} columns; ${newColumnCount} more would pass the limit of ${MAX_COLUMNS_FOR_CUSTOM_FIELDS}`,
+        code: WorkspaceMigrationActionExecutionExceptionCode.TOO_MANY_COLUMNS,
+      });
     }
   }
 

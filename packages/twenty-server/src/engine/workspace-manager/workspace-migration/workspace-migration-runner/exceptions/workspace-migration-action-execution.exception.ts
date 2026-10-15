@@ -13,6 +13,7 @@ export const WorkspaceMigrationActionExecutionExceptionCode = {
   UNSUPPORTED_FIELD_METADATA_TYPE: 'UNSUPPORTED_FIELD_METADATA_TYPE',
   INTERNAL_SERVER_ERROR: 'INTERNAL_SERVER_ERROR',
   MISSING_STANDARD_SEARCH_FIELDS: 'MISSING_STANDARD_SEARCH_FIELDS',
+  TOO_MANY_COLUMNS: 'TOO_MANY_COLUMNS',
 } as const;
 
 const getWorkspaceMigrationActionExecutionExceptionUserFriendlyMessage = (
@@ -39,6 +40,8 @@ const getWorkspaceMigrationActionExecutionExceptionUserFriendlyMessage = (
       return msg`An unexpected error occurred.`;
     case WorkspaceMigrationActionExecutionExceptionCode.MISSING_STANDARD_SEARCH_FIELDS:
       return msg`Search is not set up correctly for this object.`;
+    case WorkspaceMigrationActionExecutionExceptionCode.TOO_MANY_COLUMNS:
+      return msg`This object has no room for more fields.`;
     default:
       assertUnreachable(code);
   }
