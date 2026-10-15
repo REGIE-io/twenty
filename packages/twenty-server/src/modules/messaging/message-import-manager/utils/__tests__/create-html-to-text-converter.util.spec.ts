@@ -51,6 +51,23 @@ describe('createHtmlToTextConverter', () => {
     expect(result).toContain('Old quote');
   });
 
+  it('should strip a non-ascii reply header without a quote container', () => {
+    const result = convertHtmlToText(
+      'Dzięki!<br><br>W dniu 13.10.2026 o 09:00 użytkownik Jan napisał:<br>Czy możemy się spotkać?',
+    );
+
+    expect(result).toContain('Dzięki!');
+    expect(result).not.toContain('Czy możemy');
+  });
+
+  it('should check reply markers in linear time on crafted input', () => {
+    const start = Date.now();
+
+    convertHtmlToText('1.1.1'.repeat(19_800));
+
+    expect(Date.now() - start).toBeLessThan(1_000);
+  });
+
   it('should sanitize malicious HTML', () => {
     const result = convertHtmlToText(
       '<p>Hello</p><script>alert("xss")</script>',
