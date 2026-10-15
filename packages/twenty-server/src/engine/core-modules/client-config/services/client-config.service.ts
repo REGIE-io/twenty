@@ -22,6 +22,7 @@ import {
   AUTO_SELECT_FAST_MODEL_ID,
   AUTO_SELECT_SMART_MODEL_ID,
   ENTERPRISE_INSTANCE_TYPE,
+  MAX_CUSTOM_INDEXES_PER_OBJECT,
 } from 'twenty-shared/constants';
 import { MODEL_FAMILY_LABELS } from 'src/engine/metadata-modules/ai/ai-models/constants/model-family-labels.const';
 import { getNativeModelCapabilities } from 'src/engine/metadata-modules/ai/ai-models/utils/get-native-model-capabilities.util';
@@ -303,6 +304,7 @@ export class ClientConfigService {
       enterpriseInstanceType:
         this.twentyConfigService.get('ENTERPRISE_INSTANCE_TYPE') ??
         ENTERPRISE_INSTANCE_TYPE.PRODUCTION,
+      maxCustomIndexesPerObject: MAX_CUSTOM_INDEXES_PER_OBJECT,
     };
 
     const maintenanceMode =
