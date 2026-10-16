@@ -5,6 +5,9 @@ import { extractTextWithoutReplyQuotations } from 'src/modules/messaging/message
 import { normalizeMessageText } from 'src/modules/messaging/message-import-manager/utils/normalize-message-text.util';
 import { sanitizeString } from 'src/modules/messaging/message-import-manager/utils/sanitize-string.util';
 
+// Built once: a JSDOM window per email is wasted work on every import batch.
+const convertHtmlToText = createHtmlToTextConverter();
+
 export const extractMessageBodyText = ({
   text,
   html,
@@ -15,7 +18,7 @@ export const extractMessageBodyText = ({
   const candidate = isNonEmptyString(text)
     ? text
     : isNonEmptyString(html)
-      ? createHtmlToTextConverter()(html)
+      ? convertHtmlToText(html)
       : '';
 
   const textWithoutReplyQuotations =
