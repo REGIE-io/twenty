@@ -977,6 +977,7 @@ export type ClientConfig = {
   isOnboardingAiChatEnabled: Scalars['Boolean']['output'];
   isWorkspaceSchemaDDLLocked: Scalars['Boolean']['output'];
   maintenance?: Maybe<ClientConfigMaintenanceMode>;
+  maxCustomIndexesPerObject: Scalars['Float']['output'];
   publicFeatureFlags: Array<PublicFeatureFlag>;
   publicFunctionDomain?: Maybe<Scalars['String']['output']>;
   sentry: Sentry;

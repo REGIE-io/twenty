@@ -26,6 +26,24 @@ export class WorkspaceSchemaColumnManagerService {
     await queryRunner.query(sql);
   }
 
+  // Dropped columns keep their slot in Postgres's 1,600-column limit, so they are counted too.
+  async countColumns({
+    queryRunner,
+    schemaName,
+    tableName,
+  }: {
+    queryRunner: QueryRunner;
+    schemaName: string;
+    tableName: string;
+  }): Promise<number> {
+    const [row] = await queryRunner.query(
+      `SELECT count(*)::int AS "count" FROM pg_attribute WHERE attrelid = $1::regclass AND attnum > 0`,
+      [`${escapeIdentifier(schemaName)}.${escapeIdentifier(tableName)}`],
+    );
+
+    return row.count;
+  }
+
   async dropColumns({
     queryRunner,
     schemaName,

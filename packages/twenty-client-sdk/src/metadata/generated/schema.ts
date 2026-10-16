@@ -1614,6 +1614,7 @@ export interface ClientConfig {
     isWorkspaceSchemaDDLLocked: Scalars['Boolean']
     isOnboardingAiChatEnabled: Scalars['Boolean']
     enterpriseInstanceType: Scalars['String']
+    maxCustomIndexesPerObject: Scalars['Float']
     maintenance?: ClientConfigMaintenanceMode
     __typename: 'ClientConfig'
 }
@@ -4901,6 +4902,7 @@ export interface ClientConfigGenqlSelection{
     isWorkspaceSchemaDDLLocked?: boolean | number
     isOnboardingAiChatEnabled?: boolean | number
     enterpriseInstanceType?: boolean | number
+    maxCustomIndexesPerObject?: boolean | number
     maintenance?: ClientConfigMaintenanceModeGenqlSelection
     __typename?: boolean | number
     __scalar?: boolean | number
