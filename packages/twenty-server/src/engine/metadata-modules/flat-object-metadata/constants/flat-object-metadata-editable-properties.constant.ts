@@ -15,6 +15,8 @@ export const FLAT_OBJECT_METADATA_EDITABLE_PROPERTIES = {
     'nameSingular',
     'labelIdentifierFieldMetadataId',
     'imageIdentifierFieldMetadataId',
+    'readability',
+    'sharingReach',
   ],
   standard: [
     'color',
@@ -26,6 +28,7 @@ export const FLAT_OBJECT_METADATA_EDITABLE_PROPERTIES = {
     'labelPlural',
     'labelSingular',
     'imageIdentifierFieldMetadataId',
+    'sharingReach',
   ],
 } as const satisfies Record<
   'standard' | 'custom',

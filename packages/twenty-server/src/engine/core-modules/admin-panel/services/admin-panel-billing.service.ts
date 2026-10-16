@@ -1,6 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 
+import { INTERNAL_CREDITS_PER_DISPLAY_CREDIT } from 'twenty-shared/constants';
 import { isDefined } from 'twenty-shared/utils';
 import { In, type Repository } from 'typeorm';
 
@@ -24,10 +25,7 @@ import { BillingCreditService } from 'src/engine/core-modules/billing/services/b
 import { BillingSubscriptionService } from 'src/engine/core-modules/billing/services/billing-subscription.service';
 import { BillingUsageService } from 'src/engine/core-modules/billing/services/billing-usage.service';
 import { TwentyConfigService } from 'src/engine/core-modules/twenty-config/twenty-config.service';
-import {
-  INTERNAL_CREDITS_PER_DISPLAY_CREDIT,
-  toDisplayCredits,
-} from 'src/engine/core-modules/usage/utils/to-display-credits.util';
+import { toDisplayCredits } from 'src/engine/core-modules/usage/utils/to-display-credits.util';
 import { WorkspaceEntity } from 'src/engine/core-modules/workspace/workspace.entity';
 import { InjectWorkspaceScopedRepository } from 'src/engine/twenty-orm/workspace-scoped-repository/inject-workspace-scoped-repository.decorator';
 import { WorkspaceScopedRepository } from 'src/engine/twenty-orm/workspace-scoped-repository/workspace-scoped-repository';
@@ -58,6 +56,7 @@ export class AdminPanelBillingService {
     amount,
     type,
     reason,
+    expiresInDays,
     clientOperationId,
     grantedByUserId,
   }: {
@@ -65,12 +64,11 @@ export class AdminPanelBillingService {
     amount: number;
     type: BillingCreditGrantType;
     reason?: string;
+    expiresInDays?: number;
     clientOperationId: string;
     grantedByUserId: string;
   }): Promise<AdminPanelWorkspaceCreditGrantDTO> {
-    // Enforced server side because the mutation is reachable directly, not only
-    // through the admin panel's picker. See ADMIN_GRANTABLE_CREDIT_GRANT_TYPES
-    // for why these two are excluded.
+    // The mutation is reachable directly, not only through the admin panel picker; see ADMIN_GRANTABLE_CREDIT_GRANT_TYPES for the exclusions
     if (!ADMIN_GRANTABLE_CREDIT_GRANT_TYPES.includes(type)) {
       throw new BillingException(
         `Cannot grant credits of type ${type} by hand`,
@@ -86,8 +84,7 @@ export class AdminPanelBillingService {
       'BILLING_MAX_ADMIN_CREDIT_GRANT_MICRO',
     );
 
-    // The field is micro-denominated, so a slipped decimal is four orders of
-    // magnitude. Bound what a single grant can hand out.
+    // A slipped decimal on a micro-denominated amount is four orders of magnitude
     if (amountMicro > maxAmountMicro) {
       throw new BillingException(
         `Cannot grant ${toDisplayCredits(amountMicro)} credits at once, the maximum is ${toDisplayCredits(maxAmountMicro)}`,
@@ -102,33 +99,19 @@ export class AdminPanelBillingService {
       amountMicro,
       type,
       reason,
+      expiresInDays,
       idempotencyKey,
       grantedByUserId,
     });
 
-    if (isDefined(grant)) {
-      return this.toCreditGrantDTO(grant);
-    }
-
-    // A null grant is either a replay of this same operation, which must answer
-    // with the grant the first attempt wrote rather than hand out the credits
-    // again, or an instance without billing. The ledger table only exists in
-    // the first case, so it is only queried there.
-    const replayedGrant = this.twentyConfigService.get('IS_BILLING_ENABLED')
-      ? await this.billingCreditGrantService.findGrantByIdempotencyKey(
-          workspaceId,
-          idempotencyKey,
-        )
-      : null;
-
-    if (!isDefined(replayedGrant)) {
+    if (!isDefined(grant)) {
       throw new BillingException(
         `Could not grant credits to workspace ${workspaceId}, billing is disabled on this instance`,
         BillingExceptionCode.BILLING_CUSTOMER_NOT_FOUND,
       );
     }
 
-    return this.toCreditGrantDTO(replayedGrant);
+    return this.toCreditGrantDTO(grant);
   }
 
   async revokeWorkspaceCreditGrant({
@@ -169,11 +152,12 @@ export class AdminPanelBillingService {
       effectiveAt: grant.effectiveAt,
       expiresAt: grant.expiresAt,
       revokedAt: grant.revokedAt,
+      sourceGrantId: grant.sourceGrantId,
       reason: grant.reason,
       isActive:
         !isDefined(grant.revokedAt) &&
         grant.effectiveAt.getTime() <= now &&
-        grant.expiresAt.getTime() > now,
+        (!isDefined(grant.expiresAt) || grant.expiresAt.getTime() > now),
       createdAt: grant.createdAt,
     };
   }
@@ -193,8 +177,7 @@ export class AdminPanelBillingService {
       this.getWorkspaceCreditGrants(workspaceId),
     ]);
 
-    // A workspace can hold granted credits before it has a customer or a
-    // subscription, and the admin panel still has to show and manage them.
+    // Granted credits can exist before a customer or subscription does
     if (!customer && !subscription && creditGrants.length === 0) {
       return null;
     }
@@ -202,9 +185,7 @@ export class AdminPanelBillingService {
     const stripeCustomerId =
       customer?.stripeCustomerId ?? subscription?.stripeCustomerId ?? null;
     const creditBalance = toDisplayCredits(
-      await this.billingCreditGrantService.getSpendableCreditsMicro(
-        workspaceId,
-      ),
+      await this.billingCreditGrantService.getActiveCreditsMicro(workspaceId),
     );
 
     if (!subscription) {
@@ -319,7 +300,6 @@ export class AdminPanelBillingService {
   }
 }
 
-// Namespaced so an operation id can never collide with the carry-forward or
-// backfill keys, which live in the same unique index.
+// Namespaced to never collide with carry-forward or backfill keys in the same unique index
 const buildAdminGrantIdempotencyKey = (clientOperationId: string): string =>
   `admin-grant:${clientOperationId}`;

@@ -1,0 +1,202 @@
+import { render, screen } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
+import { createStore, Provider } from 'jotai';
+import { StrictMode, useState } from 'react';
+import { isDefined } from 'twenty-shared/utils';
+
+import { SelectableList } from '@/ui/layout/selectable-list/components/SelectableList';
+import { SelectableListItem } from '@/ui/layout/selectable-list/components/SelectableListItem';
+import { useSelectableListNativeItemRef } from '@/ui/layout/selectable-list/hooks/useSelectableListNativeItemRef';
+import { isSelectedItemIdComponentFamilyState } from '@/ui/layout/selectable-list/states/isSelectedItemIdComponentFamilyState';
+import { focusStackState } from '@/ui/utilities/focus/states/focusStackState';
+import { FocusComponentType } from '@/ui/utilities/focus/types/FocusComponentType';
+import { useAtomComponentFamilyStateValue } from '@/ui/utilities/state/jotai/hooks/useAtomComponentFamilyStateValue';
+
+const FOCUS_ID = 'menu-preselection-test';
+
+const TestItem = ({
+  label,
+  onEnter,
+  onAction,
+}: {
+  label: string;
+  onEnter: () => void;
+  onAction?: () => void;
+}) => {
+  const nativeItemRef = useSelectableListNativeItemRef(label);
+  const isSelectedItemId = useAtomComponentFamilyStateValue(
+    isSelectedItemIdComponentFamilyState,
+    label,
+  );
+  return (
+    <SelectableListItem itemId={label} onEnter={onEnter}>
+      <button
+        ref={nativeItemRef}
+        type="button"
+        aria-pressed={isSelectedItemId}
+        onClick={onEnter}
+      >
+        {label}
+      </button>
+      {isDefined(onAction) && (
+        <button type="button" onClick={onAction}>
+          {label} action
+        </button>
+      )}
+    </SelectableListItem>
+  );
+};
+
+const TestMenu = ({
+  onEnter,
+  preselect,
+  onAction,
+}: {
+  onEnter: (label: string) => void;
+  preselect?: boolean;
+  onAction?: (label: string) => void;
+}) => {
+  const [search, setSearch] = useState('');
+  const items = ['Alpha', 'Beta'].filter((label) =>
+    label.toLowerCase().includes(search),
+  );
+  return (
+    <SelectableList
+      selectableListInstanceId={FOCUS_ID}
+      focusId={FOCUS_ID}
+      selectableItemIdArray={items}
+      shouldPreselectFirstItem={preselect}
+    >
+      <input
+        aria-label="Search"
+        autoFocus
+        value={search}
+        onChange={(event) => setSearch(event.target.value)}
+      />
+      {items.map((label) => (
+        <TestItem
+          key={label}
+          label={label}
+          onEnter={() => onEnter(label)}
+          onAction={isDefined(onAction) ? () => onAction(label) : undefined}
+        />
+      ))}
+    </SelectableList>
+  );
+};
+
+const renderMenu = ({
+  preselect,
+  onAction,
+}: {
+  preselect?: boolean;
+  onAction?: (label: string) => void;
+} = {}) => {
+  const store = createStore();
+  store.set(focusStackState.atom, [
+    {
+      focusId: FOCUS_ID,
+      componentInstance: {
+        componentType: FocusComponentType.DROPDOWN,
+        componentInstanceId: FOCUS_ID,
+      },
+      globalHotkeysConfig: {
+        enableGlobalHotkeysWithModifiers: true,
+        enableGlobalHotkeysConflictingWithKeyboard: true,
+      },
+    },
+  ]);
+  const onEnter = jest.fn();
+  const renderResult = render(
+    <StrictMode>
+      <Provider store={store}>
+        <TestMenu onEnter={onEnter} preselect={preselect} onAction={onAction} />
+      </Provider>
+    </StrictMode>,
+  );
+  return { ...renderResult, store, onEnter, user: userEvent.setup() };
+};
+
+describe('SelectableList preselection', () => {
+  it('selects the first item by default and activates it with Enter', async () => {
+    const { user, onEnter } = renderMenu();
+    expect(
+      screen.getByRole('button', { name: 'Alpha', pressed: true }),
+    ).toBeInTheDocument();
+    await user.keyboard('{Enter}');
+    expect(onEnter).toHaveBeenCalledWith('Alpha');
+    await user.keyboard('{ArrowDown}{Enter}');
+    expect(onEnter).toHaveBeenLastCalledWith('Beta');
+  });
+
+  it('lets the focused native button handle Enter and Space while another item is selected', async () => {
+    const { user, onEnter } = renderMenu();
+    const secondButton = screen.getByRole('button', { name: 'Beta' });
+
+    secondButton.focus();
+    await user.keyboard('{Enter}');
+    expect(onEnter).toHaveBeenCalledTimes(1);
+    expect(onEnter).toHaveBeenLastCalledWith('Beta');
+
+    await user.keyboard(' ');
+    expect(onEnter).toHaveBeenCalledTimes(2);
+    expect(onEnter).toHaveBeenLastCalledWith('Beta');
+  });
+
+  it('keeps a focused nested action native while another row is highlighted', async () => {
+    const onAction = jest.fn();
+    const { user, onEnter } = renderMenu({ onAction });
+
+    await user.keyboard('{ArrowDown}');
+    await user.click(screen.getByRole('button', { name: 'Alpha action' }));
+    onAction.mockClear();
+    await user.keyboard('{ArrowUp}{ArrowDown}{Enter}');
+
+    expect(onAction).toHaveBeenCalledTimes(1);
+    expect(onAction).toHaveBeenCalledWith('Alpha');
+    expect(onEnter).not.toHaveBeenCalled();
+    expect(screen.getByRole('button', { name: 'Alpha action' })).toHaveFocus();
+  });
+
+  it('selects the first remaining result and clears selection for empty results', async () => {
+    const { user, onEnter } = renderMenu();
+    await user.type(screen.getByRole('textbox', { name: 'Search' }), 'be');
+    expect(
+      screen.getByRole('button', { name: 'Beta', pressed: true }),
+    ).toBeInTheDocument();
+    await user.keyboard('{Enter}');
+    expect(onEnter).toHaveBeenCalledWith('Beta');
+    onEnter.mockClear();
+    await user.type(screen.getByRole('textbox', { name: 'Search' }), 'xyz');
+    await user.keyboard('{Enter}');
+    expect(onEnter).not.toHaveBeenCalled();
+    await user.clear(screen.getByRole('textbox', { name: 'Search' }));
+    await user.keyboard('{Enter}');
+    expect(onEnter).toHaveBeenCalledWith('Alpha');
+  });
+
+  it('starts at the first item when the menu reopens', async () => {
+    const { user, onEnter, store, unmount } = renderMenu();
+    await user.keyboard('{ArrowDown}{Enter}');
+    expect(onEnter).toHaveBeenLastCalledWith('Beta');
+    unmount();
+    render(
+      <Provider store={store}>
+        <TestMenu onEnter={onEnter} />
+      </Provider>,
+    );
+    expect(
+      screen.getByRole('button', { name: 'Alpha', pressed: true }),
+    ).toBeInTheDocument();
+    await user.keyboard('{Enter}');
+    expect(onEnter).toHaveBeenLastCalledWith('Alpha');
+  });
+
+  it('supports opting out of preselection', async () => {
+    const { user, onEnter } = renderMenu({ preselect: false });
+    await user.keyboard('{Enter}');
+    expect(onEnter).not.toHaveBeenCalled();
+    await user.keyboard('{ArrowDown}{Enter}');
+    expect(onEnter).toHaveBeenCalledWith('Alpha');
+  });
+});

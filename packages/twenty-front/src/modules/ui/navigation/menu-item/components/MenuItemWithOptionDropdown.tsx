@@ -1,53 +1,62 @@
-import { Dropdown } from '@/ui/layout/dropdown/components/Dropdown';
-import { type Placement } from '@floating-ui/react';
-import {
-  type FunctionComponent,
-  type MouseEvent,
-  type ReactElement,
-  type ReactNode,
-  useContext,
-} from 'react';
-import {
-  IconChevronRight,
-  type IconComponent,
-  IconDotsVertical,
-} from 'twenty-ui/icon';
-import { LightIconButton, type LightIconButtonProps } from 'twenty-ui/input';
-import {
-  type MenuItemAccent,
-  MenuItemLeftContent,
-  StyledHoverableMenuItemBase,
-  StyledMenuItemLeftContent,
-} from 'twenty-ui/navigation';
-import { ThemeContext } from 'twenty-ui/theme-constants';
+import { DropdownContent } from '@/ui/layout/dropdown/components/DropdownContent';
+import { DropdownRoot } from '@/ui/layout/dropdown/components/DropdownRoot';
+import { isDropdownOpenComponentState } from '@/ui/layout/dropdown/states/isDropdownOpenComponentState';
+import { useAtomComponentStateValue } from '@/ui/utilities/state/jotai/hooks/useAtomComponentStateValue';
+import { styled } from '@linaria/react';
+import { t } from '@lingui/core/macro';
+import { type MouseEvent } from 'react';
+import { isDefined } from 'twenty-shared/utils';
+import { LightIconButton } from 'twenty-ui/components/input';
+import { Dropdown } from 'twenty-ui/components/navigation';
+import { IconDotsVertical } from 'twenty-ui/icon';
+import { ListItem } from 'twenty-ui/primitives/navigation';
+import { themeCssVariables, useTheme } from 'twenty-ui/theme';
+import { type MenuItemWithOptionDropdownProps } from './types/MenuItemWithOptionDropdownProps';
 
-export type MenuItemIconButton = {
-  Wrapper?: FunctionComponent<{ iconButton: ReactElement }>;
-  Icon: IconComponent;
-  accent?: LightIconButtonProps['accent'];
-  onClick?: (event: MouseEvent<any>) => void;
-};
+const StyledMenuItemContainer = styled.div<{
+  focused: boolean;
+  showActions: boolean;
+}>`
+  align-items: center;
+  background: ${({ focused }) =>
+    focused ? themeCssVariables.background.transparent.light : 'transparent'};
+  border-radius: calc(
+    ${themeCssVariables.border.radius.md} - ${themeCssVariables.spacing[1]}
+  );
+  box-sizing: border-box;
+  display: flex;
+  gap: ${themeCssVariables.spacing[2]};
+  min-width: 0;
+  padding-inline: ${themeCssVariables.spacing[1]};
+  width: 100%;
 
-export type MenuItemWithOptionDropdownProps = {
-  accent?: MenuItemAccent;
-  className?: string;
-  dropdownContent: ReactNode;
-  dropdownId: string;
-  isIconDisplayedOnHoverOnly?: boolean;
-  isTooltipOpen?: boolean;
-  LeftIcon?: IconComponent | null;
-  RightIcon?: IconComponent | null;
-  onClick?: (event: MouseEvent<HTMLDivElement>) => void;
-  onMouseEnter?: (event: MouseEvent<HTMLDivElement>) => void;
-  onMouseLeave?: (event: MouseEvent<HTMLDivElement>) => void;
-  testId?: string;
-  text: ReactNode;
-  hasSubMenu?: boolean;
-  dropdownPlacement?: Placement;
-  selected?: boolean;
-};
+  &:hover {
+    background: ${themeCssVariables.background.transparent.light};
+  }
 
-// TODO: refactor this
+  .hoverable-buttons {
+    display: flex;
+  }
+
+  @media (hover: hover) and (pointer: fine) {
+    .hoverable-buttons {
+      opacity: ${({ showActions }) => (showActions ? 1 : 0)};
+    }
+
+    &:hover .hoverable-buttons,
+    &:focus-within .hoverable-buttons {
+      opacity: 1;
+    }
+  }
+`;
+
+const StyledPrimaryListItem = styled(ListItem)`
+  background: transparent;
+  flex: 1;
+  min-width: 0;
+  padding-inline: 0;
+`;
+
 export const MenuItemWithOptionDropdown = ({
   accent = 'default',
   className,
@@ -55,6 +64,7 @@ export const MenuItemWithOptionDropdown = ({
   dropdownContent,
   dropdownId,
   LeftIcon,
+  LeftComponent,
   RightIcon,
   onClick,
   onMouseEnter,
@@ -62,52 +72,69 @@ export const MenuItemWithOptionDropdown = ({
   testId,
   text,
   hasSubMenu = false,
-  dropdownPlacement = 'bottom-end',
+  dropdownSide = 'bottom',
+  dropdownAlign = 'end',
   selected = false,
 }: MenuItemWithOptionDropdownProps) => {
-  const { theme } = useContext(ThemeContext);
-  const handleMenuItemClick = (event: MouseEvent<HTMLDivElement>) => {
-    if (!onClick) return;
+  const theme = useTheme();
+  const isDropdownOpen = useAtomComponentStateValue(
+    isDropdownOpenComponentState,
+    dropdownId,
+  );
+  const handleMenuItemClick = (event: MouseEvent<HTMLButtonElement>) => {
     event.preventDefault();
     event.stopPropagation();
-
     onClick?.(event);
   };
 
   return (
-    <StyledHoverableMenuItemBase
+    <StyledMenuItemContainer
       data-testid={testId ?? undefined}
-      onClick={handleMenuItemClick}
       className={className}
-      accent={accent}
-      isIconDisplayedOnHoverOnly={isIconDisplayedOnHoverOnly}
       onMouseEnter={onMouseEnter}
       onMouseLeave={onMouseLeave}
       focused={selected}
+      showActions={!isIconDisplayedOnHoverOnly || isDropdownOpen}
     >
-      <StyledMenuItemLeftContent>
-        <MenuItemLeftContent LeftIcon={LeftIcon ?? undefined} text={text} />
-      </StyledMenuItemLeftContent>
+      <StyledPrimaryListItem
+        render={
+          isDefined(onClick) ? (
+            <button type="button" onClick={handleMenuItemClick} />
+          ) : undefined
+        }
+        color={accent === 'danger' ? 'danger' : 'neutral'}
+        focused={selected}
+        startIcon={
+          LeftComponent ??
+          (isDefined(LeftIcon) && <LeftIcon size={theme.icon.size.md} />)
+        }
+        hasSubmenu={hasSubMenu}
+      >
+        {text}
+      </StyledPrimaryListItem>
       <div className="hoverable-buttons">
-        <Dropdown
-          clickableComponent={
-            <LightIconButton
-              Icon={RightIcon ?? IconDotsVertical}
-              size="small"
-              accent="tertiary"
-            />
-          }
-          dropdownPlacement={dropdownPlacement}
-          dropdownComponents={dropdownContent}
-          dropdownId={dropdownId}
-        />
+        <DropdownRoot dropdownId={dropdownId} type="menu">
+          <Dropdown.Trigger
+            onClick={(event) => event.stopPropagation()}
+            render={
+              <LightIconButton
+                size="sm"
+                emphasis="subtle"
+                aria-label={t`More options`}
+              >
+                {isDefined(RightIcon) ? <RightIcon /> : <IconDotsVertical />}
+              </LightIconButton>
+            }
+          />
+          <DropdownContent
+            side={dropdownSide}
+            align={dropdownAlign}
+            onClick={(event) => event.stopPropagation()}
+          >
+            {dropdownContent}
+          </DropdownContent>
+        </DropdownRoot>
       </div>
-      {hasSubMenu && (
-        <IconChevronRight
-          size={theme.icon.size.sm}
-          color={theme.font.color.tertiary}
-        />
-      )}
-    </StyledHoverableMenuItemBase>
+    </StyledMenuItemContainer>
   );
 };

@@ -24,8 +24,7 @@ const PASSWORD = 'radicale-password';
 
 const authorizationHeader = `Basic ${Buffer.from(`${HANDLE}:${PASSWORD}`).toString('base64')}`;
 
-// A sync token the server no longer recognises, which drives the fallback from
-// an incremental sync-collection report to a full re-sync.
+// An unrecognised token forces the fallback from incremental sync to a full re-sync.
 const buildStaleSyncCursor = (collectionUrl: string) =>
   JSON.stringify({
     syncTokens: { [collectionUrl]: 'stale-sync-token' },
@@ -83,10 +82,9 @@ describe('CalDAV calendar events import (integration)', () => {
   };
 
   beforeAll(async () => {
-    // The CalDAV driver wraps its fetch in the SSRF guard, which rejects the
-    // container's private address before the request is made.
+    // The SSRF guard would otherwise reject the container's private address.
     await updateConfigVariable({
-      input: { key: 'OUTBOUND_HTTP_SAFE_MODE_ENABLED', value: false },
+      input: { key: 'OUTBOUND_HTTP_ALLOWED_INTERNAL_HOSTS', value: ['*'] },
     });
 
     radicale = await startRadicaleContainer({
@@ -136,7 +134,7 @@ describe('CalDAV calendar events import (integration)', () => {
 
   afterAll(async () => {
     await updateConfigVariable({
-      input: { key: 'OUTBOUND_HTTP_SAFE_MODE_ENABLED', value: true },
+      input: { key: 'OUTBOUND_HTTP_ALLOWED_INTERNAL_HOSTS', value: [] },
     }).catch(() => undefined);
 
     if (isNonEmptyString(connectedAccountId)) {

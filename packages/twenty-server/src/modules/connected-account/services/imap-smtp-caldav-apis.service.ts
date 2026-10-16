@@ -36,8 +36,8 @@ import {
 } from 'src/modules/messaging/message-import-manager/jobs/messaging-message-list-fetch.job';
 
 @Injectable()
-export class ImapSmtpCalDavAPIService {
-  private readonly logger = new Logger(ImapSmtpCalDavAPIService.name);
+export class ImapSmtpCalDavApiService {
+  private readonly logger = new Logger(ImapSmtpCalDavApiService.name);
 
   constructor(
     @InjectRepository(CalendarChannelEntity)
@@ -65,9 +65,6 @@ export class ImapSmtpCalDavAPIService {
     handle: string;
     userWorkspaceId: string;
     workspaceId: string;
-    // Caller (resolver) has already validated the input through
-    // `ImapSmtpCaldavService.validateAndTestConnectionParameters`, which
-    // produces fully plaintext passwords ready for re-encryption.
     connectionParameters: PlaintextImapSmtpCaldavParams;
     existingAccount?: ConnectedAccountEntity | null;
   }): Promise<string> {
@@ -135,6 +132,7 @@ export class ImapSmtpCalDavAPIService {
           userWorkspaceId,
           workspaceId,
           authFailedAt: null,
+          authFailedReason: null,
           archivedAt: null,
         });
 

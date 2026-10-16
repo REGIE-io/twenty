@@ -1,5 +1,6 @@
 import { type Meta, type StoryObj } from '@storybook/react-vite';
 import { HttpResponse, graphql } from 'msw';
+import { expect, within } from 'storybook/test';
 
 import {
   PageDecorator,
@@ -8,6 +9,7 @@ import {
 import { graphqlMocks } from '~/testing/graphqlMocks';
 
 import { SettingsAccountsEmails } from '~/pages/settings/accounts/SettingsAccountsEmails';
+import { seedAccountGroupsStory } from '~/pages/settings/accounts/__stories__/mockedAccountGroups';
 
 const meta: Meta<PageDecoratorArgs> = {
   title: 'Pages/Settings/Accounts/SettingsAccountsEmails',
@@ -42,12 +44,14 @@ export const TwoConnectedAccounts: Story = {
                   handle: 'test.test@gmail.com',
                   provider: 'google',
                   authFailedAt: null,
+                  authFailedReason: null,
                   archivedAt: null,
                   scopes: ['email'],
                   handleAliases: '',
                   lastSignedInAt: null,
                   userWorkspaceId: '20202020-03f2-4d83-b0d5-2ec2bcee72d4',
                   connectionProviderId: null,
+                  applicationId: null,
                   name: 'Test User',
                   visibility: 'SHARE_EVERYTHING',
                   lastCredentialsRefreshedAt: null,
@@ -67,7 +71,7 @@ export const TwoConnectedAccounts: Story = {
                   id: '20202020-ef5a-4822-9e08-ce6e6a4dcb6f',
                   handle: 'test.test@gmail.com',
                   connectedAccountId: '20202020-954c-4d76-9a87-e5f072d4b7ef',
-                  type: 'email',
+                  type: 'EMAIL',
                   isSyncEnabled: true,
                   syncStage: 'MESSAGE_LIST_FETCH_PENDING',
                   syncStatus: 'COMPLETED',
@@ -83,7 +87,7 @@ export const TwoConnectedAccounts: Story = {
                   id: '20202020-ef5a-4822-9e08-ce6e6a4dcb6a',
                   handle: 'test.test2@gmail.com',
                   connectedAccountId: '20202020-954c-4d76-9a87-e5f072d4b7ef',
-                  type: 'email',
+                  type: 'EMAIL',
                   isSyncEnabled: true,
                   syncStage: 'MESSAGE_LIST_FETCH_PENDING',
                   syncStatus: 'COMPLETED',
@@ -108,5 +112,21 @@ export const TwoConnectedAccounts: Story = {
         }),
       ],
     },
+  },
+};
+
+export const RedirectsToAppPreferencesWhenFlagIsOn: Story = {
+  args: {
+    additionalRoutes: ['/settings/accounts'],
+  },
+  beforeEach: seedAccountGroupsStory,
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+
+    expect(
+      await canvas.findByText('Navigated to /settings/accounts', undefined, {
+        timeout: 3000,
+      }),
+    ).toBeVisible();
   },
 };

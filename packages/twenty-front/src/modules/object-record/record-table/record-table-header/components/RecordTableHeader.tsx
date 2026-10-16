@@ -1,3 +1,4 @@
+import { FieldDescriptionTooltipProvider } from '@/object-record/record-field/ui/components/FieldDescriptionTooltipProvider';
 import { RECORD_TABLE_ROW_HEIGHT } from '@/object-record/record-table/constants/RecordTableRowHeight';
 import { TABLE_Z_INDEX } from '@/object-record/record-table/constants/TableZIndex';
 import { RecordTableHeaderCheckboxColumn } from '@/object-record/record-table/record-table-header/components/RecordTableHeaderCheckboxColumn';
@@ -9,10 +10,9 @@ import { useIsRecordTableCheckboxColumnHidden } from '@/object-record/record-tab
 import { isRecordTableDragColumnHiddenComponentState } from '@/object-record/record-table/states/isRecordTableDragColumnHiddenComponentState';
 import { useAtomComponentStateValue } from '@/ui/utilities/state/jotai/hooks/useAtomComponentStateValue';
 import { styled } from '@linaria/react';
-import { themeCssVariables } from 'twenty-ui/theme-constants';
+import { themeCssVariables } from 'twenty-ui/theme';
 
-// The header takes the first slot of the virtualized row grid, whose pitch is
-// RECORD_TABLE_ROW_HEIGHT + 1 (row plus its bottom border).
+// Takes the first slot of the virtualized row grid, pitched at RECORD_TABLE_ROW_HEIGHT + 1 (bottom border).
 const StyledHeaderContainer = styled.div`
   background-color: ${themeCssVariables.background.primary};
   box-shadow: 0 -1px 0 ${themeCssVariables.background.primary};
@@ -35,13 +35,15 @@ export const RecordTableHeader = () => {
   useResizeTableHeader();
 
   return (
-    <StyledHeaderContainer>
-      {!isRecordTableDragColumnHidden && <RecordTableHeaderDragDropColumn />}
-      {!isRecordTableCheckboxColumnHidden && (
-        <RecordTableHeaderCheckboxColumn />
-      )}
-      <RecordTableHeaderFirstCell />
-      <RecordTableHeaderDnd />
-    </StyledHeaderContainer>
+    <FieldDescriptionTooltipProvider>
+      <StyledHeaderContainer>
+        {!isRecordTableDragColumnHidden && <RecordTableHeaderDragDropColumn />}
+        {!isRecordTableCheckboxColumnHidden && (
+          <RecordTableHeaderCheckboxColumn />
+        )}
+        <RecordTableHeaderFirstCell />
+        <RecordTableHeaderDnd />
+      </StyledHeaderContainer>
+    </FieldDescriptionTooltipProvider>
   );
 };

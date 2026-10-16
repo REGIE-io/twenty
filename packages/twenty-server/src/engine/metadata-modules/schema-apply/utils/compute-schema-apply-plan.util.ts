@@ -1,8 +1,8 @@
+import { FieldMetadataType, IndexType } from 'twenty-shared/types';
 import isEqual from 'lodash.isequal';
-import { FieldMetadataType } from 'twenty-shared/types';
+
 import { isDefined } from 'twenty-shared/utils';
 
-import { IndexType } from 'src/engine/metadata-modules/index-metadata/types/indexType.types';
 import { PARTIAL_SYSTEM_FLAT_FIELD_METADATAS } from 'src/engine/metadata-modules/object-metadata/constants/partial-system-flat-field-metadatas.constant';
 import { type ApplySchemaFieldInput } from 'src/engine/metadata-modules/schema-apply/dtos/apply-schema-field.input';
 import { type ApplySchemaInput } from 'src/engine/metadata-modules/schema-apply/dtos/apply-schema.input';

@@ -20,6 +20,8 @@ export type CurrentWorkspace = Pick<
   | 'currentBillingSubscription'
   | 'workspaceMembersCount'
   | 'isPublicInviteLinkEnabled'
+  | 'isCampaignClickTrackingEnabled'
+  | 'isCampaignOpenTrackingEnabled'
   | 'workspaceDiscoverability'
   | 'isGoogleAuthEnabled'
   | 'isGoogleAuthBypassEnabled'
@@ -36,19 +38,19 @@ export type CurrentWorkspace = Pick<
   | 'isTwoFactorAuthenticationEnforced'
   | 'trashRetentionDays'
   | 'eventLogRetentionDays'
-  | 'fastModel'
-  | 'smartModel'
+  | 'aiChatModelTier'
+  | 'aiAgentModelTier'
+  | 'isAutoModelSelectionEnabled'
+  | 'aiModelIdByTier'
   | 'aiAdditionalInstructions'
   | 'editableProfileFields'
-  | 'enabledAiModelIds'
-  | 'useRecommendedModels'
   | 'isInternalMessagesImportEnabled'
 > & {
   defaultRole?: Omit<Role, 'workspaceMembers' | 'agents' | 'apiKeys'> | null;
   workspaceCustomApplication: Pick<Application, 'id'> | null;
   installedApplications: Pick<
     Application,
-    'id' | 'name' | 'universalIdentifier' | 'logoUrl'
+    'id' | 'name' | 'universalIdentifier' | 'logoUrl' | 'createdAt'
   >[];
 };
 

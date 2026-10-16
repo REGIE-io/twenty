@@ -1,10 +1,9 @@
+import { type FindOneOptions } from 'typeorm';
 import { Injectable } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
 
 import { STANDARD_OBJECTS } from 'twenty-shared/metadata';
 import { FieldMetadataType } from 'twenty-shared/types';
 import { isDefined } from 'twenty-shared/utils';
-import { type FindOneOptions, type Repository } from 'typeorm';
 
 import { ApplicationService } from 'src/engine/core-modules/application/application.service';
 import { PhoneSearchMetadataGateService } from 'src/engine/core-modules/phone-search-index/services/phone-search-metadata-gate.service';
@@ -42,12 +41,14 @@ import {
 type CreateFieldTranspilationArgs = Parameters<
   typeof fromCreateFieldInputToFlatFieldMetadatasToCreate
 >[0];
+import { InjectWorkspaceScopedRepository } from 'src/engine/twenty-orm/workspace-scoped-repository/inject-workspace-scoped-repository.decorator';
+import { WorkspaceScopedRepository } from 'src/engine/twenty-orm/workspace-scoped-repository/workspace-scoped-repository';
 
 @Injectable()
 export class FieldMetadataService {
   constructor(
-    @InjectRepository(FieldMetadataEntity)
-    private readonly fieldMetadataRepository: Repository<FieldMetadataEntity>,
+    @InjectWorkspaceScopedRepository(FieldMetadataEntity)
+    private readonly fieldMetadataRepository: WorkspaceScopedRepository<FieldMetadataEntity>,
     private readonly flatEntityMapsCacheService: WorkspaceManyOrAllFlatEntityMapsCacheService,
     private readonly workspaceMigrationValidateBuildAndRunService: WorkspaceMigrationValidateBuildAndRunService,
     private readonly applicationService: ApplicationService,
@@ -66,9 +67,8 @@ export class FieldMetadataService {
     objectMetadataId?: string;
     limit: number;
   }): Promise<FieldMetadataEntity[]> {
-    return this.fieldMetadataRepository.find({
+    return this.fieldMetadataRepository.find(workspaceId, {
       where: {
-        workspaceId,
         ...(isDefined(fieldMetadataId) ? { id: fieldMetadataId } : {}),
         ...(isDefined(objectMetadataId) ? { objectMetadataId } : {}),
       },
@@ -232,13 +232,12 @@ export class FieldMetadataService {
     isSystemBuild?: boolean;
     ownerFlatApplication?: FlatApplication;
   }): Promise<FlatFieldMetadata> {
+    const { workspaceCustomFlatApplication } =
+      await this.applicationService.findWorkspaceTwentyStandardAndCustomApplicationOrThrow(
+        { workspaceId },
+      );
     const resolvedOwnerFlatApplication =
-      ownerFlatApplication ??
-      (
-        await this.applicationService.findWorkspaceTwentyStandardAndCustomApplicationOrThrow(
-          { workspaceId },
-        )
-      ).workspaceCustomFlatApplication;
+      ownerFlatApplication ?? workspaceCustomFlatApplication;
 
     const flatEntityMaps = await this.getFieldUpdateFlatEntityMaps(workspaceId);
     const transpilation = this.transpileUpdateFieldInputOrThrow({
@@ -384,20 +383,30 @@ export class FieldMetadataService {
   }
 
   async getFieldUpdateFlatEntityMaps(workspaceId: string) {
-    return this.flatEntityMapsCacheService.getOrRecomputeManyOrAllFlatEntityMaps(
-      {
-        workspaceId,
-        flatMapsKeys: [
-          'flatObjectMetadataMaps',
-          'flatIndexMaps',
-          'flatFieldMetadataMaps',
-          'flatViewFilterMaps',
-          'flatViewGroupMaps',
-          'flatViewMaps',
-          'flatViewFieldMaps',
-        ],
-      },
-    );
+    const { workspaceCustomFlatApplication } =
+      await this.applicationService.findWorkspaceTwentyStandardAndCustomApplicationOrThrow(
+        { workspaceId },
+      );
+    const maps =
+      await this.flatEntityMapsCacheService.getOrRecomputeManyOrAllFlatEntityMaps(
+        {
+          workspaceId,
+          flatMapsKeys: [
+            'flatObjectMetadataMaps',
+            'flatIndexMaps',
+            'flatFieldMetadataMaps',
+            'flatViewFilterMaps',
+            'flatViewGroupMaps',
+            'flatViewMaps',
+            'flatViewFieldMaps',
+          ],
+        },
+      );
+    return {
+      ...maps,
+      workspaceCustomApplicationUniversalIdentifier:
+        workspaceCustomFlatApplication.universalIdentifier,
+    };
   }
 
   transpileUpdateFieldInputOrThrow({
@@ -426,6 +435,8 @@ export class FieldMetadataService {
       flatViewFieldMaps: flatEntityMaps.flatViewFieldMaps,
       flatApplication,
       isSystemBuild,
+      workspaceCustomApplicationUniversalIdentifier:
+        flatEntityMaps.workspaceCustomApplicationUniversalIdentifier,
     });
 
     if (inputTranspilationResult.status === 'fail') {
@@ -625,13 +636,10 @@ export class FieldMetadataService {
     workspaceId: string,
     options: FindOneOptions<FieldMetadataEntity>,
   ) {
-    const [fieldMetadata] = await this.fieldMetadataRepository.find({
-      ...options,
-      where: {
-        ...options.where,
-        workspaceId,
-      },
-    });
+    const [fieldMetadata] = await this.fieldMetadataRepository.find(
+      workspaceId,
+      options,
+    );
 
     return fieldMetadata;
   }

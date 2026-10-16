@@ -1,11 +1,16 @@
 import { Field, InputType } from '@nestjs/graphql';
 
+import GraphQLJSON from 'graphql-type-json';
+import { type AiModelTier } from 'twenty-shared/ai';
+import { EVENT_LOG_RETENTION } from 'twenty-shared/constants';
+
 import {
   IsArray,
   IsBoolean,
   IsEnum,
   IsInt,
   IsOptional,
+  IsObject,
   IsString,
   IsUUID,
   Matches,
@@ -15,6 +20,7 @@ import {
 
 import { UUIDScalarType } from 'src/engine/api/graphql/workspace-schema-builder/graphql-types/scalars';
 import { WorkspaceDiscoverability } from 'src/engine/core-modules/workspace/types/workspace-discoverability.type';
+import { AiModelTier as AiModelTierEnum } from 'src/engine/metadata-modules/ai/ai-models/types/ai-model-tier.enum';
 
 @InputType()
 export class UpdateWorkspaceInput {
@@ -50,6 +56,16 @@ export class UpdateWorkspaceInput {
   @IsBoolean()
   @IsOptional()
   isPublicInviteLinkEnabled?: boolean;
+
+  @Field({ nullable: true })
+  @IsBoolean()
+  @IsOptional()
+  isCampaignClickTrackingEnabled?: boolean;
+
+  @Field({ nullable: true })
+  @IsBoolean()
+  @IsOptional()
+  isCampaignOpenTrackingEnabled?: boolean;
 
   @Field(() => WorkspaceDiscoverability, { nullable: true })
   @IsEnum(WorkspaceDiscoverability)
@@ -109,20 +125,35 @@ export class UpdateWorkspaceInput {
 
   @Field({ nullable: true })
   @IsInt()
-  @Min(30) // Minimum 30 days retention for audit compliance
-  @Max(1095) // Maximum 3 years (matches ClickHouse table-level TTL)
+  @Min(EVENT_LOG_RETENTION.minInDays)
+  @Max(EVENT_LOG_RETENTION.maxInDays)
   @IsOptional()
   eventLogRetentionDays?: number;
 
-  @Field({ nullable: true })
-  @IsString()
+  @Field(() => AiModelTierEnum, { nullable: true })
+  @IsEnum(AiModelTierEnum)
   @IsOptional()
-  fastModel?: string;
+  aiChatModelTier?: AiModelTier;
+
+  @Field(() => AiModelTierEnum, { nullable: true })
+  @IsEnum(AiModelTierEnum)
+  @IsOptional()
+  aiAgentModelTier?: AiModelTier;
+
+  @Field({ nullable: true })
+  @IsBoolean()
+  @IsOptional()
+  isAutoModelSelectionEnabled?: boolean;
+
+  @Field(() => GraphQLJSON, { nullable: true })
+  @IsObject()
+  @IsOptional()
+  aiModelIdByTier?: Partial<Record<AiModelTier, string>>;
 
   @Field({ nullable: true })
   @IsString()
   @IsOptional()
-  smartModel?: string;
+  aiEvaluationModelId?: string;
 
   @Field({ nullable: true })
   @IsString()
@@ -134,17 +165,6 @@ export class UpdateWorkspaceInput {
   @IsString({ each: true })
   @IsOptional()
   editableProfileFields?: string[];
-
-  @Field(() => [String], { nullable: true })
-  @IsArray()
-  @IsString({ each: true })
-  @IsOptional()
-  enabledAiModelIds?: string[];
-
-  @Field({ nullable: true })
-  @IsBoolean()
-  @IsOptional()
-  useRecommendedModels?: boolean;
 
   @Field({ nullable: true })
   @IsBoolean()

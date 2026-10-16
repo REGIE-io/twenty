@@ -1,68 +1,60 @@
 import { styled } from '@linaria/react';
-import { themeCssVariables } from 'twenty-ui/theme-constants';
+import { useParams } from 'react-router-dom';
+import { isDefined } from 'twenty-shared/utils';
+import { useIsMobile } from 'twenty-ui/utilities';
 
-import { AiChatPageCloseAskAiPanelEffect } from '@/ai/components/AiChatPageCloseAskAiPanelEffect';
-import { AiChatPageContinueInSidePanelEffect } from '@/ai/components/AiChatPageContinueInSidePanelEffect';
+import { AiChatCloseButton } from '@/ai/components/AiChatCloseButton';
 import { AiChatPageHeader } from '@/ai/components/AiChatPageHeader';
-import { AiChatPageThreadUrlSyncEffect } from '@/ai/components/AiChatPageThreadUrlSyncEffect';
 import { AiChatTab } from '@/ai/components/AiChatTab';
 import { AI_CHAT_SURFACE } from '@/ai/constants/AiChatSurface';
-import { AiChatMessageListPreambleContext } from '@/ai/contexts/AiChatMessageListPreambleContext';
 import { AiChatSurfaceContext } from '@/ai/contexts/AiChatSurfaceContext';
-import { WorkspaceSetupChatPreamble } from '@/onboarding/components/WorkspaceSetupChatPreamble';
-import { WorkspaceSetupChatKickoffEffect } from '@/onboarding/effect-components/WorkspaceSetupChatKickoffEffect';
-import { shouldOpenAiChatAfterOnboardingState } from '@/onboarding/states/shouldOpenAiChatAfterOnboardingState';
+import { useIsOnNewAiChatSlot } from '@/ai/hooks/useIsOnNewAiChatSlot';
+import { currentAiChatThreadState } from '@/ai/states/currentAiChatThreadState';
+import { getDisplayedAiChatThreadId } from '@/ai/utils/getDisplayedAiChatThreadId';
+import { PageCardLayout } from '@/ui/layout/page/components/PageCardLayout';
 import { useAtomStateValue } from '@/ui/utilities/state/jotai/hooks/useAtomStateValue';
+import { AiChatPageEffects } from '~/pages/ai-chat/AiChatPageEffects';
+import { AiChatThreadPageContent } from '~/pages/ai-chat/AiChatThreadPageContent';
 
-const PANEL_CORNER_RADIUS_DERIVED_FROM_THEME_SCALE = `calc(${themeCssVariables.border.radius.md} + ${themeCssVariables.spacing[1]})`;
+const StyledChatContainer = styled.div`
+  --ai-chat-content-max-width: 768px;
 
-const StyledPanel = styled.div`
-  background: ${themeCssVariables.background.primary};
-  border-left: 1px solid ${themeCssVariables.border.color.medium};
-  border-radius: ${PANEL_CORNER_RADIUS_DERIVED_FROM_THEME_SCALE} 0 0
-    ${PANEL_CORNER_RADIUS_DERIVED_FROM_THEME_SCALE};
   display: flex;
   flex: 1;
   flex-direction: column;
-  min-width: 0;
-  overflow: hidden;
-`;
-
-const StyledCenteredChatContainer = styled.div`
-  display: flex;
-  flex: 1;
-  flex-direction: column;
-  margin: 0 auto;
-  max-width: 768px;
   min-height: 0;
   width: 100%;
 `;
 
 export const AiChatPage = () => {
-  const shouldOpenAiChatAfterOnboarding = useAtomStateValue(
-    shouldOpenAiChatAfterOnboardingState,
-  );
+  const { threadId } = useParams();
+  const currentAiChatThread = useAtomStateValue(currentAiChatThreadState);
+  const isOnNewAiChatSlot = useIsOnNewAiChatSlot();
+  const isMobile = useIsMobile();
+  const displayedThreadId = getDisplayedAiChatThreadId({
+    urlThreadId: threadId,
+    currentAiChatThread,
+    isOnNewAiChatSlot,
+  });
 
   return (
-    <StyledPanel>
-      <AiChatPageThreadUrlSyncEffect />
-      <AiChatPageCloseAskAiPanelEffect />
-      <AiChatPageContinueInSidePanelEffect />
-      {shouldOpenAiChatAfterOnboarding && <WorkspaceSetupChatKickoffEffect />}
-      <AiChatPageHeader isOnboarding={shouldOpenAiChatAfterOnboarding} />
-      <StyledCenteredChatContainer>
-        <AiChatMessageListPreambleContext.Provider
-          value={
-            shouldOpenAiChatAfterOnboarding ? (
-              <WorkspaceSetupChatPreamble />
-            ) : null
-          }
-        >
-          <AiChatSurfaceContext.Provider value={AI_CHAT_SURFACE.PAGE}>
-            <AiChatTab />
-          </AiChatSurfaceContext.Provider>
-        </AiChatMessageListPreambleContext.Provider>
-      </StyledCenteredChatContainer>
-    </StyledPanel>
+    <>
+      <AiChatPageEffects />
+      {isDefined(displayedThreadId) ? (
+        <AiChatThreadPageContent
+          threadId={displayedThreadId}
+          headerActions={isMobile && <AiChatCloseButton />}
+        />
+      ) : (
+        // A new chat has no record until its first message is sent
+        <PageCardLayout header={<AiChatPageHeader />}>
+          <StyledChatContainer>
+            <AiChatSurfaceContext.Provider value={AI_CHAT_SURFACE.PAGE}>
+              <AiChatTab />
+            </AiChatSurfaceContext.Provider>
+          </StyledChatContainer>
+        </PageCardLayout>
+      )}
+    </>
   );
 };

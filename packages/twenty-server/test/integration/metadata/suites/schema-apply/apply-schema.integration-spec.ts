@@ -1,7 +1,7 @@
 import { updateOneFieldMetadata } from 'test/integration/metadata/suites/field-metadata/utils/update-one-field-metadata.util';
 import { deleteOneObjectMetadata } from 'test/integration/metadata/suites/object-metadata/utils/delete-one-object-metadata.util';
 import { updateOneObjectMetadata } from 'test/integration/metadata/suites/object-metadata/utils/update-one-object-metadata.util';
-import { makeRestAPIRequest } from 'test/integration/rest/utils/make-rest-api-request.util';
+import { makeRestApiRequest } from 'test/integration/rest/utils/make-rest-api-request.util';
 import { FieldMetadataType } from 'twenty-shared/types';
 
 import { SEED_APPLE_WORKSPACE_ID } from 'src/engine/workspace-manager/dev-seeder/core/constants/seeder-workspaces.constant';
@@ -160,7 +160,7 @@ const findSchemaApplyObjectIds = async (): Promise<string[]> => {
 };
 
 const applySchema = () =>
-  makeRestAPIRequest({
+  makeRestApiRequest({
     method: 'post',
     path: '/metadata/schema/apply',
     body: SCHEMA,
@@ -240,7 +240,7 @@ describe('Schema apply', () => {
       );
     const [{ count: commandMenuItemCount }]: { count: number }[] =
       await global.testDataSource.query(
-        `SELECT count(*)::int AS count FROM core."commandMenuItem" WHERE payload->>'objectMetadataItemId' = ANY($1::text[])`,
+        `SELECT count(*)::int AS count FROM core."commandMenuItem" WHERE "navigationTargetObjectMetadataId" = ANY($1::uuid[])`,
         [objectIds],
       );
     const indexViewFieldNames: { name: string }[] =
@@ -317,7 +317,7 @@ describe('Schema apply', () => {
   });
 
   it('rejects a field whose type differs from the existing one', async () => {
-    const response = await makeRestAPIRequest({
+    const response = await makeRestApiRequest({
       method: 'post',
       path: '/metadata/schema/apply',
       body: {

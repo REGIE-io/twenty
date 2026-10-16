@@ -2,20 +2,21 @@ import { styled } from '@linaria/react';
 import { useLingui } from '@lingui/react/macro';
 import { isDefined } from 'twenty-shared/utils';
 import { workflowRunStepLogSchema } from 'twenty-shared/workflow';
+import { JsonTree } from 'twenty-ui/components/data-display';
 import { IconInfoCircle } from 'twenty-ui/icon';
-import { isTwoFirstDepths, JsonTree } from 'twenty-ui/json-visualizer';
-import { themeCssVariables } from 'twenty-ui/theme-constants';
+import { themeCssVariables } from 'twenty-ui/theme';
 import { type JsonValue } from 'type-fest';
 
 import { useFlowOrThrow } from '@/workflow/hooks/useFlowOrThrow';
 import { useWorkflowRunIdOrThrow } from '@/workflow/hooks/useWorkflowRunIdOrThrow';
 import { useWorkflowRunStepLog } from '@/workflow/hooks/useWorkflowRunStepLog';
+import { getIsDescendantOfIterator } from '@/workflow/workflow-steps/utils/getIsDescendantOfIterator';
+import { WorkflowRunStepAiAgentConversationButton } from '@/workflow/workflow-steps/workflow-actions/ai-agent-action/components/WorkflowRunStepAiAgentConversationButton';
 import { WorkflowRunStepLogsAiAgentDetail } from '@/workflow/workflow-steps/workflow-actions/ai-agent-action/components/WorkflowRunStepLogsAiAgentDetail';
 import { WorkflowRunStepLogsCodeDetail } from '@/workflow/workflow-steps/workflow-actions/code-action/components/WorkflowRunStepLogsCodeDetail';
 import { WorkflowRunStepLogsEmailDetail } from '@/workflow/workflow-steps/workflow-actions/components/WorkflowRunStepLogsEmailDetail';
 import { WorkflowRunStepLogsEntries } from '@/workflow/workflow-steps/workflow-actions/components/WorkflowRunStepLogsEntries';
 import { WorkflowRunStepLogsHttpRequestDetail } from '@/workflow/workflow-steps/workflow-actions/http-request-action/components/WorkflowRunStepLogsHttpRequestDetail';
-import { getIsDescendantOfIterator } from '@/workflow/workflow-steps/utils/getIsDescendantOfIterator';
 import { useCopyToClipboard } from '~/hooks/useCopyToClipboard';
 
 const StyledRoot = styled.div`
@@ -62,6 +63,7 @@ export const WorkflowRunStepLogsDetail = ({ stepId }: { stepId: string }) => {
           <IconInfoCircle size={20} />
           <div>{t`No logs were recorded for this step.`}</div>
         </StyledEmptyState>
+        <WorkflowRunStepAiAgentConversationButton stepId={stepId} />
       </StyledRoot>
     );
   }
@@ -73,7 +75,6 @@ export const WorkflowRunStepLogsDetail = ({ stepId }: { stepId: string }) => {
       <StyledRoot>
         <JsonTree
           value={rawStepLog as JsonValue}
-          shouldExpandNodeInitially={isTwoFirstDepths}
           emptyArrayLabel={t`Empty Array`}
           emptyObjectLabel={t`Empty Object`}
           emptyStringLabel={t`[empty string]`}
@@ -94,7 +95,15 @@ export const WorkflowRunStepLogsDetail = ({ stepId }: { stepId: string }) => {
   const renderDetails = () => {
     switch (stepLog.details.type) {
       case 'AI_AGENT':
-        return <WorkflowRunStepLogsAiAgentDetail details={stepLog.details} />;
+        return (
+          <>
+            <WorkflowRunStepAiAgentConversationButton
+              stepId={stepId}
+              stepLogThreadId={stepLog.details.threadId}
+            />
+            <WorkflowRunStepLogsAiAgentDetail details={stepLog.details} />
+          </>
+        );
       case 'CODE':
         return <WorkflowRunStepLogsCodeDetail details={stepLog.details} />;
       case 'HTTP_REQUEST':
@@ -107,7 +116,6 @@ export const WorkflowRunStepLogsDetail = ({ stepId }: { stepId: string }) => {
         return (
           <JsonTree
             value={stepLog.details as JsonValue}
-            shouldExpandNodeInitially={isTwoFirstDepths}
             emptyArrayLabel={t`Empty Array`}
             emptyObjectLabel={t`Empty Object`}
             emptyStringLabel={t`[empty string]`}

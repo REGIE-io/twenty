@@ -50,6 +50,14 @@ export const useRunWorkflowRunOpeningInSidePanelEffects = () => {
         return;
       }
 
+      const workflowId =
+        workflowRunRecord.coreWorkflowId ?? workflowRunRecord.workflowId;
+      const workflowVersionId =
+        workflowRunRecord.coreWorkflowVersionId ??
+        workflowRunRecord.workflowVersionId;
+      if (!isDefined(workflowId) || !isDefined(workflowVersionId)) {
+        return;
+      }
       const { stepToOpenByDefault } = generateWorkflowRunDiagram({
         steps: workflowRunRecord.state.flow.steps,
         stepInfos: workflowRunRecord.state.stepInfos,
@@ -74,14 +82,14 @@ export const useRunWorkflowRunOpeningInSidePanelEffects = () => {
         workflowVisualizerWorkflowIdComponentState.atomFamily({
           instanceId,
         }),
-        workflowRunRecord.workflowId,
+        workflowId,
       );
       store.set(
         flowComponentState.atomFamily({
           instanceId,
         }),
         {
-          workflowVersionId: workflowRunRecord.workflowVersionId,
+          workflowVersionId,
           trigger: workflowRunRecord.state.flow.trigger,
           steps: workflowRunRecord.state.flow.steps,
         },
@@ -106,7 +114,7 @@ export const useRunWorkflowRunOpeningInSidePanelEffects = () => {
         ],
       );
       openWorkflowRunViewStepInSidePanel({
-        workflowId: workflowRunRecord.workflowId,
+        workflowId,
         workflowRunId: workflowRunRecord.id,
         title: stepToOpenByDefault.data.name,
         icon: getIcon(getWorkflowNodeIconKey(stepToOpenByDefault.data)),

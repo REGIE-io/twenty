@@ -2,6 +2,7 @@
 
 import { Injectable, Logger } from '@nestjs/common';
 
+import { isNonEmptyString } from '@sniptt/guards';
 import { isDefined } from 'twenty-shared/utils';
 import type Stripe from 'stripe';
 
@@ -45,13 +46,18 @@ export class StripeCustomerService {
     return paymentMethods.length > 0;
   }
 
-  async createSetupIntent(
-    stripeCustomerId: string,
-  ): Promise<Stripe.SetupIntent> {
+  async createSetupIntent({
+    stripeCustomerId,
+    workspaceId,
+  }: {
+    stripeCustomerId: string;
+    workspaceId: string;
+  }): Promise<Stripe.SetupIntent> {
     return await this.stripe.setupIntents.create({
       customer: stripeCustomerId,
       usage: 'off_session',
       automatic_payment_methods: { enabled: true },
+      metadata: { workspaceId },
     });
   }
 
@@ -81,20 +87,39 @@ export class StripeCustomerService {
     });
   }
 
-  async createStripeCustomer(
-    userEmail: string,
-    workspaceId: string,
-    customerName: string | undefined,
-  ) {
+  async setDefaultPaymentMethod({
+    stripeCustomerId,
+    stripePaymentMethodId,
+  }: {
+    stripeCustomerId: string;
+    stripePaymentMethodId: string;
+  }): Promise<void> {
+    await this.stripe.customers.update(stripeCustomerId, {
+      invoice_settings: { default_payment_method: stripePaymentMethodId },
+    });
+  }
+
+  async createStripeCustomer({
+    userEmail,
+    workspaceId,
+    customerName,
+    partner,
+  }: {
+    userEmail: string;
+    workspaceId: string;
+    customerName: string | undefined;
+    partner?: string;
+  }) {
     const customer = await this.stripe.customers.create({
       name: customerName,
       email: userEmail,
       metadata: {
         workspaceId,
+        ...(isNonEmptyString(partner) ? { partner } : {}),
       },
     });
 
-    await this.billingCustomerRepository.save(workspaceId, {
+    await this.billingCustomerRepository.insert(workspaceId, {
       stripeCustomerId: customer.id,
       hasPaymentMethod: false,
     });

@@ -4,7 +4,7 @@ import request from 'supertest';
 
 import { type TwentyConfigService } from 'src/engine/core-modules/twenty-config/twenty-config.service';
 
-import { makeRestAPIRequest } from 'test/integration/rest/utils/make-rest-api-request.util';
+import { makeRestApiRequest } from 'test/integration/rest/utils/make-rest-api-request.util';
 import { getAppProviderByClassName } from 'test/integration/utils/get-app-provider-by-class-name.util';
 
 jest.useRealTimers();
@@ -113,7 +113,7 @@ describe('internal workspace rename and lookup', () => {
     expect(repeatResponse.status).toBe(200);
     expect(repeatResponse.body.workspaceSubdomain).toBe(tenantSlug);
 
-    const recordsResponse = await makeRestAPIRequest({
+    const recordsResponse = await makeRestApiRequest({
       method: 'get',
       path: '/companies?limit=1',
       bearer: pooled.apiKey,

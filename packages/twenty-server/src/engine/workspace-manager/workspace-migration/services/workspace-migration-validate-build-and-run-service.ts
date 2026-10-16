@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 
 import {
+  ALL_METADATA_NAME,
   AllMetadataName,
   STANDARD_OBJECTS,
   WorkspaceMigrationV2ExceptionCode,
@@ -54,6 +55,7 @@ type ValidateBuildAndRunWorkspaceMigrationFromRecordArgs = {
   allFlatEntityOperationRecordByMetadataName: AllFlatEntityOperationRecordByMetadataName;
   isSystemBuild?: boolean;
   applicationUniversalIdentifier: string;
+  idByUniversalIdentifierByMetadataName?: IdByUniversalIdentifierByMetadataName;
   dryRun?: boolean;
 };
 
@@ -69,6 +71,7 @@ type ComputeAndRunWorkspaceMigrationFromResolvedOperationsArgs = {
   allFlatEntityOperationRecordByMetadataName: AllFlatEntityOperationRecordByMetadataName;
   isSystemBuild: boolean;
   applicationUniversalIdentifier: string;
+  providedIdByUniversalIdentifierByMetadataName?: IdByUniversalIdentifierByMetadataName;
   dryRun?: boolean;
 } & FlatEntityMapsBundle;
 
@@ -353,6 +356,7 @@ export class WorkspaceMigrationValidateBuildAndRunService {
     workspaceId,
     isSystemBuild = false,
     applicationUniversalIdentifier,
+    idByUniversalIdentifierByMetadataName,
     dryRun,
     skipSideEffectExpandEngine,
   }: ValidateBuildAndRunWorkspaceMigrationFromRecordInternalArgs): Promise<
@@ -404,6 +408,8 @@ export class WorkspaceMigrationValidateBuildAndRunService {
       workspaceId,
       isSystemBuild,
       applicationUniversalIdentifier,
+      providedIdByUniversalIdentifierByMetadataName:
+        idByUniversalIdentifierByMetadataName,
       dryRun,
       flatApplicationMaps,
       allRelatedFlatEntityMaps,
@@ -416,6 +422,7 @@ export class WorkspaceMigrationValidateBuildAndRunService {
     workspaceId,
     isSystemBuild,
     applicationUniversalIdentifier,
+    providedIdByUniversalIdentifierByMetadataName,
     dryRun,
     flatApplicationMaps,
     allRelatedFlatEntityMaps,
@@ -484,6 +491,21 @@ export class WorkspaceMigrationValidateBuildAndRunService {
         },
       );
 
+    const mergedIdByUniversalIdentifierByMetadataName: IdByUniversalIdentifierByMetadataName =
+      { ...idByUniversalIdentifierByMetadataName };
+
+    for (const metadataName of Object.values(ALL_METADATA_NAME)) {
+      const providedIdByUniversalIdentifier =
+        providedIdByUniversalIdentifierByMetadataName?.[metadataName];
+
+      if (isDefined(providedIdByUniversalIdentifier)) {
+        mergedIdByUniversalIdentifierByMetadataName[metadataName] = {
+          ...providedIdByUniversalIdentifier,
+          ...idByUniversalIdentifierByMetadataName[metadataName],
+        };
+      }
+    }
+
     return await this.validateBuildAndRunWorkspaceMigrationFromTo({
       buildOptions: {
         isSystemBuild,
@@ -494,7 +516,8 @@ export class WorkspaceMigrationValidateBuildAndRunService {
       workspaceId,
       dependencyAllFlatEntityMaps,
       additionalCacheDataMaps,
-      idByUniversalIdentifierByMetadataName,
+      idByUniversalIdentifierByMetadataName:
+        mergedIdByUniversalIdentifierByMetadataName,
       dryRun,
       phoneMetadataGate:
         person && (hasPhoneFieldOperation || hasPersonObjectOperation)

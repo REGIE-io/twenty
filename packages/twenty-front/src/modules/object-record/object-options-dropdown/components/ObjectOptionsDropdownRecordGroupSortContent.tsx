@@ -1,13 +1,12 @@
-import { useEffect } from 'react';
-
+import { ListItemButton } from 'twenty-ui/components/navigation';
 import { isManyToOneRelationField } from '@/object-metadata/utils/isManyToOneRelationField';
-import { OBJECT_OPTIONS_DROPDOWN_ID } from '@/object-record/object-options-dropdown/constants/ObjectOptionsDropdownId';
 import { useObjectOptionsDropdown } from '@/object-record/object-options-dropdown/hooks/useObjectOptionsDropdown';
 import { hiddenRecordGroupIdsComponentSelector } from '@/object-record/record-group/states/selectors/hiddenRecordGroupIdsComponentSelector';
 import { RecordGroupSort } from '@/object-record/record-group/types/RecordGroupSort';
 import { recordIndexGroupFieldMetadataItemComponentState } from '@/object-record/record-index/states/recordIndexGroupFieldMetadataComponentState';
 import { recordIndexRecordGroupSortComponentState } from '@/object-record/record-index/states/recordIndexRecordGroupSortComponentState';
-import { DropdownContent } from '@/ui/layout/dropdown/components/DropdownContent';
+import { SelectOptionIcon } from '@/ui/input/components/SelectOptionIcon';
+import { LegacyDropdownContent } from '@/ui/layout/dropdown/components/LegacyDropdownContent';
 import { DropdownMenuHeader } from '@/ui/layout/dropdown/components/DropdownMenuHeader/DropdownMenuHeader';
 import { DropdownMenuHeaderLeftComponent } from '@/ui/layout/dropdown/components/DropdownMenuHeader/internal/DropdownMenuHeaderLeftComponent';
 import { DropdownMenuItemsContainer } from '@/ui/layout/dropdown/components/DropdownMenuItemsContainer';
@@ -18,6 +17,7 @@ import { useAtomComponentSelectorValue } from '@/ui/utilities/state/jotai/hooks/
 import { useAtomComponentState } from '@/ui/utilities/state/jotai/hooks/useAtomComponentState';
 import { useAtomComponentStateValue } from '@/ui/utilities/state/jotai/hooks/useAtomComponentStateValue';
 import { t } from '@lingui/core/macro';
+import { useEffect } from 'react';
 import { isDefined } from 'twenty-shared/utils';
 import {
   IconChevronLeft,
@@ -25,10 +25,10 @@ import {
   IconSortAZ,
   IconSortZA,
 } from 'twenty-ui/icon';
-import { MenuItemSelect } from 'twenty-ui/navigation';
 
 export const ObjectOptionsDropdownRecordGroupSortContent = () => {
-  const { currentContentId, onContentChange } = useObjectOptionsDropdown();
+  const { currentContentId, onContentChange, dropdownId } =
+    useObjectOptionsDropdown();
 
   const hiddenRecordGroupIds = useAtomComponentSelectorValue(
     hiddenRecordGroupIdsComponentSelector,
@@ -51,7 +51,7 @@ export const ObjectOptionsDropdownRecordGroupSortContent = () => {
 
   const selectedItemId = useAtomComponentStateValue(
     selectedItemIdComponentState,
-    OBJECT_OPTIONS_DROPDOWN_ID,
+    dropdownId,
   );
 
   useEffect(() => {
@@ -72,7 +72,7 @@ export const ObjectOptionsDropdownRecordGroupSortContent = () => {
       ];
 
   return (
-    <DropdownContent>
+    <LegacyDropdownContent>
       <DropdownMenuHeader
         StartComponent={
           <DropdownMenuHeaderLeftComponent
@@ -85,23 +85,29 @@ export const ObjectOptionsDropdownRecordGroupSortContent = () => {
       </DropdownMenuHeader>
       <DropdownMenuItemsContainer>
         <SelectableList
-          selectableListInstanceId={OBJECT_OPTIONS_DROPDOWN_ID}
-          focusId={OBJECT_OPTIONS_DROPDOWN_ID}
+          selectableListInstanceId={dropdownId}
+          focusId={dropdownId}
           selectableItemIdArray={selectableItemIdArray}
         >
           <SelectableListItem
             itemId={RecordGroupSort.Manual}
             onEnter={() => handleRecordGroupSortChange(RecordGroupSort.Manual)}
           >
-            <MenuItemSelect
+            <ListItemButton
               onClick={() =>
                 handleRecordGroupSortChange(RecordGroupSort.Manual)
               }
-              LeftIcon={IconHandMove}
-              text={RecordGroupSort.Manual}
-              selected={recordIndexRecordGroupSort === RecordGroupSort.Manual}
               focused={selectedItemId === RecordGroupSort.Manual}
-            />
+              role="option"
+              aria-selected={
+                recordIndexRecordGroupSort === RecordGroupSort.Manual
+              }
+              selected={recordIndexRecordGroupSort === RecordGroupSort.Manual}
+              indicator="check"
+              startIcon={<SelectOptionIcon Icon={IconHandMove} />}
+            >
+              {RecordGroupSort.Manual}
+            </ListItemButton>
           </SelectableListItem>
           {!isRelationGroupBy && (
             <>
@@ -111,17 +117,23 @@ export const ObjectOptionsDropdownRecordGroupSortContent = () => {
                   handleRecordGroupSortChange(RecordGroupSort.Alphabetical)
                 }
               >
-                <MenuItemSelect
+                <ListItemButton
                   onClick={() =>
                     handleRecordGroupSortChange(RecordGroupSort.Alphabetical)
                   }
-                  LeftIcon={IconSortAZ}
-                  text={RecordGroupSort.Alphabetical}
+                  focused={selectedItemId === RecordGroupSort.Alphabetical}
+                  role="option"
+                  aria-selected={
+                    recordIndexRecordGroupSort === RecordGroupSort.Alphabetical
+                  }
                   selected={
                     recordIndexRecordGroupSort === RecordGroupSort.Alphabetical
                   }
-                  focused={selectedItemId === RecordGroupSort.Alphabetical}
-                />
+                  indicator="check"
+                  startIcon={<SelectOptionIcon Icon={IconSortAZ} />}
+                >
+                  {RecordGroupSort.Alphabetical}
+                </ListItemButton>
               </SelectableListItem>
               <SelectableListItem
                 itemId={RecordGroupSort.ReverseAlphabetical}
@@ -131,27 +143,34 @@ export const ObjectOptionsDropdownRecordGroupSortContent = () => {
                   )
                 }
               >
-                <MenuItemSelect
+                <ListItemButton
                   onClick={() =>
                     handleRecordGroupSortChange(
                       RecordGroupSort.ReverseAlphabetical,
                     )
                   }
-                  LeftIcon={IconSortZA}
-                  text={RecordGroupSort.ReverseAlphabetical}
+                  focused={
+                    selectedItemId === RecordGroupSort.ReverseAlphabetical
+                  }
+                  role="option"
+                  aria-selected={
+                    recordIndexRecordGroupSort ===
+                    RecordGroupSort.ReverseAlphabetical
+                  }
                   selected={
                     recordIndexRecordGroupSort ===
                     RecordGroupSort.ReverseAlphabetical
                   }
-                  focused={
-                    selectedItemId === RecordGroupSort.ReverseAlphabetical
-                  }
-                />
+                  indicator="check"
+                  startIcon={<SelectOptionIcon Icon={IconSortZA} />}
+                >
+                  {RecordGroupSort.ReverseAlphabetical}
+                </ListItemButton>
               </SelectableListItem>
             </>
           )}
         </SelectableList>
       </DropdownMenuItemsContainer>
-    </DropdownContent>
+    </LegacyDropdownContent>
   );
 };

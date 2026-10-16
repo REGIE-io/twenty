@@ -1,6 +1,7 @@
 import { styled } from '@linaria/react';
 import { useLingui } from '@lingui/react/macro';
-import { isDefined, isNonEmptyArray } from 'twenty-shared/utils';
+import { isNonEmptyString } from '@sniptt/guards';
+import { formatBytes, isDefined, isNonEmptyArray } from 'twenty-shared/utils';
 import { type WorkflowRunStepLog } from 'twenty-shared/workflow';
 import {
   IconAlertTriangle,
@@ -9,10 +10,9 @@ import {
   IconMail,
   IconPaperclip,
 } from 'twenty-ui/icon';
-import { themeCssVariables } from 'twenty-ui/theme-constants';
+import { themeCssVariables } from 'twenty-ui/theme';
 
-import { formatBytes } from '@/workflow/workflow-steps/workflow-actions/utils/formatBytes';
-import { formatDuration } from '@/workflow/workflow-steps/workflow-actions/utils/formatDuration';
+import { formatDuration } from '~/utils/format/formatDuration';
 import {
   StyledBadgeGroup,
   StyledBodyMeta,
@@ -152,6 +152,12 @@ export const WorkflowRunStepLogsEmailDetail = ({
       <StyledSection>
         <StyledSectionTitle>{t`Recipients`}</StyledSectionTitle>
         <StyledRecipientsCard>
+          {isNonEmptyString(details.fromHandle) && (
+            <>
+              <StyledRecipientLabel>{t`From`}</StyledRecipientLabel>
+              <StyledRecipientValue>{details.fromHandle}</StyledRecipientValue>
+            </>
+          )}
           <StyledRecipientLabel>{t`To`}</StyledRecipientLabel>
           <StyledRecipientValue>
             {isNonEmptyArray(details.recipients.to)

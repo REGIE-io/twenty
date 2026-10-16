@@ -1,11 +1,11 @@
+import { isMetadataWritePermitted } from 'src/engine/twenty-orm/utils/is-metadata-write-permitted.util';
 import { MetadataWritability } from 'twenty-shared/types';
 import { isDefined } from 'twenty-shared/utils';
 
-import { isApplicationAuthContext } from 'src/engine/core-modules/auth/guards/is-application-auth-context.guard';
 import { type WorkspaceAuthContext } from 'src/engine/core-modules/auth/types/workspace-auth-context.type';
 import { type FlatEntityMaps } from 'src/engine/metadata-modules/flat-entity/types/flat-entity-maps.type';
 import { findFlatEntityByIdInFlatEntityMaps } from 'src/engine/metadata-modules/flat-entity/utils/find-flat-entity-by-id-in-flat-entity-maps.util';
-import { type FlatFieldMetadata } from 'src/engine/metadata-modules/flat-field-metadata/types/flat-field-metadata.type';
+import { type OrmFlatFieldMetadata } from 'src/engine/metadata-modules/flat-field-metadata/types/orm-flat-field-metadata.type';
 import { type FlatObjectMetadata } from 'src/engine/metadata-modules/flat-object-metadata/types/flat-object-metadata.type';
 import {
   PermissionsException,
@@ -13,6 +13,7 @@ import {
   PermissionsExceptionMessage,
 } from 'src/engine/metadata-modules/permissions/permissions.exception';
 import { type OperationType } from 'src/engine/twenty-orm/repository/permissions.utils';
+import { isOwningApplicationAuthContext } from 'src/engine/twenty-orm/utils/is-owning-application-auth-context.util';
 
 const isWritePermittedByWritability = ({
   writability,
@@ -23,20 +24,13 @@ const isWritePermittedByWritability = ({
   owningApplicationId: string | undefined;
   authContext: WorkspaceAuthContext | undefined;
 }): boolean => {
-  if (!isDefined(writability) || writability === MetadataWritability.OPEN) {
-    return true;
-  }
-
-  if (writability === MetadataWritability.APPLICATION) {
-    return (
+  return isMetadataWritePermitted({
+    writability,
+    isSystemContext: authContext?.type === 'system',
+    isOwningApplication:
       isDefined(authContext) &&
-      isApplicationAuthContext(authContext) &&
-      isDefined(owningApplicationId) &&
-      authContext.application.id === owningApplicationId
-    );
-  }
-
-  return false;
+      isOwningApplicationAuthContext({ authContext, owningApplicationId }),
+  });
 };
 
 type ValidateWritabilityOrThrowArgs = {
@@ -47,7 +41,7 @@ type ValidateWritabilityOrThrowArgs = {
   >;
   updatedColumns: string[];
   columnNameToFieldMetadataIdMap: Record<string, string>;
-  flatFieldMetadataMaps: FlatEntityMaps<FlatFieldMetadata>;
+  flatFieldMetadataMaps: FlatEntityMaps<OrmFlatFieldMetadata>;
   authContext: WorkspaceAuthContext | undefined;
 };
 

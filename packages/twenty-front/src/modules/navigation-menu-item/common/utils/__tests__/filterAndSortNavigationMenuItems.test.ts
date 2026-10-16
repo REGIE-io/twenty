@@ -22,6 +22,76 @@ describe('filterAndSortNavigationMenuItems', () => {
     key: ViewKey.INDEX,
   };
 
+  const mockWorkflowObjectMetadataItem = {
+    id: 'workflow-metadata-id',
+    nameSingular: 'workflow',
+    namePlural: 'workflows',
+    labelPlural: 'Workflows',
+    icon: 'IconSettingsAutomation',
+    isActive: true,
+  } as EnrichedObjectMetadataItem;
+
+  const workflowRecordItem = {
+    id: 'workflow-favorite-id',
+    type: NavigationMenuItemType.RECORD,
+    position: 0,
+    targetRecordId: 'workflow-record-id',
+    targetObjectMetadataId: 'workflow-metadata-id',
+    targetRecordIdentifier: { id: 'workflow-record-id', name: 'My workflow' },
+  } as unknown as NavigationMenuItem;
+
+  it('hides workflow record items', () => {
+    expect(
+      filterAndSortNavigationMenuItems(
+        [workflowRecordItem],
+        [],
+        [mockWorkflowObjectMetadataItem],
+      ),
+    ).toEqual([]);
+  });
+
+  it('hides chat record items, which the chat menu lists', () => {
+    const chatObjectMetadataItem = {
+      id: 'chat-metadata-id',
+      nameSingular: 'agentChatThread',
+      isActive: true,
+    } as EnrichedObjectMetadataItem;
+    const chatRecordItem = {
+      ...workflowRecordItem,
+      id: 'chat-favorite-id',
+      targetRecordId: 'chat-record-id',
+      targetObjectMetadataId: 'chat-metadata-id',
+      targetRecordIdentifier: { id: 'chat-record-id', labelIdentifier: 'Chat' },
+    } as NavigationMenuItem;
+
+    expect(
+      filterAndSortNavigationMenuItems(
+        [chatRecordItem],
+        [],
+        [chatObjectMetadataItem],
+      ),
+    ).toEqual([]);
+  });
+
+  it('keeps other objects record items', () => {
+    const personRecordItem = {
+      id: 'person-favorite-id',
+      type: NavigationMenuItemType.RECORD,
+      position: 0,
+      targetRecordId: 'person-record-id',
+      targetObjectMetadataId: 'metadata-id',
+      targetRecordIdentifier: { id: 'person-record-id', name: 'Jane' },
+    } as unknown as NavigationMenuItem;
+
+    expect(
+      filterAndSortNavigationMenuItems(
+        [personRecordItem],
+        [],
+        [mockObjectMetadataItem],
+      ),
+    ).toEqual([personRecordItem]);
+  });
+
   it('should return empty array when navigationMenuItems is empty', () => {
     const result = filterAndSortNavigationMenuItems([], [], []);
     expect(result).toEqual([]);

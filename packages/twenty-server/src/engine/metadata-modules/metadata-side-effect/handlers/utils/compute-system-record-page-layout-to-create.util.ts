@@ -5,7 +5,7 @@ import {
 } from 'twenty-shared/application';
 
 import { WidgetConfigurationType } from 'src/engine/metadata-modules/page-layout-widget/enums/widget-configuration-type.type';
-import { PageLayoutType } from 'src/engine/metadata-modules/page-layout/enums/page-layout-type.enum';
+import { PageLayoutType } from 'twenty-shared/types';
 import {
   TAB_PROPS,
   WIDGET_PROPS,
@@ -127,7 +127,6 @@ export const computeSystemRecordPageLayoutToCreate = ({
       pageLayoutTabUniversalIdentifier: tabUniversalIdentifier,
       title: widgetProps.title,
       type: widgetProps.type,
-      gridPosition: widgetProps.gridPosition,
       position: widgetProps.position,
       // @ts-expect-error - configurationType is validated but TS can't match to discriminated union
       universalConfiguration,
@@ -148,10 +147,12 @@ export const computeSystemRecordPageLayoutToCreate = ({
     name: `Default ${objectMetadata.labelSingular} Layout`,
     type: PageLayoutType.RECORD_PAGE,
     objectMetadataUniversalIdentifier: objectMetadata.universalIdentifier,
+    navigationMenuItemUniversalIdentifiers: [],
     tabUniversalIdentifiers: pageLayoutTabs.map(
       (tab) => tab.universalIdentifier,
     ),
     isSystemSideEffect: true,
+    isFirstTabPinned: true,
     createdAt: now,
     updatedAt: now,
     deletedAt: null,

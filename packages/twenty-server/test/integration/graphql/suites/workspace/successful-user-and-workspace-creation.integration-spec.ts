@@ -124,7 +124,7 @@ describe('Successful user and workspace creation', () => {
     });
 
     expect(currentUserAfterSyncEmailSkip.onboardingStatus).toBe(
-      OnboardingStatus.APPS_INSTALLATION,
+      OnboardingStatus.PROFILE_CREATION,
     );
 
     const {

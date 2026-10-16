@@ -370,13 +370,10 @@ const richFields: FieldTypeAndNameMetadata[] = [
 
 // 100 text columns plus phones (6 pieces) forces the nested concat_ws path.
 const wideFields: FieldTypeAndNameMetadata[] = [
-  ...Array.from(
-    { length: 100 },
-    (_, index): FieldTypeAndNameMetadata => ({
-      name: `text${index}`,
-      type: FieldMetadataType.TEXT,
-    }),
-  ),
+  ...Array.from({ length: 100 }, (_, index): FieldTypeAndNameMetadata => ({
+    name: `text${index}`,
+    type: FieldMetadataType.TEXT,
+  })),
   { name: 'phones', type: FieldMetadataType.PHONES },
 ];
 

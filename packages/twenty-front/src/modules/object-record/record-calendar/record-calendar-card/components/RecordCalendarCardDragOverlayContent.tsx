@@ -1,14 +1,10 @@
 import { type Draggable } from '@dnd-kit/dom';
 import { isDefined } from 'twenty-shared/utils';
 
-import { RecordCalendarMonthContextProvider } from '@/object-record/record-calendar/month/contexts/RecordCalendarMonthContext';
-import { RecordCalendarCardComponentInstanceContext } from '@/object-record/record-calendar/record-calendar-card/states/contexts/RecordCalendarCardComponentInstanceContext';
+import { RECORD_CALENDAR_CARD_DRAG_OVERLAY_CALENDAR_DAY } from '@/object-record/record-calendar/record-calendar-card/constants/RecordCalendarCardDragOverlayCalendarDay';
 import { RecordCalendarCard } from '@/object-record/record-calendar/record-calendar-card/components/RecordCalendarCard';
-import { useRecordCalendarMonthDaysRange } from '@/object-record/record-calendar/month/hooks/useRecordCalendarMonthDaysRange';
-import { getRecordIdFromRecordCalendarCardDraggableId } from '@/object-record/record-calendar/record-calendar-card/utils/getRecordCalendarCardDraggableId';
-import { recordCalendarSelectedDateComponentState } from '@/object-record/record-calendar/states/recordCalendarSelectedDateComponentState';
-import { useAtomComponentStateValue } from '@/ui/utilities/state/jotai/hooks/useAtomComponentStateValue';
-import { RecordCalendarCardMultiDragPreview } from '@/object-record/record-calendar/record-calendar-card/components/RecordCalendarCardMultiDragPreview';
+import { RecordDragMultiDragCounterChip } from '@/object-record/record-drag/components/RecordDragMultiDragCounterChip';
+import { type RecordDragData } from '@/object-record/record-drag/types/RecordDragData';
 
 type RecordCalendarCardDragOverlayContentProps = {
   source: Draggable | null;
@@ -16,46 +12,20 @@ type RecordCalendarCardDragOverlayContentProps = {
 export const RecordCalendarCardDragOverlayContent = ({
   source,
 }: RecordCalendarCardDragOverlayContentProps) => {
-  const recordId = isDefined(source)
-    ? getRecordIdFromRecordCalendarCardDraggableId(String(source.id))
-    : '';
+  const sourceData = source?.data as RecordDragData | undefined;
 
-  const recordCalendarSelectedDate = useAtomComponentStateValue(
-    recordCalendarSelectedDateComponentState,
-  );
-
-  const {
-    firstDayOfMonth,
-    lastDayOfMonth,
-    firstDayOfFirstWeek,
-    lastDayOfLastWeek,
-    weekDayLabels,
-    weekFirstDays,
-    weekStartsOnDayIndex,
-  } = useRecordCalendarMonthDaysRange(recordCalendarSelectedDate);
-
-  if (!isDefined(source)) {
+  if (!isDefined(sourceData)) {
     return null;
   }
 
   return (
-    <RecordCalendarMonthContextProvider
-      value={{
-        firstDayOfMonth,
-        lastDayOfMonth,
-        firstDayOfFirstWeek,
-        lastDayOfLastWeek,
-        weekDayLabels,
-        weekFirstDays,
-        weekStartsOnDayIndex,
-      }}
-    >
-      <RecordCalendarCardComponentInstanceContext.Provider
-        value={{ instanceId: recordId }}
-      >
-        <RecordCalendarCard recordId={recordId} isDragOverlay />
-        <RecordCalendarCardMultiDragPreview recordId={recordId} />
-      </RecordCalendarCardComponentInstanceContext.Provider>
-    </RecordCalendarMonthContextProvider>
+    <>
+      <RecordCalendarCard
+        recordId={sourceData.recordId}
+        calendarDay={RECORD_CALENDAR_CARD_DRAG_OVERLAY_CALENDAR_DAY}
+        isDragOverlay
+      />
+      <RecordDragMultiDragCounterChip />
+    </>
   );
 };

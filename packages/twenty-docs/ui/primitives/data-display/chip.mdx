@@ -1,0 +1,107 @@
+---
+title: Chip
+description: Show compact caller-owned content with optional leading and trailing slots.
+---
+
+import { StoryEmbed } from '/snippets/ui/StoryEmbed.mdx';
+
+import ChipReference from '/snippets/ui/generated/data-display/chip.mdx';
+
+Use `Chip` for compact references to people, records, or files. Use [Tag](/ui/primitives/data-display/tag) for colored categories and [Status](/ui/primitives/data-display/status) for workflow states.
+
+<StoryEmbed
+  storyId="ui-data-display-chip--with-left-avatar"
+  title="Chip example"
+/>
+
+## Content and slots
+
+```tsx
+import { Avatar, Chip } from 'twenty-ui/primitives/data-display';
+
+export const AssigneeChip = () => (
+  <Chip
+    variant="soft"
+    startElement={
+      <Avatar name="Jane" size="sm" shape="circle" imageProps={{ alt: '' }} />
+    }
+  >
+    Jane
+  </Chip>
+);
+```
+
+Children accept text or nodes. `startElement` and `endElement` accept avatars, icons, or other content. `endElementDivider` adds a separator before the trailing content. The default chip is a `div`; its slots can contain a separate action while the chip itself remains presentational.
+
+Chip never inserts a label. Supply a translated fallback from your application when needed. Omit children for content made entirely from slots. An interactive chip with only an icon needs a caller-supplied accessible name.
+
+## Buttons and links
+
+```tsx
+import { Avatar, Chip } from 'twenty-ui/primitives/data-display';
+
+type AssigneeActionProps = {
+  onOpenAssignee: () => void;
+  disabled?: boolean;
+};
+
+export const AssigneeAction = ({
+  onOpenAssignee,
+  disabled,
+}: AssigneeActionProps) => (
+  <Chip
+    render={<button type="button" disabled={disabled} />}
+    onClick={onOpenAssignee}
+    aria-label="Open Jane's record"
+    startElement={
+      <Avatar name="Jane" size="sm" shape="circle" imageProps={{ alt: '' }} />
+    }
+  >
+    Jane
+  </Chip>
+);
+```
+
+Supplying `onClick` keeps the default `div`. Use `render` to compose an explicit native button, anchor, router link, or another appropriate owner. Native attributes, handlers, styles and the root ref reach that owner. A native button supplies keyboard activation and disabled behavior. Chip recognizes native disabled state and `aria-disabled` for appearance; `aria-disabled` alone does not prevent activation.
+
+`clickable` controls hover and pointer appearance and defaults to whether `onClick` is supplied. Set it explicitly for a link without a click handler. Do not nest buttons or links inside a chip that is itself interactive.
+
+```tsx
+import { Chip } from 'twenty-ui/primitives/data-display';
+
+export const DocumentationChip = () => (
+  <Chip render={<a href="https://twenty.com/developers" />} clickable>
+    Documentation
+  </Chip>
+);
+```
+
+URL text remains plain text. Intentional links belong in caller content or in the explicit root composition.
+
+## Truncation and tooltips
+
+```tsx
+import { Chip } from 'twenty-ui/primitives/data-display';
+
+export const FileChip = () => (
+  <Chip variant="soft" maxWidth={180} tooltipPlace="top">
+    Quarterly customer research.pdf
+  </Chip>
+);
+```
+
+`maxWidth` constrains the chip in pixels. Content truncates with an ellipsis by default; `truncate={false}` leaves it unconstrained by truncation. String children supply their own tooltip text. Set `tooltipContent` for custom text or node content, `tooltipDelay` for the opening delay, and `isTooltipMultiline` to preserve line breaks. `alwaysShowTooltip` also enables the tooltip when content fits. These options follow [OverflowingTextWithTooltip](/ui/primitives/typography/overflowing-text-with-tooltip). Keep essential information available without relying on hover.
+
+## Migration
+
+Replace `emptyLabel` with caller-provided fallback children, and replace `forceEmptyText` or `isLabelHidden` with omitted children. Keep translated product fallbacks in the application. Replace `tooltipLabel` with `tooltipContent`. Move `disabled` to the explicit interactive owner and remove `nativeButton`. Add a native button or link through `render` wherever the chip previously relied on `onClick` to choose its element.
+
+## Appearance
+
+`size` accepts `sm` or `md`. `variant` accepts `ghost`, `soft`, or `solid`; `ghost` is the default. Use `shape="round"` for a pill, `weight="medium"` for emphasis, and `color="secondary"` for secondary text.
+
+## Props
+
+Types and defaults are generated from the public component types. Native attributes and event handlers are also accepted.
+
+<ChipReference />

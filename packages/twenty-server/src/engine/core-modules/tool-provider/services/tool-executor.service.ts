@@ -1,4 +1,4 @@
-import { Inject, Injectable, Logger } from '@nestjs/common';
+import { Inject, Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 
 import { type AggregateOperations } from 'twenty-shared/types';
@@ -9,6 +9,7 @@ import { type ObjectRecordGroupBy } from 'src/engine/api/graphql/workspace-query
 
 import { type ToolProviderContext } from 'src/engine/core-modules/tool-provider/interfaces/tool-provider-context.type';
 
+import { ExceptionHandlerService } from 'src/engine/core-modules/exception-handler/exception-handler.service';
 import { LogicFunctionExecutorService } from 'src/engine/core-modules/logic-function/logic-function-executor/logic-function-executor.service';
 import { CreateManyRecordsService } from 'src/engine/core-modules/record-crud/services/create-many-records.service';
 import { CreateRecordService } from 'src/engine/core-modules/record-crud/services/create-record.service';
@@ -21,21 +22,20 @@ import { UpdateRecordService } from 'src/engine/core-modules/record-crud/service
 import { UpsertManyRecordsService } from 'src/engine/core-modules/record-crud/services/upsert-many-records.service';
 import { type FindRecordsParams } from 'src/engine/core-modules/record-crud/types/find-records-params.type';
 import { TOOL_PROVIDERS } from 'src/engine/core-modules/tool-provider/constants/tool-providers.token';
+import { RecordFilesResolverService } from 'src/engine/core-modules/tool-provider/services/record-files-resolver.service';
 import { type ToolProvider } from 'src/engine/core-modules/tool-provider/interfaces/tool-provider.interface';
 import { type ToolDescriptor } from 'src/engine/core-modules/tool-provider/types/tool-descriptor.type';
 import { type ToolExecutionRef } from 'src/engine/core-modules/tool-provider/types/tool-execution-ref.type';
 import { type ToolIndexEntry } from 'src/engine/core-modules/tool-provider/types/tool-index-entry.type';
 import { buildRequiredToolAuthContext } from 'src/engine/core-modules/tool-provider/utils/build-required-tool-auth-context.util';
+import { buildToolExecutionFailure } from 'src/engine/core-modules/tool-provider/utils/build-tool-execution-failure.util';
 import { withResolvedToolAuthContext } from 'src/engine/core-modules/tool-provider/utils/with-resolved-tool-auth-context.util';
 import { type ToolOutput } from 'src/engine/core-modules/tool/types/tool-output.type';
-import { UserWorkspaceEntity } from 'src/engine/core-modules/user-workspace/user-workspace.entity';
 import { UserEntity } from 'src/engine/core-modules/user/user.entity';
 import { WorkspaceCacheService } from 'src/engine/workspace-cache/services/workspace-cache.service';
 
 @Injectable()
 export class ToolExecutorService {
-  private readonly logger = new Logger(ToolExecutorService.name);
-
   constructor(
     @Inject(TOOL_PROVIDERS)
     private readonly providers: ToolProvider[],
@@ -49,11 +49,11 @@ export class ToolExecutorService {
     private readonly deleteRecordService: DeleteRecordService,
     private readonly deleteManyRecordsService: DeleteManyRecordsService,
     private readonly logicFunctionExecutorService: LogicFunctionExecutorService,
+    private readonly recordFilesResolverService: RecordFilesResolverService,
     private readonly workspaceCacheService: WorkspaceCacheService,
     @InjectRepository(UserEntity)
     private readonly userRepository: Repository<UserEntity>,
-    @InjectRepository(UserWorkspaceEntity)
-    private readonly userWorkspaceRepository: Repository<UserWorkspaceEntity>,
+    private readonly exceptionHandlerService: ExceptionHandlerService,
   ) {}
 
   async dispatch(
@@ -61,18 +61,33 @@ export class ToolExecutorService {
     args: Record<string, unknown> | undefined,
     context: ToolProviderContext,
   ): Promise<ToolOutput> {
-    const safeArgs = args ?? {};
+    try {
+      const executionContext = await (context.resolveExecutionContext?.() ??
+        context);
 
-    return withResolvedToolAuthContext(
-      {
-        context,
-        userRepository: this.userRepository,
-        userWorkspaceRepository: this.userWorkspaceRepository,
-        workspaceCacheService: this.workspaceCacheService,
-      },
-      (contextWithAuth) =>
-        this.dispatchByExecutionRef(descriptor, safeArgs, contextWithAuth),
-    );
+      return await withResolvedToolAuthContext(
+        {
+          context: executionContext,
+          userRepository: this.userRepository,
+          workspaceCacheService: this.workspaceCacheService,
+        },
+        (contextWithAuth) =>
+          this.dispatchByExecutionRef(descriptor, args ?? {}, contextWithAuth),
+      );
+    } catch (error) {
+      const { output, shouldCapture } = buildToolExecutionFailure({
+        error,
+        toolName: descriptor.name,
+      });
+
+      if (shouldCapture) {
+        this.exceptionHandlerService.captureExceptions([error], {
+          workspace: { id: context.workspaceId },
+        });
+      }
+
+      return output;
+    }
   }
 
   private async dispatchByExecutionRef(
@@ -108,7 +123,6 @@ export class ToolExecutorService {
       (await buildRequiredToolAuthContext({
         context,
         userRepository: this.userRepository,
-        userWorkspaceRepository: this.userWorkspaceRepository,
         workspaceCacheService: this.workspaceCacheService,
       }));
 
@@ -143,25 +157,45 @@ export class ToolExecutorService {
         });
       }
 
-      case 'create_one':
-        return this.createRecordService.execute({
+      case 'create_one': {
+        const { records, notes } =
+          await this.recordFilesResolverService.resolveRecordsInput({
+            objectNameSingular: ref.objectNameSingular,
+            records: [args],
+            workspaceId: context.workspaceId,
+          });
+
+        const output = await this.createRecordService.execute({
           objectName: ref.objectNameSingular,
-          objectRecord: args,
+          objectRecord: records[0],
           authContext,
           rolePermissionConfig: context.rolePermissionConfig,
           createdBy: context.actorContext,
           slimResponse: true,
         });
 
-      case 'create_many':
-        return this.createManyRecordsService.execute({
+        return this.appendFileResolutionNotes(output, notes);
+      }
+
+      case 'create_many': {
+        const { records, notes } =
+          await this.recordFilesResolverService.resolveRecordsInput({
+            objectNameSingular: ref.objectNameSingular,
+            records: args.records as Record<string, unknown>[],
+            workspaceId: context.workspaceId,
+          });
+
+        const output = await this.createManyRecordsService.execute({
           objectName: ref.objectNameSingular,
-          objectRecords: args.records as Record<string, unknown>[],
+          objectRecords: records,
           authContext,
           rolePermissionConfig: context.rolePermissionConfig,
           createdBy: context.actorContext,
           slimResponse: true,
         });
+
+        return this.appendFileResolutionNotes(output, notes);
+      }
 
       case 'update_one': {
         const { id, ...fields } = args;
@@ -169,14 +203,23 @@ export class ToolExecutorService {
           Object.entries(fields).filter(([, value]) => value !== undefined),
         );
 
-        return this.updateRecordService.execute({
+        const { records, notes } =
+          await this.recordFilesResolverService.resolveRecordsInput({
+            objectNameSingular: ref.objectNameSingular,
+            records: [objectRecord],
+            workspaceId: context.workspaceId,
+          });
+
+        const output = await this.updateRecordService.execute({
           objectName: ref.objectNameSingular,
           objectRecordId: id as string,
-          objectRecord,
+          objectRecord: records[0],
           authContext,
           rolePermissionConfig: context.rolePermissionConfig,
           slimResponse: true,
         });
+
+        return this.appendFileResolutionNotes(output, notes);
       }
 
       case 'update_many':
@@ -189,15 +232,25 @@ export class ToolExecutorService {
           slimResponse: true,
         });
 
-      case 'upsert_many':
-        return this.upsertManyRecordsService.execute({
+      case 'upsert_many': {
+        const { records, notes } =
+          await this.recordFilesResolverService.resolveRecordsInput({
+            objectNameSingular: ref.objectNameSingular,
+            records: args.records as Record<string, unknown>[],
+            workspaceId: context.workspaceId,
+          });
+
+        const output = await this.upsertManyRecordsService.execute({
           objectName: ref.objectNameSingular,
-          objectRecords: args.records as Record<string, unknown>[],
+          objectRecords: records,
           authContext,
           rolePermissionConfig: context.rolePermissionConfig,
           createdBy: context.actorContext,
           slimResponse: true,
         });
+
+        return this.appendFileResolutionNotes(output, notes);
+      }
 
       case 'delete_one':
         return this.deleteRecordService.execute({
@@ -243,6 +296,20 @@ export class ToolExecutorService {
     }
   }
 
+  private appendFileResolutionNotes(
+    output: ToolOutput,
+    notes: string[],
+  ): ToolOutput {
+    if (notes.length === 0) {
+      return output;
+    }
+
+    return {
+      ...output,
+      message: `${output.message} ${notes.join(' ')}`,
+    };
+  }
+
   private async dispatchStaticTool(
     descriptor: ToolIndexEntry | ToolDescriptor,
     args: Record<string, unknown>,
@@ -262,9 +329,7 @@ export class ToolExecutorService {
       );
     }
 
-    // Defense-in-depth: catalog and by-name lookups already filter by
-    // `isAvailable`, but re-verify at dispatch so the gate is enforced in
-    // one place regardless of how the descriptor reached us.
+    // Defense-in-depth: re-verify at dispatch whatever path the descriptor came from.
     if (!(await provider.isAvailable(context))) {
       return {
         success: false,
@@ -289,6 +354,8 @@ export class ToolExecutorService {
       logicFunctionId: ref.logicFunctionId,
       workspaceId: context.workspaceId,
       payload: args,
+      userId: context.userId,
+      userWorkspaceId: context.userWorkspaceId,
     });
 
     if (result.error) {

@@ -14,22 +14,22 @@ import {
   UsePipes,
   ValidationPipe,
 } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
 
 import { PermissionFlagType } from 'twenty-shared/constants';
 import { ApiPath, FeatureFlagKey } from 'twenty-shared/types';
-import { Repository } from 'typeorm';
 
 import { type RestCursorPageInfo } from 'src/engine/api/rest/metadata/types/rest-cursor-page-info.type';
 import { paginateByIdCursor } from 'src/engine/api/rest/metadata/utils/paginate-by-id-cursor.util';
-import { type AuthenticatedRequest } from 'src/engine/api/rest/types/authenticated-request';
+import { type AuthenticatedRequest } from 'src/engine/api/rest/types/authenticated-request.type';
 import { ApplicationRestApiExceptionFilter } from 'src/engine/core-modules/application/application-rest-api-exception.filter';
 import { FeatureFlagService } from 'src/engine/core-modules/feature-flag/services/feature-flag.service';
 import { WorkspaceEntity } from 'src/engine/core-modules/workspace/workspace.entity';
 import { AuthWorkspace } from 'src/engine/decorators/auth/auth-workspace.decorator';
 import { JwtAuthGuard } from 'src/engine/guards/jwt-auth.guard';
 import { SettingsPermissionGuard } from 'src/engine/guards/settings-permission.guard';
-import { WorkspaceAuthGuard } from 'src/engine/guards/workspace-auth.guard';
+import { AuthPrincipalGuard } from 'src/engine/guards/auth-principal.guard';
+import { DerivedFieldMetadataIdsService } from 'src/engine/metadata-modules/derived-field-metadata-ids/services/derived-field-metadata-ids.service';
+import { type DerivedFieldMetadataIds } from 'src/engine/metadata-modules/derived-field-metadata-ids/types/derived-field-metadata-ids.type';
 import { CreateAndUpdateManyFieldsInput } from 'src/engine/metadata-modules/field-metadata/dtos/create-and-update-many-fields.input';
 import { CreateFieldInput } from 'src/engine/metadata-modules/field-metadata/dtos/create-field.input';
 import { CreateManyFieldsInput } from 'src/engine/metadata-modules/field-metadata/dtos/create-many-fields.input';
@@ -43,6 +43,9 @@ import {
 import { FieldMetadataRestApiExceptionFilter } from 'src/engine/metadata-modules/field-metadata/filters/field-metadata-rest-api-exception.filter';
 import { FieldMetadataService } from 'src/engine/metadata-modules/field-metadata/services/field-metadata.service';
 import { fromFieldMetadataEntityToFieldMetadataDto } from 'src/engine/metadata-modules/field-metadata/utils/from-field-metadata-entity-to-field-metadata-dto.util';
+import { ApplicationTranslationCatalogService } from 'src/engine/metadata-modules/application-translation-catalog/services/application-translation-catalog.service';
+import { RequestLocale } from 'src/engine/decorators/locale/request-locale.decorator';
+import { type APP_LOCALES } from 'twenty-shared/translations';
 import {
   toLegacyFieldMetadataCreateResponse,
   toLegacyFieldMetadataDeleteResponse,
@@ -52,13 +55,25 @@ import {
 } from 'src/engine/metadata-modules/field-metadata/utils/to-legacy-field-metadata-response.util';
 import { FlatEntityMapsRestApiExceptionFilter } from 'src/engine/metadata-modules/flat-entity/filters/flat-entity-maps-rest-api-exception.filter';
 import { fromFlatFieldMetadataToFieldMetadataDto } from 'src/engine/metadata-modules/flat-field-metadata/utils/from-flat-field-metadata-to-field-metadata-dto.util';
-import { UniqueFieldMetadataIdsService } from 'src/engine/metadata-modules/index-metadata/services/unique-field-metadata-ids.service';
 import { PermissionsRestApiExceptionFilter } from 'src/engine/metadata-modules/permissions/utils/permissions-rest-api-exception.filter';
+import { AuthRestApiExceptionFilter } from 'src/engine/core-modules/auth/filters/auth-rest-api-exception.filter';
+import { InjectWorkspaceScopedRepository } from 'src/engine/twenty-orm/workspace-scoped-repository/inject-workspace-scoped-repository.decorator';
+import { WorkspaceScopedRepository } from 'src/engine/twenty-orm/workspace-scoped-repository/workspace-scoped-repository';
 
 @Controller(`${ApiPath.Rest}/metadata/fields`)
 @UseGuards(
   JwtAuthGuard,
-  WorkspaceAuthGuard,
+  AuthPrincipalGuard({
+    userSession: {
+      standard: true,
+      impersonated: true,
+      playground: true,
+      workspaceAgnostic: false,
+    },
+    apiKey: true,
+    oauthClient: true,
+    application: true,
+  }),
   SettingsPermissionGuard(PermissionFlagType.DATA_MODEL),
 )
 @UseFilters(
@@ -66,21 +81,51 @@ import { PermissionsRestApiExceptionFilter } from 'src/engine/metadata-modules/p
   FieldMetadataRestApiExceptionFilter,
   ApplicationRestApiExceptionFilter,
   FlatEntityMapsRestApiExceptionFilter,
+  AuthRestApiExceptionFilter,
 )
 @UsePipes(new ValidationPipe())
 export class FieldMetadataController {
   constructor(
-    @InjectRepository(FieldMetadataEntity)
-    private readonly fieldMetadataRepository: Repository<FieldMetadataEntity>,
+    @InjectWorkspaceScopedRepository(FieldMetadataEntity)
+    private readonly fieldMetadataRepository: WorkspaceScopedRepository<FieldMetadataEntity>,
     private readonly fieldMetadataService: FieldMetadataService,
     private readonly featureFlagService: FeatureFlagService,
-    private readonly uniqueFieldMetadataIdsService: UniqueFieldMetadataIdsService,
+    private readonly derivedFieldMetadataIdsService: DerivedFieldMetadataIdsService,
+    private readonly applicationTranslationCatalogService: ApplicationTranslationCatalogService,
   ) {}
+
+  // same locale-resolved labels as the GraphQL read path
+  private async toPresentedFieldDtos({
+    fields,
+    derivedFieldMetadataIds,
+    locale,
+    workspaceId,
+  }: {
+    fields: FieldMetadataEntity[];
+    derivedFieldMetadataIds: DerivedFieldMetadataIds;
+    locale: keyof typeof APP_LOCALES | undefined;
+    workspaceId: string;
+  }): Promise<FieldMetadataDTO[]> {
+    const resolvedFields =
+      await this.applicationTranslationCatalogService.resolveTranslatablePropertiesForEntities(
+        {
+          metadataName: 'fieldMetadata',
+          entities: fields,
+          locale,
+          workspaceId,
+        },
+      );
+
+    return resolvedFields.map((field) =>
+      fromFieldMetadataEntityToFieldMetadataDto(field, derivedFieldMetadataIds),
+    );
+  }
 
   @Get()
   async findMany(
     @Req() request: AuthenticatedRequest,
     @AuthWorkspace() { id: workspaceId }: WorkspaceEntity,
+    @RequestLocale() locale: keyof typeof APP_LOCALES | undefined,
   ) {
     const { items, pageInfo, totalCount } = await paginateByIdCursor({
       repository: this.fieldMetadataRepository,
@@ -88,17 +133,20 @@ export class FieldMetadataController {
       request,
     });
 
-    const uniqueFieldMetadataIds =
-      await this.uniqueFieldMetadataIdsService.getForWorkspace(workspaceId);
+    const derivedFieldMetadataIds =
+      await this.derivedFieldMetadataIdsService.getForWorkspace(workspaceId);
 
     const result: {
       data: FieldMetadataDTO[];
       pageInfo: RestCursorPageInfo;
       totalCount: number;
     } = {
-      data: items.map((item) =>
-        fromFieldMetadataEntityToFieldMetadataDto(item, uniqueFieldMetadataIds),
-      ),
+      data: await this.toPresentedFieldDtos({
+        fields: items,
+        derivedFieldMetadataIds,
+        locale,
+        workspaceId,
+      }),
       pageInfo,
       totalCount,
     };
@@ -112,9 +160,10 @@ export class FieldMetadataController {
   async findOne(
     @Param('id', new ParseUUIDPipe()) id: string,
     @AuthWorkspace() { id: workspaceId }: WorkspaceEntity,
+    @RequestLocale() locale: keyof typeof APP_LOCALES | undefined,
   ) {
-    const field = await this.fieldMetadataRepository.findOne({
-      where: { id, workspaceId },
+    const field = await this.fieldMetadataRepository.findOne(workspaceId, {
+      where: { id },
     });
 
     if (!field) {
@@ -124,12 +173,14 @@ export class FieldMetadataController {
       );
     }
 
-    const uniqueFieldMetadataIds =
-      await this.uniqueFieldMetadataIdsService.getForWorkspace(workspaceId);
-    const result = fromFieldMetadataEntityToFieldMetadataDto(
-      field,
-      uniqueFieldMetadataIds,
-    );
+    const derivedFieldMetadataIds =
+      await this.derivedFieldMetadataIdsService.getForWorkspace(workspaceId);
+    const [result] = await this.toPresentedFieldDtos({
+      fields: [field],
+      derivedFieldMetadataIds,
+      locale,
+      workspaceId,
+    });
 
     return (await this.isNewMetadataFormat(workspaceId))
       ? result

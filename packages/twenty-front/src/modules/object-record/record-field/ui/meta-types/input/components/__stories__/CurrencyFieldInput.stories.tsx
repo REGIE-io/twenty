@@ -8,11 +8,10 @@ import { expect, userEvent, waitFor, within } from 'storybook/test';
 
 import { usePushFocusItemToFocusStack } from '@/ui/utilities/focus/hooks/usePushFocusItemToFocusStack';
 import { FieldMetadataType } from '~/generated-metadata/graphql';
-import { SnackBarDecorator } from '~/testing/decorators/SnackBarDecorator';
+import { ToastDecorator } from '~/testing/decorators/ToastDecorator';
 
 import { NumberFormat } from '@/localization/constants/NumberFormat';
 import { workspaceMemberFormatPreferencesState } from '@/localization/states/workspaceMemberFormatPreferencesState';
-import { RecordFieldsScopeContextProvider } from '@/object-record/record-field-list/contexts/RecordFieldsScopeContext';
 import { FieldContext } from '@/object-record/record-field/ui/contexts/FieldContext';
 import { useCurrencyField } from '@/object-record/record-field/ui/meta-types/hooks/useCurrencyField';
 import { CurrencyFieldInput } from '@/object-record/record-field/ui/meta-types/input/components/CurrencyFieldInput';
@@ -20,10 +19,9 @@ import { getFieldInputEventContextProviderWithJestMocks } from '@/object-record/
 import { RecordFieldComponentInstanceContext } from '@/object-record/record-field/ui/states/contexts/RecordFieldComponentInstanceContext';
 import { RECORD_TABLE_CELL_INPUT_ID_PREFIX } from '@/object-record/record-table/constants/RecordTableCellInputIdPrefix';
 import { getRecordFieldInputInstanceId } from '@/object-record/utils/getRecordFieldInputId';
-import { useSetAtomState } from '@/ui/utilities/state/jotai/hooks/useSetAtomState';
 import { FocusComponentType } from '@/ui/utilities/focus/types/FocusComponentType';
+import { useSetAtomState } from '@/ui/utilities/state/jotai/hooks/useSetAtomState';
 import { CurrencyCode } from 'twenty-shared/constants';
-import { StorybookFieldInputDropdownFocusIdSetterEffect } from '~/testing/components/StorybookFieldInputDropdownFocusIdSetterEffect';
 
 const {
   FieldInputEventContextProviderWithJestMocks,
@@ -120,18 +118,13 @@ const CurrencyFieldInputWithContext = ({
           isRecordFieldReadOnly: false,
         }}
       >
-        <RecordFieldsScopeContextProvider
-          value={{ scopeInstanceId: RECORD_TABLE_CELL_INPUT_ID_PREFIX }}
-        >
-          <FieldInputEventContextProviderWithJestMocks>
-            {isReady && <StorybookFieldInputDropdownFocusIdSetterEffect />}
-            <CurrencyFieldValueSetterEffect
-              amountMicros={amountMicros}
-              numberFormat={numberFormat}
-            />
-            <CurrencyFieldInput />
-          </FieldInputEventContextProviderWithJestMocks>
-        </RecordFieldsScopeContextProvider>
+        <FieldInputEventContextProviderWithJestMocks>
+          <CurrencyFieldValueSetterEffect
+            amountMicros={amountMicros}
+            numberFormat={numberFormat}
+          />
+          <CurrencyFieldInput />
+        </FieldInputEventContextProviderWithJestMocks>
       </FieldContext.Provider>
       {isReady && <div data-testid="is-ready-marker" />}
       <div data-testid="data-field-input-click-outside-div" />
@@ -158,7 +151,7 @@ const meta: Meta = {
     amountMicros: AMOUNT_MICROS_WITH_CENTS,
     numberFormat: NumberFormat.DOTS_AND_COMMA,
   },
-  decorators: [clearMocksDecorator, SnackBarDecorator],
+  decorators: [clearMocksDecorator, ToastDecorator],
   parameters: {
     clearMocks: true,
   },
@@ -222,6 +215,29 @@ export const ClickOutsideKeepsCentsWithCommasAndDot: Story = {
         skipPersist: true,
       }),
     );
+  },
+};
+
+export const CurrencyPickerReopensOnEnter: Story = {
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const body = within(canvasElement.ownerDocument.body);
+
+    await canvas.findByTestId('is-ready-marker');
+    const trigger = canvas.getByRole('button', { name: 'Currency: USD' });
+
+    await userEvent.click(trigger);
+    await body.findByRole('dialog', { name: 'Currency' });
+    await userEvent.keyboard('{Escape}');
+    await waitFor(() => expect(body.queryByRole('dialog')).toBeNull());
+    await waitFor(() => expect(trigger).toHaveFocus());
+
+    await userEvent.keyboard('{Enter}');
+
+    const reopenedPopup = await body.findByRole('dialog', { name: 'Currency' });
+    await waitFor(() => expect(reopenedPopup).toBeVisible());
+    expect(handleEnterMocked).not.toHaveBeenCalled();
+    await userEvent.keyboard('{Escape}');
   },
 };
 

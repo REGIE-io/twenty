@@ -359,7 +359,13 @@ describe('View Filter Resolver', () => {
       expect(data.deleteViewFilter).toMatchObject({
         id: viewFilterId,
       });
-      expect(data.deleteViewFilter.deletedAt).toBeDefined();
+
+      const { data: findData } = await findViewFilters({
+        viewId: testViewId,
+        expectToFail: false,
+      });
+
+      expect(findData.getViewFilters).toEqual([]);
     });
 
     it('should throw an error when deleting non-existent view filter', async () => {
@@ -386,12 +392,6 @@ describe('View Filter Resolver', () => {
 
       const viewFilterId = createData.createViewFilter.id;
 
-      await deleteOneViewFilter({
-        input: {
-          id: viewFilterId,
-        },
-        expectToFail: false,
-      });
       const { data, errors } = await destroyOneViewFilter({
         input: { id: viewFilterId },
         expectToFail: false,

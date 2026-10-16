@@ -3,12 +3,13 @@ import { isNonEmptyString } from '@sniptt/guards';
 import { useId } from 'react';
 
 import { useDateTimeFormat } from '@/localization/hooks/useDateTimeFormat';
+import { TooltipDelay } from '@/ui/layout/tooltip/constants/TooltipDelay';
 import { useAtomStateValue } from '@/ui/utilities/state/jotai/hooks/useAtomStateValue';
-import { AppTooltip, TooltipDelay } from 'twenty-ui/surfaces';
-import { MOBILE_VIEWPORT, themeCssVariables } from 'twenty-ui/theme-constants';
-import { dateLocaleState } from '~/localization/states/dateLocaleState';
+import { Tooltip } from 'twenty-ui/primitives/surfaces';
+import { MOBILE_VIEWPORT, themeCssVariables } from 'twenty-ui/theme';
+import { dateLocaleState } from '@/localization/states/dateLocaleState';
 import { beautifyPastDateRelativeToNow } from '~/utils/date-utils';
-import { formatDateTimeString } from '~/utils/string/formatDateTimeString';
+import { formatDateTimeString } from '@/object-record/record-field/ui/utils/formatDateTimeString';
 
 const StyledEventRowDate = styled.div`
   @media (max-width: ${MOBILE_VIEWPORT}px) {
@@ -20,26 +21,26 @@ const StyledEventRowDate = styled.div`
 `;
 
 type EventRowDateProps = {
-  createdAt?: string;
+  happensAt?: string;
 };
 
-export const EventRowDate = ({ createdAt }: EventRowDateProps) => {
+export const EventRowDate = ({ happensAt }: EventRowDateProps) => {
   const { dateFormat, timeFormat, timeZone } = useDateTimeFormat();
   const { localeCatalog } = useAtomStateValue(dateLocaleState);
 
   const instanceId = useId();
   const dateElementId = `event-row-date-${instanceId.replace(/[^a-zA-Z0-9-_]/g, '-')}`;
 
-  if (!isNonEmptyString(createdAt)) {
+  if (!isNonEmptyString(happensAt)) {
     return null;
   }
 
-  const relativeCreatedAt = beautifyPastDateRelativeToNow(
-    createdAt,
+  const relativeHappensAt = beautifyPastDateRelativeToNow(
+    happensAt,
     localeCatalog,
   );
-  const exactCreatedAt = formatDateTimeString({
-    value: createdAt,
+  const exactHappensAt = formatDateTimeString({
+    value: happensAt,
     timeZone,
     dateFormat,
     timeFormat,
@@ -47,17 +48,14 @@ export const EventRowDate = ({ createdAt }: EventRowDateProps) => {
   });
 
   return (
-    <>
+    <Tooltip
+      content={exactHappensAt}
+      delay={TooltipDelay.mediumDelay}
+      side="left"
+    >
       <StyledEventRowDate id={dateElementId} tabIndex={0}>
-        {relativeCreatedAt}
+        {relativeHappensAt}
       </StyledEventRowDate>
-      <AppTooltip
-        anchorSelect={`#${dateElementId}`}
-        content={exactCreatedAt}
-        delay={TooltipDelay.mediumDelay}
-        noArrow
-        place="left"
-      />
-    </>
+    </Tooltip>
   );
 };

@@ -1,78 +1,38 @@
-import { useFindOneRecord } from '@/object-record/hooks/useFindOneRecord';
-import { useEffectiveDraftVersionId } from '@/workflow/hooks/useEffectiveDraftVersionId';
-import {
-  type Workflow,
-  type WorkflowVersion,
-  type WorkflowWithCurrentVersion,
-} from '@/workflow/types/Workflow';
-import { CoreObjectNameSingular } from 'twenty-shared/types';
+import { useCoreWorkflowForShowPage } from '@/object-core/workflows/hooks/useCoreWorkflowForShowPage';
+import { useCoreWorkflowVersionContent } from '@/object-core/workflows/hooks/useCoreWorkflowVersionContent';
+import { getWorkflowCurrentVersion } from '@/workflow/utils/getWorkflowCurrentVersion';
+import { type WorkflowWithCurrentVersion } from '@/workflow/types/Workflow';
 import { isDefined } from 'twenty-shared/utils';
-
-type WorkflowWithAllVersions = Omit<Workflow, 'versions'> & {
-  versions: Array<
-    Pick<WorkflowVersion, 'id' | 'status' | 'name' | 'createdAt'>
-  >;
-};
 
 export const useWorkflowWithCurrentVersion = (
   workflowId: string | undefined,
 ): WorkflowWithCurrentVersion | undefined => {
-  const { record: workflow } = useFindOneRecord<WorkflowWithAllVersions>({
-    objectNameSingular: CoreObjectNameSingular.Workflow,
-    objectRecordId: workflowId,
-    recordGqlFields: {
-      id: true,
-      name: true,
-      statuses: true,
-      lastPublishedVersionId: true,
-      versions: {
-        id: true,
-        status: true,
-        name: true,
-        createdAt: true,
-      },
-    },
-    skip: !isDefined(workflowId),
+  const { coreWorkflow, versions } = useCoreWorkflowForShowPage({
+    coreWorkflowId: workflowId,
   });
 
-  const draftVersionFromServer = workflow?.versions.find(
-    (workflowVersion) => workflowVersion.status === 'DRAFT',
+  const workflowVersions = [...versions].sort((a, b) =>
+    a.createdAt > b.createdAt ? -1 : 1,
   );
 
-  const { effectiveDraftId, lastDiscardedDraftId } = useEffectiveDraftVersionId(
-    draftVersionFromServer,
-  );
+  const currentVersionId = getWorkflowCurrentVersion({
+    versions: workflowVersions,
+    lastPublishedVersionId: coreWorkflow?.lastPublishedVersionId,
+  })?.id;
 
-  const workflowVersions = [...(workflow?.versions ?? [])]
-    .filter((version) => version.id !== lastDiscardedDraftId)
-    .sort((a, b) => (a.createdAt > b.createdAt ? -1 : 1));
+  const currentVersion = useCoreWorkflowVersionContent({
+    coreWorkflowId: workflowId,
+    coreWorkflowVersionId: currentVersionId,
+  });
 
-  const latestVersion = workflowVersions[0];
-
-  const currentVersionId = effectiveDraftId ?? latestVersion?.id;
-
-  const { record: currentVersionWithSteps } = useFindOneRecord<WorkflowVersion>(
-    {
-      objectNameSingular: CoreObjectNameSingular.WorkflowVersion,
-      objectRecordId: currentVersionId,
-      recordGqlFields: {
-        id: true,
-        name: true,
-        status: true,
-        workflowId: true,
-        createdAt: true,
-        updatedAt: true,
-      },
-      skip: !isDefined(currentVersionId),
-    },
-  );
-
-  if (!isDefined(workflow) || !isDefined(currentVersionWithSteps)) {
+  if (!isDefined(coreWorkflow) || !isDefined(currentVersion)) {
     return undefined;
   }
 
   return {
-    ...workflow,
-    currentVersion: currentVersionWithSteps,
+    ...coreWorkflow,
+    __typename: 'Workflow',
+    versions: workflowVersions,
+    currentVersion,
   };
 };

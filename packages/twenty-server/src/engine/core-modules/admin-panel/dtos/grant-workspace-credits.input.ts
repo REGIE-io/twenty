@@ -1,17 +1,22 @@
-import { ArgsType, Field, Float } from '@nestjs/graphql';
+import { ArgsType, Field, Float, Int } from '@nestjs/graphql';
 
 import {
   IsEnum,
+  IsInt,
   IsNotEmpty,
   IsOptional,
   IsPositive,
   IsString,
   IsUUID,
+  Max,
   MaxLength,
 } from 'class-validator';
 
 import { UUIDScalarType } from 'src/engine/api/graphql/workspace-schema-builder/graphql-types/scalars';
 import { BillingCreditGrantType } from 'src/engine/core-modules/billing/enums/billing-credit-grant-type.enum';
+
+// Raising it means raising MAX_PERIODS_AHEAD too, or a long validity silently comes back short
+const MAX_CREDIT_GRANT_VALIDITY_IN_DAYS = 365;
 
 @ArgsType()
 export class GrantWorkspaceCreditsInput {
@@ -35,8 +40,15 @@ export class GrantWorkspaceCreditsInput {
   @MaxLength(500)
   reason?: string;
 
-  // Identifies one intended grant, so a retried mutation returns the grant the
-  // first attempt wrote instead of handing out the credits a second time.
+  // Omitted, credits stay spendable until a period transition settles them against usage
+  @Field(() => Int, { nullable: true })
+  @IsOptional()
+  @IsInt()
+  @IsPositive()
+  @Max(MAX_CREDIT_GRANT_VALIDITY_IN_DAYS)
+  expiresInDays?: number;
+
+  // Idempotency key: a retried mutation returns the first attempt's grant
   @Field(() => UUIDScalarType)
   @IsNotEmpty()
   @IsUUID()

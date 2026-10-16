@@ -37,7 +37,7 @@ describe('WorkspaceService legacy hard deletion', () => {
       'deleteWorkspaceSyncableMetadataEntities',
       jest.fn().mockResolvedValue(undefined),
     );
-    setServiceProperty('workspaceDataSourceService', {
+    setServiceProperty('workspaceSchemaService', {
       deleteWorkspaceDBSchema: jest.fn().mockImplementation(async () => {
         steps.push('tenant-schema-delete');
       }),
@@ -53,7 +53,15 @@ describe('WorkspaceService legacy hard deletion', () => {
     setServiceProperty('flatEntityMapsCacheService', {
       flushFlatEntityMaps: jest.fn().mockResolvedValue(undefined),
     });
-    setServiceProperty('messageQueueService', messageQueueService);
+    setServiceProperty('deleteCascadeMessageQueueService', messageQueueService);
+    setServiceProperty('postgresAdvisoryLockService', {
+      tryWithLock: jest.fn(
+        async (_name: string, callback: () => Promise<unknown>) => ({
+          acquired: true,
+          value: await callback(),
+        }),
+      ),
+    });
     setServiceProperty('coreDataSource', {
       getRepository: jest.fn().mockReturnValue({
         find: jest.fn().mockResolvedValue([]),

@@ -22,6 +22,9 @@ jest.mock('bullmq', () => ({
   Queue: jest.fn(() => mockQueueInstance),
 }));
 
+const drainWorkerChecksLeftRunningByTheTimeout = () =>
+  new Promise((resolve) => setImmediate(resolve));
+
 describe('WorkerHealthIndicator', () => {
   let service: WorkerHealthIndicator;
   let mockRedis: jest.Mocked<Pick<Redis, 'ping'>>;
@@ -36,6 +39,7 @@ describe('WorkerHealthIndicator', () => {
     const mockRedisService = {
       getClient: () => mockRedis,
       getQueueClient: () => mockRedis,
+      getQueuePrefix: () => 'bull',
     } as unknown as RedisClientService;
 
     healthIndicatorService = {
@@ -130,9 +134,8 @@ describe('WorkerHealthIndicator', () => {
       expect(result.worker.error).toBe(HEALTH_ERROR_MESSAGES.WORKER_TIMEOUT);
     }
     jest.useRealTimers();
-    // isHealthy stops waiting at the timeout but its queue loop keeps going; let it finish so
-    // its calls do not land in the next test.
-    await new Promise((resolve) => setImmediate(resolve));
+
+    await drainWorkerChecksLeftRunningByTheTimeout();
   });
 
   it('should check all message queues', async () => {

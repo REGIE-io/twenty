@@ -1,23 +1,109 @@
 import { PERSON_GQL_FIELDS } from 'test/integration/constants/person-gql-fields.constants';
 import { createManyOperationFactory } from 'test/integration/graphql/utils/create-many-operation-factory.util';
 import { createOneOperationFactory } from 'test/integration/graphql/utils/create-one-operation-factory.util';
+import { findManyOperationFactory } from 'test/integration/graphql/utils/find-many-operation-factory.util';
 import { findOneOperationFactory } from 'test/integration/graphql/utils/find-one-operation-factory.util';
-import { makeGraphqlAPIRequest } from 'test/integration/graphql/utils/make-graphql-api-request.util';
+import { makeGraphqlApiRequest } from 'test/integration/graphql/utils/make-graphql-api-request.util';
 import { mergeManyOperationFactory } from 'test/integration/graphql/utils/merge-many-operation-factory.util';
 import { deleteRecordsByIds } from 'test/integration/utils/delete-records-by-ids';
 import { waitForAllJobsToFinish } from 'test/integration/utils/wait-for-all-jobs-to-finish.util';
+import { makeMetadataApiRequest } from 'test/integration/metadata/suites/utils/make-metadata-api-request.util';
+import { gql } from 'graphql-tag';
+import { QUERY_MAX_RECORDS } from 'twenty-shared/constants';
+import { isDefined } from 'twenty-shared/utils';
 
 import { type PersonWorkspaceEntity } from 'src/modules/person/standard-objects/person.workspace-entity';
 
+const FIND_CREATED_TIMELINE_ACTIVITY_TYPE = gql`
+  query FindCreatedTimelineActivityType {
+    timelineActivityTypes {
+      id
+      action
+      objectUniversalIdentifier
+    }
+  }
+`;
+
 describe('people merge resolvers (integration)', () => {
   let createdPersonIdsForCleaning: string[] = [];
+  let createdMessageThreadIdsForCleaning: string[] = [];
+  let createdMessageThreadTargetIdsForCleaning: string[] = [];
+  let createdTimelineActivityIdsForCleaning: string[] = [];
+  let createdTimelineActivityTypeId: string;
+
+  const createPeoplePair = async (namePrefix: string) => {
+    const createPersonsResponse = await makeGraphqlApiRequest(
+      createManyOperationFactory({
+        objectMetadataSingularName: 'person',
+        objectMetadataPluralName: 'people',
+        gqlFields: 'id',
+        data: [
+          { name: { firstName: namePrefix, lastName: 'Priority' } },
+          { name: { firstName: namePrefix, lastName: 'Duplicate' } },
+        ],
+      }),
+    );
+
+    expect(createPersonsResponse.body.errors).toBeUndefined();
+
+    const [priorityPerson, duplicatePerson] =
+      createPersonsResponse.body.data.createPeople;
+
+    createdPersonIdsForCleaning.push(priorityPerson.id, duplicatePerson.id);
+
+    return {
+      priorityPersonId: priorityPerson.id,
+      duplicatePersonId: duplicatePerson.id,
+    };
+  };
+
+  beforeAll(async () => {
+    const response = await makeMetadataApiRequest({
+      query: FIND_CREATED_TIMELINE_ACTIVITY_TYPE,
+    });
+
+    expect(response.body.errors).toBeUndefined();
+
+    const createdTimelineActivityType =
+      response.body.data.timelineActivityTypes.find(
+        ({
+          action,
+          objectUniversalIdentifier,
+        }: {
+          action: string | null;
+          objectUniversalIdentifier: string | null;
+        }) => action === 'created' && !isDefined(objectUniversalIdentifier),
+      );
+
+    if (!isDefined(createdTimelineActivityType)) {
+      throw new Error('Shared created timeline activity type is not installed');
+    }
+
+    createdTimelineActivityTypeId = createdTimelineActivityType.id;
+  });
 
   afterEach(async () => {
     await waitForAllJobsToFinish();
-    if (createdPersonIdsForCleaning.length > 0) {
-      await deleteRecordsByIds('person', createdPersonIdsForCleaning);
-      createdPersonIdsForCleaning = [];
-    }
+    await deleteRecordsByIds(
+      'messageThreadTarget',
+      createdMessageThreadTargetIdsForCleaning,
+    );
+    createdMessageThreadTargetIdsForCleaning = [];
+
+    await deleteRecordsByIds(
+      'messageThread',
+      createdMessageThreadIdsForCleaning,
+    );
+    createdMessageThreadIdsForCleaning = [];
+
+    await deleteRecordsByIds(
+      'timelineActivity',
+      createdTimelineActivityIdsForCleaning,
+    );
+    createdTimelineActivityIdsForCleaning = [];
+
+    await deleteRecordsByIds('person', createdPersonIdsForCleaning);
+    createdPersonIdsForCleaning = [];
   });
 
   describe('migrating related records', () => {
@@ -42,7 +128,7 @@ describe('people merge resolvers (integration)', () => {
         ],
       });
 
-      const createPersonsResponse = await makeGraphqlAPIRequest(
+      const createPersonsResponse = await makeGraphqlApiRequest(
         createPersonsOperation,
       );
       const [priorityPerson, duplicatePerson] =
@@ -52,12 +138,13 @@ describe('people merge resolvers (integration)', () => {
       // Person-created jobs must finish adding relations before the merge reads them.
       await waitForAllJobsToFinish();
 
-      const createTimelineActivityResponse = await makeGraphqlAPIRequest(
+      const createTimelineActivityResponse = await makeGraphqlApiRequest(
         createOneOperationFactory({
           objectMetadataSingularName: 'timelineActivity',
           gqlFields: 'id targetPersonId',
           data: {
             happensAt: new Date().toISOString(),
+            timelineActivityTypeId: createdTimelineActivityTypeId,
             targetPersonId: duplicatePerson.id,
           },
         }),
@@ -68,7 +155,7 @@ describe('people merge resolvers (integration)', () => {
       const timelineActivity =
         createTimelineActivityResponse.body.data.createTimelineActivity;
 
-      const mergeResponse = await makeGraphqlAPIRequest(
+      const mergeResponse = await makeGraphqlApiRequest(
         mergeManyOperationFactory({
           objectMetadataPluralName: 'people',
           gqlFields: PERSON_GQL_FIELDS,
@@ -79,7 +166,7 @@ describe('people merge resolvers (integration)', () => {
 
       expect(mergeResponse.body.errors).toBeUndefined();
 
-      const findTimelineActivityResponse = await makeGraphqlAPIRequest(
+      const findTimelineActivityResponse = await makeGraphqlApiRequest(
         findOneOperationFactory({
           objectMetadataSingularName: 'timelineActivity',
           gqlFields: 'id targetPersonId',
@@ -95,6 +182,259 @@ describe('people merge resolvers (integration)', () => {
       expect(
         findTimelineActivityResponse.body.data.timelineActivity.targetPersonId,
       ).toBe(priorityPerson.id);
+    });
+  });
+
+  describe('migrating related records that carry a unique constraint', () => {
+    const createMessageThread = async () => {
+      const response = await makeGraphqlApiRequest(
+        createOneOperationFactory({
+          objectMetadataSingularName: 'messageThread',
+          gqlFields: 'id',
+          data: {},
+        }),
+      );
+
+      expect(response.body.errors).toBeUndefined();
+
+      const messageThreadId = response.body.data.createMessageThread.id;
+
+      createdMessageThreadIdsForCleaning.push(messageThreadId);
+
+      return messageThreadId;
+    };
+
+    const attachPersonToMessageThread = async ({
+      messageThreadId,
+      targetPersonId,
+    }: {
+      messageThreadId: string;
+      targetPersonId: string;
+    }) => {
+      const response = await makeGraphqlApiRequest(
+        createOneOperationFactory({
+          objectMetadataSingularName: 'messageThreadTarget',
+          gqlFields: 'id',
+          data: { messageThreadId, targetPersonId },
+        }),
+      );
+
+      expect(response.body.errors).toBeUndefined();
+
+      createdMessageThreadTargetIdsForCleaning.push(
+        response.body.data.createMessageThreadTarget.id,
+      );
+    };
+
+    const findMessageThreadTargetsOfPerson = async (targetPersonId: string) => {
+      const response = await makeGraphqlApiRequest(
+        findManyOperationFactory({
+          objectMetadataSingularName: 'messageThreadTarget',
+          objectMetadataPluralName: 'messageThreadTargets',
+          gqlFields: 'id messageThreadId targetPersonId',
+          filter: { targetPersonId: { eq: targetPersonId } },
+        }),
+      );
+
+      expect(response.body.errors).toBeUndefined();
+
+      return response.body.data.messageThreadTargets.edges.map(
+        ({ node }: { node: { messageThreadId: string } }) => node,
+      );
+    };
+
+    it('should merge two people attached to the same message thread', async () => {
+      const { priorityPersonId, duplicatePersonId } =
+        await createPeoplePair('Shared thread');
+
+      const sharedMessageThreadId = await createMessageThread();
+      const duplicateOnlyMessageThreadId = await createMessageThread();
+
+      await attachPersonToMessageThread({
+        messageThreadId: sharedMessageThreadId,
+        targetPersonId: priorityPersonId,
+      });
+      await attachPersonToMessageThread({
+        messageThreadId: sharedMessageThreadId,
+        targetPersonId: duplicatePersonId,
+      });
+      await attachPersonToMessageThread({
+        messageThreadId: duplicateOnlyMessageThreadId,
+        targetPersonId: duplicatePersonId,
+      });
+
+      const mergeResponse = await makeGraphqlApiRequest(
+        mergeManyOperationFactory({
+          objectMetadataPluralName: 'people',
+          gqlFields: PERSON_GQL_FIELDS,
+          ids: [priorityPersonId, duplicatePersonId],
+          conflictPriorityIndex: 0,
+        }),
+      );
+
+      expect(mergeResponse.body.errors).toBeUndefined();
+      expect(mergeResponse.body.data.mergePeople.id).toBe(priorityPersonId);
+
+      const survivingTargets =
+        await findMessageThreadTargetsOfPerson(priorityPersonId);
+
+      expect(
+        survivingTargets.map(
+          ({ messageThreadId }: { messageThreadId: string }) => messageThreadId,
+        ),
+      ).toEqual(
+        expect.arrayContaining([
+          sharedMessageThreadId,
+          duplicateOnlyMessageThreadId,
+        ]),
+      );
+      expect(survivingTargets).toHaveLength(2);
+
+      expect(
+        await findMessageThreadTargetsOfPerson(duplicatePersonId),
+      ).toHaveLength(0);
+    });
+  });
+
+  describe('migrating more related records than the mutation batch limit', () => {
+    it('should merge a person carrying more related records than a single batch allows', async () => {
+      const { priorityPersonId, duplicatePersonId } =
+        await createPeoplePair('Over batch limit');
+
+      const timelineActivityCount = QUERY_MAX_RECORDS + 1;
+      const timelineActivityPayloads = Array.from(
+        { length: timelineActivityCount },
+        () => ({
+          happensAt: new Date().toISOString(),
+          timelineActivityTypeId: createdTimelineActivityTypeId,
+          targetPersonId: duplicatePersonId,
+        }),
+      );
+
+      for (
+        let batchStart = 0;
+        batchStart < timelineActivityCount;
+        batchStart += QUERY_MAX_RECORDS
+      ) {
+        const createResponse = await makeGraphqlApiRequest(
+          createManyOperationFactory({
+            objectMetadataSingularName: 'timelineActivity',
+            objectMetadataPluralName: 'timelineActivities',
+            gqlFields: 'id',
+            data: timelineActivityPayloads.slice(
+              batchStart,
+              batchStart + QUERY_MAX_RECORDS,
+            ),
+          }),
+        );
+
+        expect(createResponse.body.errors).toBeUndefined();
+
+        createdTimelineActivityIdsForCleaning.push(
+          ...createResponse.body.data.createTimelineActivities.map(
+            ({ id }: { id: string }) => id,
+          ),
+        );
+      }
+
+      expect(createdTimelineActivityIdsForCleaning).toHaveLength(
+        timelineActivityCount,
+      );
+
+      const mergeResponse = await makeGraphqlApiRequest(
+        mergeManyOperationFactory({
+          objectMetadataPluralName: 'people',
+          gqlFields: PERSON_GQL_FIELDS,
+          ids: [priorityPersonId, duplicatePersonId],
+          conflictPriorityIndex: 0,
+        }),
+      );
+
+      expect(mergeResponse.body.errors).toBeUndefined();
+
+      const findMigratedResponse = await makeGraphqlApiRequest(
+        findManyOperationFactory({
+          objectMetadataSingularName: 'timelineActivity',
+          objectMetadataPluralName: 'timelineActivities',
+          gqlFields: 'id targetPersonId',
+          filter: { id: { in: createdTimelineActivityIdsForCleaning } },
+          first: timelineActivityCount,
+        }),
+      );
+
+      expect(findMigratedResponse.body.errors).toBeUndefined();
+
+      const migratedTargetPersonIds =
+        findMigratedResponse.body.data.timelineActivities.edges.map(
+          ({ node }: { node: { targetPersonId: string } }) =>
+            node.targetPersonId,
+        );
+
+      expect(migratedTargetPersonIds).toHaveLength(timelineActivityCount);
+      expect(new Set(migratedTargetPersonIds)).toEqual(
+        new Set([priorityPersonId]),
+      );
+    });
+  });
+
+  describe('merging with a partial response selection', () => {
+    it('should merge every field even when the mutation only selects the id', async () => {
+      const createPersonsResponse = await makeGraphqlApiRequest(
+        createManyOperationFactory({
+          objectMetadataSingularName: 'person',
+          objectMetadataPluralName: 'people',
+          gqlFields: 'id',
+          data: [
+            { name: { firstName: 'Partial', lastName: 'Priority' } },
+            {
+              name: { firstName: 'Partial', lastName: 'Duplicate' },
+              jobTitle: 'CTO',
+              intro: 'Intro from the duplicate',
+              emails: {
+                primaryEmail: 'duplicate@example.com',
+                additionalEmails: ['duplicate.alt@example.com'],
+              },
+            },
+          ],
+        }),
+      );
+
+      expect(createPersonsResponse.body.errors).toBeUndefined();
+
+      const [priorityPerson, duplicatePerson] =
+        createPersonsResponse.body.data.createPeople;
+
+      createdPersonIdsForCleaning.push(priorityPerson.id, duplicatePerson.id);
+
+      const mergeResponse = await makeGraphqlApiRequest(
+        mergeManyOperationFactory({
+          objectMetadataPluralName: 'people',
+          gqlFields: 'id',
+          ids: [priorityPerson.id, duplicatePerson.id],
+          conflictPriorityIndex: 0,
+        }),
+      );
+
+      expect(mergeResponse.body.errors).toBeUndefined();
+
+      const findMergedPersonResponse = await makeGraphqlApiRequest(
+        findOneOperationFactory({
+          objectMetadataSingularName: 'person',
+          gqlFields: PERSON_GQL_FIELDS,
+          filter: { id: { eq: priorityPerson.id } },
+        }),
+      );
+
+      expect(findMergedPersonResponse.body.errors).toBeUndefined();
+
+      const mergedPerson = findMergedPersonResponse.body.data.person;
+
+      expect(mergedPerson.jobTitle).toBe('CTO');
+      expect(mergedPerson.intro).toBe('Intro from the duplicate');
+      expect(mergedPerson.emails.primaryEmail).toBe('duplicate@example.com');
+      expect(mergedPerson.emails.additionalEmails).toEqual(
+        expect.arrayContaining(['duplicate.alt@example.com']),
+      );
     });
   });
 
@@ -134,7 +474,7 @@ describe('people merge resolvers (integration)', () => {
         ],
       });
 
-      const createResponse = await makeGraphqlAPIRequest(
+      const createResponse = await makeGraphqlApiRequest(
         createPersonsOperation,
       );
 
@@ -153,7 +493,7 @@ describe('people merge resolvers (integration)', () => {
         conflictPriorityIndex: 0,
       });
 
-      const mergeResponse = await makeGraphqlAPIRequest(mergeOperation);
+      const mergeResponse = await makeGraphqlApiRequest(mergeOperation);
 
       expect(mergeResponse.body.errors).toBeUndefined();
 
@@ -204,7 +544,7 @@ describe('people merge resolvers (integration)', () => {
         ],
       });
 
-      const createResponse = await makeGraphqlAPIRequest(
+      const createResponse = await makeGraphqlApiRequest(
         createPersonsOperation,
       );
 
@@ -221,7 +561,7 @@ describe('people merge resolvers (integration)', () => {
         conflictPriorityIndex: 0,
       });
 
-      const mergeResponse = await makeGraphqlAPIRequest(mergeOperation);
+      const mergeResponse = await makeGraphqlApiRequest(mergeOperation);
       const mergedPerson = mergeResponse.body.data.mergePeople;
 
       expect(mergedPerson.emails.primaryEmail).toBe('alice@example.com');
@@ -273,7 +613,7 @@ describe('people merge resolvers (integration)', () => {
         ],
       });
 
-      const createResponse = await makeGraphqlAPIRequest(
+      const createResponse = await makeGraphqlApiRequest(
         createPersonsOperation,
       );
 
@@ -290,7 +630,7 @@ describe('people merge resolvers (integration)', () => {
         conflictPriorityIndex: 1,
       });
 
-      const mergeResponse = await makeGraphqlAPIRequest(mergeWithPriority1);
+      const mergeResponse = await makeGraphqlApiRequest(mergeWithPriority1);
       const mergedPerson = mergeResponse.body.data.mergePeople;
 
       expect(mergedPerson.emails.primaryEmail).toBe('second@example.com');
@@ -331,7 +671,7 @@ describe('people merge resolvers (integration)', () => {
           },
         ],
       });
-      const createResponse = await makeGraphqlAPIRequest(
+      const createResponse = await makeGraphqlApiRequest(
         createPersonsOperation,
       );
 
@@ -354,7 +694,7 @@ describe('people merge resolvers (integration)', () => {
         dryRun: true,
       });
 
-      const dryRunResponse = await makeGraphqlAPIRequest(dryRunMergeOperation);
+      const dryRunResponse = await makeGraphqlApiRequest(dryRunMergeOperation);
 
       expect(dryRunResponse.body.errors).toBeUndefined();
 
@@ -379,7 +719,7 @@ describe('people merge resolvers (integration)', () => {
         },
       });
 
-      const findResponse = await makeGraphqlAPIRequest(findOriginalPersons);
+      const findResponse = await makeGraphqlApiRequest(findOriginalPersons);
 
       expect(findResponse.body.data.person).toBeTruthy();
       expect(findResponse.body.data.person.emails.primaryEmail).toBe(
@@ -456,7 +796,7 @@ describe('people merge resolvers (integration)', () => {
         ],
       });
 
-      const createResponse = await makeGraphqlAPIRequest(
+      const createResponse = await makeGraphqlApiRequest(
         createPersonsOperation,
       );
 
@@ -475,7 +815,7 @@ describe('people merge resolvers (integration)', () => {
         conflictPriorityIndex: 0,
       });
 
-      const mergeResponse = await makeGraphqlAPIRequest(mergeOperation);
+      const mergeResponse = await makeGraphqlApiRequest(mergeOperation);
 
       expect(mergeResponse.body.errors).toBeUndefined();
 

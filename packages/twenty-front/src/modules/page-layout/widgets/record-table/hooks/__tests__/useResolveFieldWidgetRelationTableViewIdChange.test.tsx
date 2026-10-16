@@ -32,6 +32,18 @@ const companyOpportunitiesField = companyObjectMetadataItem.fields.find(
   (field) => field.name === 'opportunities',
 );
 
+const personPreviousCompaniesField = personObjectMetadataItem.fields.find(
+  (field) => field.name === 'previousCompanies',
+);
+
+const companyPreviousEmployeesField = companyObjectMetadataItem.fields.find(
+  (field) => field.name === 'previousEmployees',
+);
+
+const employmentHistoryPersonField = getMockObjectMetadataItemOrThrow(
+  'employmentHistory',
+).fields.find((field) => field.name === 'person');
+
 const getWrapper =
   (store: ReturnType<typeof createStore>) =>
   ({ children }: { children: ReactNode }) => (
@@ -111,13 +123,45 @@ describe('useResolveFieldWidgetRelationTableViewIdChange', () => {
     expect(draft[WIDGET_ID].view.objectMetadataId).toBe(
       opportunityObjectMetadataItem.id,
     );
-    // The intermediate is the single record the current record points at, so
-    // the seeded filter carries no relation traversal.
     expect(draft[WIDGET_ID].viewFilters).toEqual([
       expect.objectContaining({
         fieldMetadataId:
           companyOpportunitiesField?.relation?.targetFieldMetadata.id,
         relationTargetFieldMetadataId: null,
+      }),
+    ]);
+  });
+
+  it('should regenerate a view on the junction target for a junction relation', () => {
+    const { result, store } = renderResolveHook();
+
+    let change: { viewId?: string | null } | undefined;
+
+    act(() => {
+      change = result.current.resolveFieldWidgetRelationTableViewIdChange({
+        selectedField: personPreviousCompaniesField,
+        nextDisplayMode: FieldDisplayMode.TABLE,
+        isSelectingDifferentChain: true,
+        widgetId: WIDGET_ID,
+        currentViewId: undefined,
+      });
+    });
+
+    expect(change?.viewId).toBeDefined();
+
+    const draft = store.get(
+      recordTableWidgetViewDraftComponentState.atomFamily({
+        instanceId: PAGE_LAYOUT_ID,
+      }),
+    );
+
+    expect(draft[WIDGET_ID].view.objectMetadataId).toBe(
+      companyObjectMetadataItem.id,
+    );
+    expect(draft[WIDGET_ID].viewFilters).toEqual([
+      expect.objectContaining({
+        fieldMetadataId: companyPreviousEmployeesField?.id,
+        relationTargetFieldMetadataId: employmentHistoryPersonField?.id,
       }),
     ]);
   });

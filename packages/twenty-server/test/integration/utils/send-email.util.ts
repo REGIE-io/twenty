@@ -1,9 +1,10 @@
 import gql from 'graphql-tag';
 
-import { makeMetadataAPIRequest } from 'test/integration/metadata/suites/utils/make-metadata-api-request.util';
+import { makeMetadataApiRequest } from 'test/integration/metadata/suites/utils/make-metadata-api-request.util';
 
 type SendEmailInput = {
   connectedAccountId: string;
+  fromHandle?: string;
   to: string;
   cc?: string;
   bcc?: string;
@@ -32,7 +33,7 @@ const SEND_EMAIL_MUTATION = gql`
 export const sendEmail = async (
   input: SendEmailInput,
 ): Promise<SendEmailResult> => {
-  const response = await makeMetadataAPIRequest({
+  const response = await makeMetadataApiRequest({
     query: SEND_EMAIL_MUTATION,
     variables: { input },
   });

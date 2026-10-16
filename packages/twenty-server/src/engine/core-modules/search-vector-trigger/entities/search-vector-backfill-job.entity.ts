@@ -11,7 +11,7 @@ import {
 } from 'typeorm';
 
 import { ObjectMetadataEntity } from 'src/engine/metadata-modules/object-metadata/object-metadata.entity';
-import { WorkspaceRelatedEntity } from 'src/engine/workspace-manager/types/workspace-related-entity';
+import { WorkspaceRelatedEntity } from 'src/engine/workspace-manager/types/workspace-related-entity.type';
 
 export type SearchVectorBackfillJobStatus =
   | 'PENDING'

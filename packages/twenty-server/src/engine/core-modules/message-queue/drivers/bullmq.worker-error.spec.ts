@@ -22,7 +22,12 @@ describe('BullMQ worker errors', () => {
       .spyOn(Logger.prototype, 'error')
       .mockImplementation(() => undefined);
 
-    jest.mocked(Queue).mockImplementation(() => ({}) as never);
+    jest.mocked(Queue).mockImplementation(
+      () =>
+        ({
+          removeGlobalConcurrency: jest.fn().mockResolvedValue(undefined),
+        }) as never,
+    );
     jest.mocked(Worker).mockImplementation(() => worker as never);
 
     const driver = new BullMQDriver(
@@ -31,6 +36,7 @@ describe('BullMQ worker errors', () => {
         createMultiObservableGauge: jest.fn(),
       } as unknown as MetricsService,
       { get: jest.fn() } as unknown as TwentyConfigService,
+      { emit: jest.fn() } as never,
     );
 
     driver.register(MessageQueue.cronQueue);

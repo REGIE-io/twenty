@@ -4,13 +4,13 @@ import { isDefined } from 'twenty-shared/utils';
 import { In } from 'typeorm';
 import { v4 } from 'uuid';
 
-import { GlobalWorkspaceOrmManager } from 'src/engine/twenty-orm/global-workspace-datasource/global-workspace-orm.manager';
-import { type WorkspaceTransactionScope } from 'src/engine/twenty-orm/global-workspace-datasource/types/workspace-transaction-scope.type';
+import { WorkspaceOrmManager } from 'src/engine/twenty-orm/workspace-orm.manager';
+import { type WorkspaceTransactionScope } from 'src/engine/twenty-orm/types/workspace-transaction-scope.type';
 import { buildSystemAuthContext } from 'src/engine/twenty-orm/utils/build-system-auth-context.util';
 import { type MessageChannelMessageAssociationWorkspaceEntity } from 'src/modules/messaging/common/standard-objects/message-channel-message-association.workspace-entity';
 import { type MessageThreadWorkspaceEntity } from 'src/modules/messaging/common/standard-objects/message-thread.workspace-entity';
 import { type MessageWorkspaceEntity } from 'src/modules/messaging/common/standard-objects/message.workspace-entity';
-import { type MessageWithParticipants } from 'src/modules/messaging/message-import-manager/types/message';
+import { type MessageWithParticipants } from 'src/modules/messaging/message-import-manager/types/message.type';
 
 type MessageAccumulator = {
   existingMessageInDB?: MessageWorkspaceEntity;
@@ -41,9 +41,7 @@ type MessageAccumulator = {
 export class MessagingMessageService {
   private readonly logger = new Logger(MessagingMessageService.name);
 
-  constructor(
-    private readonly globalWorkspaceOrmManager: GlobalWorkspaceOrmManager,
-  ) {}
+  constructor(private readonly workspaceOrmManager: WorkspaceOrmManager) {}
 
   public async saveMessagesWithinTransaction(
     messages: MessageWithParticipants[],
@@ -61,19 +59,23 @@ export class MessagingMessageService {
   }> {
     const authContext = buildSystemAuthContext(workspaceId);
 
-    return this.globalWorkspaceOrmManager.executeInWorkspaceContext(
+    return this.workspaceOrmManager.executeInWorkspaceContext(
       async () => {
         const messageChannelMessageAssociationRepository =
           transactionScope.getRepository<MessageChannelMessageAssociationWorkspaceEntity>(
             'messageChannelMessageAssociation',
+            { shouldBypassPermissionChecks: true },
           );
 
         const messageRepository =
-          transactionScope.getRepository<MessageWorkspaceEntity>('message');
+          transactionScope.getRepository<MessageWorkspaceEntity>('message', {
+            shouldBypassPermissionChecks: true,
+          });
 
         const messageThreadRepository =
           transactionScope.getRepository<MessageThreadWorkspaceEntity>(
             'messageThread',
+            { shouldBypassPermissionChecks: true },
           );
 
         const messageAccumulatorMap = new Map<string, MessageAccumulator>();
@@ -109,6 +111,7 @@ export class MessagingMessageService {
           messages,
           messageAccumulatorMap,
           existingMessagesInDB,
+          messageChannelMessageAssociationsReferencingMessageThread,
         );
 
         await this.enrichMessageAccumulatorWithExistingMessageThreadIds(
@@ -121,7 +124,10 @@ export class MessagingMessageService {
         await this.enrichMessageAccumulatorWithExistingMessageChannelMessageAssociations(
           messages,
           messageAccumulatorMap,
-          existingMessageChannelMessageAssociations,
+          [
+            ...existingMessageChannelMessageAssociations,
+            ...messageChannelMessageAssociationsReferencingMessageThread,
+          ],
         );
 
         await this.enrichMessageAccumulatorWithMessageThreadToCreate(
@@ -334,12 +340,24 @@ export class MessagingMessageService {
     messages: MessageWithParticipants[],
     messageAccumulatorMap: Map<string, MessageAccumulator>,
     existingMessagesInDB: MessageWorkspaceEntity[],
+    messageChannelMessageAssociationsReferencingMessageThread: Pick<
+      MessageChannelMessageAssociationWorkspaceEntity,
+      'messageExternalId' | 'message'
+    >[],
   ) {
     for (const message of messages) {
-      const existingMessage = existingMessagesInDB.find(
+      const messageWithSameExternalIdInChannel =
+        messageChannelMessageAssociationsReferencingMessageThread.find(
+          (association) => association.messageExternalId === message.externalId,
+        )?.message;
+
+      const messageWithSameHeaderMessageId = existingMessagesInDB.find(
         (existingMessage) =>
           existingMessage.headerMessageId === message.headerMessageId,
       );
+
+      const existingMessage =
+        messageWithSameExternalIdInChannel ?? messageWithSameHeaderMessageId;
 
       if (!isDefined(existingMessage)) {
         messageAccumulatorMap.set(message.externalId, {});

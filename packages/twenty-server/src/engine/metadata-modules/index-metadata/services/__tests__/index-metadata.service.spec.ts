@@ -1,11 +1,12 @@
+import { FieldMetadataType, IndexType } from 'twenty-shared/types';
 import { MAX_CUSTOM_INDEXES_PER_OBJECT } from 'twenty-shared/constants';
-import { FieldMetadataType } from 'twenty-shared/types';
+
 import { isDefined } from 'twenty-shared/utils';
 import { v4 as uuid } from 'uuid';
 
 import { IndexMetadataExceptionCode } from 'src/engine/metadata-modules/index-metadata/index-field-metadata.exception';
 import { IndexMetadataService } from 'src/engine/metadata-modules/index-metadata/services/index-metadata.service';
-import { IndexType } from 'src/engine/metadata-modules/index-metadata/types/indexType.types';
+
 import { computeTwentyStandardApplicationAllFlatEntityMaps } from 'src/engine/workspace-manager/twenty-standard-application/utils/twenty-standard-application-all-flat-entity-maps.constant';
 
 const SCALAR_FIELD_TYPES: FieldMetadataType[] = [

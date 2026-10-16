@@ -1,3 +1,4 @@
+import { STANDARD_OBJECTS } from 'twenty-shared/metadata';
 import { FieldMetadataType } from 'twenty-shared/types';
 import { isDefined } from 'twenty-shared/utils';
 import { DataSource, type QueryRunner } from 'typeorm';
@@ -12,7 +13,7 @@ import { WorkspaceSchemaTableManagerService } from 'src/engine/twenty-orm/worksp
 import { WorkspaceSchemaManagerService } from 'src/engine/twenty-orm/workspace-schema-manager/workspace-schema-manager.service';
 import { getWorkspaceSchemaName } from 'src/engine/workspace-datasource/utils/get-workspace-schema-name.util';
 import { computeTwentyStandardApplicationAllFlatEntityMaps } from 'src/engine/workspace-manager/twenty-standard-application/utils/twenty-standard-application-all-flat-entity-maps.constant';
-import { type FlatCreateObjectAction } from 'src/engine/workspace-manager/workspace-migration/workspace-migration-builder/builders/object/types/workspace-migration-object-action';
+import { type FlatCreateObjectAction } from 'src/engine/workspace-manager/workspace-migration/workspace-migration-builder/builders/object/types/workspace-migration-object-action.type';
 import { CreateObjectActionHandlerService } from 'src/engine/workspace-manager/workspace-migration/workspace-migration-runner/action-handlers/object/services/create-object-action-handler.service';
 import { type WorkspaceMigrationActionRunnerContext } from 'src/engine/workspace-manager/workspace-migration/workspace-migration-runner/types/workspace-migration-action-runner-args.type';
 
@@ -155,7 +156,7 @@ describe('CreateObjectActionHandlerService on the full Twenty standard applicati
       ),
     );
 
-    expect(contexts).toHaveLength(28);
+    expect(contexts).toHaveLength(Object.keys(STANDARD_OBJECTS).length);
     expect(withSearchVector.length).toBeGreaterThan(0);
   });
 

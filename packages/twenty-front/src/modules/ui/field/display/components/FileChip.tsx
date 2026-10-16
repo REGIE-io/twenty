@@ -1,19 +1,12 @@
-import { styled } from '@linaria/react';
 import { t } from '@lingui/core/macro';
 import { isNonEmptyString } from '@sniptt/guards';
 
 import { FileIcon } from '@/file/components/FileIcon';
 import { type FieldFilesValue } from '@/object-record/record-field/ui/types/FieldMetadata';
 import { getFileCategoryFromExtension } from '@/object-record/record-field/ui/utils/getFileCategoryFromExtension';
-import { Chip, ChipVariant } from 'twenty-ui/data-display';
+import { Chip } from 'twenty-ui/primitives/data-display';
 
 const MAX_WIDTH = 120;
-
-const StyledClickableContainer = styled.div<{ clickable: boolean }>`
-  cursor: ${({ clickable }) => (clickable ? 'pointer' : 'inherit')};
-  display: inline-flex;
-  min-width: 0;
-`;
 
 type FileChipProps = {
   file: FieldFilesValue;
@@ -43,29 +36,41 @@ export const FileChip = ({
     onClick?.(file);
   };
 
+  const handleClick = (event: React.MouseEvent): void => {
+    event.preventDefault();
+    event.stopPropagation();
+
+    if (isClickable && event.detail === 0) {
+      onClick(file);
+    }
+  };
+
   return (
-    <StyledClickableContainer
-      clickable={isClickable}
+    <Chip
+      render={
+        forceDisableClick ? undefined : (
+          <button type="button" disabled={isDeleted} />
+        )
+      }
       onMouseDown={handleMouseDown}
+      onClick={isClickable ? handleClick : undefined}
+      alwaysShowTooltip={isDeleted}
+      tooltipContent={
+        isDeleted ? t`File no longer exists - ${label}` : undefined
+      }
+      aria-disabled={isDeleted || undefined}
+      maxWidth={MAX_WIDTH}
+      startElement={
+        <FileIcon
+          fileCategory={fileCategory}
+          size="small"
+          thumbnailUrl={isDeleted ? undefined : file.url}
+        />
+      }
+      variant="soft"
+      clickable={isClickable}
     >
-      <Chip
-        label={label}
-        alwaysShowTooltip={isDeleted}
-        tooltipLabel={
-          isDeleted ? t`File no longer exists - ${label}` : undefined
-        }
-        disabled={isDeleted}
-        maxWidth={MAX_WIDTH}
-        leftComponent={
-          <FileIcon
-            fileCategory={fileCategory}
-            size="small"
-            thumbnailUrl={isDeleted ? undefined : file.url}
-          />
-        }
-        variant={isDeleted ? ChipVariant.Static : ChipVariant.Highlighted}
-        clickable={isClickable}
-      />
-    </StyledClickableContainer>
+      {label}
+    </Chip>
   );
 };

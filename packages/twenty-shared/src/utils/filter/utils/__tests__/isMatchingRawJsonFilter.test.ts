@@ -19,6 +19,58 @@ describe('isMatchingRawJsonFilter', () => {
         }),
       ).toBe(false);
     });
+
+    it('should treat regex metacharacters in the pattern literally', () => {
+      expect(() =>
+        isMatchingRawJsonFilter({
+          rawJsonFilter: { like: '%(%' },
+          value: 'some (test) value',
+        }),
+      ).not.toThrow();
+
+      expect(
+        isMatchingRawJsonFilter({
+          rawJsonFilter: { like: '%(test)%' },
+          value: 'some (test) value',
+        }),
+      ).toBe(true);
+
+      expect(
+        isMatchingRawJsonFilter({
+          rawJsonFilter: { like: '%a.c%' },
+          value: 'abc',
+        }),
+      ).toBe(false);
+    });
+
+    it('should be case sensitive', () => {
+      expect(
+        isMatchingRawJsonFilter({
+          rawJsonFilter: { like: '%acme%' },
+          value: { name: 'Acme' },
+        }),
+      ).toBe(false);
+    });
+
+    it('should not match a null value', () => {
+      expect(
+        isMatchingRawJsonFilter({
+          rawJsonFilter: { like: '%null%' },
+          value: null,
+        }),
+      ).toBe(false);
+    });
+  });
+
+  describe('ilike', () => {
+    it('should match case insensitively', () => {
+      expect(
+        isMatchingRawJsonFilter({
+          rawJsonFilter: { ilike: '%acme%' },
+          value: { name: 'Acme' },
+        }),
+      ).toBe(true);
+    });
   });
 
   describe('is', () => {

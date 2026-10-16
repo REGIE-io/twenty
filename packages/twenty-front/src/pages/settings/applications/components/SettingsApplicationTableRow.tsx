@@ -2,16 +2,17 @@ import { type ReactNode } from 'react';
 
 import { ApplicationDisplay } from '@/applications/components/ApplicationDisplay';
 import { useResolvedApplicationDescription } from '@/applications/hooks/useResolvedApplicationDescription';
+import { type ApplicationDisplayData } from '@/applications/types/ApplicationDisplayData';
+import { StyledNameTableCell } from '@/settings/data-model/object-details/components/SettingsObjectItemTableRowStyledComponents';
 import { TableCell } from '@/ui/layout/table/components/TableCell';
 import { TableRow } from '@/ui/layout/table/components/TableRow';
+import { styled } from '@linaria/react';
 import { t } from '@lingui/core/macro';
-import { Tag } from 'twenty-ui/data-display';
-import { OverflowingTextWithTooltip } from 'twenty-ui/surfaces';
-import { themeCssVariables } from 'twenty-ui/theme-constants';
-import { getApplicationDescriptionSummary } from '~/pages/settings/applications/utils/getApplicationDescriptionSummary';
-import { type ApplicationDisplayData } from '@/applications/types/applicationDisplayData.type';
-import { StyledNameTableCell } from '@/settings/data-model/object-details/components/SettingsObjectItemTableRowStyledComponents';
+import { OverflowingTextWithTooltip } from 'twenty-ui/primitives/typography';
+import { Tag } from 'twenty-ui/primitives/data-display';
+import { themeCssVariables } from 'twenty-ui/theme';
 import { ApplicationRegistrationSourceType } from '~/generated-metadata/graphql';
+import { getApplicationDescriptionSummary } from '~/pages/settings/applications/utils/getApplicationDescriptionSummary';
 
 export type SettingsApplicationTableRowProps = {
   action: ReactNode;
@@ -32,6 +33,12 @@ const SOURCE_TYPE_LABELS: Record<ApplicationRegistrationSourceType, string> = {
   [ApplicationRegistrationSourceType.OAUTH_ONLY]: 'OAuth',
   [ApplicationRegistrationSourceType.TARBALL]: 'Tarball',
 };
+
+const StyledUpdateTag = styled(Tag)`
+  && {
+    min-width: fit-content;
+  }
+`;
 
 export const SettingsApplicationTableRow = ({
   action,
@@ -59,7 +66,9 @@ export const SettingsApplicationTableRow = ({
       <TableCell gap={themeCssVariables.spacing[2]} minWidth="0">
         <OverflowingTextWithTooltip text={descriptionSummary} />
         {hasUpdate === true && (
-          <Tag color="blue" text={t`Update`} weight="medium" />
+          <StyledUpdateTag color="blue" weight="medium">
+            {t`Update`}
+          </StyledUpdateTag>
         )}
       </TableCell>
       <TableCell

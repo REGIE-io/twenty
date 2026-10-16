@@ -1,18 +1,34 @@
+import { useQuery } from '@apollo/client/react';
 import { HeadlessNavigateEngineCommand } from '@/command-menu-item/engine-command/components/HeadlessNavigateEngineCommand';
 import { useHeadlessCommandContextApi } from '@/command-menu-item/engine-command/hooks/useHeadlessCommandContextApi';
+import { useApolloCoreClient } from '@/object-metadata/hooks/useApolloCoreClient';
 import { CoreObjectNamePlural } from '@/object-metadata/types/CoreObjectNamePlural';
-import { useWorkflowWithCurrentVersion } from '@/workflow/hooks/useWorkflowWithCurrentVersion';
+import { useCoreWorkflowVersion } from '@/object-core/workflows/versions/hooks/useCoreWorkflowVersion';
 import { AppPath, ViewFilterOperand } from 'twenty-shared/types';
 import { isDefined } from 'twenty-shared/utils';
+import { GetCoreWorkflowDocument } from '~/generated/graphql';
 
 const SeeRunsWorkflowVersionSingleRecordCommandContent = ({
   workflowId,
-  recordId,
+  workflowVersionId,
+  workflowVersionLabel,
 }: {
   workflowId: string;
-  recordId: string;
+  workflowVersionId: string;
+  workflowVersionLabel: string | undefined;
 }) => {
-  const workflowWithCurrentVersion = useWorkflowWithCurrentVersion(workflowId);
+  const apolloCoreClient = useApolloCoreClient();
+  const { data: coreWorkflowData, loading: coreWorkflowLoading } = useQuery(
+    GetCoreWorkflowDocument,
+    {
+      client: apolloCoreClient,
+      variables: { coreWorkflowId: workflowId },
+    },
+  );
+
+  if (coreWorkflowLoading) {
+    return null;
+  }
 
   return (
     <HeadlessNavigateEngineCommand
@@ -20,15 +36,15 @@ const SeeRunsWorkflowVersionSingleRecordCommandContent = ({
       params={{ objectNamePlural: CoreObjectNamePlural.WorkflowRun }}
       queryParams={{
         filter: {
-          workflow: {
-            [ViewFilterOperand.IS]: {
-              selectedRecordIds: [workflowWithCurrentVersion?.id],
-            },
+          coreWorkflowId: { [ViewFilterOperand.IS]: workflowId },
+          coreWorkflowVersionId: { [ViewFilterOperand.IS]: workflowVersionId },
+        },
+        filterDisplayValue: {
+          coreWorkflowId: {
+            [ViewFilterOperand.IS]: coreWorkflowData?.coreWorkflow?.name,
           },
-          recordStore: {
-            [ViewFilterOperand.IS]: {
-              selectedRecordIds: [recordId],
-            },
+          coreWorkflowVersionId: {
+            [ViewFilterOperand.IS]: workflowVersionLabel,
           },
         },
       }}
@@ -39,12 +55,15 @@ const SeeRunsWorkflowVersionSingleRecordCommandContent = ({
 export const SeeRunsWorkflowVersionSingleRecordCommand = () => {
   const { selectedRecords } = useHeadlessCommandContextApi();
 
-  const recordId = selectedRecords[0]?.id;
-  const selectedRecord = selectedRecords[0];
+  const { coreWorkflowVersion, loading } = useCoreWorkflowVersion(
+    selectedRecords[0]?.coreWorkflowVersionId,
+  );
 
-  const workflowId = selectedRecord?.workflow?.id;
+  if (loading || !isDefined(coreWorkflowVersion)) {
+    return null;
+  }
 
-  if (!isDefined(recordId) || !isDefined(workflowId)) {
+  if (!isDefined(coreWorkflowVersion.coreWorkflowId)) {
     throw new Error(
       'Record ID and workflow ID are required to see runs workflow version',
     );
@@ -52,8 +71,9 @@ export const SeeRunsWorkflowVersionSingleRecordCommand = () => {
 
   return (
     <SeeRunsWorkflowVersionSingleRecordCommandContent
-      workflowId={workflowId}
-      recordId={recordId}
+      workflowId={coreWorkflowVersion.coreWorkflowId}
+      workflowVersionId={coreWorkflowVersion.id}
+      workflowVersionLabel={coreWorkflowVersion.label}
     />
   );
 };

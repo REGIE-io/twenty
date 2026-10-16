@@ -22,18 +22,30 @@ export type RecordTableWidgetLayoutViewType =
   (typeof RECORD_TABLE_WIDGET_LAYOUT_VIEW_TYPES)[number];
 
 export const RECORD_TABLE_WIDGET_LAYOUT_OPTIONS = {
-  [ViewType.TABLE_WIDGET]: { Icon: IconTable, label: msg`Table` },
-  [ViewType.KANBAN_WIDGET]: { Icon: IconLayoutKanban, label: msg`Kanban` },
-  [ViewType.LIST_WIDGET]: { Icon: IconList, label: msg`List` },
-  [ViewType.CALENDAR_WIDGET]: { Icon: IconCalendar, label: msg`Calendar` },
+  [ViewType.TABLE_WIDGET]: {
+    Icon: IconTable,
+    label: msg`Table`,
+  },
+  [ViewType.KANBAN_WIDGET]: {
+    Icon: IconLayoutKanban,
+    label: msg`Kanban`,
+  },
+  [ViewType.LIST_WIDGET]: {
+    Icon: IconList,
+    label: msg`List`,
+  },
+  [ViewType.CALENDAR_WIDGET]: {
+    Icon: IconCalendar,
+    label: msg`Calendar`,
+  },
 } satisfies Record<
   RecordTableWidgetLayoutViewType,
-  { Icon: IconComponent; label: MessageDescriptor }
+  {
+    Icon: IconComponent;
+    label: MessageDescriptor;
+  }
 >;
 
-// A widget view backed by a record table renders as a table unless its type
-// names another layout, so anything else — including a missing view — reads as
-// TABLE_WIDGET.
 export const getRecordTableWidgetLayoutViewType = (
   viewType: ViewType | null | undefined,
 ): RecordTableWidgetLayoutViewType =>
@@ -41,8 +53,7 @@ export const getRecordTableWidgetLayoutViewType = (
     (layoutViewType) => layoutViewType === viewType,
   ) ?? ViewType.TABLE_WIDGET;
 
-// The layouts a record table widget can render, as opposed to the widget view
-// types above: a widget backed by a plain LIST view still renders as a list.
+// Layouts the widget can render, unlike the widget view types above: a plain LIST view still renders as a list.
 export const RECORD_TABLE_WIDGET_LAYOUTS = [
   ViewType.TABLE,
   ViewType.KANBAN,
@@ -60,3 +71,12 @@ export const getRecordTableWidgetLayout = (
     (layout) =>
       isDefined(viewType) && layout === getViewLayoutFromViewType(viewType),
   ) ?? ViewType.TABLE;
+
+export const isRecordTableWidgetContentEditingSupported = (
+  viewType: ViewType | null | undefined,
+) => {
+  const layout = getRecordTableWidgetLayout(viewType);
+
+  // List is read-only by nature. TODO: let calendar share this setting once it has layout-specific editing rules.
+  return layout === ViewType.TABLE || layout === ViewType.KANBAN;
+};

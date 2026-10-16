@@ -8,10 +8,10 @@ import {
   IconClock,
   IconTerminal,
 } from 'twenty-ui/icon';
-import { themeCssVariables } from 'twenty-ui/theme-constants';
+import { themeCssVariables } from 'twenty-ui/theme';
 
 import { MONOSPACE_FONT_FAMILY } from '@/ui/theme/constants/MonospaceFontFamily';
-import { formatDuration } from '@/workflow/workflow-steps/workflow-actions/utils/formatDuration';
+import { formatDuration } from '~/utils/format/formatDuration';
 import {
   StyledErrorCard,
   StyledErrorMessageText,

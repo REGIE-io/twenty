@@ -22,9 +22,8 @@ export const ActivateWorkflowSingleRecordCommand = () => {
       return;
     }
 
-    activateWorkflowVersion({
+    return activateWorkflowVersion({
       workflowVersionId: workflowWithCurrentVersion.currentVersion.id,
-      workflowId: workflowWithCurrentVersion.id,
     });
   };
 

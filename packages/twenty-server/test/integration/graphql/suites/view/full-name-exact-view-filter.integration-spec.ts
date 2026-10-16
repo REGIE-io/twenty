@@ -1,7 +1,7 @@
 import gql from 'graphql-tag';
 import { createManyOperationFactory } from 'test/integration/graphql/utils/create-many-operation-factory.util';
 import { deleteManyOperationFactory } from 'test/integration/graphql/utils/delete-many-operation-factory.util';
-import { makeGraphqlAPIRequest } from 'test/integration/graphql/utils/make-graphql-api-request.util';
+import { makeGraphqlApiRequest } from 'test/integration/graphql/utils/make-graphql-api-request.util';
 import { findManyObjectMetadata } from 'test/integration/metadata/suites/object-metadata/utils/find-many-object-metadata.util';
 import { createOneViewFilter } from 'test/integration/metadata/suites/view-filter/utils/create-one-view-filter.util';
 import { destroyOneViewFilter } from 'test/integration/metadata/suites/view-filter/utils/destroy-one-view-filter.util';
@@ -83,7 +83,7 @@ describe('FULL_NAME exact view filter persistence and record query', () => {
     expect(errors).toBeUndefined();
     testViewId = data.createView.id;
 
-    const response = await makeGraphqlAPIRequest(
+    const response = await makeGraphqlApiRequest(
       createManyOperationFactory({
         objectMetadataSingularName: 'person',
         objectMetadataPluralName: 'people',
@@ -130,7 +130,7 @@ describe('FULL_NAME exact view filter persistence and record query', () => {
   });
 
   afterAll(async () => {
-    await makeGraphqlAPIRequest(
+    await makeGraphqlApiRequest(
       deleteManyOperationFactory({
         objectMetadataSingularName: 'person',
         objectMetadataPluralName: 'people',
@@ -198,7 +198,7 @@ describe('FULL_NAME exact view filter persistence and record query', () => {
 
     jestExpectToBeDefined(recordGqlOperationFilter);
 
-    const response = await makeGraphqlAPIRequest({
+    const response = await makeGraphqlApiRequest({
       query: gql`
         query People($filter: PersonFilterInput) {
           people(filter: $filter, first: 50) {

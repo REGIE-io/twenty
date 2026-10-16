@@ -21,8 +21,8 @@ import {
   type ProvisionWorkspaceMemberInput,
   type ProvisionWorkspaceMemberResult,
 } from 'src/engine/core-modules/workspace/internal/types/internal-workspace-member-provisioning.type';
-import { GlobalWorkspaceOrmManager } from 'src/engine/twenty-orm/global-workspace-datasource/global-workspace-orm.manager';
-import { type WorkspaceRepository } from 'src/engine/twenty-orm/repository/workspace.repository';
+import { WorkspaceOrmManager } from 'src/engine/twenty-orm/workspace-orm.manager';
+import { type WorkspaceRepository } from 'src/engine/twenty-orm/repository/workspace-repository';
 import { buildSystemAuthContext } from 'src/engine/twenty-orm/utils/build-system-auth-context.util';
 import { type WorkspaceMemberWorkspaceEntity } from 'src/modules/workspace-member/standard-objects/workspace-member.workspace-entity';
 
@@ -35,7 +35,7 @@ export class InternalWorkspaceMemberProvisioningService {
     private readonly userRepository: Repository<UserEntity>,
     @InjectRepository(UserWorkspaceEntity)
     private readonly userWorkspaceRepository: Repository<UserWorkspaceEntity>,
-    private readonly globalWorkspaceOrmManager: GlobalWorkspaceOrmManager,
+    private readonly workspaceOrmManager: WorkspaceOrmManager,
   ) {}
 
   async provisionWorkspaceMember(
@@ -178,59 +178,55 @@ export class InternalWorkspaceMemberProvisioningService {
   }): Promise<WorkspaceMemberWorkspaceEntity> {
     const authContext = buildSystemAuthContext(workspaceId);
 
-    return this.globalWorkspaceOrmManager.executeInWorkspaceContext(
-      async () => {
-        const workspaceMemberRepository =
-          await this.globalWorkspaceOrmManager.getRepository<WorkspaceMemberWorkspaceEntity>(
-            workspaceId,
-            'workspaceMember',
-            { shouldBypassPermissionChecks: true },
-          );
+    return this.workspaceOrmManager.executeInWorkspaceContext(async () => {
+      const workspaceMemberRepository =
+        await this.workspaceOrmManager.getRepository<WorkspaceMemberWorkspaceEntity>(
+          'workspaceMember',
+          { shouldBypassPermissionChecks: true },
+        );
 
-        const existingWorkspaceMember =
-          await this.findWorkspaceMemberForUserOrThrowOnConflict({
-            workspaceMemberRepository,
-            user,
-          });
+      const existingWorkspaceMember =
+        await this.findWorkspaceMemberForUserOrThrowOnConflict({
+          workspaceMemberRepository,
+          user,
+        });
 
-        if (isDefined(existingWorkspaceMember)) {
-          return existingWorkspaceMember;
+      if (isDefined(existingWorkspaceMember)) {
+        return existingWorkspaceMember;
+      }
+
+      try {
+        await workspaceMemberRepository.insert({
+          name: {
+            firstName: user.firstName,
+            lastName: user.lastName,
+          },
+          colorScheme: 'System',
+          userId: user.id,
+          userEmail: user.email,
+          avatarUrl: userWorkspace.defaultAvatarUrl ?? null,
+          locale: (user.locale ?? SOURCE_LOCALE) as keyof typeof APP_LOCALES,
+        });
+      } catch (error) {
+        if (!this.isUniqueViolation(error)) {
+          throw error;
         }
+      }
 
-        try {
-          await workspaceMemberRepository.insert({
-            name: {
-              firstName: user.firstName,
-              lastName: user.lastName,
-            },
-            colorScheme: 'System',
-            userId: user.id,
-            userEmail: user.email,
-            avatarUrl: userWorkspace.defaultAvatarUrl ?? null,
-            locale: (user.locale ?? SOURCE_LOCALE) as keyof typeof APP_LOCALES,
-          });
-        } catch (error) {
-          if (!this.isUniqueViolation(error)) {
-            throw error;
-          }
-        }
+      const workspaceMember =
+        await this.findWorkspaceMemberForUserOrThrowOnConflict({
+          workspaceMemberRepository,
+          user,
+        });
 
-        const workspaceMember =
-          await this.findWorkspaceMemberForUserOrThrowOnConflict({
-            workspaceMemberRepository,
-            user,
-          });
+      if (!isDefined(workspaceMember)) {
+        throw new InternalServerErrorException(
+          'Workspace member was not created',
+        );
+      }
 
-        if (!isDefined(workspaceMember)) {
-          throw new InternalServerErrorException(
-            'Workspace member was not created',
-          );
-        }
-
-        return workspaceMember;
-      },
-      authContext,
-    );
+      return workspaceMember;
+    }, authContext);
   }
 
   private async findWorkspaceMemberForUserOrThrowOnConflict({

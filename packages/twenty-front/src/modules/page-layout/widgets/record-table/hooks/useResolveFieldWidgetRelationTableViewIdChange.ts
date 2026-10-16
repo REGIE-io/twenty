@@ -1,8 +1,10 @@
+import { objectMetadataItemsSelector } from '@/object-metadata/states/objectMetadataItemsSelector';
 import { type FieldMetadataItem } from '@/object-metadata/types/FieldMetadataItem';
 import { isOneToManyRelationField } from '@/object-metadata/utils/isOneToManyRelationField';
 import { getFieldWidgetRelationTraversal } from '@/page-layout/widgets/field/utils/getFieldWidgetRelationTraversal';
 import { isFieldWidgetEligibleNestedParentField } from '@/page-layout/widgets/field/utils/isFieldWidgetEligibleNestedParentField';
 import { useAddDraftViewForFieldRelationTableWidget } from '@/page-layout/widgets/record-table/hooks/useAddDraftViewForFieldRelationTableWidget';
+import { useAtomStateValue } from '@/ui/utilities/state/jotai/hooks/useAtomStateValue';
 import { isDefined } from 'twenty-shared/utils';
 import {
   FieldDisplayMode,
@@ -24,11 +26,9 @@ export const useResolveFieldWidgetRelationTableViewIdChange = (
   const { addDraftViewForFieldRelationTableWidget } =
     useAddDraftViewForFieldRelationTableWidget(pageLayoutId);
 
-  // The embedded view must always list the selected chain's terminal object.
-  // Whenever the selection results in a table widget, a fresh draft view is
-  // generated on a chain change or a missing view id; otherwise a view id
-  // belonging to the previous chain is cleared so the layout dropdown can
-  // lazily create the right one.
+  const objectMetadataItems = useAtomStateValue(objectMetadataItemsSelector);
+
+  // The view must list the chain's terminal object: regenerate on chain change, else clear a stale id for lazy creation.
   const resolveFieldWidgetRelationTableViewIdChange = ({
     selectedField,
     selectedNestedField,
@@ -46,6 +46,7 @@ export const useResolveFieldWidgetRelationTableViewIdChange = (
     } = getFieldWidgetRelationTraversal({
       sourceFieldMetadataItem: selectedField,
       nestedRelationFieldMetadataItem: selectedNestedField,
+      objectMetadataItems,
     });
 
     const isValidRelationChain =

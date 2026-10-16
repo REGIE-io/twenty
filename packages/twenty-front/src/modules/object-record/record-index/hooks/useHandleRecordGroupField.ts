@@ -4,12 +4,11 @@ import { type FieldMetadataItem } from '@/object-metadata/types/FieldMetadataIte
 import { isManyToOneRelationField } from '@/object-metadata/utils/isManyToOneRelationField';
 import { useLoadRecordIndexStates } from '@/object-record/record-index/hooks/useLoadRecordIndexStates';
 import { useAtomComponentStateCallbackState } from '@/ui/utilities/state/jotai/hooks/useAtomComponentStateCallbackState';
-import { usePerformViewAPIUpdate } from '@/views/hooks/internal/usePerformViewAPIUpdate';
+import { usePerformViewApiUpdate } from '@/views/hooks/internal/usePerformViewApiUpdate';
 import { useGetViewFromState } from '@/views/hooks/useGetViewFromState';
 import { useStore } from 'jotai';
 import { useCallback } from 'react';
 import { isDefined } from 'twenty-shared/utils';
-import { isUndefinedOrNull } from '~/utils/isUndefinedOrNull';
 
 export const useHandleRecordGroupField = () => {
   const currentViewIdCallbackState = useAtomComponentStateCallbackState(
@@ -20,7 +19,7 @@ export const useHandleRecordGroupField = () => {
 
   const { getViewFromState } = useGetViewFromState();
 
-  const { performViewAPIUpdate } = usePerformViewAPIUpdate();
+  const { performViewApiUpdate } = usePerformViewApiUpdate();
   const { loadRecordIndexStates } = useLoadRecordIndexStates();
 
   const store = useStore();
@@ -33,7 +32,7 @@ export const useHandleRecordGroupField = () => {
       viewId: string;
       mainGroupByFieldMetadataId: string | null;
     }) => {
-      const updatedViewResult = await performViewAPIUpdate({
+      const updatedViewResult = await performViewApiUpdate({
         id: viewId,
         input: {
           mainGroupByFieldMetadataId,
@@ -52,7 +51,7 @@ export const useHandleRecordGroupField = () => {
 
       loadRecordIndexStates(updatedView, objectMetadataItem);
     },
-    [performViewAPIUpdate, loadRecordIndexStates, objectMetadataItem],
+    [performViewApiUpdate, loadRecordIndexStates, objectMetadataItem],
   );
 
   const handleRecordGroupFieldChange = useCallback(
@@ -65,7 +64,7 @@ export const useHandleRecordGroupField = () => {
 
       const view = getViewFromState(currentViewId);
 
-      if (isUndefinedOrNull(view)) {
+      if (!isDefined(view)) {
         return;
       }
 
@@ -73,7 +72,7 @@ export const useHandleRecordGroupField = () => {
 
       if (
         !isRelationGroupBy &&
-        (isUndefinedOrNull(fieldMetadataItem.options) ||
+        (!isDefined(fieldMetadataItem.options) ||
           fieldMetadataItem.options.length === 0)
       ) {
         return;
@@ -101,7 +100,7 @@ export const useHandleRecordGroupField = () => {
 
     const view = getViewFromState(currentViewId);
 
-    if (isUndefinedOrNull(view)) {
+    if (!isDefined(view)) {
       return;
     }
 

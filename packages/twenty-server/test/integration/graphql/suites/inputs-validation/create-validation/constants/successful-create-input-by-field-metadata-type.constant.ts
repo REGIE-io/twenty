@@ -1,4 +1,4 @@
-import { type FieldMetadataTypesToTestForCreateInputValidation } from 'test/integration/graphql/suites/inputs-validation/types/field-metadata-type-to-test';
+import { type FieldMetadataTypesToTestForCreateInputValidation } from 'test/integration/graphql/suites/inputs-validation/types/field-metadata-type-to-test.type';
 import {
   joinColumnNameForManyToOneMorphRelationField1,
   TEST_TARGET_OBJECT_RECORD_ID_FIELD_VALUE,
@@ -6,10 +6,12 @@ import {
 import { FieldMetadataType } from 'twenty-shared/types';
 
 export const successfulCreateInputByFieldMetadataType: {
-  [K in Exclude<
-    FieldMetadataTypesToTestForCreateInputValidation,
-    FieldMetadataType.FILES // Done in files-field-sync.integration-spec.ts
-  >]: {
+  [
+    K in Exclude<
+      FieldMetadataTypesToTestForCreateInputValidation,
+      FieldMetadataType.FILES // Done in files-field-sync.integration-spec.ts
+    >
+  ]: {
     input: any;
     validateInput: (record: Record<string, any>) => boolean;
   }[];
@@ -339,6 +341,25 @@ export const successfulCreateInputByFieldMetadataType: {
           record.phonesField.additionalPhones[0].number === '1234567890' &&
           record.phonesField.additionalPhones[0].callingCode === '+33' &&
           record.phonesField.additionalPhones[0].countryCode === 'FR'
+        );
+      },
+    },
+    {
+      input: {
+        phonesField: {
+          primaryPhoneNumber: '1234567890',
+          primaryPhoneCountryCode: 'FR',
+          primaryPhoneCallingCode: '+33',
+          additionalPhones: [
+            { number: '', callingCode: '+33', countryCode: 'FR' },
+            { number: '1234567890', callingCode: '+33', countryCode: 'FR' },
+          ],
+        },
+      },
+      validateInput: (record: Record<string, any>) => {
+        return (
+          record.phonesField.additionalPhones.length === 1 &&
+          record.phonesField.additionalPhones[0].number === '1234567890'
         );
       },
     },

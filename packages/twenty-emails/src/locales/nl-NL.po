@@ -19,6 +19,16 @@ msgstr ""
 "X-Crowdin-File-ID: 27\n"
 
 #. js-lingui-explicit-id
+#: src/emails/two-factor-authentication-recovery-code-issued.email.tsx
+msgid "{actorName} generated a recovery code that lets you sign in to {workspaceDisplayName} without your authenticator app."
+msgstr "{actorName} heeft een herstelcode gegenereerd waarmee je je zonder je authenticator-app kunt aanmelden bij {workspaceDisplayName}."
+
+#. js-lingui-explicit-id
+#: src/emails/server-admin-access-changed.email.tsx
+msgid "{actorName} updated server administrator access for {targetName} ({targetEmail})."
+msgstr "{actorName} heeft de toegang als serverbeheerder voor {targetName} ({targetEmail}) bijgewerkt."
+
+#. js-lingui-explicit-id
 #: src/emails/send-invite-link.email.tsx
 msgid "{senderName} (<0>{senderEmail}</0>) has invited you to join a workspace called <1>{workspaceName}</1>."
 msgstr "{senderName} (<0>{senderEmail}</0>) heeft u uitgenodigd om lid te worden van een werkruimte genaamd <1>{workspaceName}</1>."
@@ -34,6 +44,11 @@ msgid "A heads up before your trial ends"
 msgstr "Een seintje voordat uw proefperiode afloopt"
 
 #. js-lingui-explicit-id
+#: src/emails/two-factor-authentication-reset.email.tsx
+msgid "A recovery code was used to sign in to {workspaceDisplayName}. Your authenticator for this workspace was removed and your other sessions there were signed out."
+msgstr "Er is een herstelcode gebruikt om je aan te melden bij {workspaceDisplayName}. Je authenticator voor deze werkruimte is verwijderd en je andere sessies daar zijn afgemeld."
+
+#. js-lingui-explicit-id
 #: src/emails/send-invite-link.email.tsx
 msgid "Accept invite"
 msgstr "Uitnodiging accepteren"
@@ -41,7 +56,7 @@ msgstr "Uitnodiging accepteren"
 #. js-lingui-explicit-id
 #: src/emails/billing-trial-ending.email.tsx
 msgid "Add a payment method"
-msgstr "Een betaalmethode toevoegen"
+msgstr "Betaalmethode toevoegen"
 
 #. js-lingui-explicit-id
 #: src/emails/warn-suspended-workspace.email.tsx
@@ -89,6 +104,11 @@ msgid "Enabled"
 msgstr "Ingeschakeld"
 
 #. js-lingui-explicit-id
+#: src/emails/server-admin-access-changed.email.tsx
+msgid "Full admin panel access: {fullAdminStatus}"
+msgstr "Volledige toegang tot het beheerderspaneel: {fullAdminStatus}"
+
+#. js-lingui-explicit-id
 #: src/components/Footer.tsx
 msgid "Github"
 msgstr "Github"
@@ -118,9 +138,24 @@ msgid "Hi {userName},"
 msgstr "Beste {userName},"
 
 #. js-lingui-explicit-id
+#: src/emails/two-factor-authentication-reset.email.tsx
+msgid "If this was not you, contact your workspace administrator and change your password."
+msgstr "Als jij dit niet was, neem dan contact op met je werkruimtebeheerder en wijzig je wachtwoord."
+
+#. js-lingui-explicit-id
 #: src/emails/billing-trial-converting.email.tsx
 msgid "If Twenty is working for you, you're all set — there's nothing to do. If it's not the right fit, you can cancel in one click before then and you won't be charged."
 msgstr "Als Twenty goed voor u werkt, bent u helemaal klaar — u hoeft niets te doen. Als het toch niet de juiste keuze is, kunt u het voor die tijd met één klik opzeggen en wordt er niets in rekening gebracht."
+
+#. js-lingui-explicit-id
+#: src/emails/two-factor-authentication-recovery-code-issued.email.tsx
+msgid "If you did not ask for this, contact your workspace administrator and change your password."
+msgstr "Als je dit niet hebt aangevraagd, neem dan contact op met je werkruimtebeheerder en wijzig je wachtwoord."
+
+#. js-lingui-explicit-id
+#: src/emails/server-admin-access-changed.email.tsx
+msgid "If you did not expect this change, review your server administrators immediately."
+msgstr "Als u deze wijziging niet verwachtte, controleer dan onmiddellijk uw serverbeheerders."
 
 #. js-lingui-explicit-id
 #: src/emails/password-update-notify.email.tsx
@@ -130,12 +165,17 @@ msgstr "Als u deze wijziging niet heeft geïnitieerd, neem dan onmiddellijk cont
 #. js-lingui-explicit-id
 #: src/emails/billing-trial-ending.email.tsx
 msgid "If you do nothing, we'll pause your workspace and keep your data safe for {dataRetentionDays} days in case you change your mind — no card will be charged."
-msgstr "Als u niets doet, pauzeren we uw werkruimte en bewaren we uw gegevens {dataRetentionDays} dagen veilig voor het geval u van gedachten verandert — er wordt geen kaart belast."
+msgstr "Als u niets doet, pauzeren we uw werkruimte en bewaren we uw gegevens {dataRetentionDays} dagen veilig voor het geval u van gedachten verandert — uw kaart wordt niet belast."
 
 #. js-lingui-explicit-id
 #: src/emails/clean-suspended-workspace.email.tsx
 msgid "If you'd ever like to give Twenty another try, you can start a fresh workspace in minutes — we'd love to have you back."
 msgstr "Als u Twenty ooit nog een kans wilt geven, kunt u binnen enkele minuten een nieuwe werkruimte starten — we zien u graag terug."
+
+#. js-lingui-explicit-id
+#: src/emails/server-admin-access-changed.email.tsx
+msgid "Impersonation: {impersonateStatus}"
+msgstr "Impersonatie: {impersonateStatus}"
 
 #. js-lingui-explicit-id
 #: src/components/WhatIsTwenty.tsx
@@ -155,7 +195,7 @@ msgstr "Sluit je aan bij je team op Twenty"
 #. js-lingui-explicit-id
 #: src/emails/billing-subscription-renewing.email.tsx
 msgid "Just so it's never a surprise, here's a heads up about your annual plan."
-msgstr "Opdat het nooit een verrassing is, geven we u graag een seintje over uw jaarlijkse abonnement."
+msgstr "Zodat het geen verrassing is, geven we u graag een seintje over uw jaarabonnement."
 
 #. js-lingui-explicit-id
 #: src/emails/billing-subscription-renewing.email.tsx
@@ -209,29 +249,14 @@ msgid "Server administrator access changed"
 msgstr "Toegang serverbeheerder gewijzigd"
 
 #. js-lingui-explicit-id
-#: src/emails/server-admin-access-changed.email.tsx
-msgid "serverAdminAccessChanged.fullAdmin"
-msgstr "serverAdminAccessChanged.fullAdmin"
-
-#. js-lingui-explicit-id
-#: src/emails/server-admin-access-changed.email.tsx
-msgid "serverAdminAccessChanged.impersonation"
-msgstr "serverAdminAccessChanged.impersonation"
-
-#. js-lingui-explicit-id
-#: src/emails/server-admin-access-changed.email.tsx
-msgid "serverAdminAccessChanged.summary"
-msgstr "serverAdminAccessChanged.summary"
-
-#. js-lingui-explicit-id
-#: src/emails/server-admin-access-changed.email.tsx
-msgid "serverAdminAccessChanged.warning"
-msgstr "serverAdminAccessChanged.warning"
-
-#. js-lingui-explicit-id
 #: src/emails/password-reset-link.email.tsx
 msgid "Set"
 msgstr "Instellen"
+
+#. js-lingui-explicit-id
+#: src/emails/two-factor-authentication-reset.email.tsx
+msgid "Set up two-factor authentication again under Settings, Profile."
+msgstr "Stel two-factor-authenticatie opnieuw in onder Instellingen, Profiel."
 
 #. js-lingui-explicit-id
 #: src/emails/password-reset-link.email.tsx
@@ -241,12 +266,17 @@ msgstr "Stel uw wachtwoord in 🗝"
 #. js-lingui-explicit-id
 #: src/emails/clean-suspended-workspace.email.tsx
 msgid "Start a new workspace"
-msgstr "Een nieuwe werkruimte starten"
+msgstr "Nieuwe werkruimte starten"
 
 #. js-lingui-explicit-id
 #: src/emails/test.email.tsx
 msgid "Test email"
 msgstr "Test e-mail"
+
+#. js-lingui-explicit-id
+#: src/emails/two-factor-authentication-recovery-code-issued.email.tsx
+msgid "The code can be used once and expires on {formattedExpiresAt}. Using it removes your current authenticator for this workspace and signs you out of your other sessions there."
+msgstr "De code kan eenmaal worden gebruikt en verloopt op {formattedExpiresAt}. Door deze te gebruiken, verwijdert u uw huidige authenticator voor deze werkruimte en wordt u afgemeld bij uw andere sessies daar."
 
 #. js-lingui-explicit-id
 #: src/emails/password-update-notify.email.tsx
@@ -267,6 +297,16 @@ msgstr "Voeg een betaalmethode toe en kies een abonnement om uw werkruimte en al
 #: src/components/Footer.tsx
 msgid "Twenty.com, Public Benefit Corporation"
 msgstr "Twenty.com, Public Benefit Corporation"
+
+#. js-lingui-explicit-id
+#: src/emails/two-factor-authentication-recovery-code-issued.email.tsx
+msgid "Two-factor authentication recovery code issued"
+msgstr "Herstelcode voor two-factor-authenticatie uitgegeven"
+
+#. js-lingui-explicit-id
+#: src/emails/two-factor-authentication-reset.email.tsx
+msgid "Two-factor authentication reset"
+msgstr "Two-factor-authenticatie opnieuw ingesteld"
 
 #. js-lingui-explicit-id
 #: src/components/Footer.tsx
@@ -327,12 +367,12 @@ msgstr "Uw gratis proefperiode van <0>{workspaceDisplayName}</0> eindigt op {for
 #. js-lingui-explicit-id
 #: src/emails/billing-trial-converting.email.tsx
 msgid "Your free trial of <0>{workspaceDisplayName}</0> ends on {formattedDate}. Unless you cancel before then, the card on file will be charged for your annual plan."
-msgstr "Uw gratis proefperiode van <0>{workspaceDisplayName}</0> eindigt op {formattedDate}. Tenzij u vóór die tijd annuleert, wordt de kaart in het bestand belast voor uw jaarlijkse abonnement."
+msgstr "Uw gratis proefperiode van <0>{workspaceDisplayName}</0> eindigt op {formattedDate}. Tenzij u vóór die tijd annuleert, wordt de opgeslagen kaart belast voor uw jaarabonnement."
 
 #. js-lingui-explicit-id
 #: src/emails/billing-trial-converting.email.tsx
 msgid "Your free trial of <0>{workspaceDisplayName}</0> ends on {formattedDate}. Unless you cancel before then, the card on file will be charged for your monthly plan."
-msgstr "Uw gratis proefperiode van <0>{workspaceDisplayName}</0> eindigt op {formattedDate}. Tenzij u vóór die tijd annuleert, wordt de kaart in het bestand belast voor uw maandelijkse abonnement."
+msgstr "Uw gratis proefperiode van <0>{workspaceDisplayName}</0> eindigt op {formattedDate}. Tenzij u vóór die tijd annuleert, wordt de opgeslagen kaart belast voor uw maandabonnement."
 
 #. js-lingui-explicit-id
 #: src/emails/billing-subscription-renewing.email.tsx

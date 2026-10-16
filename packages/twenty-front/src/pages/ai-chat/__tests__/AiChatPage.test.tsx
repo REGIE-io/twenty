@@ -3,8 +3,11 @@ import { I18nProvider } from '@lingui/react';
 import { render } from '@testing-library/react';
 import { Provider as JotaiProvider } from 'jotai';
 import { type ReactNode } from 'react';
+import { MemoryRouter, Route, Routes } from 'react-router-dom';
+import { AppPath } from 'twenty-shared/types';
 import { SOURCE_LOCALE } from 'twenty-shared/translations';
 
+import { currentAiChatThreadState } from '@/ai/states/currentAiChatThreadState';
 import { shouldContinueAiChatInSidePanelState } from '@/ai/states/shouldContinueAiChatInSidePanelState';
 import { shouldOpenAiChatAfterOnboardingState } from '@/onboarding/states/shouldOpenAiChatAfterOnboardingState';
 import {
@@ -19,85 +22,135 @@ i18n.activate(SOURCE_LOCALE);
 
 jest.mock('@/ai/components/AiChatTab', () => {
   const { useContext } = jest.requireActual('react');
-  const { AiChatMessageListPreambleContext } = jest.requireActual(
-    '@/ai/contexts/AiChatMessageListPreambleContext',
+  const { AiChatSurfaceContext } = jest.requireActual(
+    '@/ai/contexts/AiChatSurfaceContext',
   );
   return {
     AiChatTab: () => (
-      <div data-testid="ai-chat-tab">
-        {useContext(AiChatMessageListPreambleContext)}
-      </div>
+      <div data-testid="ai-chat-tab">{useContext(AiChatSurfaceContext)}</div>
     ),
   };
 });
 
-const headerMock = jest.fn();
-
 jest.mock('@/ai/components/AiChatPageHeader', () => ({
-  AiChatPageHeader: ({ isOnboarding }: { isOnboarding: boolean }) => {
-    headerMock(isOnboarding);
-    return null;
-  },
+  AiChatPageHeader: () => <div>Chat header</div>,
 }));
 
 jest.mock('@/ai/components/AiChatPageThreadUrlSyncEffect', () => ({
   AiChatPageThreadUrlSyncEffect: () => null,
 }));
 
-jest.mock('@/ai/components/AiChatPageCloseAskAiPanelEffect', () => ({
-  AiChatPageCloseAskAiPanelEffect: () => null,
+jest.mock('@/ai/components/AiChatPageCloseSidePanelChatEffect', () => ({
+  AiChatPageCloseSidePanelChatEffect: () => null,
 }));
 
-jest.mock('@/onboarding/components/WorkspaceSetupChatPreamble', () => ({
-  WorkspaceSetupChatPreamble: () => <div data-testid="preamble" />,
+let mockIsMobile = false;
+
+jest.mock('twenty-ui/utilities', () => ({
+  ...jest.requireActual('twenty-ui/utilities'),
+  useIsMobile: () => mockIsMobile,
 }));
 
-jest.mock(
-  '@/onboarding/effect-components/WorkspaceSetupChatKickoffEffect',
-  () => ({
-    WorkspaceSetupChatKickoffEffect: () => (
-      <div data-testid="chat-kickoff-effect" />
-    ),
-  }),
-);
+jest.mock('@/ai/components/AiChatCloseButton', () => ({
+  AiChatCloseButton: () => <button>Close chat</button>,
+}));
 
-const Wrapper = ({ children }: { children: ReactNode }) => (
-  <JotaiProvider store={jotaiStore}>
-    <I18nProvider i18n={i18n}>{children}</I18nProvider>
-  </JotaiProvider>
-);
+jest.mock('@/information-banner/components/InformationBannerWrapper', () => ({
+  InformationBannerWrapper: () => null,
+}));
+
+jest.mock('~/pages/object-record/RecordShowPageContent', () => ({
+  RecordShowPageContent: ({
+    parameters,
+    headerActions,
+    headerTitleMode,
+    isRecordIdentifierBarHidden,
+  }: {
+    parameters: { objectNameSingular: string; objectRecordId: string };
+    headerActions?: ReactNode;
+    headerTitleMode?: string;
+    isRecordIdentifierBarHidden?: boolean;
+  }) => (
+    <div>
+      Record page {parameters.objectNameSingular} {parameters.objectRecordId}
+      {headerTitleMode === 'record-title' && <span>Title-only header</span>}
+      {isRecordIdentifierBarHidden === true && <span>No identifier bar</span>}
+      {headerActions}
+    </div>
+  ),
+}));
+
+const THREAD_ID = '6f1c2b0e-7a4d-4e8b-9c3f-2d5a1b8e7c60';
+
+const renderAt = (path: string) =>
+  render(
+    <JotaiProvider store={jotaiStore}>
+      <I18nProvider i18n={i18n}>
+        <MemoryRouter initialEntries={[path]}>
+          <Routes>
+            <Route path={AppPath.AiChat} element={<AiChatPage />} />
+          </Routes>
+        </MemoryRouter>
+      </I18nProvider>
+    </JotaiProvider>,
+  );
 
 describe('AiChatPage', () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    mockIsMobile = false;
     sessionStorage.clear();
     resetJotaiStore();
   });
 
-  it('should dress the chat for onboarding when the post-onboarding hint is set', () => {
-    jotaiStore.set(shouldOpenAiChatAfterOnboardingState.atom, true);
+  it.each([true, false])(
+    'renders a new chat on its own page with onboarding set to %s',
+    (isOnboarding) => {
+      jotaiStore.set(shouldOpenAiChatAfterOnboardingState.atom, isOnboarding);
+      const { getByText, getByTestId, queryByText } = renderAt('/chat');
 
-    const { getByTestId } = render(<AiChatPage />, { wrapper: Wrapper });
+      expect(getByText('Chat header')).toBeInTheDocument();
+      expect(getByTestId('ai-chat-tab')).toHaveTextContent('page');
+      expect(queryByText(/Record page/)).toBeNull();
+    },
+  );
 
-    expect(getByTestId('ai-chat-tab')).toBeInTheDocument();
-    expect(getByTestId('preamble')).toBeInTheDocument();
-    expect(getByTestId('chat-kickoff-effect')).toBeInTheDocument();
-    expect(headerMock).toHaveBeenCalledWith(true);
+  it('renders the current chat as its record page when the URL has no chat', () => {
+    jotaiStore.set(currentAiChatThreadState.atom, THREAD_ID);
+
+    const { getByText } = renderAt('/chat');
+
+    expect(
+      getByText(`Record page agentChatThread ${THREAD_ID}`),
+    ).toBeInTheDocument();
   });
 
-  it('should render a plain chat when the post-onboarding hint is not set', () => {
-    const { getByTestId, queryByTestId } = render(<AiChatPage />, {
-      wrapper: Wrapper,
-    });
+  it('renders a saved chat as its record page', () => {
+    const { getByText, queryByText } = renderAt(`/chat/${THREAD_ID}`);
 
-    expect(getByTestId('ai-chat-tab')).toBeInTheDocument();
-    expect(queryByTestId('preamble')).not.toBeInTheDocument();
-    expect(queryByTestId('chat-kickoff-effect')).not.toBeInTheDocument();
-    expect(headerMock).toHaveBeenCalledWith(false);
+    expect(
+      getByText(`Record page agentChatThread ${THREAD_ID}`),
+    ).toBeInTheDocument();
+    expect(queryByText('Chat header')).toBeNull();
+  });
+
+  it('shows a saved chat with its title as the only header', () => {
+    const { getByText } = renderAt(`/chat/${THREAD_ID}`);
+
+    expect(getByText('Title-only header')).toBeInTheDocument();
+    expect(getByText('No identifier bar')).toBeInTheDocument();
+  });
+
+  it('keeps the close button of a saved chat on mobile', () => {
+    mockIsMobile = true;
+
+    const { getByRole } = renderAt(`/chat/${THREAD_ID}`);
+
+    expect(getByRole('button', { name: 'Close chat' })).toBeInTheDocument();
   });
 
   it('should mark the chat for side panel continuation while mounted', () => {
-    const { unmount } = render(<AiChatPage />, { wrapper: Wrapper });
+    const { unmount } = renderAt('/chat');
 
     expect(jotaiStore.get(shouldContinueAiChatInSidePanelState.atom)).toBe(
       true,

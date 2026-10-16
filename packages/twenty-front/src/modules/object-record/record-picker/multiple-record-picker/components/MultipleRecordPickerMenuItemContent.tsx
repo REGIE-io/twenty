@@ -1,22 +1,21 @@
-import { t } from '@lingui/core/macro';
-
+import { ListItemButton } from 'twenty-ui/components/navigation';
 import { type EnrichedObjectMetadataItem } from '@/object-metadata/types/EnrichedObjectMetadataItem';
-import { getAvatarType } from '@/object-metadata/utils/getAvatarType';
+import { getAvatarShape } from '@/object-metadata/utils/getAvatarShape';
 import { MultipleRecordPickerComponentInstanceContext } from '@/object-record/record-picker/multiple-record-picker/states/contexts/MultipleRecordPickerComponentInstanceContext';
+import { multipleRecordPickerSearchableObjectMetadataItemsComponentState } from '@/object-record/record-picker/multiple-record-picker/states/multipleRecordPickerSearchableObjectMetadataItemsComponentState';
 import { multipleRecordPickerIsSelectedComponentFamilySelector } from '@/object-record/record-picker/multiple-record-picker/states/selectors/multipleRecordPickerIsSelectedComponentFamilySelector';
 import { getMultipleRecordPickerSelectableListId } from '@/object-record/record-picker/multiple-record-picker/utils/getMultipleRecordPickerSelectableListId';
 import { type RecordPickerPickableMorphItem } from '@/object-record/record-picker/types/RecordPickerPickableMorphItem';
 import { SelectableListItem } from '@/ui/layout/selectable-list/components/SelectableListItem';
+import { useSelectableListNativeItemRef } from '@/ui/layout/selectable-list/hooks/useSelectableListNativeItemRef';
 import { isSelectedItemIdComponentFamilyState } from '@/ui/layout/selectable-list/states/isSelectedItemIdComponentFamilyState';
 import { useAvailableComponentInstanceIdOrThrow } from '@/ui/utilities/state/component-state/hooks/useAvailableComponentInstanceIdOrThrow';
 import { useAtomComponentFamilySelectorValue } from '@/ui/utilities/state/jotai/hooks/useAtomComponentFamilySelectorValue';
 import { useAtomComponentFamilyStateValue } from '@/ui/utilities/state/jotai/hooks/useAtomComponentFamilyStateValue';
 import { useAtomComponentStateValue } from '@/ui/utilities/state/jotai/hooks/useAtomComponentStateValue';
+import { t } from '@lingui/core/macro';
 import { capitalize } from 'twenty-shared/utils';
-import { Avatar } from 'twenty-ui/data-display';
-import { MenuItemMultiSelectAvatar } from 'twenty-ui/navigation';
-
-import { multipleRecordPickerSearchableObjectMetadataItemsComponentState } from '@/object-record/record-picker/multiple-record-picker/states/multipleRecordPickerSearchableObjectMetadataItemsComponentState';
+import { Avatar } from 'twenty-ui/primitives/data-display';
 import { type SearchRecord } from '~/generated/graphql';
 import { getAbsoluteImageUrl } from '~/utils/image/getAbsoluteImageUrl';
 
@@ -31,6 +30,8 @@ export const MultipleRecordPickerMenuItemContent = ({
   objectMetadataItem,
   onChange,
 }: MultipleRecordPickerMenuItemContentProps) => {
+  const nativeItemRef = useSelectableListNativeItemRef(searchRecord.recordId);
+
   const componentInstanceId = useAvailableComponentInstanceIdOrThrow(
     MultipleRecordPickerComponentInstanceContext,
   );
@@ -78,26 +79,31 @@ export const MultipleRecordPickerMenuItemContent = ({
       key={searchRecord.recordId}
       onEnter={() => handleSelectChange(!isRecordSelectedWithObjectItem)}
     >
-      <MenuItemMultiSelectAvatar
-        onSelectChange={(isSelected) => handleSelectChange(isSelected)}
-        isKeySelected={isSelectedItemId}
+      <ListItemButton
+        ref={nativeItemRef}
+        focused={isSelectedItemId}
+        role="option"
+        aria-selected={isRecordSelectedWithObjectItem}
         selected={isRecordSelectedWithObjectItem}
-        avatar={
-          <Avatar
-            avatarUrl={getAbsoluteImageUrl(searchRecord.imageUrl)}
-            placeholderColorSeed={searchRecord.recordId}
-            placeholder={displayText}
-            size="md"
-            type={getAvatarType(objectMetadataItem)}
-          />
-        }
-        text={displayText}
-        contextualText={
+        indicator="checkbox"
+        description={
           showObjectName
             ? capitalize(objectMetadataItem.labelSingular)
             : undefined
         }
-      />
+        onClick={() => handleSelectChange(!isRecordSelectedWithObjectItem)}
+        startIcon={
+          <Avatar
+            src={getAbsoluteImageUrl(searchRecord.imageUrl)}
+            colorSeed={searchRecord.recordId}
+            name={displayText}
+            size="md"
+            shape={getAvatarShape(objectMetadataItem)}
+          />
+        }
+      >
+        {displayText}
+      </ListItemButton>
     </SelectableListItem>
   );
 };

@@ -1,24 +1,28 @@
 import { Injectable } from '@nestjs/common';
 
-import { RelationType } from 'twenty-shared/types';
+import { FieldMetadataType, RelationType } from 'twenty-shared/types';
 import { isDefined } from 'twenty-shared/utils';
 import { type QueryRunner } from 'typeorm';
 import { v4 } from 'uuid';
 
-import { computeMorphOrRelationFieldJoinColumnName } from 'src/engine/metadata-modules/field-metadata/utils/compute-morph-or-relation-field-join-column-name.util';
+import { buildManyToOneForeignKeyDefinition } from 'src/engine/workspace-manager/workspace-migration/workspace-migration-runner/action-handlers/field/services/utils/build-many-to-one-foreign-key-definition.util';
+import { getDeferredForeignKeyValidation } from 'src/engine/workspace-manager/workspace-migration/workspace-migration-runner/action-handlers/field/services/utils/get-deferred-foreign-key-validation.util';
 import { WorkspaceMigrationRunnerActionHandler } from 'src/engine/workspace-manager/workspace-migration/workspace-migration-runner/interfaces/workspace-migration-runner-action-handler-service.interface';
 
+import { type FlatEntityMaps } from 'src/engine/metadata-modules/flat-entity/types/flat-entity-maps.type';
 import { type MetadataFlatEntityMaps } from 'src/engine/metadata-modules/flat-entity/types/metadata-flat-entity-maps.type';
 import { findFlatEntityByIdInFlatEntityMapsOrThrow } from 'src/engine/metadata-modules/flat-entity/utils/find-flat-entity-by-id-in-flat-entity-maps-or-throw.util';
+import { findManyFlatEntityByIdInFlatEntityMaps } from 'src/engine/metadata-modules/flat-entity/utils/find-many-flat-entity-by-id-in-flat-entity-maps.util';
 import { type FlatFieldMetadata } from 'src/engine/metadata-modules/flat-field-metadata/types/flat-field-metadata.type';
+import { isFlatFieldMetadataOfType } from 'src/engine/metadata-modules/flat-field-metadata/utils/is-flat-field-metadata-of-type.util';
 import { isMorphOrRelationFlatFieldMetadata } from 'src/engine/metadata-modules/flat-field-metadata/utils/is-morph-or-relation-flat-field-metadata.util';
+import { type FlatSearchFieldMetadata } from 'src/engine/metadata-modules/flat-search-field-metadata/types/flat-search-field-metadata.type';
+import { resolveSearchVectorAsExpressionForTsVectorField } from 'src/engine/metadata-modules/flat-search-field-metadata/utils/resolve-search-vector-as-expression-for-ts-vector-field.util';
 import { WorkspaceSchemaManagerService } from 'src/engine/twenty-orm/workspace-schema-manager/workspace-schema-manager.service';
-import { computeObjectTargetTable } from 'src/engine/utils/compute-object-target-table.util';
-import { convertOnDeleteActionToOnDelete } from 'src/engine/workspace-manager/workspace-migration/utils/convert-on-delete-action-to-on-delete.util';
 import {
   type FlatCreateFieldAction,
   type UniversalCreateFieldAction,
-} from 'src/engine/workspace-manager/workspace-migration/workspace-migration-builder/builders/field/types/workspace-migration-field-action';
+} from 'src/engine/workspace-manager/workspace-migration/workspace-migration-builder/builders/field/types/workspace-migration-field-action.type';
 import { fromUniversalFlatFieldMetadataToFlatFieldMetadata } from 'src/engine/workspace-manager/workspace-migration/workspace-migration-runner/action-handlers/field/services/utils/from-universal-flat-field-metadata-to-flat-field-metadata.util';
 import {
   WorkspaceMigrationActionRunnerContext,
@@ -137,179 +141,118 @@ export class CreateFieldActionHandlerService extends WorkspaceMigrationRunnerAct
   async executeForWorkspaceSchema(
     context: WorkspaceMigrationActionRunnerContext<FlatCreateFieldAction>,
   ): Promise<void> {
-    const {
-      flatAction,
-      queryRunner,
-      allFlatEntityMaps: { flatObjectMetadataMaps },
-      workspaceId,
-    } = context;
-    const { flatEntity, relatedFlatFieldMetadata } = flatAction;
-
-    await this.applyFieldsToWorkspaceSchema({
-      flatFieldMetadatas: [flatEntity, relatedFlatFieldMetadata].filter(
-        isDefined,
-      ),
-      flatObjectMetadataMaps,
-      queryRunner,
-      workspaceId,
-    });
+    await this.executeForWorkspaceSchemaBatch([context]);
   }
 
   override async executeForWorkspaceSchemaBatch(
     contexts: WorkspaceMigrationActionRunnerContext<FlatCreateFieldAction>[],
   ): Promise<void> {
-    if (contexts.length === 0) {
-      return;
-    }
-
-    const flatFieldMetadatas = contexts.flatMap((context) =>
-      [
+    if (contexts.length === 0) return;
+    const {
+      queryRunner,
+      workspaceId,
+      allFlatEntityMaps: {
+        flatObjectMetadataMaps,
+        flatFieldMetadataMaps,
+        flatSearchFieldMetadataMaps,
+      },
+      getSearchFieldMetadatasByTsVectorFieldId,
+    } = contexts[0];
+    const deferredFieldIds = new Set(
+      contexts.flatMap((context) => {
+        const deferred = getDeferredForeignKeyValidation(context);
+        return deferred ? [deferred.payload.fieldMetadataId] : [];
+      }),
+    );
+    const fieldsByObject = new Map<string, FlatFieldMetadata[]>();
+    for (const context of contexts) {
+      for (const field of [
         context.flatAction.flatEntity,
         context.flatAction.relatedFlatFieldMetadata,
-      ].filter(isDefined),
-    );
-
-    await this.applyFieldsToWorkspaceSchema({
-      flatFieldMetadatas,
-      flatObjectMetadataMaps:
-        contexts[0].allFlatEntityMaps.flatObjectMetadataMaps,
-      queryRunner: contexts[0].queryRunner,
-      workspaceId: contexts[0].workspaceId,
-    });
-  }
-
-  private async applyFieldsToWorkspaceSchema({
-    flatFieldMetadatas,
-    flatObjectMetadataMaps,
-    queryRunner,
-    workspaceId,
-  }: {
-    flatFieldMetadatas: FlatFieldMetadata[];
-    flatObjectMetadataMaps: MetadataFlatEntityMaps<'objectMetadata'>;
-    queryRunner: QueryRunner;
-    workspaceId: string;
-  }): Promise<void> {
-    const fieldsByObjectMetadataId = new Map<string, FlatFieldMetadata[]>();
-
-    for (const flatFieldMetadata of flatFieldMetadatas) {
-      const existingFields = fieldsByObjectMetadataId.get(
-        flatFieldMetadata.objectMetadataId,
-      );
-
-      if (isDefined(existingFields)) {
-        existingFields.push(flatFieldMetadata);
-      } else {
-        fieldsByObjectMetadataId.set(flatFieldMetadata.objectMetadataId, [
-          flatFieldMetadata,
-        ]);
+      ].filter(isDefined)) {
+        const fields = fieldsByObject.get(field.objectMetadataId) ?? [];
+        fields.push(field);
+        fieldsByObject.set(field.objectMetadataId, fields);
       }
     }
-
-    for (const [
-      objectMetadataId,
-      objectFlatFieldMetadatas,
-    ] of fieldsByObjectMetadataId) {
+    for (const [objectMetadataId, createdFields] of fieldsByObject) {
       const flatObjectMetadata = findFlatEntityByIdInFlatEntityMapsOrThrow({
         flatEntityMaps: flatObjectMetadataMaps,
         flatEntityId: objectMetadataId,
       });
-
       const { schemaName, tableName } = getWorkspaceSchemaContextForMigration({
         workspaceId,
         objectMetadata: flatObjectMetadata,
       });
-
-      const enumOperations = objectFlatFieldMetadatas.flatMap(
-        (flatFieldMetadata) =>
-          collectEnumOperationsForField({
-            flatFieldMetadata,
-            tableName,
-            operation: EnumOperation.CREATE,
-          }),
+      const objectFlatFieldMetadatas = [
+        ...findManyFlatEntityByIdInFlatEntityMaps({
+          flatEntityMaps: flatFieldMetadataMaps,
+          flatEntityIds: flatObjectMetadata.fieldIds,
+        }),
+        ...createdFields,
+      ];
+      const enumOperations = createdFields.flatMap((flatFieldMetadata) =>
+        collectEnumOperationsForField({
+          flatFieldMetadata,
+          tableName,
+          operation: EnumOperation.CREATE,
+        }),
       );
-
       await executeBatchEnumOperations({
         enumOperations,
         queryRunner,
         schemaName,
         workspaceSchemaManagerService: this.workspaceSchemaManagerService,
       });
-
-      const columnDefinitions = objectFlatFieldMetadatas.flatMap(
-        (flatFieldMetadata) =>
-          generateColumnDefinitions({
+      const columnDefinitions = createdFields.flatMap((flatFieldMetadata) =>
+        generateColumnDefinitions({
+          flatFieldMetadata,
+          flatObjectMetadata,
+          workspaceId,
+          searchVectorAsExpression: isFlatFieldMetadataOfType(
             flatFieldMetadata,
-            flatObjectMetadata,
-            workspaceId,
-          }),
+            FieldMetadataType.TS_VECTOR,
+          )
+            ? resolveSearchVectorAsExpressionForTsVectorField({
+                tsVectorFieldMetadataId: flatFieldMetadata.id,
+                objectFlatFieldMetadatas,
+                flatSearchFieldMetadataMaps,
+                getSearchFieldMetadatasByTsVectorFieldId,
+              })
+            : undefined,
+        }),
       );
-
       await this.workspaceSchemaManagerService.columnManager.addColumns({
         queryRunner,
         schemaName,
         tableName,
         columnDefinitions,
       });
-
-      for (const flatFieldMetadata of objectFlatFieldMetadatas) {
-        await this.createRelationForeignKeyIfNeeded({
-          flatFieldMetadata,
-          flatObjectMetadataMaps,
-          queryRunner,
-          schemaName,
-          tableName,
-        });
+      for (const flatFieldMetadata of createdFields) {
+        if (
+          isMorphOrRelationFlatFieldMetadata(flatFieldMetadata) &&
+          flatFieldMetadata.settings.relationType === RelationType.MANY_TO_ONE
+        ) {
+          await this.workspaceSchemaManagerService.foreignKeyManager.createForeignKey(
+            {
+              queryRunner,
+              schemaName,
+              foreignKey: buildManyToOneForeignKeyDefinition({
+                flatFieldMetadata,
+                flatObjectMetadataMaps,
+                tableName,
+              }),
+              isNotValid: deferredFieldIds.has(flatFieldMetadata.id),
+            },
+          );
+        }
       }
     }
   }
 
-  private async createRelationForeignKeyIfNeeded({
-    flatFieldMetadata,
-    flatObjectMetadataMaps,
-    queryRunner,
-    schemaName,
-    tableName,
-  }: {
-    flatFieldMetadata: FlatFieldMetadata;
-    flatObjectMetadataMaps: MetadataFlatEntityMaps<'objectMetadata'>;
-    queryRunner: QueryRunner;
-    schemaName: string;
-    tableName: string;
-  }): Promise<void> {
-    if (
-      !isMorphOrRelationFlatFieldMetadata(flatFieldMetadata) ||
-      flatFieldMetadata.settings?.relationType !== RelationType.MANY_TO_ONE
-    ) {
-      return;
-    }
-
-    const targetFlatObjectMetadata = findFlatEntityByIdInFlatEntityMapsOrThrow({
-      flatEntityMaps: flatObjectMetadataMaps,
-      flatEntityId: flatFieldMetadata.relationTargetObjectMetadataId!,
-    });
-    const referencedTableName = computeObjectTargetTable(
-      targetFlatObjectMetadata,
-    );
-
-    const joinColumnName = computeMorphOrRelationFieldJoinColumnName({
-      name: flatFieldMetadata.name,
-    });
-
-    await this.workspaceSchemaManagerService.foreignKeyManager.createForeignKey(
-      {
-        queryRunner,
-        schemaName,
-        foreignKey: {
-          tableName,
-          columnName: joinColumnName,
-          referencedTableName,
-          referencedColumnName: 'id',
-          onDelete:
-            convertOnDeleteActionToOnDelete(
-              flatFieldMetadata.settings?.onDelete,
-            ) ?? 'CASCADE',
-        },
-      },
-    );
+  protected override getDeferredAction(
+    context: WorkspaceMigrationActionRunnerContext<FlatCreateFieldAction>,
+  ) {
+    return getDeferredForeignKeyValidation(context);
   }
 }

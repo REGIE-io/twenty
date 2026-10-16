@@ -11,13 +11,14 @@ import {
   WorkflowStepExecutorExceptionCode,
 } from 'src/modules/workflow/workflow-executor/exceptions/workflow-step-executor.exception';
 import { WorkflowExecutionContextService } from 'src/modules/workflow/workflow-executor/services/workflow-execution-context.service';
-import { type WorkflowActionInput } from 'src/modules/workflow/workflow-executor/types/workflow-action-input';
+import { type WorkflowActionInput } from 'src/modules/workflow/workflow-executor/types/workflow-action-input.type';
 import { type WorkflowActionOutput } from 'src/modules/workflow/workflow-executor/types/workflow-action-output.type';
 import { buildWorkflowActorMetadata } from 'src/modules/workflow/workflow-executor/utils/build-workflow-actor-metadata.util';
 import { filterValidFieldsInRecord } from 'src/modules/workflow/workflow-executor/utils/filter-valid-fields-in-record.util';
 import { formatWorkflowRecordRelationFields } from 'src/modules/workflow/workflow-executor/utils/format-workflow-record-relation-fields.util';
 import { findStepOrThrow } from 'src/modules/workflow/workflow-executor/utils/find-step-or-throw.util';
-import { resolveRichTextFieldsInRecord } from 'src/modules/workflow/workflow-executor/utils/resolve-rich-text-fields-in-record.util';
+import { convertStepObjectRecordTipTapToMarkdown } from 'src/modules/workflow/workflow-executor/utils/convert-step-object-record-tiptap-to-markdown.util';
+import { resolveRichTextMarkdownVariables } from 'src/modules/workflow/workflow-executor/utils/resolve-rich-text-markdown-variables.util';
 import { isWorkflowUpdateRecordAction } from 'src/modules/workflow/workflow-executor/workflow-actions/record-crud/guards/is-workflow-update-record-action.guard';
 import { type WorkflowUpdateRecordActionInput } from 'src/modules/workflow/workflow-executor/workflow-actions/record-crud/types/workflow-record-crud-action-input.type';
 
@@ -57,17 +58,20 @@ export class UpdateRecordWorkflowAction implements WorkflowAction {
         workspaceId,
       );
 
-    const inputWithResolvedRichText = {
+    const inputWithRichText = {
       ...rawInput,
-      objectRecord: resolveRichTextFieldsInRecord(
-        rawInput.objectRecord,
+      objectRecord: resolveRichTextMarkdownVariables(
+        convertStepObjectRecordTipTapToMarkdown(
+          rawInput.objectRecord,
+          objectMetadataInfo,
+        ),
         objectMetadataInfo,
         context,
       ),
     };
 
     const workflowActionInput = resolveInput(
-      inputWithResolvedRichText,
+      inputWithRichText,
       context,
     ) as WorkflowUpdateRecordActionInput;
 

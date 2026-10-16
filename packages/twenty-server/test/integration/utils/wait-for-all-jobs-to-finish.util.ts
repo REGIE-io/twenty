@@ -22,6 +22,8 @@ const HARD_TIMEOUT_MS =
   IS_DIRECT_WORKSPACE_DELETION_ACCEPTANCE || IS_BACKFILL_REAPER_ACCEPTANCE
     ? 10 * 60_000
     : 120_000;
+const DELAYED_JOB_PAGE_SIZE = 50;
+const MAX_PROMOTABLE_DELAY_MS = 60_000;
 const PENDING_JOB_STATES = [
   'waiting',
   'active',
@@ -29,6 +31,11 @@ const PENDING_JOB_STATES = [
   'waiting-children',
   'delayed',
 ] as const;
+
+type PendingJobCounts = {
+  pending: number;
+  delayed: number;
+};
 
 let redisConnection: IORedis | null = null;
 let queues: Queue[] | null = null;
@@ -50,7 +57,7 @@ const getQueues = (): Queue[] => {
 };
 
 const getPendingJobCountsByQueue = async (): Promise<
-  Record<string, number>
+  Record<string, PendingJobCounts>
 > => {
   const countsByQueue = await Promise.all(
     getQueues().map(async (queue) => {
@@ -60,13 +67,44 @@ const getPendingJobCountsByQueue = async (): Promise<
         0,
       );
 
-      return [queue.name, pendingCount] as const;
+      return [
+        queue.name,
+        { pending: pendingCount, delayed: jobCounts.delayed ?? 0 },
+      ] as const;
     }),
   );
 
   return Object.fromEntries(
-    countsByQueue.filter(([, pendingCount]) => pendingCount > 0),
+    countsByQueue.filter(([, { pending }]) => pending > 0),
   );
+};
+
+const promoteDelayedJobs = async (queueName: string): Promise<number> => {
+  const queue = getQueues().find(({ name }) => name === queueName);
+
+  if (!queue) {
+    return 0;
+  }
+
+  const delayedJobs = await queue.getDelayed(0, DELAYED_JOB_PAGE_SIZE);
+  const promotableJobs = delayedJobs.filter(
+    (job) => (job.delay ?? 0) <= MAX_PROMOTABLE_DELAY_MS,
+  );
+
+  let promotedJobCount = 0;
+
+  for (const promotableJob of promotableJobs) {
+    const hasBeenPromoted = await promotableJob
+      .promote()
+      .then(() => true)
+      .catch(() => false);
+
+    if (hasBeenPromoted) {
+      promotedJobCount += 1;
+    }
+  }
+
+  return promotedJobCount;
 };
 
 const getActiveJobsFingerprint = async (
@@ -94,15 +132,36 @@ export const waitForAllJobsToFinish = async (): Promise<void> => {
   while (consecutiveQuietChecks < REQUIRED_CONSECUTIVE_QUIET_CHECKS) {
     const pendingJobCountsByQueue = await getPendingJobCountsByQueue();
     const pendingTotal = Object.values(pendingJobCountsByQueue).reduce(
-      (sum, count) => sum + count,
+      (sum, { pending }) => sum + pending,
       0,
     );
+    const stalledQueueNames = Object.entries(pendingJobCountsByQueue)
+      .filter(([, { pending, delayed }]) => pending === delayed)
+      .map(([queueName]) => queueName);
 
     if (pendingTotal === 0) {
       consecutiveQuietChecks += 1;
     } else {
       consecutiveQuietChecks = 0;
       const now = Date.now();
+
+      if (now - startedAt > HARD_TIMEOUT_MS) {
+        throw new Error(
+          `Message queues still busy after ${HARD_TIMEOUT_MS}ms, pending jobs: ${JSON.stringify(pendingJobCountsByQueue)}`,
+        );
+      }
+
+      let promotedJobCount = 0;
+
+      for (const stalledQueueName of stalledQueueNames) {
+        promotedJobCount += await promoteDelayedJobs(stalledQueueName);
+      }
+
+      if (promotedJobCount > 0) {
+        lastProgressAt = now;
+        await new Promise((resolve) => setTimeout(resolve, POLL_INTERVAL_MS));
+        continue;
+      }
 
       const activeJobsFingerprint = await getActiveJobsFingerprint(
         Object.keys(pendingJobCountsByQueue),
@@ -117,12 +176,6 @@ export const waitForAllJobsToFinish = async (): Promise<void> => {
       if (now - lastProgressAt > STALL_TIMEOUT_MS) {
         throw new Error(
           `Message queues stalled, no progress for ${STALL_TIMEOUT_MS}ms, pending jobs: ${JSON.stringify(pendingJobCountsByQueue)}`,
-        );
-      }
-
-      if (now - startedAt > HARD_TIMEOUT_MS) {
-        throw new Error(
-          `Message queues still busy after ${HARD_TIMEOUT_MS}ms, pending jobs: ${JSON.stringify(pendingJobCountsByQueue)}`,
         );
       }
     }

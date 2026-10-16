@@ -17,7 +17,7 @@ import { type FlatFieldMetadata } from 'src/engine/metadata-modules/flat-field-m
 import { isNullEquivalentTextDefaultValue } from 'src/engine/metadata-modules/flat-field-metadata/utils/is-null-equivalent-text-default-value.util';
 import { getSearchedColumnNamesForField } from 'src/engine/workspace-manager/utils/get-ts-vector-column-expression.util';
 import { escapeIdentifier } from 'src/engine/workspace-manager/workspace-migration/utils/remove-sql-injection.util';
-import { type AllUniversalWorkspaceMigrationAction } from 'src/engine/workspace-manager/workspace-migration/workspace-migration-builder/types/workspace-migration-action-common';
+import { type AllUniversalWorkspaceMigrationAction } from 'src/engine/workspace-manager/workspace-migration/workspace-migration-builder/types/workspace-migration-action-common.type';
 
 // One field joining or leaving an object's search list in a migration.
 export type SearchListChange = {

@@ -1,7 +1,4 @@
-import { type FieldMetadataType } from 'twenty-shared/types';
-
-import { type IndexType } from 'src/engine/metadata-modules/index-metadata/types/indexType.types';
-
+import { type FieldMetadataType, type IndexType } from 'twenty-shared/types';
 export type SchemaApplySnapshotField = {
   id: string;
   name: string;

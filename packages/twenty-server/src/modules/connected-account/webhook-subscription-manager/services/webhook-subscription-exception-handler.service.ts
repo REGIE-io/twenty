@@ -2,7 +2,6 @@ import { Injectable } from '@nestjs/common';
 
 import { type WebhookSubscriptionChannelType } from 'twenty-shared/types';
 
-import { ExceptionHandlerService } from 'src/engine/core-modules/exception-handler/exception-handler.service';
 import {
   ConnectedAccountRefreshAccessTokenException,
   ConnectedAccountRefreshAccessTokenExceptionCode,
@@ -20,14 +19,13 @@ import {
 
 type WebhookSubscribableChannelReference = Pick<
   WebhookSubscribableChannel,
-  'id' | 'webhookSubscriptionExternalId'
+  'id' | 'webhookSubscriptionExternalId' | 'connectedAccountId'
 >;
 
 @Injectable()
 export class WebhookSubscriptionExceptionHandlerService {
   constructor(
     private readonly webhookSubscriptionStatusService: WebhookSubscriptionStatusService,
-    private readonly exceptionHandlerService: ExceptionHandlerService,
   ) {}
 
   public async handleDriverException(
@@ -41,6 +39,7 @@ export class WebhookSubscriptionExceptionHandlerService {
       switch (exception.code) {
         case WebhookSubscriptionDriverExceptionCode.NOT_FOUND:
           return await this.handleNotFoundException(
+            exception,
             operation,
             channelType,
             channel,
@@ -106,6 +105,7 @@ export class WebhookSubscriptionExceptionHandlerService {
   }
 
   private async handleNotFoundException(
+    exception: unknown,
     operation: WebhookSubscriptionOperation,
     channelType: WebhookSubscriptionChannelType,
     channel: WebhookSubscribableChannelReference,
@@ -160,16 +160,12 @@ export class WebhookSubscriptionExceptionHandlerService {
     exception: unknown,
     channelType: WebhookSubscriptionChannelType,
     channel: WebhookSubscribableChannelReference,
-    workspaceId: string,
+    _workspaceId: string,
   ): Promise<WebhookSubscriptionRecoveryAction> {
     await this.webhookSubscriptionStatusService.markAsFailed(
       channelType,
       channel.id,
     );
-
-    this.exceptionHandlerService.captureExceptions([exception], {
-      workspace: { id: workspaceId },
-    });
 
     throw exception;
   }

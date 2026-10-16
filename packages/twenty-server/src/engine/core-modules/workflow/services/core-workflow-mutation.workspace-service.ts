@@ -1,0 +1,697 @@
+import { Injectable, Logger } from '@nestjs/common';
+
+import { ApplicationService } from 'src/engine/core-modules/application/application.service';
+import { WorkflowStatus } from 'src/engine/core-modules/workflow/enums/workflow-status.enum';
+import { WorkspaceManyOrAllFlatEntityMapsCacheService } from 'src/engine/metadata-modules/flat-entity/services/workspace-many-or-all-flat-entity-maps-cache.service';
+import { type AllFlatEntityOperationByMetadataName } from 'src/engine/metadata-modules/flat-entity/types/flat-entity-to-create-delete-update.type';
+import { findFlatEntityByIdInFlatEntityMapsOrThrow } from 'src/engine/metadata-modules/flat-entity/utils/find-flat-entity-by-id-in-flat-entity-maps-or-throw.util';
+import { WorkspaceMigrationBuilderException } from 'src/engine/workspace-manager/workspace-migration/exceptions/workspace-migration-builder-exception';
+import { WorkspaceMigrationValidateBuildAndRunService } from 'src/engine/workspace-manager/workspace-migration/services/workspace-migration-validate-build-and-run-service';
+
+import { Equal, In, IsNull, Or } from 'typeorm';
+import { msg } from '@lingui/core/macro';
+import { WorkflowVisibility } from 'twenty-shared/types';
+import { isDefined } from 'twenty-shared/utils';
+import { v4 as uuidv4 } from 'uuid';
+
+import { type CoreWorkflowDTO } from 'src/engine/core-modules/workflow/dtos/core-workflow.dto';
+import { type DeletedCoreWorkflowDTO } from 'src/engine/core-modules/workflow/dtos/deleted-core-workflow.dto';
+import { type DiscardCoreWorkflowDraftInput } from 'src/engine/core-modules/workflow/dtos/discard-core-workflow-draft.input';
+import { type UpdateCoreWorkflowVisibilityInput } from 'src/engine/core-modules/workflow/dtos/update-core-workflow-visibility.input';
+import {
+  WorkflowVersionEntity,
+  WorkflowVersionStatus as CoreWorkflowVersionStatus,
+} from 'src/engine/core-modules/workflow/entities/workflow-version.entity';
+import { WorkflowEntity } from 'src/engine/core-modules/workflow/entities/workflow.entity';
+import { CommandMenuItemService } from 'src/engine/metadata-modules/command-menu-item/command-menu-item.service';
+import { getWorkflowCommandMenuItemLabel } from 'src/modules/workflow/workflow-trigger/utils/get-workflow-command-menu-item-label.util';
+import { CoreWorkflowListService } from 'src/engine/core-modules/workflow/services/core-workflow-list.service';
+import { CoreWorkflowVersionWriteService } from 'src/engine/core-modules/workflow/services/core-workflow-version-write.service';
+import { CoreWorkflowAccessService } from 'src/engine/core-modules/workflow/services/core-workflow-access.service';
+import { WorkflowRunRecordShareService } from 'src/engine/core-modules/workflow/services/workflow-run-record-share.service';
+import { WorkflowCoreSyncService } from 'src/engine/core-modules/workflow/services/workflow-core-sync.service';
+import { WorkflowVersionCoreSyncService } from 'src/engine/core-modules/workflow/services/workflow-version-core-sync.service';
+import { InjectWorkspaceScopedRepository } from 'src/engine/twenty-orm/workspace-scoped-repository/inject-workspace-scoped-repository.decorator';
+import { WorkspaceScopedRepository } from 'src/engine/twenty-orm/workspace-scoped-repository/workspace-scoped-repository';
+import {
+  WorkflowQueryValidationException,
+  WorkflowQueryValidationExceptionCode,
+} from 'src/modules/workflow/common/exceptions/workflow-query-validation.exception';
+import { remapDuplicatedStepDestinations } from 'src/modules/workflow/workflow-builder/utils/remap-duplicated-step-destinations.util';
+import { WorkflowVersionStepOperationsWorkspaceService } from 'src/modules/workflow/workflow-builder/workflow-version-step/workflow-version-step-operations.workspace-service';
+import { type WorkflowAction } from 'src/modules/workflow/workflow-executor/workflow-actions/types/workflow-action.type';
+
+@Injectable()
+export class CoreWorkflowMutationWorkspaceService {
+  private readonly logger = new Logger(
+    CoreWorkflowMutationWorkspaceService.name,
+  );
+
+  constructor(
+    @InjectWorkspaceScopedRepository(WorkflowEntity)
+    private readonly coreWorkflowRepository: WorkspaceScopedRepository<WorkflowEntity>,
+    private readonly workflowCoreSyncService: WorkflowCoreSyncService,
+    private readonly workflowVersionCoreSyncService: WorkflowVersionCoreSyncService,
+    private readonly coreWorkflowAccessService: CoreWorkflowAccessService,
+    private readonly commandMenuItemService: CommandMenuItemService,
+    private readonly coreWorkflowListService: CoreWorkflowListService,
+    private readonly coreWorkflowVersionWriteService: CoreWorkflowVersionWriteService,
+    private readonly workflowVersionStepOperationsWorkspaceService: WorkflowVersionStepOperationsWorkspaceService,
+    @InjectWorkspaceScopedRepository(WorkflowVersionEntity)
+    private readonly coreWorkflowVersionRepository: WorkspaceScopedRepository<WorkflowVersionEntity>,
+    private readonly workspaceMigrationValidateBuildAndRunService: WorkspaceMigrationValidateBuildAndRunService,
+    private readonly flatEntityMapsCacheService: WorkspaceManyOrAllFlatEntityMapsCacheService,
+    private readonly applicationService: ApplicationService,
+    private readonly workflowRunRecordShareService: WorkflowRunRecordShareService,
+  ) {}
+
+  private async runCoreWorkflowMigration({
+    workspaceId,
+    failureMessage,
+    operations,
+    applicationUniversalIdentifier,
+  }: {
+    workspaceId: string;
+    failureMessage: string;
+    operations: AllFlatEntityOperationByMetadataName;
+    applicationUniversalIdentifier?: string;
+  }): Promise<void> {
+    const universalIdentifier =
+      applicationUniversalIdentifier ??
+      (
+        await this.applicationService.findWorkspaceTwentyStandardAndCustomApplicationOrThrow(
+          { workspaceId },
+        )
+      ).workspaceCustomFlatApplication.universalIdentifier;
+
+    const validateAndBuildResult =
+      await this.workspaceMigrationValidateBuildAndRunService.validateBuildAndRunWorkspaceMigration(
+        {
+          allFlatEntityOperationByMetadataName: operations,
+          workspaceId,
+          isSystemBuild: false,
+          applicationUniversalIdentifier: universalIdentifier,
+        },
+      );
+
+    if (validateAndBuildResult.status === 'fail') {
+      throw new WorkspaceMigrationBuilderException(
+        validateAndBuildResult,
+        failureMessage,
+      );
+    }
+  }
+
+  async duplicateWorkflow({
+    workspaceId,
+    userWorkspaceId,
+    coreWorkflowIdToDuplicate,
+    coreWorkflowVersionIdToCopy,
+  }: {
+    workspaceId: string;
+    userWorkspaceId: string | undefined;
+    coreWorkflowIdToDuplicate: string;
+    coreWorkflowVersionIdToCopy: string;
+  }): Promise<CoreWorkflowDTO> {
+    await this.coreWorkflowAccessService.assertCoreWorkflowsAreAccessibleOrThrow(
+      {
+        workspaceId,
+        userWorkspaceId,
+        coreWorkflowIds: [coreWorkflowIdToDuplicate],
+      },
+    );
+
+    const sourceCoreWorkflow = await this.coreWorkflowRepository.findOne(
+      workspaceId,
+      { where: { id: coreWorkflowIdToDuplicate } },
+    );
+
+    if (!isDefined(sourceCoreWorkflow)) {
+      throw new WorkflowQueryValidationException(
+        `Core workflow '${coreWorkflowIdToDuplicate}' not found`,
+        WorkflowQueryValidationExceptionCode.FORBIDDEN,
+        { userFriendlyMessage: msg`Workflow not found` },
+      );
+    }
+
+    const sourceVersion = await this.coreWorkflowVersionRepository.findOne(
+      workspaceId,
+      {
+        where: {
+          id: coreWorkflowVersionIdToCopy,
+          coreWorkflowId: coreWorkflowIdToDuplicate,
+        },
+      },
+    );
+
+    const sourceTrigger = sourceVersion?.triggers?.[0];
+
+    if (!isDefined(sourceVersion) || !isDefined(sourceTrigger)) {
+      throw new WorkflowQueryValidationException(
+        `Core workflow version '${coreWorkflowVersionIdToCopy}' to copy not found or has no trigger`,
+        WorkflowQueryValidationExceptionCode.FORBIDDEN,
+        {
+          userFriendlyMessage: msg`Workflow version to copy not found`,
+        },
+      );
+    }
+
+    const { trigger: remappedTrigger, steps: remappedSteps } =
+      await this.cloneVersionContent({
+        workspaceId,
+        trigger: sourceTrigger,
+        steps: sourceVersion.steps ?? [],
+      });
+
+    const duplicatedWorkflow = await this.createWorkflow({
+      workspaceId,
+      userWorkspaceId,
+      name: `${sourceCoreWorkflow.name ?? ''} (Duplicate)`,
+      // duplicating a private workflow must not publish it to the workspace
+      visibility: sourceCoreWorkflow.visibility,
+    }).catch(async (error: unknown) => {
+      await this.deleteClonedStepResources({
+        workspaceId,
+        clonedSteps: remappedSteps,
+      });
+
+      throw error;
+    });
+
+    try {
+      return await this.writeDuplicatedContentAndReturn({
+        workspaceId,
+        userWorkspaceId,
+        duplicatedCoreWorkflowId: duplicatedWorkflow.id,
+        trigger: remappedTrigger,
+        steps: remappedSteps,
+      });
+    } catch (error) {
+      try {
+        await this.deleteWorkflows({
+          workspaceId,
+          userWorkspaceId,
+          coreWorkflowIds: [duplicatedWorkflow.id],
+        });
+      } catch (cleanupError) {
+        this.logger.error(cleanupError);
+      }
+
+      throw error;
+    }
+  }
+
+  private async deleteClonedStepResources({
+    workspaceId,
+    clonedSteps,
+  }: {
+    workspaceId: string;
+    clonedSteps: WorkflowAction[];
+  }): Promise<void> {
+    for (const step of clonedSteps) {
+      try {
+        await this.workflowVersionStepOperationsWorkspaceService.runWorkflowVersionStepDeletionSideEffects(
+          { step, workspaceId },
+        );
+      } catch (cleanupError) {
+        this.logger.error(cleanupError);
+      }
+    }
+  }
+
+  private async writeDuplicatedContentAndReturn({
+    workspaceId,
+    userWorkspaceId,
+    duplicatedCoreWorkflowId,
+    trigger,
+    steps,
+  }: {
+    workspaceId: string;
+    userWorkspaceId: string | undefined;
+    duplicatedCoreWorkflowId: string;
+    trigger: NonNullable<WorkflowVersionEntity['triggers']>[number];
+    steps: WorkflowAction[];
+  }): Promise<CoreWorkflowDTO> {
+    const initialDraft = await this.coreWorkflowVersionRepository.findOne(
+      workspaceId,
+      {
+        where: {
+          coreWorkflowId: duplicatedCoreWorkflowId,
+          status: CoreWorkflowVersionStatus.DRAFT,
+        },
+      },
+    );
+
+    if (!isDefined(initialDraft)) {
+      throw new WorkflowQueryValidationException(
+        `Duplicated core workflow '${duplicatedCoreWorkflowId}' has no initial draft version`,
+        WorkflowQueryValidationExceptionCode.FORBIDDEN,
+        {
+          userFriendlyMessage: msg`Workflow duplication failed, please retry`,
+        },
+      );
+    }
+
+    await this.coreWorkflowVersionWriteService.writeContent({
+      workspaceId,
+      coreWorkflowVersionId: initialDraft.id,
+      expectedVersion: initialDraft,
+      trigger,
+      steps,
+    });
+
+    const duplicatedCoreWorkflow =
+      await this.coreWorkflowListService.findOneById({
+        workspaceId,
+        userWorkspaceId,
+        coreWorkflowId: duplicatedCoreWorkflowId,
+      });
+
+    if (!isDefined(duplicatedCoreWorkflow)) {
+      throw new WorkflowQueryValidationException(
+        `Core row '${duplicatedCoreWorkflowId}' of the duplicated workflow not found`,
+        WorkflowQueryValidationExceptionCode.FORBIDDEN,
+        {
+          userFriendlyMessage: msg`Workflow duplication failed, please retry`,
+        },
+      );
+    }
+
+    return duplicatedCoreWorkflow;
+  }
+
+  private async cloneVersionContent({
+    workspaceId,
+    trigger,
+    steps,
+  }: {
+    workspaceId: string;
+    trigger: NonNullable<WorkflowVersionEntity['triggers']>[number];
+    steps: WorkflowAction[];
+  }) {
+    const sourceToClonedPairs: {
+      source: WorkflowAction;
+      duplicated: WorkflowAction;
+    }[] = [];
+    const clonedStepIdBySourceStepId = new Map<string, string>();
+
+    try {
+      for (const step of steps) {
+        const clonedStep =
+          await this.workflowVersionStepOperationsWorkspaceService.cloneStep({
+            step,
+            workspaceId,
+          });
+
+        sourceToClonedPairs.push({ source: step, duplicated: clonedStep });
+        clonedStepIdBySourceStepId.set(step.id, clonedStep.id);
+      }
+    } catch (error) {
+      await this.deleteClonedStepResources({
+        workspaceId,
+        clonedSteps: sourceToClonedPairs.map(({ duplicated }) => duplicated),
+      });
+
+      throw error;
+    }
+
+    return remapDuplicatedStepDestinations({
+      trigger,
+      sourceToClonedPairs,
+      clonedStepIdBySourceStepId,
+    });
+  }
+
+  async updateWorkflow({
+    workspaceId,
+    userWorkspaceId,
+    coreWorkflowId,
+    name,
+  }: {
+    workspaceId: string;
+    userWorkspaceId: string | undefined;
+    coreWorkflowId: string;
+    name: string;
+  }): Promise<void> {
+    await this.coreWorkflowAccessService.assertCoreWorkflowsAreEditableOrThrow({
+      workspaceId,
+      userWorkspaceId,
+      coreWorkflowIds: [coreWorkflowId],
+    });
+
+    const { flatWorkflowMaps } =
+      await this.flatEntityMapsCacheService.getOrRecomputeManyOrAllFlatEntityMaps(
+        { workspaceId, flatMapsKeys: ['flatWorkflowMaps'] },
+      );
+
+    const flatWorkflow = findFlatEntityByIdInFlatEntityMapsOrThrow({
+      flatEntityId: coreWorkflowId,
+      flatEntityMaps: flatWorkflowMaps,
+    });
+
+    await this.runCoreWorkflowMigration({
+      workspaceId,
+      failureMessage:
+        'Multiple validation errors occurred while renaming workflow',
+      operations: {
+        workflow: {
+          flatEntityToCreate: [],
+          flatEntityToDelete: [],
+          flatEntityToUpdate: [{ ...flatWorkflow, name }],
+        },
+      },
+    });
+
+    await this.syncCommandMenuItemLabelFromCore({
+      workspaceId,
+      coreWorkflowId,
+      name,
+    });
+  }
+
+  private async syncCommandMenuItemLabelFromCore({
+    workspaceId,
+    coreWorkflowId,
+    name,
+  }: {
+    workspaceId: string;
+    coreWorkflowId: string;
+    name: string;
+  }): Promise<void> {
+    const coreWorkflow = await this.coreWorkflowRepository.findOne(
+      workspaceId,
+      {
+        where: { id: coreWorkflowId },
+        select: { id: true, lastPublishedCoreWorkflowVersionId: true },
+      },
+    );
+
+    const publishedCoreVersionId =
+      coreWorkflow?.lastPublishedCoreWorkflowVersionId;
+
+    if (!isDefined(publishedCoreVersionId)) {
+      return;
+    }
+
+    const existingCommandMenuItem =
+      await this.commandMenuItemService.findByCoreWorkflowVersionId(
+        publishedCoreVersionId,
+        workspaceId,
+      );
+
+    if (!isDefined(existingCommandMenuItem)) {
+      return;
+    }
+
+    const label = getWorkflowCommandMenuItemLabel({ name });
+
+    if (
+      existingCommandMenuItem.label === label &&
+      existingCommandMenuItem.shortLabel === label
+    ) {
+      return;
+    }
+
+    await this.commandMenuItemService.update(
+      { id: existingCommandMenuItem.id, label, shortLabel: label },
+      workspaceId,
+    );
+  }
+
+  async createWorkflow({
+    workspaceId,
+    userWorkspaceId,
+    name,
+    visibility,
+  }: {
+    workspaceId: string;
+    userWorkspaceId: string | undefined;
+    name?: string;
+    visibility?: WorkflowVisibility;
+  }): Promise<CoreWorkflowDTO> {
+    const applicationId =
+      await this.workflowCoreSyncService.getCustomApplicationIdOrThrow(
+        workspaceId,
+      );
+
+    const createdAt = new Date().toISOString();
+
+    const coreWorkflow = {
+      id: uuidv4(),
+      name: name ?? null,
+      universalIdentifier: uuidv4(),
+      workspaceWorkflowId: null,
+      isSystem: false,
+      visibility: visibility ?? WorkflowVisibility.WORKSPACE,
+      createdByUserWorkspaceId: userWorkspaceId ?? null,
+      lastPublishedVersionId: null,
+      lastPublishedCoreWorkflowVersionId: null,
+      versionDefinitionHash: null,
+      createdAt,
+      updatedAt: createdAt,
+    };
+
+    const { workspaceCustomFlatApplication } =
+      await this.applicationService.findWorkspaceTwentyStandardAndCustomApplicationOrThrow(
+        { workspaceId },
+      );
+
+    await this.runCoreWorkflowMigration({
+      workspaceId,
+      applicationUniversalIdentifier:
+        workspaceCustomFlatApplication.universalIdentifier,
+      failureMessage:
+        'Multiple validation errors occurred while creating workflow',
+      operations: {
+        workflow: {
+          flatEntityToCreate: [
+            {
+              ...coreWorkflow,
+              applicationUniversalIdentifier:
+                workspaceCustomFlatApplication.universalIdentifier,
+            },
+          ],
+          flatEntityToDelete: [],
+          flatEntityToUpdate: [],
+        },
+      },
+    });
+
+    try {
+      await this.coreWorkflowVersionWriteService.createDraftCoreWorkflowVersion(
+        {
+          workspaceId,
+          coreWorkflowId: coreWorkflow.id,
+          workspaceWorkflowId: null,
+          trigger: null,
+          steps: null,
+        },
+      );
+    } catch (error) {
+      try {
+        await this.workflowCoreSyncService.deleteFromCore(workspaceId, [
+          coreWorkflow.id,
+        ]);
+      } catch (rollbackError) {
+        this.logger.error(rollbackError);
+      }
+
+      throw error;
+    }
+
+    return {
+      id: coreWorkflow.id,
+      name: coreWorkflow.name,
+      statuses: [WorkflowStatus.DRAFT],
+      lastPublishedVersionId: null,
+      applicationId,
+      workspaceWorkflowId: null,
+      isSystem: coreWorkflow.isSystem,
+      visibility: coreWorkflow.visibility,
+      canChangeVisibility: true,
+      createdAt: coreWorkflow.createdAt,
+      updatedAt: coreWorkflow.updatedAt,
+    };
+  }
+
+  async deleteWorkflows({
+    workspaceId,
+    userWorkspaceId,
+    coreWorkflowIds,
+  }: {
+    workspaceId: string;
+    userWorkspaceId: string | undefined;
+    coreWorkflowIds: string[];
+  }): Promise<DeletedCoreWorkflowDTO[]> {
+    await this.coreWorkflowAccessService.assertCoreWorkflowsAreEditableOrThrow({
+      workspaceId,
+      userWorkspaceId,
+      coreWorkflowIds,
+    });
+
+    const coreWorkflowsToDelete = await this.coreWorkflowRepository.find(
+      workspaceId,
+      {
+        where: { id: In(coreWorkflowIds) },
+        select: { id: true, workspaceWorkflowId: true },
+      },
+    );
+
+    const deletedCoreWorkflows = coreWorkflowsToDelete.map(
+      ({ id, workspaceWorkflowId }) => ({ id, workspaceWorkflowId }),
+    );
+
+    await this.workflowCoreSyncService.deleteFromCore(
+      workspaceId,
+      coreWorkflowIds,
+    );
+
+    return deletedCoreWorkflows;
+  }
+
+  async discardDraftVersion({
+    workspaceId,
+    userWorkspaceId,
+    coreWorkflowVersionId,
+  }: DiscardCoreWorkflowDraftInput & {
+    workspaceId: string;
+    userWorkspaceId: string | undefined;
+  }): Promise<string | null> {
+    const coreVersion = await this.coreWorkflowVersionRepository.findOne(
+      workspaceId,
+      { where: { id: coreWorkflowVersionId } },
+    );
+
+    if (!isDefined(coreVersion)) {
+      return null;
+    }
+
+    if (coreVersion.status !== CoreWorkflowVersionStatus.DRAFT) {
+      throw new WorkflowQueryValidationException(
+        'Workflow version is not in draft status',
+        WorkflowQueryValidationExceptionCode.FORBIDDEN,
+        {
+          userFriendlyMessage: msg`Workflow version is not in draft status`,
+        },
+      );
+    }
+
+    if (!isDefined(coreVersion.coreWorkflowId)) {
+      throw new WorkflowQueryValidationException(
+        `Core workflow version '${coreVersion.id}' is not linked to a core workflow`,
+        WorkflowQueryValidationExceptionCode.FORBIDDEN,
+        {
+          userFriendlyMessage: msg`Workflow version is not correctly linked to its workflow`,
+        },
+      );
+    }
+
+    await this.coreWorkflowAccessService.assertCoreWorkflowsAreEditableOrThrow({
+      workspaceId,
+      userWorkspaceId,
+      coreWorkflowIds: [coreVersion.coreWorkflowId],
+    });
+
+    const siblingCount = await this.coreWorkflowVersionRepository.count(
+      workspaceId,
+      { where: { coreWorkflowId: coreVersion.coreWorkflowId } },
+    );
+
+    if (siblingCount <= 1) {
+      throw new WorkflowQueryValidationException(
+        'The initial version of a workflow can not be deleted',
+        WorkflowQueryValidationExceptionCode.FORBIDDEN,
+        {
+          userFriendlyMessage: msg`The initial version of a workflow can not be deleted`,
+        },
+      );
+    }
+
+    const { flatWorkflowVersionMaps } =
+      await this.flatEntityMapsCacheService.getOrRecomputeManyOrAllFlatEntityMaps(
+        { workspaceId, flatMapsKeys: ['flatWorkflowVersionMaps'] },
+      );
+
+    const flatCoreVersionToDelete = findFlatEntityByIdInFlatEntityMapsOrThrow({
+      flatEntityId: coreVersion.id,
+      flatEntityMaps: flatWorkflowVersionMaps,
+    });
+
+    await this.runCoreWorkflowMigration({
+      workspaceId,
+      failureMessage:
+        'Multiple validation errors occurred while discarding workflow draft',
+      operations: {
+        workflowVersion: {
+          flatEntityToCreate: [],
+          flatEntityToDelete: [flatCoreVersionToDelete],
+          flatEntityToUpdate: [],
+        },
+      },
+    });
+
+    await this.workflowVersionCoreSyncService.invalidateAutomatedTriggerMaps(
+      workspaceId,
+    );
+
+    return coreVersion.coreWorkflowId;
+  }
+
+  async updateWorkflowVisibility({
+    workspaceId,
+    userWorkspaceId,
+    coreWorkflowId,
+    visibility,
+  }: UpdateCoreWorkflowVisibilityInput & {
+    workspaceId: string;
+    userWorkspaceId: string;
+  }): Promise<CoreWorkflowDTO | null> {
+    await this.coreWorkflowAccessService.assertCoreWorkflowsAreEditableOrThrow({
+      workspaceId,
+      userWorkspaceId,
+      coreWorkflowIds: [coreWorkflowId],
+    });
+
+    // ownership is checked in the UPDATE's WHERE, not a prior read, so two concurrent claims of an ownerless workflow cannot both win;
+    // a workspace-visible workflow is already editable by every member, so claiming one grants no new access
+    const claimResult =
+      await this.workflowRunRecordShareService.updateAccessThenSyncRuns({
+        workspaceId,
+        coreWorkflowId,
+        updateAccess: () =>
+          this.coreWorkflowRepository.update(
+            workspaceId,
+            {
+              id: coreWorkflowId,
+              createdByUserWorkspaceId: Or(IsNull(), Equal(userWorkspaceId)),
+            },
+            { visibility, createdByUserWorkspaceId: userWorkspaceId },
+          ),
+      });
+
+    if (claimResult.affected === 0) {
+      const coreWorkflowExists = await this.coreWorkflowRepository.exists(
+        workspaceId,
+        { where: { id: coreWorkflowId } },
+      );
+
+      if (!coreWorkflowExists) {
+        return null;
+      }
+
+      throw new WorkflowQueryValidationException(
+        `Core workflow '${coreWorkflowId}' can only have its visibility changed by its creator`,
+        WorkflowQueryValidationExceptionCode.FORBIDDEN,
+        {
+          userFriendlyMessage: msg`Only the person who created this workflow can change who sees it`,
+        },
+      );
+    }
+
+    return this.coreWorkflowListService.findOneById({
+      workspaceId,
+      userWorkspaceId,
+      coreWorkflowId,
+    });
+  }
+}

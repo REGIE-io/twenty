@@ -1,6 +1,6 @@
 import gql from 'graphql-tag';
 
-import { makeGraphqlAPIRequest } from 'test/integration/graphql/utils/make-graphql-api-request.util';
+import { makeGraphqlApiRequest } from 'test/integration/graphql/utils/make-graphql-api-request.util';
 
 type SearchPeopleByPhoneArgs = {
   phoneNumber: string;
@@ -29,7 +29,7 @@ export const searchPeopleByPhone = async ({
   after,
   accessToken,
 }: SearchPeopleByPhoneArgs) => {
-  const response = await makeGraphqlAPIRequest(
+  const response = await makeGraphqlApiRequest(
     {
       query: gql`
         query SearchPeopleByPhone(

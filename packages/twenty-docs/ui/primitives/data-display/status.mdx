@@ -1,0 +1,82 @@
+---
+title: Status
+description: Show a named state with a colored indicator and optional loading feedback.
+---
+
+import { StoryEmbed } from '/snippets/ui/StoryEmbed.mdx';
+
+import StatusReference from '/snippets/ui/generated/data-display/status.mdx';
+
+`Status` combines a colored dot, a text label, and an optional loader. Use it for workflow or record states. Use [Tag](/ui/primitives/data-display/tag) for a category without the status indicator.
+
+<StoryEmbed
+  storyId="ui-data-display-status--documentation"
+  title="Status example"
+/>
+
+## Record state
+
+```tsx
+import { Status } from 'twenty-ui/primitives/data-display';
+
+export const RecordStatus = () => <Status color="green">Active</Status>;
+```
+
+`color` is required and uses the theme palette. The label communicates the meaning independently of the color. The default element is always a `span`, including when a native click handler is supplied; `weight="medium"` emphasizes its text.
+
+## Loading and announcements
+
+```tsx
+import { Status } from 'twenty-ui/primitives/data-display';
+
+type SaveStatusProps = { isSaving: boolean };
+
+export const SaveStatus = ({ isSaving }: SaveStatusProps) => (
+  <div role="status">
+    <Status color={isSaving ? 'blue' : 'green'} loading={isSaving}>
+      {isSaving ? 'Saving' : 'Saved'}
+    </Status>
+  </div>
+);
+```
+
+`loading` shows a decorative loader after the label and defaults `aria-busy` to `true`. Supply `aria-busy` explicitly when the surrounding workflow owns that state. The component does not add a live region or change its text automatically. Keep a `role="status"` container mounted when updates should be announced to assistive technology, and provide a label that describes the current state.
+
+## Change a state
+
+```tsx
+import { Status } from 'twenty-ui/primitives/data-display';
+
+type ChangeStatusActionProps = {
+  isUpdating: boolean;
+  onChangeStatus: () => void;
+};
+
+export const ChangeStatusAction = ({
+  isUpdating,
+  onChangeStatus,
+}: ChangeStatusActionProps) => (
+  <Status
+    color="blue"
+    loading={isUpdating}
+    render={
+      <button
+        type="button"
+        disabled={isUpdating}
+        onClick={onChangeStatus}
+        aria-label="Change record status"
+      />
+    }
+  >
+    {isUpdating ? 'Updating' : 'In progress'}
+  </Status>
+);
+```
+
+Compose an interactive owner through `render`. Put its click handler, native attributes, ref, and disabled state on that owner. A real button supplies focus, pointer, Enter, and Space activation. `Status.loading` displays progress; pass `disabled` to the button when the action should wait. For navigation, render a link with its destination, such as `<a href="/records" />`. Native owners retain Status's appearance. Node children preserve caller-owned text, translations, and intentional links.
+
+## Props
+
+Types and defaults are generated from the public component types. Native attributes and event handlers are also accepted.
+
+<StatusReference />

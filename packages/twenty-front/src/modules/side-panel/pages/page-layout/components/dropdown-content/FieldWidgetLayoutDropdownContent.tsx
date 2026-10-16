@@ -1,3 +1,4 @@
+import { SelectOptionIcon } from '@/ui/input/components/SelectOptionIcon';
 import { useFieldMetadataItemById } from '@/object-metadata/hooks/useFieldMetadataItemById';
 import { useObjectMetadataItems } from '@/object-metadata/hooks/useObjectMetadataItems';
 import { type FieldConfiguration } from '@/page-layout/types/FieldConfiguration';
@@ -19,7 +20,7 @@ import {
   isSelectableLayout,
 } from '@/page-layout/widgets/record-table/utils/getRecordTableWidgetLayoutPickerOptions';
 import { RecordTableWidgetLayoutMenuItems } from '@/side-panel/pages/page-layout/components/record-table-settings/RecordTableWidgetLayoutMenuItems';
-import { usePageLayoutIdFromContextStore } from '@/side-panel/pages/page-layout/hooks/usePageLayoutIdFromContextStore';
+import { usePageLayoutSidePanelTarget } from '@/side-panel/pages/page-layout/hooks/usePageLayoutSidePanelTarget';
 import { useUpdateCurrentWidgetConfig } from '@/side-panel/pages/page-layout/hooks/useUpdateCurrentWidgetConfig';
 import { useWidgetInEditMode } from '@/side-panel/pages/page-layout/hooks/useWidgetInEditMode';
 import { DropdownMenuItemsContainer } from '@/ui/layout/dropdown/components/DropdownMenuItemsContainer';
@@ -39,7 +40,7 @@ import {
   IconListDetails,
   IconTable,
 } from 'twenty-ui/icon';
-import { MenuItemSelect } from 'twenty-ui/navigation';
+import { ListItemButton } from 'twenty-ui/components/navigation';
 import { FieldDisplayMode } from '~/generated-metadata/graphql';
 
 const DISPLAY_MODE_ICONS: Record<FieldDisplayMode, IconComponent> = {
@@ -50,13 +51,11 @@ const DISPLAY_MODE_ICONS: Record<FieldDisplayMode, IconComponent> = {
   [FieldDisplayMode.TABLE]: IconTable,
 };
 
-// One flat picker: inline display modes followed by the embedded-view layouts.
-// Picking a layout selects the TABLE display mode under the hood — users choose
-// "Kanban" directly instead of "Table" first and a layout second.
+// Picking an embedded-view layout implicitly selects the TABLE display mode
 export const FieldWidgetLayoutDropdownContent = () => {
   const { t } = useLingui();
 
-  const { pageLayoutId } = usePageLayoutIdFromContextStore();
+  const { pageLayoutId } = usePageLayoutSidePanelTarget();
 
   const { widgetInEditMode } = useWidgetInEditMode(pageLayoutId);
 
@@ -87,8 +86,7 @@ export const FieldWidgetLayoutDropdownContent = () => {
     nestedRelationFieldMetadataId: currentNestedRelationFieldMetadataId,
   });
 
-  // Gate on the configured id, not on resolution success: a widget whose
-  // second hop was deleted must not fall back to first-hop behavior.
+  // Gate on the configured id, not resolution: a widget whose second hop was deleted must not fall back to first-hop behavior
   const isNestedRelationWidget = isDefined(
     currentNestedRelationFieldMetadataId,
   );
@@ -100,17 +98,13 @@ export const FieldWidgetLayoutDropdownContent = () => {
       )
     : [FieldDisplayMode.FIELD];
 
-  // A nested relation widget only makes sense as an embedded view: inline
-  // display modes would render the first hop's relation field, contradicting
-  // the widget's two-hop title.
+  // Inline display modes would render the first hop's field, contradicting the nested widget's two-hop title
   const inlineDisplayModes = isNestedRelationWidget
     ? []
     : availableDisplayModes.filter(
         (displayMode) => displayMode !== FieldDisplayMode.TABLE,
       );
 
-  // A configured but unresolvable second hop yields no traversal at all, so a
-  // stale nested widget cannot fall back to scoping by its first hop.
   const relationTraversal =
     isNestedRelationWidget && !isDefined(resolvedNestedRelation)
       ? undefined
@@ -118,6 +112,7 @@ export const FieldWidgetLayoutDropdownContent = () => {
           sourceFieldMetadataItem: fieldMetadataItem,
           nestedRelationFieldMetadataItem:
             resolvedNestedRelation?.nestedRelationFieldMetadataItem,
+          objectMetadataItems,
         });
 
   const targetObjectMetadataId = relationTraversal?.targetObjectMetadataId;
@@ -125,9 +120,7 @@ export const FieldWidgetLayoutDropdownContent = () => {
   const relationTargetFieldMetadataId =
     relationTraversal?.relationTargetFieldMetadataId ?? null;
 
-  // Every embedded layout renders a view scoped by the relation's inverse
-  // field, so a relation the traversal cannot resolve offers none of them
-  // rather than entries that would leave the widget with nothing to render.
+  // Every embedded layout scopes its view by the relation's inverse field, so none are offered when it cannot resolve
   const hasEmbeddedViewLayouts =
     availableDisplayModes.includes(FieldDisplayMode.TABLE) &&
     isDefined(targetObjectMetadataId) &&
@@ -199,8 +192,14 @@ export const FieldWidgetLayoutDropdownContent = () => {
       return;
     }
 
+    // A view on another object predates junction traversal and an unresolved id was deleted, so both are replaced
+    const isCurrentViewOnTargetObject =
+      isDefined(currentViewId) &&
+      isDefined(embeddedWidgetView) &&
+      embeddedWidgetView.objectMetadataId === targetObjectMetadataId;
+
     const viewId =
-      currentViewId ??
+      (isCurrentViewOnTargetObject ? currentViewId : undefined) ??
       (isDefined(targetObjectMetadataId) && isDefined(inverseFieldMetadataId)
         ? addDraftViewForFieldRelationTableWidget({
             widgetId: widgetInEditMode.id,
@@ -210,9 +209,7 @@ export const FieldWidgetLayoutDropdownContent = () => {
           })
         : undefined);
 
-    // Creating the draft view still fails if the target object is not loaded,
-    // and switching to the table display mode without one would leave the
-    // widget with nothing to render, so it keeps the display mode it has.
+    // Draft view creation fails without the target object, so keep the current display mode
     if (!isDefined(viewId)) {
       closeDropdown();
       return;
@@ -259,15 +256,21 @@ export const FieldWidgetLayoutDropdownContent = () => {
               handleSelectDisplayMode(displayMode);
             }}
           >
-            <MenuItemSelect
-              text={displayModeLabels[displayMode]}
-              selected={currentDisplayMode === displayMode}
+            <ListItemButton
               focused={selectedItemId === displayMode}
-              LeftIcon={DISPLAY_MODE_ICONS[displayMode]}
               onClick={() => {
                 handleSelectDisplayMode(displayMode);
               }}
-            />
+              role="option"
+              aria-selected={currentDisplayMode === displayMode}
+              selected={currentDisplayMode === displayMode}
+              indicator="check"
+              startIcon={
+                <SelectOptionIcon Icon={DISPLAY_MODE_ICONS[displayMode]} />
+              }
+            >
+              {displayModeLabels[displayMode]}
+            </ListItemButton>
           </SelectableListItem>
         ))}
         {hasEmbeddedViewLayouts && (

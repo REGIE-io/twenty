@@ -21,6 +21,7 @@ import { type MessageQueueService } from 'src/engine/core-modules/message-queue/
 import { MESSAGE_QUEUE_WORKER_CONFIG } from 'src/engine/core-modules/message-queue/message-queue-worker-config.constant';
 import { MessageQueue } from 'src/engine/core-modules/message-queue/message-queue.constants';
 import { getDisabledJobNames } from 'src/engine/core-modules/message-queue/utils/get-disabled-job-names.util';
+import { EventLoopStallMonitorService } from 'src/engine/core-modules/message-queue/services/event-loop-stall-monitor.service';
 import { getQueueToken } from 'src/engine/core-modules/message-queue/utils/get-queue-token.util';
 import { shouldCreateWorkerForQueue } from 'src/engine/core-modules/message-queue/utils/should-create-worker-for-queue.util';
 import { TwentyConfigService } from 'src/engine/core-modules/twenty-config/twenty-config.service';
@@ -45,6 +46,7 @@ export class MessageQueueExplorer implements OnModuleInit {
     private readonly metadataScanner: MetadataScanner,
     private readonly exceptionHandlerService: ExceptionHandlerService,
     private readonly twentyConfigService: TwentyConfigService,
+    private readonly eventLoopStallMonitorService: EventLoopStallMonitorService,
   ) {}
 
   onModuleInit() {
@@ -64,9 +66,7 @@ export class MessageQueueExplorer implements OnModuleInit {
 
     const groupedProcessors = this.groupProcessorsByQueueName(processors);
 
-    // Filter out empty entries: an explicit empty env value is parsed as ['']
-    // by the shared ARRAY transformer, which would otherwise turn an empty
-    // allowlist (meaning "all queues") into "no queues"
+    // The ARRAY transformer parses an empty env value as [''], which would turn "all queues" into "no queues".
     const enabledQueues = this.twentyConfigService
       .get('WORKER_ENABLED_QUEUES')
       .filter((queueName) => queueName.length > 0);
@@ -112,6 +112,7 @@ export class MessageQueueExplorer implements OnModuleInit {
         messageQueueService,
         MESSAGE_QUEUE_WORKER_CONFIG[queueName].workerOptions,
         disabledJobNames,
+        queueName,
       );
     }
   }
@@ -191,14 +192,23 @@ export class MessageQueueExplorer implements OnModuleInit {
     queue: MessageQueueService,
     options: MessageQueueWorkerOptions,
     disabledJobNames: ReadonlySet<string>,
+    queueName: MessageQueue,
   ) {
     queue.work(async (job) => {
-      if (disabledJobNames.has(job.name)) {
-        return;
-      }
+      if (disabledJobNames.has(job.name)) return;
+      const stallMonitorToken =
+        this.eventLoopStallMonitorService.registerJobStart({
+          queueName,
+          jobName: job.name,
+          workspaceId: job.data?.workspaceId,
+        });
 
-      for (const processorGroup of processorGroupCollection) {
-        await this.handleProcessor(processorGroup, job);
+      try {
+        for (const processorGroup of processorGroupCollection) {
+          await this.handleProcessor(processorGroup, job);
+        }
+      } finally {
+        this.eventLoopStallMonitorService.registerJobEnd(stallMonitorToken);
       }
     }, options);
   }
@@ -267,6 +277,9 @@ export class MessageQueueExplorer implements OnModuleInit {
         // @ts-expect-error legacy noImplicitAny
         await instance[processMethodName].call(instance, job.data, {
           abortSignal: job.abortSignal,
+          retryLimit: job.retryLimit,
+          updateData: job.updateData,
+          updateProgress: job.updateProgress,
         });
       } catch (err) {
         if (shouldCaptureException(err)) {

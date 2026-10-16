@@ -3,17 +3,17 @@ import { styled } from '@linaria/react';
 import { RecordBoardContainer } from '@/object-record/record-board/components/RecordBoardContainer';
 import { RecordIndexTableContainer } from '@/object-record/record-index/components/RecordIndexTableContainer';
 import { recordIndexViewTypeState } from '@/object-record/record-index/states/recordIndexViewTypeState';
-import { useAtomStateValue } from '@/ui/utilities/state/jotai/hooks/useAtomStateValue';
+import { useAtomComponentStateValue } from '@/ui/utilities/state/jotai/hooks/useAtomComponentStateValue';
 
 import { useRecordIndexContextOrThrow } from '@/object-record/record-index/contexts/RecordIndexContext';
 
 import { RecordIndexCalendarContainer } from '@/object-record/record-index/components/RecordIndexCalendarContainer';
-import { RecordIndexListContainer } from '@/object-record/record-index/components/RecordIndexListContainer';
 import { RecordIndexEmptyStateNotShared } from '@/object-record/record-index/components/RecordIndexEmptyStateNotShared';
 import { RecordIndexFiltersToContextStoreEffect } from '@/object-record/record-index/components/RecordIndexFiltersToContextStoreEffect';
 import { useHasCurrentViewNonReadableFields } from '@/object-record/record-index/hooks/useHasCurrentViewNonReadableFields';
+import { RecordList } from '@/object-record/record-list/components/RecordList';
 import { ViewType } from '@/views/types/ViewType';
-import { themeCssVariables } from 'twenty-ui/theme-constants';
+import { themeCssVariables } from 'twenty-ui/theme';
 
 const StyledContainer = styled.div`
   display: flex;
@@ -31,7 +31,9 @@ const StyledContainerWithPadding = styled.div`
 `;
 
 export const RecordIndexContainer = () => {
-  const recordIndexViewType = useAtomStateValue(recordIndexViewTypeState);
+  const recordIndexViewType = useAtomComponentStateValue(
+    recordIndexViewTypeState,
+  );
 
   const { recordIndexId, objectMetadataItem, objectNameSingular } =
     useRecordIndexContextOrThrow();
@@ -62,18 +64,12 @@ export const RecordIndexContainer = () => {
           )}
           {recordIndexViewType === ViewType.CALENDAR && (
             <StyledContainerWithPadding>
-              <RecordIndexCalendarContainer
-                recordCalendarInstanceId={recordIndexId}
-                viewBarInstanceId={recordIndexId}
-              />
+              <RecordIndexCalendarContainer />
             </StyledContainerWithPadding>
           )}
           {recordIndexViewType === ViewType.LIST && (
             <StyledContainerWithPadding>
-              <RecordIndexListContainer
-                recordListInstanceId={recordIndexId}
-                viewBarInstanceId={recordIndexId}
-              />
+              <RecordList />
             </StyledContainerWithPadding>
           )}
         </>

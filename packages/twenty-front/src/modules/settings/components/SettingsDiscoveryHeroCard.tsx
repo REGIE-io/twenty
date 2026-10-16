@@ -1,16 +1,12 @@
-import {
-  SettingsCustomizeVideoModal,
-  type SettingsCustomizeVideoModalTab,
-} from '@/settings/components/SettingsCustomizeVideoModal';
+import { type SettingsCustomizeVideoModalTab } from '@/settings/types/SettingsCustomizeVideoModalTab';
+import { SettingsCustomizeVideoModal } from '@/settings/components/SettingsCustomizeVideoModal';
 import { HeroPlayButton } from '@/ui/layout/hero/components/HeroPlayButton';
-import { useModal } from '@/ui/layout/modal/hooks/useModal';
-import { useIsFeatureEnabled } from '@/workspace/hooks/useIsFeatureEnabled';
+import { useDialog } from '@/ui/layout/dialog/hooks/useDialog';
 import { styled } from '@linaria/react';
 import { useLingui } from '@lingui/react/macro';
-import { type ReactNode, useContext } from 'react';
-import { Card } from 'twenty-ui/surfaces';
-import { ThemeContext, themeCssVariables } from 'twenty-ui/theme-constants';
-import { FeatureFlagKey } from '~/generated-metadata/graphql';
+import { type ReactNode } from 'react';
+import { Card } from 'twenty-ui/primitives/surfaces';
+import { useThemeColorScheme, themeCssVariables } from 'twenty-ui/theme';
 
 const DEFAULT_COVER_HEIGHT = 150;
 
@@ -65,12 +61,9 @@ export const SettingsDiscoveryHeroCard = ({
   playButtonAriaLabel,
 }: SettingsDiscoveryHeroCardProps) => {
   const { t } = useLingui();
-  const { colorScheme } = useContext(ThemeContext);
-  const { openModal } = useModal();
-  const isDiscoveryVideoEnabled = useIsFeatureEnabled(
-    FeatureFlagKey.IS_SETTINGS_DISCOVERY_HERO_ENABLED,
-  );
-  const shouldDisplayVideo = isDiscoveryVideoEnabled && tabs.length > 0;
+  const colorScheme = useThemeColorScheme();
+  const { openDialog } = useDialog();
+  const shouldDisplayVideo = tabs.length > 0;
 
   const modalInstanceId = `${instanceIdPrefix}-modal`;
   const tabsInstanceId = `${instanceIdPrefix}-tabs`;
@@ -79,13 +72,13 @@ export const SettingsDiscoveryHeroCard = ({
 
   return (
     <>
-      <Card rounded>
+      <Card.Root rounded>
         <StyledCoverContainer coverHeight={coverHeight}>
           <StyledImage src={src} alt="" aria-hidden />
           {shouldDisplayVideo && (
             <StyledOverlay>
               <HeroPlayButton
-                onClick={() => openModal(modalInstanceId)}
+                onClick={() => openDialog(modalInstanceId)}
                 ariaLabel={playButtonAriaLabel ?? t`Watch demo`}
               />
             </StyledOverlay>
@@ -94,7 +87,7 @@ export const SettingsDiscoveryHeroCard = ({
         {footer !== undefined && footer !== null && (
           <StyledFooter>{footer}</StyledFooter>
         )}
-      </Card>
+      </Card.Root>
       {shouldDisplayVideo && (
         <SettingsCustomizeVideoModal
           modalInstanceId={modalInstanceId}

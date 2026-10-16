@@ -16,13 +16,15 @@ type GetMockFieldMetadataEntityOverride<
     Pick<FieldMetadataEntity<T>, 'workspaceId' | 'objectMetadataId' | 'type'>
   >;
 
-// Should be renamed to abstract
+// TODO: rename to abstract
 export const getMockFieldMetadataEntity = <
   T extends FieldMetadataType = FieldMetadataType.TEXT,
 >(
   overrides: GetMockFieldMetadataEntityOverride<T>,
 ): FieldMetadataEntity => {
   return {
+    isSearchable: false,
+    isAuditLogged: true,
     isSystemSideEffect: false,
     workspace: {} as WorkspaceEntity,
     calendarViews: [],

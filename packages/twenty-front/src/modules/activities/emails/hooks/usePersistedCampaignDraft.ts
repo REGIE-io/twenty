@@ -4,7 +4,7 @@ import { CoreObjectNameSingular } from 'twenty-shared/types';
 import { type MessageCampaign } from '@/activities/emails/types/MessageCampaign';
 import { useUpdateOneRecord } from '@/object-record/hooks/useUpdateOneRecord';
 import { useRecordSeededDraft } from '@/object-record/record-seeded-draft/hooks/useRecordSeededDraft';
-import { useSnackBar } from '@/ui/feedback/snack-bar-manager/hooks/useSnackBar';
+import { useToast } from 'twenty-ui/components/feedback';
 
 type UsePersistedCampaignDraftArgs<TDraft extends object> = {
   campaignId: string;
@@ -20,7 +20,7 @@ export const usePersistedCampaignDraft = <TDraft extends object>({
   toUpdateOneRecordInput,
 }: UsePersistedCampaignDraftArgs<TDraft>) => {
   const { updateOneRecord } = useUpdateOneRecord();
-  const { enqueueErrorSnackBar } = useSnackBar();
+  const { enqueueToast } = useToast();
 
   const { draft, updateDraft, flush, draftResyncKey } = useRecordSeededDraft({
     upstreamDraft: initialDraft(),
@@ -30,7 +30,10 @@ export const usePersistedCampaignDraft = <TDraft extends object>({
         idToUpdate: campaignId,
         updateOneRecordInput: toUpdateOneRecordInput(nextDraft),
       }).catch(() =>
-        enqueueErrorSnackBar({ message: t`Failed to save the campaign` }),
+        enqueueToast({
+          status: 'error',
+          children: t`Failed to save the campaign`,
+        }),
       );
     },
   });
@@ -39,8 +42,7 @@ export const usePersistedCampaignDraft = <TDraft extends object>({
     draft,
     updateDraft,
     flush,
-    // Inputs seeded through defaultValue (TipTap editors, record picker) read
-    // the draft on mount only; key them with this to remount on adoption.
+    // defaultValue-seeded inputs (TipTap, record picker) read the draft on mount only; key them to remount.
     draftResyncKey: `${campaignId}-${draftResyncKey}`,
   };
 };

@@ -9,8 +9,8 @@ import { InternalMetadataTokenGuard } from 'src/engine/core-modules/workspace/in
 import { NoPermissionGuard } from 'src/engine/guards/no-permission.guard';
 import { InternalWorkspaceInstantHardDeletionController } from 'src/engine/workspace-manager/workspace-cleaner/controllers/internal-workspace-instant-hard-deletion.controller';
 import { EmailModule } from 'src/engine/core-modules/email/email.module';
-import { MetricsModule } from 'src/engine/core-modules/metrics/metrics.module';
 import { KeyValuePairEntity } from 'src/engine/core-modules/key-value-pair/key-value-pair.entity';
+import { MetricsModule } from 'src/engine/core-modules/metrics/metrics.module';
 import { UserWorkspaceEntity } from 'src/engine/core-modules/user-workspace/user-workspace.entity';
 import { UserVarsModule } from 'src/engine/core-modules/user/user-vars/user-vars.module';
 import { UserModule } from 'src/engine/core-modules/user/user.module';
@@ -27,6 +27,7 @@ import { CleanSuspendedWorkspacesCronCommand } from 'src/engine/workspace-manage
 import { PurgeRegieE2eWorkspacesCommand } from 'src/engine/workspace-manager/workspace-cleaner/commands/purge-regie-e2e-workspaces.command';
 import { DestroyWorkspaceCommand } from 'src/engine/workspace-manager/workspace-cleaner/commands/destroy-workspace.command';
 import { RegieE2eWorkspaceDeletionDiscoveryCronCommand } from 'src/engine/workspace-manager/workspace-cleaner/commands/regie-e2e-workspace-deletion-discovery.cron.command';
+import { DestroySoftDeletedWorkspaceJob } from 'src/engine/workspace-manager/workspace-cleaner/jobs/destroy-soft-deleted-workspace.job';
 import { CleanerWorkspaceService } from 'src/engine/workspace-manager/workspace-cleaner/services/cleaner.workspace-service';
 import { RegieE2eWorkspaceSweeperService } from 'src/engine/workspace-manager/workspace-cleaner/services/regie-e2e-workspace-sweeper.service';
 import { RegieE2eWorkspaceQuarantineBackfillWorkspaceService } from 'src/engine/workspace-manager/workspace-cleaner/services/regie-e2e-workspace-quarantine-backfill.workspace-service';
@@ -56,7 +57,6 @@ import { WorkspaceDeletionQueueAdapter } from 'src/engine/workspace-manager/work
     WorkspaceModule,
     UserVarsModule,
     UserModule,
-    EmailModule,
     BillingModule,
     MetricsModule,
     WorkspaceDomainsModule,
@@ -89,6 +89,7 @@ import { WorkspaceDeletionQueueAdapter } from 'src/engine/workspace-manager/work
     InternalWorkspaceInstantHardDeletionService,
     InternalMetadataTokenGuard,
     NoPermissionGuard,
+    DestroySoftDeletedWorkspaceJob,
     provideWorkspaceScopedRepository(BillingSubscriptionEntity),
   ],
   exports: [

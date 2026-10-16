@@ -1,16 +1,34 @@
 import { type EnrichedObjectMetadataItem } from '@/object-metadata/types/EnrichedObjectMetadataItem';
 import { type View } from '@/views/types/View';
-import { NavigationMenuItemType } from 'twenty-shared/types';
+import {
+  CoreObjectNameSingular,
+  NavigationMenuItemType,
+} from 'twenty-shared/types';
 import { isDefined } from 'twenty-shared/utils';
 import { type NavigationMenuItem } from '~/generated-metadata/graphql';
 
 export const filterAndSortNavigationMenuItems = (
   navigationMenuItems: NavigationMenuItem[],
   views: Pick<View, 'id' | 'objectMetadataId' | 'key'>[],
-  objectMetadataItems: Pick<EnrichedObjectMetadataItem, 'id' | 'isActive'>[],
+  objectMetadataItems: Pick<
+    EnrichedObjectMetadataItem,
+    'id' | 'isActive' | 'nameSingular'
+  >[],
 ): NavigationMenuItem[] => {
   const activeObjectMetadataItems = objectMetadataItems.filter(
     (meta) => meta.isActive,
+  );
+
+  // Chat favorites are listed in the chat menu instead
+  const hiddenRecordObjectNames: string[] = [
+    CoreObjectNameSingular.AgentChatThread,
+    CoreObjectNameSingular.Workflow,
+  ];
+
+  const hiddenRecordObjectMetadataIds = new Set(
+    activeObjectMetadataItems
+      .filter((meta) => hiddenRecordObjectNames.includes(meta.nameSingular))
+      .map((meta) => meta.id),
   );
 
   return navigationMenuItems
@@ -49,6 +67,7 @@ export const filterAndSortNavigationMenuItems = (
           isDefined(item.targetRecordId) &&
           isDefined(item.targetObjectMetadataId) &&
           isDefined(item.targetRecordIdentifier) &&
+          !hiddenRecordObjectMetadataIds.has(item.targetObjectMetadataId) &&
           activeObjectMetadataItems.some(
             (meta) => meta.id === item.targetObjectMetadataId,
           )

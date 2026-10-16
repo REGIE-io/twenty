@@ -156,7 +156,10 @@ describe('Additional searchable field', () => {
       objectMetadataPluralName: OBJECT_NAME_PLURAL,
       gqlFields: `id name ${TIER_FIELD_NAME}`,
       data: [
-        { name: 'AdditionalSearchSilverToken22', [TIER_FIELD_NAME]: SILVER_VALUE },
+        {
+          name: 'AdditionalSearchSilverToken22',
+          [TIER_FIELD_NAME]: SILVER_VALUE,
+        },
       ],
       expectToFail: false,
     });
@@ -265,7 +268,10 @@ describe('Additional searchable field', () => {
       objectMetadataPluralName: OBJECT_NAME_PLURAL,
       gqlFields: `id name ${UNMARKED_FIELD_NAME}`,
       data: [
-        { name: 'AdditionalSearchUnmarkedToken33', [UNMARKED_FIELD_NAME]: 'BRONZE' },
+        {
+          name: 'AdditionalSearchUnmarkedToken33',
+          [UNMARKED_FIELD_NAME]: 'BRONZE',
+        },
       ],
       expectToFail: false,
     });

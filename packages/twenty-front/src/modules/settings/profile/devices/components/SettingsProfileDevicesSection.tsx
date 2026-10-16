@@ -1,26 +1,24 @@
+import { ToastOnQueryErrorEffect } from '@/apollo/components/ToastOnQueryErrorEffect';
 import { useMutation, useQuery } from '@apollo/client/react';
 import { styled } from '@linaria/react';
 import { useLingui } from '@lingui/react/macro';
-import { isNonEmptyString } from '@sniptt/guards';
+import { isNonEmptyArray, isNonEmptyString } from '@sniptt/guards';
 
-import { useSnackBarOnQueryError } from '@/apollo/hooks/useSnackBarOnQueryError';
 import { SettingsListCard } from '@/settings/components/SettingsListCard';
-import { SettingsDeviceSessionRowDropdownMenu } from '@/settings/profile/devices/components/SettingsDeviceSessionRowDropdownMenu';
+import { SettingsDeviceSessionRowRightComponent } from '@/settings/profile/devices/components/SettingsDeviceSessionRowRightComponent';
 import { parseUserAgentDescription } from '@/settings/profile/devices/utils/parseUserAgentDescription';
-import { useSnackBar } from '@/ui/feedback/snack-bar-manager/hooks/useSnackBar';
 import { useAtomStateValue } from '@/ui/utilities/state/jotai/hooks/useAtomStateValue';
-import { Status } from 'twenty-ui/data-display';
+import { useToast } from 'twenty-ui/components/feedback';
+import { Section } from 'twenty-ui/components/layout';
 import { IconDeviceDesktop, IconLogout } from 'twenty-ui/icon';
-import { Button } from 'twenty-ui/input';
-import { Section } from 'twenty-ui/layout';
-import { themeCssVariables } from 'twenty-ui/theme-constants';
-import { H2Title } from 'twenty-ui/typography';
+import { Button } from 'twenty-ui/primitives/input';
+import { themeCssVariables } from 'twenty-ui/theme';
 import {
   CurrentUserSessionsDocument,
   type CurrentUserSessionsQuery,
   RevokeAllOtherUserSessionsDocument,
 } from '~/generated-metadata/graphql';
-import { dateLocaleState } from '~/localization/states/dateLocaleState';
+import { dateLocaleState } from '@/localization/states/dateLocaleState';
 import { beautifyPastDateRelativeToNow } from '~/utils/date-utils';
 
 type UserSessionListItem =
@@ -32,8 +30,6 @@ const StyledContainer = styled.div`
   gap: ${themeCssVariables.spacing[2]};
 `;
 
-// A flex row so the button keeps its natural width while the card above it
-// stretches to the section.
 const StyledButtonContainer = styled.div`
   display: flex;
 `;
@@ -41,14 +37,12 @@ const StyledButtonContainer = styled.div`
 export const SettingsProfileDevicesSection = () => {
   const { t } = useLingui();
   const { localeCatalog } = useAtomStateValue(dateLocaleState);
-  const { enqueueErrorSnackBar, enqueueSuccessSnackBar } = useSnackBar();
+  const { enqueueToast } = useToast();
 
   const { data, loading, error, refetch } = useQuery(
     CurrentUserSessionsDocument,
     { fetchPolicy: 'network-only' },
   );
-
-  useSnackBarOnQueryError(error);
 
   const [revokeAllOtherUserSessions] = useMutation(
     RevokeAllOtherUserSessionsDocument,
@@ -60,17 +54,19 @@ export const SettingsProfileDevicesSection = () => {
   const hasOtherSessions =
     hasCurrentSession && sessions.some((session) => !session.isCurrent);
 
-  if (!loading && sessions.length === 0) {
-    return null;
-  }
-
   const handleRevokeAllOtherSessions = async () => {
     try {
       await revokeAllOtherUserSessions();
-      enqueueSuccessSnackBar({ message: t`Logged out all other devices` });
+      enqueueToast({
+        status: 'success',
+        children: t`Logged out all other devices`,
+      });
       await refetch();
     } catch {
-      enqueueErrorSnackBar({ message: t`Failed to log out other devices` });
+      enqueueToast({
+        status: 'error',
+        children: t`Failed to log out other devices`,
+      });
     }
   };
 
@@ -98,45 +94,37 @@ export const SettingsProfileDevicesSection = () => {
   };
 
   return (
-    <Section>
-      <H2Title
-        title={t`Devices`}
-        description={t`Devices with an active session on your account`}
-      />
-      <StyledContainer>
-        <SettingsListCard
-          items={sessions}
-          isLoading={loading}
-          getItemLabel={getSessionLabel}
-          getItemDescription={getSessionDescription}
-          RowIcon={IconDeviceDesktop}
-          RowRightComponent={({ item: session }) => (
-            <>
-              {session.isImpersonating && (
-                <Status color="orange" text={t`Impersonation`} />
-              )}
-              {session.isCurrent ? (
-                <Status color="turquoise" text={t`This device`} />
-              ) : (
-                <SettingsDeviceSessionRowDropdownMenu
-                  userSessionId={session.id}
-                  onRevoked={() => void refetch()}
-                />
-              )}
-            </>
-          )}
-        />
-        {hasOtherSessions && (
-          <StyledButtonContainer>
-            <Button
-              Icon={IconLogout}
-              title={t`Log out all other devices`}
-              size="small"
-              onClick={() => void handleRevokeAllOtherSessions()}
+    <>
+      <ToastOnQueryErrorEffect error={error} />
+      {(loading || isNonEmptyArray(sessions)) && (
+        <Section.Root>
+          <Section.Header
+            title={t`Devices`}
+            description={t`Devices with an active session on your account`}
+          />
+          <StyledContainer>
+            <SettingsListCard
+              items={sessions}
+              isLoading={loading}
+              getItemLabel={getSessionLabel}
+              getItemDescription={getSessionDescription}
+              RowIcon={IconDeviceDesktop}
+              RowRightComponent={SettingsDeviceSessionRowRightComponent}
             />
-          </StyledButtonContainer>
-        )}
-      </StyledContainer>
-    </Section>
+            {hasOtherSessions && (
+              <StyledButtonContainer>
+                <Button
+                  startIcon={<IconLogout />}
+                  size="sm"
+                  onClick={() => void handleRevokeAllOtherSessions()}
+                >
+                  {t`Log out all other devices`}
+                </Button>
+              </StyledButtonContainer>
+            )}
+          </StyledContainer>
+        </Section.Root>
+      )}
+    </>
   );
 };

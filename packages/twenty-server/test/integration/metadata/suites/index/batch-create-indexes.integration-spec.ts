@@ -2,7 +2,7 @@ import { createOneFieldMetadata } from 'test/integration/metadata/suites/field-m
 import { deleteOneFieldMetadata } from 'test/integration/metadata/suites/field-metadata/utils/delete-one-field-metadata.util';
 import { updateOneFieldMetadata } from 'test/integration/metadata/suites/field-metadata/utils/update-one-field-metadata.util';
 import { findManyObjectMetadata } from 'test/integration/metadata/suites/object-metadata/utils/find-many-object-metadata.util';
-import { makeRestAPIRequest } from 'test/integration/rest/utils/make-rest-api-request.util';
+import { makeRestApiRequest } from 'test/integration/rest/utils/make-rest-api-request.util';
 import { jestExpectToBeDefined } from 'test/utils/jest-expect-to-be-defined.util.test';
 import { FieldMetadataType } from 'twenty-shared/types';
 
@@ -84,7 +84,7 @@ describe('Index metadata batch create', () => {
       indexType: 'BTREE',
     };
 
-    const response = await makeRestAPIRequest({
+    const response = await makeRestApiRequest({
       method: 'post',
       path: '/metadata/indexes/batch',
       body: { indexes: [index, index] },
@@ -95,7 +95,7 @@ describe('Index metadata batch create', () => {
   });
 
   it('creates every requested index in one request', async () => {
-    const response = await makeRestAPIRequest({
+    const response = await makeRestApiRequest({
       method: 'post',
       path: '/metadata/indexes/batch',
       body: {

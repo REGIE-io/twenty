@@ -20,6 +20,7 @@ import {
 import { WorkspaceCommandRunnerService } from 'src/engine/core-modules/upgrade/services/workspace-command-runner.service';
 import { formatUpgradeLog } from 'src/engine/core-modules/upgrade/utils/format-upgrade-log.util';
 import { resolvePendingInstanceCursorBeforeWorkspaceSegment } from 'src/engine/core-modules/upgrade/utils/resolve-pending-instance-cursor-before-workspace-segment.util';
+import { isUpgradeWorkspaceCursorValidForSegment } from 'src/engine/core-modules/upgrade/utils/is-upgrade-workspace-cursor-valid-for-segment.util';
 import { UpgradeAwareEntityMetadataAdapter } from 'src/engine/twenty-orm/upgrade-aware/upgrade-aware-entity-metadata.adapter';
 import { WorkspaceVersionService } from 'src/engine/workspace-manager/workspace-version/services/workspace-version.service';
 import { assertUnreachable, isDefined } from 'twenty-shared/utils';
@@ -80,7 +81,7 @@ export class UpgradeSequenceRunnerService {
     sequence: UpgradeStep[];
     options: ParsedUpgradeCommandOptions;
   }): Promise<UpgradeSequenceRunnerReport> {
-    const allProvisionedWorkspaceIds =
+    let allProvisionedWorkspaceIds =
       await this.workspaceVersionService.getProvisionedWorkspaceIds();
 
     const startCursor = await this.resolveStartCursor({
@@ -132,6 +133,23 @@ export class UpgradeSequenceRunnerService {
               logFields: {
                 before: step.name,
                 reason: 'workspace-filter-active',
+              },
+            }),
+          );
+
+          break;
+        }
+
+        if (options.dryRun) {
+          this.logger.log(
+            formatUpgradeLog({
+              humanMessage:
+                `Dry run stopped before instance step "${step.name}": ` +
+                'instance commands cannot run in dry-run mode.',
+              event: 'sequence.stopped',
+              logFields: {
+                before: step.name,
+                reason: 'dry-run',
               },
             }),
           );
@@ -214,6 +232,15 @@ export class UpgradeSequenceRunnerService {
       }
 
       cursor += workspaceCommandsSegment.length;
+
+      // A workspace segment can outlive workspace deletion and cleanup jobs.
+      const remainingProvisionedWorkspaceIds = new Set(
+        await this.workspaceVersionService.getProvisionedWorkspaceIds(),
+      );
+
+      allProvisionedWorkspaceIds = allProvisionedWorkspaceIds.filter(
+        (workspaceId) => remainingProvisionedWorkspaceIds.has(workspaceId),
+      );
 
       workspaceCursors = await this.fetchWorkspaceCursors(
         allProvisionedWorkspaceIds,
@@ -315,21 +342,15 @@ export class UpgradeSequenceRunnerService {
           stepName: workspaceCursor.name,
         });
 
-      const isWithinSegment =
-        cursorPosition >= startCursor && cursorPosition <= endCursor;
+      const isWorkspaceCursorValid = isUpgradeWorkspaceCursorValidForSegment({
+        sequence,
+        cursorPosition,
+        workspaceCursorStatus: workspaceCursor.status,
+        startCursor,
+        endCursor,
+      });
 
-      // A newly registered idempotent instance command can run after later
-      // commands in the same instance block have already completed globally.
-      // Its workspace row then becomes the latest cursor even though workspace
-      // commands may safely resume at the following segment.
-      const isAtCompletedInstanceCommandInPrecedingBlock =
-        cursorPosition < startCursor &&
-        workspaceCursor.status === 'completed' &&
-        sequence
-          .slice(cursorPosition, startCursor)
-          .every((step) => step.kind !== 'workspace');
-
-      if (!isWithinSegment && !isAtCompletedInstanceCommandInPrecedingBlock) {
+      if (!isWorkspaceCursorValid) {
         invalidWorkspaces.push({
           workspaceId,
           cursorName: workspaceCursor.name,
@@ -444,7 +465,7 @@ export class UpgradeSequenceRunnerService {
     const workspaceIds = [...pendingCommandsByWorkspaceId.keys()];
 
     if (workspaceIds.length === 0) {
-      return { fail: [], success: [], interrupted: false };
+      return { success: [], fail: [], skipped: [], interrupted: false };
     }
 
     return this.workspaceIteratorService.iterate({

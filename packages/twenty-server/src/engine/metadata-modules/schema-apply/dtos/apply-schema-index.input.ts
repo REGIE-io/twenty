@@ -9,7 +9,7 @@ import {
   IsString,
 } from 'class-validator';
 
-import { IndexType } from 'src/engine/metadata-modules/index-metadata/types/indexType.types';
+import { IndexType } from 'twenty-shared/types';
 import { SCHEMA_APPLY_MAX_ITEMS } from 'src/engine/metadata-modules/schema-apply/constants/schema-apply-max-items.constant';
 
 export class ApplySchemaIndexInput {

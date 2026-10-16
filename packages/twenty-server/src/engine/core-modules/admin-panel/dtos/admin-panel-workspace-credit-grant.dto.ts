@@ -17,11 +17,15 @@ export class AdminPanelWorkspaceCreditGrantDTO {
   @Field(() => Date)
   effectiveAt: Date;
 
-  @Field(() => Date)
-  expiresAt: Date;
+  @Field(() => Date, { nullable: true })
+  expiresAt: Date | null;
 
   @Field(() => Date, { nullable: true })
   revokedAt: Date | null;
+
+  // Set when this grant carries forward the unspent part of an earlier one
+  @Field(() => UUIDScalarType, { nullable: true })
+  sourceGrantId: string | null;
 
   @Field(() => String, { nullable: true })
   reason: string | null;

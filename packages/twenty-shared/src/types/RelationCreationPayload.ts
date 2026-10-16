@@ -1,4 +1,4 @@
-import { type RelationOnDeleteAction } from '@/types/RelationOnDeleteAction.type';
+import { type RelationOnDeleteAction } from '@/types/RelationOnDeleteAction';
 import { type RelationType } from '@/types/RelationType';
 
 export type RelationCreationPayload = {

@@ -12,7 +12,7 @@ import { deleteRecordsByIds } from 'test/integration/utils/delete-records-by-ids
 import { createOneFieldMetadata } from 'test/integration/metadata/suites/field-metadata/utils/create-one-field-metadata.util';
 import { deleteOneFieldMetadata } from 'test/integration/metadata/suites/field-metadata/utils/delete-one-field-metadata.util';
 import { updateOneFieldMetadata } from 'test/integration/metadata/suites/field-metadata/utils/update-one-field-metadata.util';
-import { makeMetadataAPIRequest } from 'test/integration/metadata/suites/utils/make-metadata-api-request.util';
+import { makeMetadataApiRequest } from 'test/integration/metadata/suites/utils/make-metadata-api-request.util';
 import { getAppProviderByClassName } from 'test/integration/utils/get-app-provider-by-class-name.util';
 import gql from 'graphql-tag';
 import { FieldMetadataType } from 'twenty-shared/types';
@@ -64,7 +64,7 @@ describe('searchPeopleByPhone field permissions', () => {
       (role: { label: string }) => role.label === 'Member',
     ).id;
 
-    const objectResponse = await makeMetadataAPIRequest({
+    const objectResponse = await makeMetadataApiRequest({
       query: gql`
         query PersonMetadataForPhonePermissionTest {
           objects(paging: { first: 1000 }) {

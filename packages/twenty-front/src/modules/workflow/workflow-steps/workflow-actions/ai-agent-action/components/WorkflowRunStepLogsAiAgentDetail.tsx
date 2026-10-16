@@ -4,16 +4,16 @@ import { Fragment } from 'react';
 import { isDefined } from 'twenty-shared/utils';
 import { type AiAgentStepLogDetails } from 'twenty-shared/workflow';
 import {
-  IconBrain,
   IconClock,
   IconCoins,
   IconCpu,
+  IconLego,
   IconTool,
   IconWorld,
 } from 'twenty-ui/icon';
-import { themeCssVariables } from 'twenty-ui/theme-constants';
+import { themeCssVariables } from 'twenty-ui/theme';
 
-import { formatDuration } from '@/workflow/workflow-steps/workflow-actions/utils/formatDuration';
+import { formatDuration } from '~/utils/format/formatDuration';
 import {
   StyledBadgeGroup,
   StyledEmptyHint,
@@ -29,7 +29,7 @@ import {
   StyledTitle,
 } from '@/workflow/workflow-steps/workflow-actions/components/workflowRunStepLogsStyles';
 import { WorkflowRunStepLogsToolCallRow } from '@/workflow/workflow-steps/workflow-actions/ai-agent-action/components/WorkflowRunStepLogsToolCallRow';
-import { formatNumber } from '~/utils/format/formatNumber';
+import { formatNumber } from '@/localization/utils/formatNumber';
 
 const StyledModelBadge = styled.span`
   background: ${themeCssVariables.background.transparent.light};
@@ -127,8 +127,8 @@ export const WorkflowRunStepLogsAiAgentDetail = ({
       <StyledSummaryCard>
         <StyledSummaryHeader>
           <StyledHeaderLeft>
-            <IconBrain size={16} />
-            <StyledTitle>{t`AI agent run`}</StyledTitle>
+            <IconLego size={16} />
+            <StyledTitle>{t`Agent run`}</StyledTitle>
           </StyledHeaderLeft>
           <StyledBadgeGroup>
             <StyledModelBadge>{modelId}</StyledModelBadge>

@@ -1,5 +1,7 @@
 import { type Event, type MailFolder } from '@microsoft/microsoft-graph-types';
+import { isNonEmptyString } from '@sniptt/guards';
 import { http, HttpResponse } from 'msw';
+import { isDefined } from 'twenty-shared/utils';
 
 import { setupHttpMock } from 'test/integration/utils/http-mock.util';
 import {
@@ -28,15 +30,20 @@ export type MicrosoftMock = {
   subscriptions: MicrosoftSubscriptionStore;
   createdMessages: Array<Record<string, unknown>>;
   patchedMessages: Array<Record<string, unknown>>;
+  createdAttachments: Array<Record<string, unknown>>;
   sentMessageIds: string[];
   createdCalendarEvents: Event[];
   calendarEventListRequests: URLSearchParams[];
   serveCalendarEvents: (
     events: Event[],
-    options?: { deltaToken?: string },
+    options?: { deltaToken?: string; removedEventIds?: string[] },
   ) => void;
+  moveMessageToFolder: (messageId: string, targetFolderId: string) => void;
+  deleteMessage: (messageId: string) => void;
+  failMessageFetch: (messageId: string) => void;
   failSubscriptionRenewal: () => void;
   failMessageDelta: (failure: MicrosoftGraphFailure) => void;
+  failMailFolderNextPages: (failure: MicrosoftGraphFailure) => void;
   failCalendarDelta: (failure: MicrosoftGraphFailure) => void;
   declineTokenRefresh: () => void;
 };
@@ -56,12 +63,16 @@ const microsoftGraphErrorResponse = ({
 
 export const setupMicrosoftMock = ({
   handle,
+  aliases = [],
   folders = DEFAULT_FOLDERS,
   messages = [],
+  mailFolderPageSize,
 }: {
   handle: string;
+  aliases?: string[];
   folders?: MailFolder[];
   messages?: Array<Record<string, unknown>>;
+  mailFolderPageSize?: number;
 }): MicrosoftMock => {
   const folderStore = createMockEntityStore(
     folders,
@@ -71,13 +82,43 @@ export const setupMicrosoftMock = ({
   const subscriptionStore = createMicrosoftSubscriptionStore();
   const createdMessages: Array<Record<string, unknown>> = [];
   const patchedMessages: Array<Record<string, unknown>> = [];
+  const createdAttachments: Array<Record<string, unknown>> = [];
   const sentMessageIds: string[] = [];
   const createdCalendarEvents: Event[] = [];
   const calendarEventListRequests: URLSearchParams[] = [];
+  const removedMessageIdsByFolderId: Record<string, string[]> = {};
+
+  const recordFolderRemoval = (messageId: string) => {
+    const message = messages.find((candidate) => candidate.id === messageId);
+
+    if (!isDefined(message)) {
+      throw new Error(`No mocked Microsoft message with id ${messageId}`);
+    }
+
+    const folderId = message.parentFolderId;
+
+    if (!isNonEmptyString(folderId)) {
+      throw new Error(
+        `Mocked Microsoft message ${messageId} has no parentFolderId`,
+      );
+    }
+
+    removedMessageIdsByFolderId[folderId] = [
+      ...(removedMessageIdsByFolderId[folderId] ?? []),
+      messageId,
+    ];
+
+    return message;
+  };
 
   const httpMock = setupHttpMock(
-    ...microsoftAuthHandlers(handle),
-    ...microsoftMailboxHandlers(folderStore, messages),
+    ...microsoftAuthHandlers(handle, aliases),
+    ...microsoftMailboxHandlers(
+      folderStore,
+      messages,
+      removedMessageIdsByFolderId,
+      { mailFolderPageSize },
+    ),
     ...microsoftWebhookSubscriptionHandlers(subscriptionStore),
     http.post('*/me/messages', async ({ request }) => {
       const message = (await request.json()) as Record<string, unknown>;
@@ -91,6 +132,22 @@ export const setupMicrosoftMock = ({
         conversationId: `microsoft-conversation-${createdMessages.length}`,
       });
     }),
+    http.post(
+      '*/me/messages/:messageId/attachments',
+      async ({ request, params }) => {
+        const attachment = (await request.json()) as Record<string, unknown>;
+
+        createdAttachments.push({
+          messageId: params.messageId as string,
+          ...attachment,
+        });
+
+        return HttpResponse.json({
+          id: `microsoft-attachment-${createdAttachments.length}`,
+          ...attachment,
+        });
+      },
+    ),
     http.post('*/me/messages/:messageId/send', ({ params }) => {
       sentMessageIds.push(params.messageId as string);
 
@@ -150,18 +207,39 @@ export const setupMicrosoftMock = ({
     subscriptions: subscriptionStore,
     createdMessages,
     patchedMessages,
+    createdAttachments,
     sentMessageIds,
     createdCalendarEvents,
     calendarEventListRequests,
     serveCalendarEvents: (
       events,
-      { deltaToken = 'mock-calendar-delta-token' } = {},
+      { deltaToken = 'mock-calendar-delta-token', removedEventIds = [] } = {},
     ) =>
       httpMock.use(
         ...microsoftCalendarEventsHandlers(
           events,
           deltaToken,
           calendarEventListRequests,
+          removedEventIds,
+        ),
+      ),
+    moveMessageToFolder: (messageId, targetFolderId) => {
+      const message = recordFolderRemoval(messageId);
+
+      message.parentFolderId = targetFolderId;
+    },
+    deleteMessage: (messageId) => {
+      const message = recordFolderRemoval(messageId);
+
+      messages.splice(messages.indexOf(message), 1);
+    },
+    failMessageFetch: (messageId) =>
+      httpMock.use(
+        ...microsoftMailboxHandlers(
+          folderStore,
+          messages,
+          removedMessageIdsByFolderId,
+          { unfetchableMessageIds: [messageId], mailFolderPageSize },
         ),
       ),
     failSubscriptionRenewal: () =>
@@ -192,6 +270,14 @@ export const setupMicrosoftMock = ({
         }),
         http.get('*/messages/delta', () =>
           microsoftGraphErrorResponse(failure),
+        ),
+      ),
+    failMailFolderNextPages: (failure) =>
+      httpMock.use(
+        http.get('*/me/mailFolders', ({ request }) =>
+          new URL(request.url).searchParams.has('$skip')
+            ? microsoftGraphErrorResponse(failure)
+            : undefined,
         ),
       ),
     failCalendarDelta: (failure) =>

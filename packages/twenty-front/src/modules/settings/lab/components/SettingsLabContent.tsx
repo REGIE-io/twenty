@@ -1,13 +1,13 @@
 import { currentWorkspaceState } from '@/auth/states/currentWorkspaceState';
-import { SettingsOptionCardContentToggle } from '@/settings/components/SettingsOptions/SettingsOptionCardContentToggle';
+import { SettingsOptionCardContentSwitch } from '@/settings/components/SettingsOptions/SettingsOptionCardContentSwitch';
 import { useLabPublicFeatureFlags } from '@/settings/lab/hooks/useLabPublicFeatureFlags';
 import { useAtomStateValue } from '@/ui/utilities/state/jotai/hooks/useAtomStateValue';
 import { styled } from '@linaria/react';
 import { isNonEmptyString } from '@sniptt/guards';
 import { useState } from 'react';
 import { useIcons } from 'twenty-ui/icon';
-import { Card } from 'twenty-ui/surfaces';
-import { themeCssVariables } from 'twenty-ui/theme-constants';
+import { Card } from 'twenty-ui/primitives/surfaces';
+import { themeCssVariables } from 'twenty-ui/theme';
 import { type FeatureFlagKey } from '~/generated-metadata/graphql';
 
 const StyledCardGrid = styled.div`
@@ -52,7 +52,7 @@ export const SettingsLabContent = () => {
     currentWorkspace?.id && (
       <StyledCardGrid>
         {labPublicFeatureFlagsWithImage.map((flag) => (
-          <Card
+          <Card.Root
             key={flag.key}
             rounded
             backgroundColor={themeCssVariables.background.secondary}
@@ -64,35 +64,33 @@ export const SettingsLabContent = () => {
                 onError={() => handleImageError(flag.key)}
               />
             )}
-            <SettingsOptionCardContentToggle
+            <SettingsOptionCardContentSwitch
               Icon={getIcon(flag.metadata.icon)}
               title={flag.metadata.label}
               description={flag.metadata.description}
               checked={flag.value}
               onChange={(value) => handleToggle(flag.key, value)}
-              toggleCentered={false}
             />
-          </Card>
+          </Card.Root>
         ))}
 
         {labPublicFeatureFlagsWithoutImage.length > 0 && (
-          <Card
+          <Card.Root
             rounded
             backgroundColor={themeCssVariables.background.secondary}
           >
             {labPublicFeatureFlagsWithoutImage.map((flag, index) => (
-              <SettingsOptionCardContentToggle
+              <SettingsOptionCardContentSwitch
                 key={flag.key}
                 Icon={getIcon(flag.metadata.icon)}
                 title={flag.metadata.label}
                 description={flag.metadata.description}
                 checked={flag.value}
                 onChange={(value) => handleToggle(flag.key, value)}
-                toggleCentered={false}
                 divider={index < labPublicFeatureFlagsWithoutImage.length - 1}
               />
             ))}
-          </Card>
+          </Card.Root>
         )}
       </StyledCardGrid>
     )

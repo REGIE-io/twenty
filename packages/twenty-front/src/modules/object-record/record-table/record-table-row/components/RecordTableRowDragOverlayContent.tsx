@@ -2,7 +2,7 @@ import { type Draggable } from '@dnd-kit/dom';
 import { styled } from '@linaria/react';
 import { useMemo } from 'react';
 import { isDefined } from 'twenty-shared/utils';
-import { MOBILE_VIEWPORT, themeCssVariables } from 'twenty-ui/theme-constants';
+import { themeCssVariables } from 'twenty-ui/theme';
 
 import { HorizontalScrollBoxShadowCSS } from '@/object-record/record-table/components/HorizontalScrollBoxShadowCSS';
 import {
@@ -17,7 +17,6 @@ import { RECORD_TABLE_COLUMN_DRAG_AND_DROP_WIDTH_CLASS_NAME } from '@/object-rec
 import { RECORD_TABLE_COLUMN_LAST_EMPTY_COLUMN_WIDTH_CLASS_NAME } from '@/object-record/record-table/constants/RecordTableColumnLastEmptyColumnWidthClassName';
 import { RECORD_TABLE_COLUMN_LAST_EMPTY_COLUMN_WIDTH_VARIABLE_NAME } from '@/object-record/record-table/constants/RecordTableColumnLastEmptyColumnWidthVariableName';
 import { RECORD_TABLE_COLUMN_WITH_GROUP_LAST_EMPTY_COLUMN_WIDTH_VARIABLE_NAME } from '@/object-record/record-table/constants/RecordTableColumnWithGroupLastEmptyColumnWidthVariableName';
-import { RECORD_TABLE_LABEL_IDENTIFIER_COLUMN_WIDTH_ON_MOBILE } from '@/object-record/record-table/constants/RecordTableLabelIdentifierColumnWidthOnMobile';
 import { TABLE_Z_INDEX } from '@/object-record/record-table/constants/TableZIndex';
 import { useRecordTableContextOrThrow } from '@/object-record/record-table/contexts/RecordTableContext';
 import { RecordTableRowDraggableContextProvider } from '@/object-record/record-table/contexts/RecordTableRowDraggableContext';
@@ -30,7 +29,7 @@ import { RecordTableCellDragAndDrop } from '@/object-record/record-table/record-
 import { RecordTableLastEmptyCell } from '@/object-record/record-table/record-table-cell/components/RecordTableLastEmptyCell';
 import { RecordTablePlusButtonCellPlaceholder } from '@/object-record/record-table/record-table-cell/components/RecordTablePlusButtonCellPlaceholder';
 import { RecordTableFieldsCells } from '@/object-record/record-table/record-table-row/components/RecordTableFieldsCells';
-import { RecordTableRowMultiDragPreview } from '@/object-record/record-table/record-table-row/components/RecordTableRowMultiDragPreview';
+import { RecordDragMultiDragCounterChip } from '@/object-record/record-drag/components/RecordDragMultiDragCounterChip';
 import { RecordTableTr } from '@/object-record/record-table/record-table-row/components/RecordTableTr';
 import { type RecordTableRowDragData } from '@/object-record/record-table/types/RecordTableRowDragData';
 import { getRecordTableColumnFieldWidthClassName } from '@/object-record/record-table/utils/getRecordTableColumnFieldWidthClassName';
@@ -43,29 +42,15 @@ const cloneColumnFieldWidthRules = Array.from(
   (_, i) => {
     const className = getRecordTableColumnFieldWidthClassName(i);
     const cssVar = `var(--record-table-column-field-${i})`;
-    const baseRule = `div.${className} {
+    return `div.${className} {
     width: ${cssVar};
     min-width: ${cssVar};
     max-width: ${cssVar};
   }`;
-
-    if (i === 0) {
-      return `${baseRule}
-  div.${className} {
-    @media (max-width: ${MOBILE_VIEWPORT}px) {
-      width: ${RECORD_TABLE_LABEL_IDENTIFIER_COLUMN_WIDTH_ON_MOBILE}px;
-      max-width: ${RECORD_TABLE_LABEL_IDENTIFIER_COLUMN_WIDTH_ON_MOBILE}px;
-      min-width: ${RECORD_TABLE_LABEL_IDENTIFIER_COLUMN_WIDTH_ON_MOBILE}px;
-    }
-  }`;
-    }
-
-    return baseRule;
   },
 ).join('\n');
 
-// The overlay renders in a portal outside the table, so the column width CSS
-// variables and sticky cell rules of the table ancestors are redeclared here.
+// The overlay portals outside the table, so its column width variables and sticky rules are redeclared.
 const StyledRowDragOverlayCSSBridge = styled.div`
   position: relative;
 
@@ -133,10 +118,8 @@ const StyledRowDragOverlayCSSBridge = styled.div`
   }
 `;
 
-// The full-width row preview would overhang overlays such as the record side
-// panel when the visible table is narrower than the row, so it is clipped to
-// the scroll wrapper's width. The multi-drag counter chip renders outside
-// this container because it pokes past the row's top-left corner.
+// Clipped to the scroll wrapper so the preview doesn't overhang overlays; the counter chip sits outside
+// because it pokes past the row's top-left corner.
 const StyledRowClipContainer = styled.div`
   overflow: hidden;
 `;
@@ -148,7 +131,7 @@ export const RecordTableRowDragOverlayContent = ({
 }) => {
   const { lastColumnWidth } = useRecordTableLastColumnWidthToFill();
 
-  const { visibleRecordFields, recordTableId } = useRecordTableContextOrThrow();
+  const { visibleRecordFields } = useRecordTableContextOrThrow();
 
   const isRecordTableDragColumnHidden = useAtomComponentStateValue(
     isRecordTableDragColumnHiddenComponentState,
@@ -157,9 +140,7 @@ export const RecordTableRowDragOverlayContent = ({
   const isRecordTableCheckboxColumnHidden =
     useIsRecordTableCheckboxColumnHidden();
 
-  const { scrollWrapperHTMLElement } = useScrollWrapperHTMLElement(
-    `record-table-scroll-${recordTableId}`,
-  );
+  const { scrollWrapperHTMLElement } = useScrollWrapperHTMLElement();
 
   const visibleTableWidth = scrollWrapperHTMLElement?.clientWidth;
 
@@ -221,7 +202,7 @@ export const RecordTableRowDragOverlayContent = ({
           </RecordTableRowDraggableContextProvider>
         </RecordTableTr>
       </StyledRowClipContainer>
-      <RecordTableRowMultiDragPreview recordId={recordId} />
+      <RecordDragMultiDragCounterChip />
     </StyledRowDragOverlayCSSBridge>
   );
 };

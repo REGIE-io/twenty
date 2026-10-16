@@ -6,17 +6,15 @@ import {
   resolveCanvasTheme,
 } from 'twenty-shared/utils';
 
-// The body renders as a centred page whose width the Design panel writes onto
-// the document, so the envelope block above it reads that width rather than
-// assuming the default. Falls back to the default until the editor mounts,
-// which is the same value for a campaign that never changed its design.
+// The envelope block reads the body width the Design panel writes onto the document; default until the editor mounts.
 export const useCampaignCanvasWidth = (editor: Editor | null): string => {
   const canvasWidth = useEditorState({
     editor,
-    selector: ({ editor: currentEditor }) =>
-      isDefined(currentEditor)
-        ? (resolveCanvasTheme(currentEditor.state.doc.attrs.canvasTheme)
-            ?.width ?? CANVAS_THEME_DEFAULTS.width)
+    // Reads the editor passed in: the snapshot one can still be the instance `useEditor` destroyed when recreating it.
+    selector: () =>
+      isDefined(editor)
+        ? (resolveCanvasTheme(editor.state.doc.attrs.canvasTheme)?.width ??
+          CANVAS_THEME_DEFAULTS.width)
         : CANVAS_THEME_DEFAULTS.width,
   });
 

@@ -1,7 +1,7 @@
 import { MessageParticipantRole } from 'twenty-shared/types';
 import { isDefined } from 'twenty-shared/utils';
 
-import { type MessageWithParticipants } from 'src/modules/messaging/message-import-manager/types/message';
+import { type MessageWithParticipants } from 'src/modules/messaging/message-import-manager/types/message.type';
 
 // Delivery status notifications are auto-submitted, so isBulkMail drops them by default.
 // Regie needs them for bounce handling downstream, so they are detected here and let

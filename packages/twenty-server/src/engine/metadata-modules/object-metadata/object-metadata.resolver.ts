@@ -7,25 +7,23 @@ import {
   Query,
   ResolveField,
 } from '@nestjs/graphql';
-import { InjectRepository } from '@nestjs/typeorm';
 
 import { PermissionFlagType } from 'twenty-shared/constants';
 import { isDefined } from 'twenty-shared/utils';
-import { Repository } from 'typeorm';
 
 import { MetadataResolver } from 'src/engine/api/graphql/graphql-config/decorators/metadata-resolver.decorator';
 import { UUIDScalarType } from 'src/engine/api/graphql/workspace-schema-builder/graphql-types/scalars';
 import { NotFoundError } from 'src/engine/core-modules/graphql/utils/graphql-errors.util';
 import { PreventNestToAutoLogGraphqlErrorsFilter } from 'src/engine/core-modules/graphql/filters/prevent-nest-to-auto-log-graphql-errors.filter';
 import { ResolverValidationPipe } from 'src/engine/core-modules/graphql/pipes/resolver-validation.pipe';
-import { I18nService } from 'src/engine/core-modules/i18n/i18n.service';
 import { I18nContext } from 'src/engine/core-modules/i18n/types/i18n-context.type';
 import { WorkspaceEntity } from 'src/engine/core-modules/workspace/workspace.entity';
 import { type IDataloaders } from 'src/engine/dataloaders/dataloader.interface';
 import { AuthWorkspace } from 'src/engine/decorators/auth/auth-workspace.decorator';
+import { AllowSuspendedWorkspace } from 'src/engine/decorators/auth/allow-suspended-workspace.decorator';
 import { NoPermissionGuard } from 'src/engine/guards/no-permission.guard';
 import { SettingsPermissionGuard } from 'src/engine/guards/settings-permission.guard';
-import { WorkspaceAuthGuard } from 'src/engine/guards/workspace-auth.guard';
+import { AuthPrincipalGuard } from 'src/engine/guards/auth-principal.guard';
 import { FieldMetadataDTO } from 'src/engine/metadata-modules/field-metadata/dtos/field-metadata.dto';
 import { FieldFilterInput } from 'src/engine/metadata-modules/field-metadata/dtos/field-filter.input';
 import { fromFlatObjectMetadataToObjectMetadataDto } from 'src/engine/metadata-modules/flat-object-metadata/utils/from-flat-object-metadata-to-object-metadata-dto.util';
@@ -57,27 +55,46 @@ import { ObjectRecordCountService } from 'src/engine/metadata-modules/object-met
 import { objectMetadataGraphqlApiExceptionHandler } from 'src/engine/metadata-modules/object-metadata/utils/object-metadata-graphql-api-exception-handler.util';
 import { PermissionsGraphqlApiExceptionFilter } from 'src/engine/metadata-modules/permissions/utils/permissions-graphql-api-exception.filter';
 import { SearchFieldMetadataDTO } from 'src/engine/metadata-modules/search-field-metadata/dtos/search-field-metadata.dto';
-import { resolveEffectiveEntityProperty } from 'src/engine/metadata-modules/utils/resolve-effective-entity-property.util';
+import { resolveEffectiveEntityProperty } from 'src/engine/metadata-modules/overrides/utils/resolve-effective-entity-property.util';
+import { ApplicationTranslationCatalogService } from 'src/engine/metadata-modules/application-translation-catalog/services/application-translation-catalog.service';
+import { fromObjectMetadataEntityToObjectMetadataDto } from 'src/engine/metadata-modules/object-metadata/utils/from-object-metadata-entity-to-object-metadata-dto.util';
+import { AuthGraphqlApiExceptionFilter } from 'src/engine/core-modules/auth/filters/auth-graphql-api-exception.filter';
+import { InjectWorkspaceScopedRepository } from 'src/engine/twenty-orm/workspace-scoped-repository/inject-workspace-scoped-repository.decorator';
+import { WorkspaceScopedRepository } from 'src/engine/twenty-orm/workspace-scoped-repository/workspace-scoped-repository';
 
-@UseGuards(WorkspaceAuthGuard)
+@UseGuards(
+  AuthPrincipalGuard({
+    userSession: {
+      standard: true,
+      impersonated: true,
+      playground: true,
+      workspaceAgnostic: false,
+    },
+    apiKey: true,
+    oauthClient: true,
+    application: true,
+  }),
+)
 @MetadataResolver(() => ObjectMetadataDTO)
 @UsePipes(ResolverValidationPipe)
 @UseFilters(
   PreventNestToAutoLogGraphqlErrorsFilter,
   PermissionsGraphqlApiExceptionFilter,
+  AuthGraphqlApiExceptionFilter,
 )
 export class ObjectMetadataResolver {
   constructor(
     private readonly objectMetadataService: ObjectMetadataService,
     private readonly objectRecordCountService: ObjectRecordCountService,
     private readonly mostlyEmptyFieldsService: MostlyEmptyFieldsService,
-    private readonly i18nService: I18nService,
-    @InjectRepository(ObjectMetadataEntity)
-    private readonly objectMetadataRepository: Repository<ObjectMetadataEntity>,
+    private readonly applicationTranslationCatalogService: ApplicationTranslationCatalogService,
+    @InjectWorkspaceScopedRepository(ObjectMetadataEntity)
+    private readonly objectMetadataRepository: WorkspaceScopedRepository<ObjectMetadataEntity>,
   ) {}
 
   @UseGuards(NoPermissionGuard)
   @Query(() => ObjectConnectionDTO)
+  @AllowSuspendedWorkspace()
   async objects(
     @AuthWorkspace() { id: workspaceId }: WorkspaceEntity,
     @Args('paging', {
@@ -92,7 +109,7 @@ export class ObjectMetadataResolver {
       description: 'Specify to filter the records returned.',
     })
     filter: ObjectFilterInput,
-  ): Promise<CursorConnection<ObjectMetadataEntity>> {
+  ): Promise<CursorConnection<ObjectMetadataDTO>> {
     const queryBuilder = this.objectMetadataRepository
       .createQueryBuilder('objectMetadata')
       .where('"objectMetadata"."workspaceId" = :workspaceId', { workspaceId });
@@ -104,11 +121,19 @@ export class ObjectMetadataResolver {
       columnByFilterField: OBJECT_FILTER_COLUMN_BY_FILTER_FIELD,
     });
 
-    return findManyWithCursorPagination({
+    const connection = await findManyWithCursorPagination({
       queryBuilder,
       alias: 'objectMetadata',
       paging,
     });
+
+    return {
+      ...connection,
+      edges: connection.edges.map((edge) => ({
+        ...edge,
+        node: fromObjectMetadataEntityToObjectMetadataDto(edge.node),
+      })),
+    };
   }
 
   @UseGuards(NoPermissionGuard)
@@ -120,10 +145,11 @@ export class ObjectMetadataResolver {
     })
     id: string,
     @AuthWorkspace() { id: workspaceId }: WorkspaceEntity,
-  ): Promise<ObjectMetadataEntity> {
-    const objectMetadata = await this.objectMetadataRepository.findOne({
-      where: { id, workspaceId },
-    });
+  ): Promise<ObjectMetadataDTO> {
+    const objectMetadata = await this.objectMetadataRepository.findOne(
+      workspaceId,
+      { where: { id } },
+    );
 
     if (!isDefined(objectMetadata)) {
       throw new NotFoundError(
@@ -131,7 +157,7 @@ export class ObjectMetadataResolver {
       );
     }
 
-    return objectMetadata;
+    return fromObjectMetadataEntityToObjectMetadataDto(objectMetadata);
   }
 
   @ResolveField(() => ObjectFieldsConnectionDTO)
@@ -236,32 +262,20 @@ export class ObjectMetadataResolver {
     context: { loaders: IDataloaders } & I18nContext,
     workspaceId: string,
   ): Promise<string> {
-    const i18n = this.i18nService.getI18nInstance(context.req.locale);
-
-    const standardApplicationId =
-      await context.loaders.standardApplicationIdLoader.load({ workspaceId });
-
-    const isStandardApp =
-      objectMetadata.applicationId === standardApplicationId;
-
-    const applicationCatalog =
-      await context.loaders.applicationTranslationCatalogLoader.load({
-        applicationId: objectMetadata.applicationId,
-        workspaceId,
-        locale: context.req.locale,
-      });
-
     return resolveEffectiveEntityProperty({
       metadataName: 'objectMetadata',
       baseValue: objectMetadata[labelKey],
       overrides: objectMetadata.overrides,
       property: labelKey,
-      i18nContext: {
-        locale: context.req.locale,
-        i18nInstance: i18n,
-        isStandardApp,
-        applicationCatalog,
-      },
+      i18nContext:
+        await this.applicationTranslationCatalogService.buildEffectiveEntityI18nContext(
+          {
+            applicationId: objectMetadata.applicationId ?? undefined,
+            loaders: context.loaders,
+            locale: context.req.locale,
+            workspaceId,
+          },
+        ),
     });
   }
 
@@ -395,6 +409,26 @@ export class ObjectMetadataResolver {
         });
 
       return fromFlatObjectMetadataToObjectMetadataDto(flatobjectMetadata);
+    } catch (error) {
+      objectMetadataGraphqlApiExceptionHandler(error);
+    }
+  }
+
+  @UseGuards(SettingsPermissionGuard(PermissionFlagType.DATA_MODEL))
+  @Mutation(() => [ObjectMetadataDTO])
+  async updateManyObjects(
+    @Args('inputs', { type: () => [UpdateOneObjectInput] })
+    updateObjectInputs: UpdateOneObjectInput[],
+    @AuthWorkspace() { id: workspaceId }: WorkspaceEntity,
+  ) {
+    try {
+      const flatObjectMetadatas =
+        await this.objectMetadataService.updateManyObjects({
+          updateObjectInputs,
+          workspaceId,
+        });
+
+      return flatObjectMetadatas.map(fromFlatObjectMetadataToObjectMetadataDto);
     } catch (error) {
       objectMetadataGraphqlApiExceptionHandler(error);
     }

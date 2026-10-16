@@ -12,11 +12,15 @@ import { MessageQueue } from 'src/engine/core-modules/message-queue/message-queu
 import { ApplicationJobEnqueueThrottlerService } from 'src/engine/core-modules/message-queue/services/application-job-enqueue-throttler.service';
 import { MessageQueueService } from 'src/engine/core-modules/message-queue/services/message-queue.service';
 import { ThrottlerException } from 'src/engine/core-modules/throttler/throttler.exception';
+import { LOGIC_FUNCTION_QUEUE_RETRY_BACKOFF } from 'src/engine/core-modules/logic-function/logic-function-trigger/constants/logic-function-queue-retry-backoff.constant';
+import { findLogicFunctionsTriggeredByEventName } from 'src/engine/core-modules/logic-function/logic-function-trigger/triggers/database-event/utils/find-logic-functions-triggered-by-event-name';
 import { transformEventBatchToEventPayloads } from 'src/engine/core-modules/logic-function/logic-function-trigger/triggers/database-event/utils/transform-event-batch-to-event-payloads';
 import {
   LogicFunctionTriggerJob,
   LogicFunctionTriggerJobData,
 } from 'src/engine/core-modules/logic-function/logic-function-trigger/jobs/logic-function-trigger.job';
+import { RecordAccessPolicyService } from 'src/engine/core-modules/record-share/services/record-access-policy.service';
+import { resolveEventsReadableByRole } from 'src/engine/metadata-modules/permissions/utils/resolve-events-readable-by-role.util';
 import { WorkspaceCacheService } from 'src/engine/workspace-cache/services/workspace-cache.service';
 import { WorkspaceEventBatch } from 'src/engine/workspace-event-emitter/types/workspace-event-batch.type';
 
@@ -29,35 +33,36 @@ export class CallDatabaseEventTriggerJobsJob {
     private readonly messageQueueService: MessageQueueService,
     private readonly workspaceCacheService: WorkspaceCacheService,
     private readonly applicationJobEnqueueThrottlerService: ApplicationJobEnqueueThrottlerService,
+    private readonly recordAccessPolicyService: RecordAccessPolicyService,
   ) {}
 
   @Process(CallDatabaseEventTriggerJobsJob.name)
   async handle(workspaceEventBatch: WorkspaceEventBatch<ObjectRecordEvent>) {
-    const { flatLogicFunctionMaps, flatApplicationMaps } =
-      await this.workspaceCacheService.getOrRecompute(
-        workspaceEventBatch.workspaceId,
-        ['flatLogicFunctionMaps', 'flatApplicationMaps'],
-      );
+    const {
+      flatLogicFunctionMaps,
+      flatApplicationMaps,
+      rolesPermissions,
+      roleIdsWithAllRecordsAccess,
+      flatRowLevelPermissionPredicateMaps,
+      flatRowLevelPermissionPredicateGroupMaps,
+      flatFieldMetadataMaps,
+    } = await this.workspaceCacheService.getOrRecompute(
+      workspaceEventBatch.workspaceId,
+      [
+        'flatLogicFunctionMaps',
+        'flatApplicationMaps',
+        'rolesPermissions',
+        'roleIdsWithAllRecordsAccess',
+        'flatRowLevelPermissionPredicateMaps',
+        'flatRowLevelPermissionPredicateGroupMaps',
+        'flatFieldMetadataMaps',
+      ],
+    );
 
-    const logicFunctionsWithDatabaseEventTrigger = Object.values(
-      flatLogicFunctionMaps.byUniversalIdentifier,
-    )
-      .filter(isDefined)
-      .filter(
-        (logicFunction) =>
-          !isDefined(logicFunction.deletedAt) &&
-          isDefined(logicFunction.databaseEventTriggerSettings),
-      );
-
-    const logicFunctionsToTrigger =
-      logicFunctionsWithDatabaseEventTrigger.filter((logicFunction) =>
-        this.shouldTriggerJob({
-          workspaceEventBatch,
-          eventName: isDefined(logicFunction.databaseEventTriggerSettings)
-            ? logicFunction.databaseEventTriggerSettings.eventName
-            : '',
-        }),
-      );
+    const logicFunctionsToTrigger = findLogicFunctionsTriggeredByEventName({
+      flatLogicFunctionMaps,
+      eventName: workspaceEventBatch.name,
+    });
 
     const logicFunctionsByApplicationId = new Map<
       string,
@@ -75,6 +80,15 @@ export class CallDatabaseEventTriggerJobsJob {
       );
     }
 
+    if (logicFunctionsByApplicationId.size === 0) {
+      return;
+    }
+
+    const eventRecordAccessGate =
+      this.recordAccessPolicyService.buildEventRecordAccessGate(
+        workspaceEventBatch,
+      );
+
     for (const [
       applicationId,
       logicFunctions,
@@ -85,13 +99,27 @@ export class CallDatabaseEventTriggerJobsJob {
       );
       const applicationRegistrationId = application?.applicationRegistrationId;
 
-      if (!isDefined(applicationRegistrationId)) {
+      if (!isDefined(application) || !isDefined(applicationRegistrationId)) {
         continue;
       }
 
+      const admittedEvents = await resolveEventsReadableByRole({
+        roleId: application.defaultRoleId,
+        owningApplicationId: application.id,
+        workspaceEventBatch,
+        eventRecordAccessGate,
+        rolesPermissions,
+        roleIdsWithAllRecordsAccess,
+        flatRowLevelPermissionPredicateMaps,
+        flatRowLevelPermissionPredicateGroupMaps,
+        flatFieldMetadataMaps,
+      });
       const logicFunctionPayloads = transformEventBatchToEventPayloads({
         logicFunctions,
-        workspaceEventBatch,
+        workspaceEventBatch: {
+          ...workspaceEventBatch,
+          events: admittedEvents,
+        },
       });
 
       if (logicFunctionPayloads.length === 0) {
@@ -118,28 +146,14 @@ export class CallDatabaseEventTriggerJobsJob {
 
       await this.messageQueueService.bulkAdd<LogicFunctionTriggerJobData>(
         LogicFunctionTriggerJob.name,
-        logicFunctionPayloads,
-        { retryLimit: 3 },
+        logicFunctionPayloads.map((logicFunctionPayload) => ({
+          data: logicFunctionPayload,
+        })),
+        {
+          retryLimit: 3,
+          backoff: LOGIC_FUNCTION_QUEUE_RETRY_BACKOFF,
+        },
       );
     }
-  }
-
-  private shouldTriggerJob({
-    workspaceEventBatch,
-    eventName,
-  }: {
-    workspaceEventBatch: WorkspaceEventBatch<ObjectRecordEvent>;
-    eventName: string;
-  }) {
-    const [nameSingular, operation] = workspaceEventBatch.name.split('.');
-
-    const validEventNames = [
-      `${nameSingular}.${operation}`,
-      `*.${operation}`,
-      `${nameSingular}.*`,
-      '*.*',
-    ];
-
-    return validEventNames.includes(eventName);
   }
 }

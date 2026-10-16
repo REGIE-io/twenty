@@ -8,6 +8,7 @@ import {
   PageLayoutTabLayoutMode,
   PageLayoutType,
   ViewType,
+  WidgetType,
 } from 'twenty-shared/types';
 import { v4 as uuidv4 } from 'uuid';
 
@@ -52,14 +53,20 @@ const buildManifestWithRecordTableDashboard = () =>
             universalIdentifier: TEST_TAB_ID,
             title: 'Tables',
             position: 0,
-            layoutMode: PageLayoutTabLayoutMode.CANVAS,
+            layoutMode: PageLayoutTabLayoutMode.GRID,
             widgets: [
               {
                 universalIdentifier: TEST_WIDGET_ID,
                 title: 'RT test table',
-                type: 'RECORD_TABLE',
+                type: WidgetType.RECORD_TABLE,
                 objectUniversalIdentifier: PERSON_OBJECT_UNIVERSAL_IDENTIFIER,
-                gridPosition: { row: 0, column: 0, rowSpan: 4, columnSpan: 6 },
+                position: {
+                  layoutMode: PageLayoutTabLayoutMode.GRID,
+                  row: 0,
+                  column: 0,
+                  rowSpan: 4,
+                  columnSpan: 6,
+                },
                 configuration: {
                   configurationType: 'RECORD_TABLE',
                   viewUniversalIdentifier: TEST_VIEW_ID,

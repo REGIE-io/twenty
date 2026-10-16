@@ -18,12 +18,23 @@ import { UserSessionCookieService } from 'src/engine/core-modules/user-session/s
 import { hashUserSessionToken } from 'src/engine/core-modules/user-session/utils/hash-user-session-token.util';
 import { AuthUser } from 'src/engine/decorators/auth/auth-user.decorator';
 import { AuthWorkspace } from 'src/engine/decorators/auth/auth-workspace.decorator';
+import { AllowSuspendedWorkspace } from 'src/engine/decorators/auth/allow-suspended-workspace.decorator';
 import { NoPermissionGuard } from 'src/engine/guards/no-permission.guard';
-import { UserAuthGuard } from 'src/engine/guards/user-auth.guard';
+import { AuthPrincipalGuard } from 'src/engine/guards/auth-principal.guard';
 
 @UsePipes(ResolverValidationPipe)
 @UseFilters(AuthGraphqlApiExceptionFilter)
+@UseGuards(
+  AuthPrincipalGuard({
+    userSession: true,
+    apiKey: false,
+    oauthClient: false,
+    application: false,
+  }),
+  NoPermissionGuard,
+)
 @MetadataResolver()
+@AllowSuspendedWorkspace()
 export class UserSessionResolver {
   constructor(
     private readonly userSessionService: UserSessionService,
@@ -31,7 +42,6 @@ export class UserSessionResolver {
   ) {}
 
   @Query(() => [UserSessionDTO])
-  @UseGuards(UserAuthGuard, NoPermissionGuard)
   async currentUserSessions(
     @AuthUser() user: AuthContextUser,
     @AuthWorkspace({ allowUndefined: true }) workspace:
@@ -39,8 +49,7 @@ export class UserSessionResolver {
       | undefined,
     @Context() context: { req: Request },
   ): Promise<UserSessionDTO[]> {
-    // UserAuthGuard admits workspace-agnostic credentials, which have no
-    // workspace to scope to. Nothing is in scope rather than everything.
+    // Workspace-agnostic sessions have no workspace to scope to: nothing is in scope rather than everything.
     if (!isDefined(workspace)) {
       return [];
     }
@@ -63,7 +72,6 @@ export class UserSessionResolver {
   }
 
   @Mutation(() => Boolean)
-  @UseGuards(UserAuthGuard, NoPermissionGuard)
   async revokeUserSession(
     @AuthUser() user: AuthContextUser,
     @AuthWorkspace({ allowUndefined: true }) workspace:
@@ -133,7 +141,6 @@ export class UserSessionResolver {
   }
 
   @Mutation(() => Int)
-  @UseGuards(UserAuthGuard, NoPermissionGuard)
   async revokeAllOtherUserSessions(
     @AuthUser() user: AuthContextUser,
     @AuthWorkspace({ allowUndefined: true }) workspace:

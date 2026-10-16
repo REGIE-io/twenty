@@ -15,6 +15,9 @@ export class ObjectFilterInput {
   @Field(() => UUIDFilterComparisonInput, { nullable: true })
   id?: UUIDFilterComparisonInput;
 
+  @Field(() => UUIDFilterComparisonInput, { nullable: true })
+  universalIdentifier?: UUIDFilterComparisonInput;
+
   @Field(() => BooleanFieldComparisonInput, { nullable: true })
   isActive?: BooleanFieldComparisonInput;
 
@@ -42,15 +45,14 @@ export const OBJECT_FILTER_COLUMN_BY_FILTER_FIELD: Record<
   MetadataFilterColumn
 > = {
   id: { column: 'id', type: 'uuid' },
+  universalIdentifier: { column: 'universalIdentifier', type: 'uuid' },
   isActive: { column: 'isActive', type: 'boolean' },
   isRemote: { column: 'isRemote', type: 'boolean' },
   isSearchable: { column: 'isSearchable', type: 'boolean' },
   isSystem: { column: 'isSystem', type: 'boolean' },
   isUICreatable: { column: 'isUICreatable', type: 'boolean' },
   isUIEditable: { column: 'isUIEditable', type: 'boolean' },
-  // The legacy isUIReadOnly column is no longer written since the 2.13
-  // rename, so the deprecated filter runs inverted against isUIEditable,
-  // consistent with how the field itself is resolved.
+  // isUIReadOnly is no longer written since 2.13, so filter inverted on isUIEditable
   isUIReadOnly: {
     column: 'isUIEditable',
     type: 'boolean',

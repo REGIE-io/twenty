@@ -1,5 +1,5 @@
 import { createOneOperation } from 'test/integration/graphql/utils/create-one-operation.util';
-import { makeGraphqlAPIRequest } from 'test/integration/graphql/utils/make-graphql-api-request.util';
+import { makeGraphqlApiRequest } from 'test/integration/graphql/utils/make-graphql-api-request.util';
 import { search } from 'test/integration/graphql/utils/search.util';
 import { updateOneOperationFactory } from 'test/integration/graphql/utils/update-one-operation-factory.util';
 import { createOneFieldMetadata } from 'test/integration/metadata/suites/field-metadata/utils/create-one-field-metadata.util';
@@ -9,7 +9,7 @@ import { createOneObjectMetadata } from 'test/integration/metadata/suites/object
 import { getMockCreateObjectInput } from 'test/integration/metadata/suites/object-metadata/utils/generate-mock-create-object-metadata-input';
 import { deleteOneObjectMetadata } from 'test/integration/metadata/suites/object-metadata/utils/delete-one-object-metadata.util';
 import { updateOneObjectMetadata } from 'test/integration/metadata/suites/object-metadata/utils/update-one-object-metadata.util';
-import { makeRestAPIRequest } from 'test/integration/rest/utils/make-rest-api-request.util';
+import { makeRestApiRequest } from 'test/integration/rest/utils/make-rest-api-request.util';
 import { getAppProviderByClassName } from 'test/integration/utils/get-app-provider-by-class-name.util';
 import { FieldMetadataType } from 'twenty-shared/types';
 import { isDefined } from 'twenty-shared/utils';
@@ -344,7 +344,7 @@ const updateRecord = async (
   recordId: string,
   data: Record<string, unknown>,
 ) => {
-  const response = await makeGraphqlAPIRequest(
+  const response = await makeGraphqlApiRequest(
     updateOneOperationFactory({
       objectMetadataSingularName: nameSingular,
       gqlFields: 'id',
@@ -1551,7 +1551,7 @@ describe('searchVector conversion of a workspace', () => {
 
   // A batch builds every table in one pass, so each one needs its own trigger installed too.
   it('creates objects in trigger mode when several are created in one batch', async () => {
-    const response = await makeRestAPIRequest({
+    const response = await makeRestApiRequest({
       method: 'post',
       path: '/metadata/objects/batch',
       body: {

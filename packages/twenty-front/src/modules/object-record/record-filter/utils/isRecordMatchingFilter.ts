@@ -51,6 +51,7 @@ import {
 import { type FieldMetadataItem } from '@/object-metadata/types/FieldMetadataItem';
 import { type EnrichedObjectMetadataItem } from '@/object-metadata/types/EnrichedObjectMetadataItem';
 import { computePossibleMorphGqlFieldForFieldName } from '@/object-record/cache/utils/computePossibleMorphGqlFieldForFieldName';
+import { isObjectRecordConnection } from '@/object-record/cache/utils/isObjectRecordConnection';
 
 const isLeafFilter = (
   filter: RecordGqlOperationFilter,
@@ -105,15 +106,31 @@ const UUID_FILTER_OPERATOR_KEYS = new Set<string>([
   'neq',
 ]);
 
-// A filter on a relation field name either holds UUID operators applied to
-// the related record id, or field names of the related record to match
-// against the related record itself, like { person: { companyId: { in: [...] } } }
-// produced by view filters traversing a relation.
+// Either UUID operators on the related id, or nested field filters from view filters traversing a relation.
 const isNestedRelationFilter = (
   filterValue: unknown,
 ): filterValue is RecordGqlOperationFilter =>
   isObject(filterValue) &&
   Object.keys(filterValue).some((key) => !UUID_FILTER_OPERATOR_KEYS.has(key));
+
+// Records fetched through a relation often carry { list: { id } } without listId.
+const getJoinColumnValue = ({
+  record,
+  joinColumnName,
+}: {
+  record: Record<string, any>;
+  joinColumnName: string;
+}) => {
+  if (record[joinColumnName] !== undefined) {
+    return record[joinColumnName];
+  }
+
+  const relationRecord = record[joinColumnName.slice(0, -'Id'.length)];
+
+  return isObject(relationRecord)
+    ? (relationRecord.id ?? null)
+    : relationRecord;
+};
 
 const isRecordMatchingNestedRelationFilter = ({
   relationRecord,
@@ -128,15 +145,12 @@ const isRecordMatchingNestedRelationFilter = ({
   objectMetadataItems: EnrichedObjectMetadataItem[];
   isWithinNegatedFilter: boolean;
 }): boolean => {
-  // A null related record truthfully fails the nested predicate, matching
-  // the backend NOT EXISTS semantics. A related record that was not loaded
-  // leaves the outcome unknown: returning the negation parity keeps the
-  // record excluded whether or not a surrounding not flips the result.
+  // Null fails the nested predicate (backend NOT EXISTS); unloaded returns the negation parity to stay excluded.
   if (relationRecord === null) {
     return false;
   }
 
-  if (!isObject(relationRecord) || Array.isArray(relationRecord)) {
+  if (!isObject(relationRecord)) {
     return isWithinNegatedFilter;
   }
 
@@ -150,13 +164,45 @@ const isRecordMatchingNestedRelationFilter = ({
     return isWithinNegatedFilter;
   }
 
-  return isRecordMatchingFilter({
-    record: relationRecord,
-    filter: nestedFilter,
-    objectMetadataItem: relationTargetObjectMetadataItem,
-    objectMetadataItems,
-    isWithinNegatedFilter,
-  });
+  const isRecordMatchingNestedFilter = (record: unknown) =>
+    isRecordMatchingFilter({
+      record,
+      filter: nestedFilter,
+      objectMetadataItem: relationTargetObjectMetadataItem,
+      objectMetadataItems,
+      isWithinNegatedFilter,
+    });
+
+  // Matches when any loaded record does, like the backend EXISTS.
+  return getLoadedRelationRecords({
+    relationRecord,
+    relationTargetObjectNameSingular:
+      relationTargetObjectMetadataItem.nameSingular,
+  }).some(
+    (relatedRecord) =>
+      isObject(relatedRecord) && isRecordMatchingNestedFilter(relatedRecord),
+  );
+};
+
+// To-many values are an array (store) or a connection (GraphQL response).
+const getLoadedRelationRecords = ({
+  relationRecord,
+  relationTargetObjectNameSingular,
+}: {
+  relationRecord: object;
+  relationTargetObjectNameSingular: string;
+}): unknown[] => {
+  if (Array.isArray(relationRecord)) {
+    return relationRecord;
+  }
+
+  if (
+    isObjectRecordConnection(relationTargetObjectNameSingular, relationRecord)
+  ) {
+    return relationRecord.edges?.map((edge) => edge.node) ?? [];
+  }
+
+  return [relationRecord];
 };
 
 export const isRecordMatchingFilter = ({
@@ -511,7 +557,7 @@ export const isRecordMatchingFilter = ({
         if (isJoinColumn) {
           return isMatchingUUIDFilter({
             uuidFilter: filterValue as UUIDFilter,
-            value: record[filterKey],
+            value: getJoinColumnValue({ record, joinColumnName: filterKey }),
           });
         }
 

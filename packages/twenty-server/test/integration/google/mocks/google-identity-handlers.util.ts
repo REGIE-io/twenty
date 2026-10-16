@@ -1,9 +1,13 @@
 import { http, HttpResponse } from 'msw';
 
+import { GOOGLE_ALIAS_DISPLAY_NAME } from 'test/integration/google/mocks/google-alias-display-name.constant';
 import { GOOGLE_OAUTH_SCOPES } from 'test/integration/google/mocks/google-oauth-scopes.constant';
 import { type MswHandler } from 'test/integration/utils/http-mock.util';
 
-export const googleIdentityHandlers = (handle: string): MswHandler[] => [
+export const googleIdentityHandlers = (
+  handle: string,
+  aliases: string[] = [],
+): MswHandler[] => [
   http.get('https://www.googleapis.com/oauth2/v3/userinfo', () =>
     HttpResponse.json({
       sub: `google-user-id-${handle}`,
@@ -24,6 +28,15 @@ export const googleIdentityHandlers = (handle: string): MswHandler[] => [
     HttpResponse.json({ names: [{ displayName: 'Jane Austen' }] }),
   ),
   http.get('*/gmail/v1/users/me/settings/sendAs', () =>
-    HttpResponse.json({ sendAs: [{ sendAsEmail: handle, isPrimary: true }] }),
+    HttpResponse.json({
+      sendAs: [
+        { sendAsEmail: handle, isPrimary: true },
+        ...aliases.map((alias) => ({
+          sendAsEmail: alias,
+          displayName: GOOGLE_ALIAS_DISPLAY_NAME,
+          isPrimary: false,
+        })),
+      ],
+    }),
   ),
 ];

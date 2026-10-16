@@ -1,3 +1,4 @@
+import { readAuthoredOverrideProperty } from 'src/engine/metadata-modules/overrides/utils/read-authored-override-property.util';
 import { isDefined } from 'twenty-shared/utils';
 
 import { type AllFlatEntityMaps } from 'src/engine/metadata-modules/flat-entity/types/all-flat-entity-maps.type';
@@ -111,9 +112,19 @@ export const buildSchemaApplySnapshot = ({
       }
 
       // Same resolution GET /rest/metadata/views applies for the source locale.
+      const override = readAuthoredOverrideProperty({
+        metadataName: 'objectMetadata',
+        overrides: flatObjectMetadata.overrides,
+        path: ['labelPlural'],
+        authorContext: {
+          ownerApplicationUniversalIdentifier:
+            flatObjectMetadata.applicationUniversalIdentifier,
+        },
+      });
       const labelPlural =
-        flatObjectMetadata.overrides?.labelPlural ??
-        flatObjectMetadata.labelPlural;
+        typeof override === 'string'
+          ? override
+          : flatObjectMetadata.labelPlural;
 
       return {
         id: flatView.id,

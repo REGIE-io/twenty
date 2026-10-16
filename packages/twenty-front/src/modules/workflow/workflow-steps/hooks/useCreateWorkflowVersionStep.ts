@@ -1,36 +1,38 @@
+import { useWorkflowEditorMutationErrorHandler } from '@/workflow/hooks/useWorkflowEditorMutationErrorHandler';
+import { invalidateCoreWorkflowVersions } from '@/object-core/workflows/versions/utils/invalidateCoreWorkflowVersions';
 import { useApolloCoreClient } from '@/object-metadata/hooks/useApolloCoreClient';
-import { CREATE_WORKFLOW_VERSION_STEP } from '@/workflow/graphql/mutations/createWorkflowVersionStep';
-import { useSnackBar } from '@/ui/feedback/snack-bar-manager/hooks/useSnackBar';
+import { useApplyWorkflowVersionStepChanges } from '@/workflow/workflow-steps/hooks/useApplyWorkflowVersionStepChanges';
 import { useMutation } from '@apollo/client/react';
 import {
-  type CreateWorkflowVersionStepInput,
-  type CreateWorkflowVersionStepMutation,
-  type CreateWorkflowVersionStepMutationVariables,
+  CreateCoreWorkflowVersionStepDocument,
+  type CreateCoreWorkflowVersionStepInput,
 } from '~/generated/graphql';
-import { useApplyWorkflowVersionStepChanges } from '@/workflow/workflow-steps/hooks/useApplyWorkflowVersionStepChanges';
+
+export type CreateWorkflowVersionStepInput = Omit<
+  CreateCoreWorkflowVersionStepInput,
+  'coreWorkflowVersionId'
+> & {
+  workflowVersionId: string;
+};
 
 export const useCreateWorkflowVersionStep = () => {
   const apolloCoreClient = useApolloCoreClient();
+  const handleCoreMutationError = useWorkflowEditorMutationErrorHandler();
+  const [mutateCore] = useMutation(CreateCoreWorkflowVersionStepDocument, {
+    client: apolloCoreClient,
+    onError: handleCoreMutationError,
+  });
 
   const { applyWorkflowVersionStepChanges } =
     useApplyWorkflowVersionStepChanges();
 
-  const { enqueueErrorSnackBar } = useSnackBar();
-
-  const [mutate] = useMutation<
-    CreateWorkflowVersionStepMutation,
-    CreateWorkflowVersionStepMutationVariables
-  >(CREATE_WORKFLOW_VERSION_STEP, {
-    client: apolloCoreClient,
-  });
-
   const createWorkflowVersionStep = async (
     input: CreateWorkflowVersionStepInput,
   ) => {
-    const result = await mutate({
-      variables: { input },
-      onError: (error) => {
-        enqueueErrorSnackBar({ apolloError: error });
+    const { workflowVersionId, ...stepInput } = input;
+    const result = await mutateCore({
+      variables: {
+        input: { ...stepInput, coreWorkflowVersionId: workflowVersionId },
       },
     });
 
@@ -38,8 +40,10 @@ export const useCreateWorkflowVersionStep = () => {
 
     applyWorkflowVersionStepChanges({
       workflowVersionStepChanges,
-      workflowVersionId: input.workflowVersionId,
+      workflowVersionId,
     });
+
+    await invalidateCoreWorkflowVersions(apolloCoreClient);
 
     return result;
   };

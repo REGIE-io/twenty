@@ -19,6 +19,16 @@ msgstr ""
 "X-Crowdin-File-ID: 27\n"
 
 #. js-lingui-explicit-id
+#: src/emails/two-factor-authentication-recovery-code-issued.email.tsx
+msgid "{actorName} generated a recovery code that lets you sign in to {workspaceDisplayName} without your authenticator app."
+msgstr "{actorName} 產生了一組復原碼，讓您無需使用驗證器應用程式即可登入 {workspaceDisplayName}。"
+
+#. js-lingui-explicit-id
+#: src/emails/server-admin-access-changed.email.tsx
+msgid "{actorName} updated server administrator access for {targetName} ({targetEmail})."
+msgstr "{actorName} 已更新 {targetName}（{targetEmail}）的伺服器管理員存取權。"
+
+#. js-lingui-explicit-id
 #: src/emails/send-invite-link.email.tsx
 msgid "{senderName} (<0>{senderEmail}</0>) has invited you to join a workspace called <1>{workspaceName}</1>."
 msgstr "{senderName} (<0>{senderEmail}</0>) 已邀請您加入一個名為<1>{workspaceName}</1>的工作區。"
@@ -32,6 +42,11 @@ msgstr "{senderName} (<0>{senderEmail}</0>): 請驗證此網域，以允許擁�
 #: src/emails/billing-trial-converting.email.tsx
 msgid "A heads up before your trial ends"
 msgstr "在您的試用結束前的提醒"
+
+#. js-lingui-explicit-id
+#: src/emails/two-factor-authentication-reset.email.tsx
+msgid "A recovery code was used to sign in to {workspaceDisplayName}. Your authenticator for this workspace was removed and your other sessions there were signed out."
+msgstr "有人使用復原碼登入了 {workspaceDisplayName}。您在此工作區的驗證器已遭移除，您在該處的其他工作階段也已登出。"
 
 #. js-lingui-explicit-id
 #: src/emails/send-invite-link.email.tsx
@@ -89,6 +104,11 @@ msgid "Enabled"
 msgstr "已啟用"
 
 #. js-lingui-explicit-id
+#: src/emails/server-admin-access-changed.email.tsx
+msgid "Full admin panel access: {fullAdminStatus}"
+msgstr "完整管理面板存取權：{fullAdminStatus}"
+
+#. js-lingui-explicit-id
 #: src/components/Footer.tsx
 msgid "Github"
 msgstr "Github"
@@ -115,12 +135,27 @@ msgstr "您好,"
 #: src/emails/clean-suspended-workspace.email.tsx
 #: src/emails/warn-suspended-workspace.email.tsx
 msgid "Hi {userName},"
-msgstr "嗨 {userName},"
+msgstr "嗨 {userName}，"
+
+#. js-lingui-explicit-id
+#: src/emails/two-factor-authentication-reset.email.tsx
+msgid "If this was not you, contact your workspace administrator and change your password."
+msgstr "如果這不是您本人所為，請聯絡您的工作區管理員並變更密碼。"
 
 #. js-lingui-explicit-id
 #: src/emails/billing-trial-converting.email.tsx
 msgid "If Twenty is working for you, you're all set — there's nothing to do. If it's not the right fit, you can cancel in one click before then and you won't be charged."
 msgstr "如果 Twenty 符合您的需求，一切都已就緒——您無需做任何事。若您認為它不太適合，您可以在此之前一鍵取消，且不會被收費。"
+
+#. js-lingui-explicit-id
+#: src/emails/two-factor-authentication-recovery-code-issued.email.tsx
+msgid "If you did not ask for this, contact your workspace administrator and change your password."
+msgstr "如果您並未提出此要求，請聯絡您的工作區管理員並變更密碼。"
+
+#. js-lingui-explicit-id
+#: src/emails/server-admin-access-changed.email.tsx
+msgid "If you did not expect this change, review your server administrators immediately."
+msgstr "如果您並未預期此變更，請立即檢查您的伺服器管理員。"
 
 #. js-lingui-explicit-id
 #: src/emails/password-update-notify.email.tsx
@@ -136,6 +171,11 @@ msgstr "如果您不做任何操作，我們將暫停您的工作區，並在 {d
 #: src/emails/clean-suspended-workspace.email.tsx
 msgid "If you'd ever like to give Twenty another try, you can start a fresh workspace in minutes — we'd love to have you back."
 msgstr "如果您之後想再試用 Twenty，您可以在幾分鐘內建立一個全新的工作區——我們非常歡迎您回來。"
+
+#. js-lingui-explicit-id
+#: src/emails/server-admin-access-changed.email.tsx
+msgid "Impersonation: {impersonateStatus}"
+msgstr "身分模擬：{impersonateStatus}"
 
 #. js-lingui-explicit-id
 #: src/components/WhatIsTwenty.tsx
@@ -209,29 +249,14 @@ msgid "Server administrator access changed"
 msgstr "伺服器管理員存取權已變更"
 
 #. js-lingui-explicit-id
-#: src/emails/server-admin-access-changed.email.tsx
-msgid "serverAdminAccessChanged.fullAdmin"
-msgstr "serverAdminAccessChanged.fullAdmin"
-
-#. js-lingui-explicit-id
-#: src/emails/server-admin-access-changed.email.tsx
-msgid "serverAdminAccessChanged.impersonation"
-msgstr "serverAdminAccessChanged.impersonation"
-
-#. js-lingui-explicit-id
-#: src/emails/server-admin-access-changed.email.tsx
-msgid "serverAdminAccessChanged.summary"
-msgstr "serverAdminAccessChanged.summary"
-
-#. js-lingui-explicit-id
-#: src/emails/server-admin-access-changed.email.tsx
-msgid "serverAdminAccessChanged.warning"
-msgstr "serverAdminAccessChanged.warning"
-
-#. js-lingui-explicit-id
 #: src/emails/password-reset-link.email.tsx
 msgid "Set"
 msgstr "設置"
+
+#. js-lingui-explicit-id
+#: src/emails/two-factor-authentication-reset.email.tsx
+msgid "Set up two-factor authentication again under Settings, Profile."
+msgstr "請在「設定」的「個人資料」下再次設定雙重身份驗證。"
 
 #. js-lingui-explicit-id
 #: src/emails/password-reset-link.email.tsx
@@ -241,12 +266,17 @@ msgstr "設置您的密碼🗝"
 #. js-lingui-explicit-id
 #: src/emails/clean-suspended-workspace.email.tsx
 msgid "Start a new workspace"
-msgstr "開始新的工作區"
+msgstr "建立新的工作區"
 
 #. js-lingui-explicit-id
 #: src/emails/test.email.tsx
 msgid "Test email"
 msgstr "測試電子郵件"
+
+#. js-lingui-explicit-id
+#: src/emails/two-factor-authentication-recovery-code-issued.email.tsx
+msgid "The code can be used once and expires on {formattedExpiresAt}. Using it removes your current authenticator for this workspace and signs you out of your other sessions there."
+msgstr "此代碼僅可使用一次，並將於 {formattedExpiresAt} 到期。使用後，將會移除此工作區目前的驗證器，並讓您登出該工作區中的其他工作階段。"
 
 #. js-lingui-explicit-id
 #: src/emails/password-update-notify.email.tsx
@@ -267,6 +297,16 @@ msgstr "若要保留您的工作區以及您建立的一切，請新增付款方
 #: src/components/Footer.tsx
 msgid "Twenty.com, Public Benefit Corporation"
 msgstr "Twenty.com, 公益公司"
+
+#. js-lingui-explicit-id
+#: src/emails/two-factor-authentication-recovery-code-issued.email.tsx
+msgid "Two-factor authentication recovery code issued"
+msgstr "已發出雙重身份驗證復原代碼"
+
+#. js-lingui-explicit-id
+#: src/emails/two-factor-authentication-reset.email.tsx
+msgid "Two-factor authentication reset"
+msgstr "雙重身份驗證重設"
 
 #. js-lingui-explicit-id
 #: src/components/Footer.tsx

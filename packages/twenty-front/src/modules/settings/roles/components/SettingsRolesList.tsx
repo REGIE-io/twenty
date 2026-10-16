@@ -1,29 +1,30 @@
-import { Dropdown } from '@/ui/layout/dropdown/components/Dropdown';
-import { DropdownContent } from '@/ui/layout/dropdown/components/DropdownContent';
-import { DropdownMenuItemsContainer } from '@/ui/layout/dropdown/components/DropdownMenuItemsContainer';
-import { Table } from '@/ui/layout/table/components/Table';
-import { styled } from '@linaria/react';
-import { t } from '@lingui/core/macro';
-
+import { useInstalledApplications } from '@/applications/hooks/useInstalledApplications';
 import { SettingsRolesTableHeader } from '@/settings/roles/components/SettingsRolesTableHeader';
 import { SettingsRolesTableRow } from '@/settings/roles/components/SettingsRolesTableRow';
 import { useSettingsAllRoles } from '@/settings/roles/hooks/useSettingsAllRoles';
 import { SettingsTextInput } from '@/ui/input/components/SettingsTextInput';
+import { DropdownContent } from '@/ui/layout/dropdown/components/DropdownContent';
+import { DropdownRoot } from '@/ui/layout/dropdown/components/DropdownRoot';
+import { Table } from '@/ui/layout/table/components/Table';
 import { TableCell } from '@/ui/layout/table/components/TableCell';
+import { styled } from '@linaria/react';
+import { t } from '@lingui/core/macro';
 import { useState } from 'react';
 import { SettingsPath } from 'twenty-shared/types';
+import { isDefined } from 'twenty-shared/utils';
+import { Section } from 'twenty-ui/components/layout';
+import { Dropdown } from 'twenty-ui/components/navigation';
+import { SettingsRow } from 'twenty-ui/components/settings';
 import {
+  IconApps,
   IconFilter,
   IconKey,
+  IconLego,
   IconPlus,
-  IconRobot,
   IconSearch,
 } from 'twenty-ui/icon';
-import { H2Title } from 'twenty-ui/typography';
-import { Button } from 'twenty-ui/input';
-import { Section } from 'twenty-ui/layout';
-import { MenuItemToggle } from 'twenty-ui/navigation';
-import { themeCssVariables } from 'twenty-ui/theme-constants';
+import { Button } from 'twenty-ui/primitives/input';
+import { themeCssVariables } from 'twenty-ui/theme';
 import { useNavigateSettings } from '~/hooks/useNavigateSettings';
 import { sortByAscString } from '~/utils/array/sortByAscString';
 
@@ -58,18 +59,37 @@ export const SettingsRolesList = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [showAgentRoles, setShowAgentRoles] = useState(false);
   const [showApiKeyRoles, setShowApiKeyRoles] = useState(false);
+  const [showApplicationRoles, setShowApplicationRoles] = useState(false);
 
   const settingsAllRoles = useSettingsAllRoles();
+  const installedApplications = useInstalledApplications();
 
-  const sortedSettingsAllRoles = [...settingsAllRoles].sort((a, b) =>
-    sortByAscString(a.label, b.label),
+  const installedApplicationByDefaultRoleId = new Map(
+    installedApplications
+      .filter((application) => isDefined(application.defaultRoleId))
+      .map((application) => [application.defaultRoleId, application]),
   );
 
+  const sortedSettingsAllRoles = [...settingsAllRoles].sort((a, b) => {
+    const applicationNameA =
+      installedApplicationByDefaultRoleId.get(a.id)?.name ?? '';
+    const applicationNameB =
+      installedApplicationByDefaultRoleId.get(b.id)?.name ?? '';
+
+    return (
+      sortByAscString(applicationNameA, applicationNameB) ||
+      sortByAscString(a.label, b.label)
+    );
+  });
+
   const filteredRoles = sortedSettingsAllRoles.filter((role) => {
-    const matchesType =
-      role.canBeAssignedToUsers ||
-      (showAgentRoles && role.canBeAssignedToAgents) ||
-      (showApiKeyRoles && role.canBeAssignedToApiKeys);
+    const isApplicationRole = installedApplicationByDefaultRoleId.has(role.id);
+
+    const matchesType = isApplicationRole
+      ? showApplicationRoles
+      : role.canBeAssignedToUsers ||
+        (showAgentRoles && role.canBeAssignedToAgents) ||
+        (showApiKeyRoles && role.canBeAssignedToApiKeys);
 
     const matchesSearch = role.label
       ?.toLowerCase()
@@ -79,8 +99,8 @@ export const SettingsRolesList = () => {
   });
 
   return (
-    <Section>
-      <H2Title
+    <Section.Root>
+      <Section.Header
         title={t`All roles`}
         description={t`Assign roles to specify access permissions`}
       />
@@ -95,40 +115,39 @@ export const SettingsRolesList = () => {
             onChange={setSearchTerm}
           />
         </StyledSearchInputContainer>
-        <Dropdown
-          dropdownId="settings-roles-filter-dropdown"
-          dropdownPlacement="bottom-end"
-          dropdownOffset={{ x: 0, y: 8 }}
-          clickableComponent={
-            <Button
-              Icon={IconFilter}
-              size="medium"
-              variant="secondary"
-              accent="default"
-              ariaLabel={t`Filter`}
-            />
-          }
-          dropdownComponents={
-            <DropdownContent>
-              <DropdownMenuItemsContainer>
-                <MenuItemToggle
-                  LeftIcon={IconRobot}
-                  onToggleChange={() => setShowAgentRoles(!showAgentRoles)}
-                  toggled={showAgentRoles}
-                  text={t`Agent roles`}
-                  toggleSize="small"
-                />
-                <MenuItemToggle
-                  LeftIcon={IconKey}
-                  onToggleChange={() => setShowApiKeyRoles(!showApiKeyRoles)}
-                  toggled={showApiKeyRoles}
-                  text={t`API key roles`}
-                  toggleSize="small"
-                />
-              </DropdownMenuItemsContainer>
-            </DropdownContent>
-          }
-        />
+        <DropdownRoot dropdownId="settings-roles-filter-dropdown" type="panel">
+          <Dropdown.Trigger
+            render={
+              <Button
+                startIcon={<IconFilter />}
+                size="md"
+                aria-label={t`Filter`}
+                variant="outline"
+              />
+            }
+          />
+          <DropdownContent align="end" sideOffset={8}>
+            <Dropdown.Section>
+              <SettingsRow
+                startElement={<IconLego />}
+                onCheckedChange={() => setShowAgentRoles(!showAgentRoles)}
+                checked={showAgentRoles}
+              >{t`Agent roles`}</SettingsRow>
+              <SettingsRow
+                startElement={<IconKey />}
+                onCheckedChange={() => setShowApiKeyRoles(!showApiKeyRoles)}
+                checked={showApiKeyRoles}
+              >{t`API key roles`}</SettingsRow>
+              <SettingsRow
+                startElement={<IconApps />}
+                onCheckedChange={() =>
+                  setShowApplicationRoles(!showApplicationRoles)
+                }
+                checked={showApplicationRoles}
+              >{t`Application roles`}</SettingsRow>
+            </Dropdown.Section>
+          </DropdownContent>
+        </DropdownRoot>
       </StyledSearchAndFilterContainer>
 
       <Table>
@@ -140,22 +159,25 @@ export const SettingsRolesList = () => {
             </TableCell>
           ) : (
             filteredRoles.map((role) => (
-              <SettingsRolesTableRow key={role.id} role={role} />
+              <SettingsRolesTableRow
+                key={role.id}
+                role={role}
+                application={installedApplicationByDefaultRoleId.get(role.id)}
+              />
             ))
           )}
         </StyledTableRows>
       </Table>
       <StyledCreateRoleSectionContainer>
-        <Section>
+        <Section.Root>
           <Button
-            Icon={IconPlus}
-            title={t`Create Role`}
-            variant="secondary"
-            size="small"
+            startIcon={<IconPlus />}
+            size="sm"
             onClick={() => navigateSettings(SettingsPath.RoleCreate)}
-          />
-        </Section>
+            variant="outline"
+          >{t`Create Role`}</Button>
+        </Section.Root>
       </StyledCreateRoleSectionContainer>
-    </Section>
+    </Section.Root>
   );
 };
