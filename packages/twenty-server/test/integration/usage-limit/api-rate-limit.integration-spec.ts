@@ -1,8 +1,15 @@
+import { randomUUID } from 'node:crypto';
+
 import { findManyOperationFactory } from 'test/integration/graphql/utils/find-many-operation-factory.util';
 import { generateApiKeyToken } from 'test/integration/graphql/utils/generate-api-key-token.util';
 import { makeGraphqlApiRequest } from 'test/integration/graphql/utils/make-graphql-api-request.util';
 import { makeMetadataApiRequest } from 'test/integration/metadata/suites/utils/make-metadata-api-request.util';
+import { buildBaseManifest } from 'test/integration/metadata/suites/application/utils/build-base-manifest.util';
+import { cleanupApplicationAndAppRegistration } from 'test/integration/metadata/suites/application/utils/cleanup-application-and-app-registration.util';
+import { setupApplicationForSync } from 'test/integration/metadata/suites/application/utils/setup-application-for-sync.util';
+import { syncApplication } from 'test/integration/metadata/suites/application/utils/sync-application.util';
 import { makeRestApiRequest } from 'test/integration/rest/utils/make-rest-api-request.util';
+import { generateApplicationTokenPair } from 'test/integration/utils/generate-application-token-pair.util';
 import { getCoreRepository } from 'test/integration/utils/get-core-repository.util';
 import { jestExpectToBeDefined } from 'test/utils/jest-expect-to-be-defined.util.test';
 
@@ -24,11 +31,15 @@ describe('API rate limiting', () => {
   let usageLimitRepository: Repository<UsageLimitEntity>;
   let apiKeyRepository: Repository<ApiKeyEntity>;
   let redis: Awaited<ReturnType<typeof createClient>>;
-  let usageLimitId: string;
+  let usageLimitIds: string[] = [];
   let apiKeyId: string;
   let apiKeyToken: string;
+  let applicationId: string;
+  let applicationToken: string;
+  const applicationUniversalIdentifier = randomUUID();
+  const roleUniversalIdentifier = randomUUID();
 
-  const findCompaniesOverGraphql = () =>
+  const findCompaniesOverGraphql = (token = applicationToken) =>
     makeGraphqlApiRequest(
       findManyOperationFactory({
         objectMetadataSingularName: 'company',
@@ -36,14 +47,14 @@ describe('API rate limiting', () => {
         gqlFields: 'id',
         first: 1,
       }),
-      apiKeyToken,
+      token,
     );
 
-  const findCompaniesOverRest = () =>
+  const findCompaniesOverRest = (token = applicationToken) =>
     makeRestApiRequest({
       method: 'get',
       path: '/companies?limit=1',
-      bearer: apiKeyToken,
+      bearer: token,
     });
 
   // Every test starts from a full bucket so it does not inherit whatever the
@@ -122,35 +133,99 @@ describe('API rate limiting', () => {
 
     await createDedicatedApiKey();
 
-    const [usageLimit] = await usageLimitRepository.save([
-      {
+    await setupApplicationForSync({
+      applicationUniversalIdentifier,
+      name: 'API rate limiting test application',
+      description: 'Isolated application rate limiting coverage',
+      sourcePath: `api-rate-limit-${applicationUniversalIdentifier}`,
+    });
+    await syncApplication({
+      manifest: buildBaseManifest({
+        appId: applicationUniversalIdentifier,
+        roleId: roleUniversalIdentifier,
+        overrides: {
+          roles: [
+            {
+              universalIdentifier: roleUniversalIdentifier,
+              label: 'API rate limiting test role',
+              description: 'Read records for rate limiting tests',
+              canReadAllObjectRecords: true,
+            },
+          ],
+        },
+      }),
+    });
+    jest.useRealTimers();
+    const [application]: { id: string }[] = await global.testDataSource.query(
+      `SELECT id FROM core."application"
+       WHERE "workspaceId" = $1 AND "universalIdentifier" = $2`,
+      [SEED_APPLE_WORKSPACE_ID, applicationUniversalIdentifier],
+    );
+
+    applicationId = application.id;
+    const tokenPair = await generateApplicationTokenPair({
+      workspaceId: SEED_APPLE_WORKSPACE_ID,
+      applicationId,
+    });
+
+    applicationToken = tokenPair.applicationAccessToken.token;
+
+    const usageLimits = await usageLimitRepository.save(
+      [
+        { spenderType: 'apiKey' as const, spenderId: apiKeyId },
+        { spenderType: 'application' as const, spenderId: applicationId },
+      ].map((spender) => ({
         workspaceId: SEED_APPLE_WORKSPACE_ID,
         resourceType: UsageResourceType.API,
         operationType: UsageOperationType.API_REQUEST,
-        spenderType: 'apiKey',
-        spenderId: apiKeyId,
-        limitKind: 'speed',
+        ...spender,
+        limitKind: 'speed' as const,
         periodCount: WINDOW_SECONDS,
-        periodUnit: 'second',
+        periodUnit: 'second' as const,
         unit: UsageUnit.REQUEST,
         limitValue: LIMIT_VALUE,
         burstValue: LIMIT_VALUE,
-      },
-    ]);
+      })),
+    );
 
-    usageLimitId = usageLimit.id;
+    usageLimitIds = usageLimits.map(({ id }) => id);
 
     await invalidateWorkspaceCaches();
-  });
+  }, 120_000);
 
   afterAll(async () => {
-    await usageLimitRepository.delete({ id: usageLimitId });
+    await usageLimitRepository.delete(usageLimitIds);
     await apiKeyRepository.delete({ id: apiKeyId });
     await invalidateWorkspaceCaches();
     await redis.quit();
+    await cleanupApplicationAndAppRegistration({
+      applicationUniversalIdentifier,
+    });
+  }, 120_000);
+
+  describe('API keys remain exempt from configured request limits', () => {
+    it('admits repeated GraphQL requests even with a one-request limit', async () => {
+      for (let index = 0; index < 3; index++) {
+        const response = await findCompaniesOverGraphql(apiKeyToken);
+
+        expect(response.status).toBe(200);
+        expect(response.body.errors).toBeUndefined();
+        expect(response.body.data.companies.edges).toBeDefined();
+      }
+    });
+
+    it('admits repeated REST requests without rate-limit denial headers', async () => {
+      for (let index = 0; index < 3; index++) {
+        const response = await findCompaniesOverRest(apiKeyToken);
+
+        expect(response.status).toBe(200);
+        expect(response.body.data.companies).toBeDefined();
+        expect(response.headers['retry-after']).toBeUndefined();
+      }
+    });
   });
 
-  describe('over GraphQL', () => {
+  describe('application tokens over GraphQL', () => {
     it('admits a request and rejects the one that follows it', async () => {
       await waitForBucketRefill();
 
@@ -190,7 +265,7 @@ describe('API rate limiting', () => {
         remaining: 0,
         periodCount: WINDOW_SECONDS,
         periodUnit: 'second',
-        scope: { spenderType: 'apiKey', spenderId: apiKeyId },
+        scope: { spenderType: 'application', spenderId: applicationId },
       });
       expect(extensions.retryAfterMs).toBeGreaterThan(0);
     });
@@ -206,7 +281,7 @@ describe('API rate limiting', () => {
     });
   });
 
-  describe('over REST', () => {
+  describe('application tokens over REST', () => {
     it('admits a request and rejects the one that follows it', async () => {
       await waitForBucketRefill();
 
@@ -235,7 +310,7 @@ describe('API rate limiting', () => {
         periodCount: WINDOW_SECONDS,
         periodUnit: 'second',
         retryAfterSeconds: 1,
-        scope: { spenderType: 'apiKey', spenderId: apiKeyId },
+        scope: { spenderType: 'application', spenderId: applicationId },
       });
       expect(body.messages).toHaveLength(1);
     });
