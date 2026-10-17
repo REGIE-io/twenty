@@ -15,7 +15,6 @@ jest.useRealTimers();
 
 config({
   path: process.env.NODE_ENV === 'test' ? '.env.test' : '.env',
-  override: true,
 });
 
 const PUBLIC_KEY_FIXTURE =

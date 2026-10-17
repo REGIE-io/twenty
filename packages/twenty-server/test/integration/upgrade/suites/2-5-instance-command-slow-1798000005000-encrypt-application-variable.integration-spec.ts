@@ -16,7 +16,6 @@ jest.useRealTimers();
 
 config({
   path: process.env.NODE_ENV === 'test' ? '.env.test' : '.env',
-  override: true,
 });
 
 const TEST_ROW_KEY_PREFIX = 'ENCRYPT_APP_VAR_TEST_';

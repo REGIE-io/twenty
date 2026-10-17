@@ -17,7 +17,6 @@ jest.useRealTimers();
 
 config({
   path: process.env.NODE_ENV === 'test' ? '.env.test' : '.env',
-  override: true,
 });
 
 const SENSITIVE_STRING_KEY = 'EMAIL_SMTP_USER';
