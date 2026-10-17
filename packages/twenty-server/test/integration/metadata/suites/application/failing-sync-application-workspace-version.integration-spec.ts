@@ -24,9 +24,10 @@ const injectWorkspaceCursor = async (
   await global.testDataSource.query(
     `INSERT INTO core."upgradeMigration"
        (name, status, attempt, "executedByVersion", "workspaceId", "isInitial")
-     SELECT $1, $2, COALESCE(MAX(attempt), 0) + 1, $3, $4, false
+     SELECT $1::varchar, $2::varchar, COALESCE(MAX(attempt), 0) + 1,
+            $3::varchar, $4::uuid, false
      FROM core."upgradeMigration"
-     WHERE name = $1 AND "workspaceId" = $4`,
+     WHERE name = $1::varchar AND "workspaceId" = $4::uuid`,
     [name, status, INJECTED_CURSOR_MARKER, SEED_APPLE_WORKSPACE_ID],
   );
 };
