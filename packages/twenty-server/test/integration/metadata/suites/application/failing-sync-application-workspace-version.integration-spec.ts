@@ -19,13 +19,14 @@ const injectWorkspaceCursor = async (
   name: string,
   status: 'completed' | 'failed',
 ): Promise<void> => {
-  // Inject as attempt 2 with a fresh createdAt (now): this stays unique against
-  // the seeded completed attempt-1 cursor (which may share this name) and
-  // outranks it, so getWorkspaceCompletedVersion reads this attempt.
+  // Earlier migration suites can leave several legitimate attempts behind.
+  // Append a new attempt without overwriting their history.
   await global.testDataSource.query(
     `INSERT INTO core."upgradeMigration"
        (name, status, attempt, "executedByVersion", "workspaceId", "isInitial")
-     VALUES ($1, $2, 2, $3, $4, false)`,
+     SELECT $1, $2, COALESCE(MAX(attempt), 0) + 1, $3, $4, false
+     FROM core."upgradeMigration"
+     WHERE name = $1 AND "workspaceId" = $4`,
     [name, status, INJECTED_CURSOR_MARKER, SEED_APPLE_WORKSPACE_ID],
   );
 };

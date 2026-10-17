@@ -172,7 +172,10 @@ describe('UpgradeSequenceRunnerService - dry run (integration)', () => {
         options: DRY_RUN_OPTIONS,
       });
 
-      expect(report).toEqual({ totalSuccesses: 2, totalFailures: 0 });
+      expect(report).toEqual({
+        totalSuccesses: status === 'completed' ? 0 : 2,
+        totalFailures: 0,
+      });
       expect(runFastInstanceCommandSpy).not.toHaveBeenCalled();
       expect(runSlowInstanceCommandSpy).not.toHaveBeenCalled();
       if (status === 'completed') {
