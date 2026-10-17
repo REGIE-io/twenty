@@ -10,6 +10,7 @@ import { SEED_APPLE_WORKSPACE_ID } from 'src/engine/workspace-manager/dev-seeder
 import { type MessageWorkspaceEntity } from 'src/modules/messaging/common/standard-objects/message.workspace-entity';
 import { type InboundEmailImportService } from 'src/modules/messaging/message-import-manager/drivers/inbound-email/services/inbound-email-import.service';
 
+import { cleanupInboundEmailFixtures } from 'test/integration/resend/utils/cleanup-inbound-email-fixtures.util';
 import { updateConfigVariable } from 'test/integration/twenty-config/utils/update-config-variable.util';
 import { getAppProviderByClassName } from 'test/integration/utils/get-app-provider-by-class-name.util';
 import { getCoreRepository } from 'test/integration/utils/get-core-repository.util';
@@ -50,8 +51,11 @@ describe('Inbound email body text (integration)', () => {
 
   let groupChannelId: string;
   let groupHandle: string;
+  const headerMessageIds: string[] = [];
 
-  const importEmail = async (rawEmail: string) => {
+  const importEmail = async (rawEmail: string, headerMessageId: string) => {
+    // Register before importing so teardown also covers a partially failed import.
+    headerMessageIds.push(headerMessageId);
     const receivedEmailId = randomUUID();
     const downloadUrl = `${RAW_EMAIL_DOWNLOAD_BASE_URL}/${receivedEmailId}`;
 
@@ -128,9 +132,10 @@ describe('Inbound email body text (integration)', () => {
   }, 60000);
 
   afterAll(async () => {
-    await messageChannelRepository
-      .delete({ id: groupChannelId })
-      .catch(() => undefined);
+    await cleanupInboundEmailFixtures({ headerMessageIds });
+    if (groupChannelId) {
+      await messageChannelRepository.delete({ id: groupChannelId });
+    }
   });
 
   it('stores the text of an email that only has an HTML body', async () => {
@@ -143,6 +148,7 @@ describe('Inbound email body text (integration)', () => {
         contentType: 'text/html',
         body: '<html><body><p>Sie haben 49,00 EUR erhalten.</p></body></html>',
       }),
+      headerMessageId,
     );
 
     expect(await findTextOfMessage(headerMessageId)).toBe(
@@ -165,6 +171,7 @@ describe('Inbound email body text (integration)', () => {
           '> Our spring offer',
         ].join('\r\n'),
       }),
+      headerMessageId,
     );
 
     expect(await findTextOfMessage(headerMessageId)).toBe(

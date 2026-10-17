@@ -14,6 +14,7 @@ import { type MessageThreadWorkspaceEntity } from 'src/modules/messaging/common/
 import { type MessageWorkspaceEntity } from 'src/modules/messaging/common/standard-objects/message.workspace-entity';
 import { type InboundEmailImportService } from 'src/modules/messaging/message-import-manager/drivers/inbound-email/services/inbound-email-import.service';
 
+import { cleanupInboundEmailFixtures } from 'test/integration/resend/utils/cleanup-inbound-email-fixtures.util';
 import { updateConfigVariable } from 'test/integration/twenty-config/utils/update-config-variable.util';
 import { getAppProviderByClassName } from 'test/integration/utils/get-app-provider-by-class-name.util';
 import { getCoreRepository } from 'test/integration/utils/get-core-repository.util';
@@ -63,6 +64,8 @@ describe('Inbound email reply threading (integration)', () => {
 
   let groupChannelId: string;
   let groupHandle: string;
+  const headerMessageIds: string[] = [];
+  const messageThreadIds: string[] = [];
 
   const inWorkspace = <TResult>(
     work: (workspaceOrmManager: WorkspaceOrmManager) => Promise<TResult>,
@@ -93,6 +96,8 @@ describe('Inbound email reply threading (integration)', () => {
     inWorkspace(async (workspaceOrmManager) => {
       const messageThreadId = randomUUID();
       const messageId = randomUUID();
+
+      messageThreadIds.push(messageThreadId);
 
       await workspaceOrmManager
         .getRepository<MessageThreadWorkspaceEntity>('messageThread', {
@@ -129,7 +134,9 @@ describe('Inbound email reply threading (integration)', () => {
       return messageThreadId;
     });
 
-  const importReply = async (rawReply: string) => {
+  const importReply = async (rawReply: string, headerMessageId: string) => {
+    // Register before importing so teardown also covers a partially failed import.
+    headerMessageIds.push(headerMessageId);
     const receivedEmailId = randomUUID();
     const downloadUrl = `${RAW_EMAIL_DOWNLOAD_BASE_URL}/${receivedEmailId}`;
 
@@ -197,9 +204,10 @@ describe('Inbound email reply threading (integration)', () => {
   }, 60000);
 
   afterAll(async () => {
-    await messageChannelRepository
-      .delete({ id: groupChannelId })
-      .catch(() => undefined);
+    await cleanupInboundEmailFixtures({ headerMessageIds, messageThreadIds });
+    if (groupChannelId) {
+      await messageChannelRepository.delete({ id: groupChannelId });
+    }
   });
 
   it('joins the sent thread when the reply carries the Twenty token in References', async () => {
@@ -221,6 +229,7 @@ describe('Inbound email reply threading (integration)', () => {
         inReplyTo: sentHeaderMessageId,
         references: `${threadToken} ${sentHeaderMessageId}`,
       }),
+      replyHeaderMessageId,
     );
 
     expect(await findThreadIdOfMessage(replyHeaderMessageId)).toBe(
@@ -244,6 +253,7 @@ describe('Inbound email reply threading (integration)', () => {
         headerMessageId: replyHeaderMessageId,
         inReplyTo: `<${providerMessageId}@email.amazonses.com>`,
       }),
+      replyHeaderMessageId,
     );
 
     expect(await findThreadIdOfMessage(replyHeaderMessageId)).toBe(
@@ -267,6 +277,7 @@ describe('Inbound email reply threading (integration)', () => {
         headerMessageId: replyHeaderMessageId,
         references: threadToken,
       }),
+      replyHeaderMessageId,
     );
 
     expect(await findThreadIdOfMessage(replyHeaderMessageId)).not.toBe(
