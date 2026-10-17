@@ -6,7 +6,7 @@ import {
 
 import { CORE_WORKFLOW_FILTER_FIELDS } from '@/object-core/workflows/constants/CoreWorkflowFilterFields';
 import { buildCoreWorkflowFilterInput } from '@/object-core/workflows/utils/buildCoreWorkflowFilterInput';
-import { getStepFilterOperands } from '@/workflow/workflow-steps/filters/utils/getStepFilterOperands';
+import { getCoreWorkflowFilterOperands } from '@/object-core/workflows/utils/getCoreWorkflowFilterOperands';
 import {
   CoreWorkflowFilterFieldKey,
   CoreWorkflowFilterLogicalOperator,
@@ -131,9 +131,8 @@ describe('buildCoreWorkflowFilterInput', () => {
   });
 
   const fieldOperandPairs = CORE_WORKFLOW_FILTER_FIELDS.flatMap((field) =>
-    getStepFilterOperands({
+    getCoreWorkflowFilterOperands({
       filterType: field.filterType,
-      subFieldName: undefined,
     }).map((operand) => [field.key, operand] as const),
   );
 

@@ -14,18 +14,22 @@ import { ViewFilterOperand, type StepFilter } from 'twenty-shared/types';
 
 type WorkflowStepFilterOperandSelectProps = {
   stepFilter: StepFilter;
+  operands?: readonly ViewFilterOperand[];
 };
 
 export const WorkflowStepFilterOperandSelect = ({
   stepFilter,
+  operands: operandsOverride,
 }: WorkflowStepFilterOperandSelectProps) => {
   const { readonly } = useContext(WorkflowStepFilterContext);
 
   const { upsertStepFilterSettings } = useUpsertStepFilterSettings();
-  const operands = getStepFilterOperands({
-    filterType: stepFilter.type,
-    subFieldName: stepFilter.compositeFieldSubFieldName,
-  });
+  const operands =
+    operandsOverride ??
+    getStepFilterOperands({
+      filterType: stepFilter.type,
+      subFieldName: stepFilter.compositeFieldSubFieldName,
+    });
 
   const options = operands.map((operand) => ({
     value: operand,

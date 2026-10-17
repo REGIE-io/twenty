@@ -5,10 +5,10 @@ import { isDefined } from 'twenty-shared/utils';
 
 import { CORE_WORKFLOW_FILTER_FIELDS } from '@/object-core/workflows/constants/CoreWorkflowFilterFields';
 import { findCoreWorkflowFilterField } from '@/object-core/workflows/utils/findCoreWorkflowFilterField';
+import { getCoreWorkflowFilterOperands } from '@/object-core/workflows/utils/getCoreWorkflowFilterOperands';
 import { Select } from '@/ui/input/components/Select';
 import { useUpsertStepFilterSettings } from '@/workflow/workflow-steps/filters/hooks/useUpsertStepFilterSettings';
 import { WorkflowStepFilterContext } from '@/workflow/workflow-steps/filters/states/context/WorkflowStepFilterContext';
-import { getStepFilterOperands } from '@/workflow/workflow-steps/filters/utils/getStepFilterOperands';
 
 type CoreWorkflowFilterFieldSelectProps = {
   stepFilter: StepFilter;
@@ -28,9 +28,8 @@ export const CoreWorkflowFilterFieldSelect = ({
       return;
     }
 
-    const [defaultOperand] = getStepFilterOperands({
+    const [defaultOperand] = getCoreWorkflowFilterOperands({
       filterType: selectedField.filterType,
-      subFieldName: undefined,
     });
 
     upsertStepFilterSettings({

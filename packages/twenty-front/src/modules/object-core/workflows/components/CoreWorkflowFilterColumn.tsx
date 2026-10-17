@@ -5,6 +5,7 @@ import { themeCssVariables } from 'twenty-ui/theme';
 
 import { CoreWorkflowFilterFieldSelect } from '@/object-core/workflows/components/CoreWorkflowFilterFieldSelect';
 import { CoreWorkflowFilterValueInput } from '@/object-core/workflows/components/CoreWorkflowFilterValueInput';
+import { getCoreWorkflowFilterOperands } from '@/object-core/workflows/utils/getCoreWorkflowFilterOperands';
 import { AdvancedFilterSidePanelColumn } from '@/object-record/advanced-filter/side-panel/components/AdvancedFilterSidePanelColumn';
 import { WorkflowStepFilterLogicalOperatorCell } from '@/workflow/workflow-steps/filters/components/WorkflowStepFilterLogicalOperatorCell';
 import { WorkflowStepFilterOperandSelect } from '@/workflow/workflow-steps/filters/components/WorkflowStepFilterOperandSelect';
@@ -43,7 +44,12 @@ export const CoreWorkflowFilterColumn = ({
         )}
       </StyledContainer>
       <CoreWorkflowFilterFieldSelect stepFilter={stepFilter} />
-      <WorkflowStepFilterOperandSelect stepFilter={stepFilter} />
+      <WorkflowStepFilterOperandSelect
+        stepFilter={stepFilter}
+        operands={getCoreWorkflowFilterOperands({
+          filterType: stepFilter.type,
+        })}
+      />
       <CoreWorkflowFilterValueInput stepFilter={stepFilter} />
     </AdvancedFilterSidePanelColumn>
   );
