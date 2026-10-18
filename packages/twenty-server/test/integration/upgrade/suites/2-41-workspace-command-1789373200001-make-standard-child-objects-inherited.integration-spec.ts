@@ -1,4 +1,3 @@
-import { updateOneObjectMetadata } from 'test/integration/metadata/suites/object-metadata/utils/update-one-object-metadata.util';
 import { getAppProviderByClassName } from 'test/integration/utils/get-app-provider-by-class-name.util';
 import { getCoreRepository } from 'test/integration/utils/get-core-repository.util';
 import { STANDARD_OBJECT_FIELDS } from 'twenty-shared/metadata';
@@ -9,6 +8,7 @@ import { type MakeStandardChildObjectsInheritedCommand } from 'src/database/comm
 import { ObjectMetadataEntity } from 'src/engine/metadata-modules/object-metadata/object-metadata.entity';
 import { buildSystemAuthContext } from 'src/engine/twenty-orm/utils/build-system-auth-context.util';
 import { WorkspaceOrmManager } from 'src/engine/twenty-orm/workspace-orm.manager';
+import { type WorkspaceCacheService } from 'src/engine/workspace-cache/services/workspace-cache.service';
 import { SEED_APPLE_WORKSPACE_ID } from 'src/engine/workspace-manager/dev-seeder/core/constants/seeder-workspaces.constant';
 
 const authContext = buildSystemAuthContext(SEED_APPLE_WORKSPACE_ID);
@@ -100,6 +100,7 @@ describe('2-41 workspace command 1789373200001 - MakeStandardChildObjectsInherit
   let command: MakeStandardChildObjectsInheritedCommand;
   let workspaceOrmManager: WorkspaceOrmManager;
   let objectMetadataIds: string[];
+  let originalObjectMetadata: ObjectMetadataEntity[] = [];
 
   const objectMetadataRepository = () =>
     getCoreRepository<ObjectMetadataEntity>(ObjectMetadataEntity);
@@ -141,17 +142,11 @@ describe('2-41 workspace command 1789373200001 - MakeStandardChildObjectsInherit
       },
     );
 
-    for (const objectMetadataId of objectMetadataIds) {
-      const { errors } = await updateOneObjectMetadata({
-        expectToFail: false,
-        input: {
-          idToUpdate: objectMetadataId,
-          updatePayload: { description: 'readability reset to legacy OPEN' },
-        },
-      });
-
-      expect(errors).toBeUndefined();
-    }
+    await getAppProviderByClassName<WorkspaceCacheService>(
+      'WorkspaceCacheService',
+    ).invalidateAndRecompute(SEED_APPLE_WORKSPACE_ID, [
+      'flatObjectMetadataMaps',
+    ]);
   };
 
   beforeAll(async () => {
@@ -172,6 +167,7 @@ describe('2-41 workspace command 1789373200001 - MakeStandardChildObjectsInherit
 
     expect(objectMetadataItems).toHaveLength(OBJECT_NAMES_SINGULAR.length);
 
+    originalObjectMetadata = objectMetadataItems;
     objectMetadataIds = objectMetadataItems.map(
       (objectMetadata) => objectMetadata.id,
     );
@@ -180,7 +176,47 @@ describe('2-41 workspace command 1789373200001 - MakeStandardChildObjectsInherit
   });
 
   afterAll(async () => {
-    await runCommand();
+    // Replaying this historical command would undo newer permission migrations.
+    for (const objectMetadata of originalObjectMetadata) {
+      await objectMetadataRepository().update(objectMetadata.id, {
+        readability: objectMetadata.readability,
+        readabilityParentFieldUniversalIdentifiers:
+          objectMetadata.readabilityParentFieldUniversalIdentifiers,
+        updatedAt: objectMetadata.updatedAt,
+      });
+    }
+
+    const workspaceCacheService =
+      getAppProviderByClassName<WorkspaceCacheService>('WorkspaceCacheService');
+
+    await workspaceCacheService.invalidateAndRecompute(
+      SEED_APPLE_WORKSPACE_ID,
+      ['flatObjectMetadataMaps'],
+    );
+
+    const { flatObjectMetadataMaps } =
+      await workspaceCacheService.getOrRecompute(SEED_APPLE_WORKSPACE_ID, [
+        'flatObjectMetadataMaps',
+      ]);
+
+    for (const objectMetadata of originalObjectMetadata) {
+      const expectedState = {
+        readability: objectMetadata.readability,
+        readabilityParentFieldUniversalIdentifiers:
+          objectMetadata.readabilityParentFieldUniversalIdentifiers,
+      };
+
+      expect(
+        await objectMetadataRepository().findOneByOrFail({
+          id: objectMetadata.id,
+        }),
+      ).toMatchObject(expectedState);
+      expect(
+        flatObjectMetadataMaps.byUniversalIdentifier[
+          objectMetadata.universalIdentifier
+        ],
+      ).toMatchObject(expectedState);
+    }
   });
 
   it('leaves the objects OPEN on a dry run', async () => {
