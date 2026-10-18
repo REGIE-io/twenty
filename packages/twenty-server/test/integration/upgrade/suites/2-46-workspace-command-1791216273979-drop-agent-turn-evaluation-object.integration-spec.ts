@@ -20,6 +20,73 @@ describe('2-46 workspace command - drop agent turn evaluation object (integratio
   let command: DropAgentTurnEvaluationObjectCommand;
   let workspaceCacheService: WorkspaceCacheService;
   let objectMetadataId: string;
+  let fixtureIndexNames: string[] = [];
+
+  const cleanupFixtureRelations = async () => {
+    // The custom stand-in creates inverse relations the retired standard object never had.
+    const schema = getWorkspaceSchemaName(SEED_APPLE_WORKSPACE_ID);
+    const columns: { table_name: string }[] = await global.testDataSource.query(
+      `SELECT table_name FROM information_schema.columns
+       WHERE table_schema = $1 AND column_name = 'targetLegacyTurnEvaluationId'`,
+      [schema],
+    );
+    const tableNames = columns.map(({ table_name }) => table_name);
+    const remainingFields = await global.testDataSource.query(
+      `SELECT field.id FROM core."fieldMetadata" field
+       JOIN core."objectMetadata" object ON object.id = field."objectMetadataId"
+       WHERE object."workspaceId" = $1 AND object."nameSingular" = ANY($2)
+         AND field.name = 'targetLegacyTurnEvaluation'`,
+      [SEED_APPLE_WORKSPACE_ID, tableNames],
+    );
+
+    expect(remainingFields).toEqual([]);
+
+    const indexes: { indexname: string }[] = await global.testDataSource.query(
+      `SELECT indexname FROM pg_indexes WHERE schemaname = $1 AND tablename = ANY($2)
+       AND indexdef LIKE '%("targetLegacyTurnEvaluationId")'`,
+      [schema, tableNames],
+    );
+    const indexNames = [
+      ...new Set([
+        ...fixtureIndexNames,
+        ...indexes.map(({ indexname }) => indexname),
+      ]),
+    ];
+
+    await global.testDataSource.query(
+      `DELETE FROM core."indexMetadata" indexMetadata
+       WHERE "workspaceId" = $1 AND name = ANY($2)
+         AND NOT EXISTS (SELECT 1 FROM core."indexFieldMetadata" indexField
+                         WHERE indexField."indexMetadataId" = indexMetadata.id)`,
+      [SEED_APPLE_WORKSPACE_ID, indexNames],
+    );
+
+    expect(
+      await global.testDataSource.query(
+        'SELECT id FROM core."indexMetadata" WHERE "workspaceId" = $1 AND name = ANY($2)',
+        [SEED_APPLE_WORKSPACE_ID, indexNames],
+      ),
+    ).toEqual([]);
+
+    for (const table of tableNames) {
+      await global.testDataSource.query(
+        `ALTER TABLE "${schema}".${global.testDataSource.driver.escape(table)} DROP COLUMN "targetLegacyTurnEvaluationId"`,
+      );
+    }
+
+    expect(
+      await global.testDataSource.query(
+        `SELECT table_name FROM information_schema.columns
+       WHERE table_schema = $1 AND column_name = 'targetLegacyTurnEvaluationId'`,
+        [schema],
+      ),
+    ).toEqual([]);
+
+    await workspaceCacheService.invalidateAndRecompute(
+      SEED_APPLE_WORKSPACE_ID,
+      ['flatObjectMetadataMaps', 'flatFieldMetadataMaps', 'flatIndexMaps'],
+    );
+  };
 
   const findEvaluationObject = async () => {
     const { flatObjectMetadataMaps } =
@@ -50,6 +117,8 @@ describe('2-46 workspace command - drop agent turn evaluation object (integratio
       'WorkspaceCacheService',
     );
 
+    await cleanupFixtureRelations();
+
     const { data } = await createOneObjectMetadata({
       expectToFail: false,
       input: {
@@ -63,6 +132,17 @@ describe('2-46 workspace command - drop agent turn evaluation object (integratio
 
     objectMetadataId = data.createOneObject.id;
 
+    const fixtureIndexes: { name: string }[] =
+      await global.testDataSource.query(
+        `SELECT DISTINCT indexMetadata.name FROM core."indexMetadata" indexMetadata
+       JOIN core."indexFieldMetadata" indexField ON indexField."indexMetadataId" = indexMetadata.id
+       JOIN core."fieldMetadata" field ON field.id = indexField."fieldMetadataId"
+       WHERE field."workspaceId" = $1 AND field."relationTargetObjectMetadataId" = $2`,
+        [SEED_APPLE_WORKSPACE_ID, objectMetadataId],
+      );
+
+    fixtureIndexNames = fixtureIndexes.map(({ name }) => name);
+
     // Stands in for the object a workspace provisioned before 2.46
     await global.testDataSource.query(
       `UPDATE core."objectMetadata" SET "universalIdentifier" = $1 WHERE id = $2`,
@@ -70,8 +150,20 @@ describe('2-46 workspace command - drop agent turn evaluation object (integratio
     );
     await workspaceCacheService.invalidateAndRecompute(
       SEED_APPLE_WORKSPACE_ID,
-      ['flatObjectMetadataMaps'],
+      ['flatObjectMetadataMaps', 'flatFieldMetadataMaps', 'flatIndexMaps'],
     );
+  });
+
+  afterAll(async () => {
+    try {
+      if (objectMetadataId) {
+        await command.runOnWorkspace(RUN_ON_WORKSPACE_ARGS);
+        expect(await findEvaluationObject()).toBeUndefined();
+        expect(await countEvaluationTables()).toBe(0);
+      }
+    } finally {
+      await cleanupFixtureRelations();
+    }
   });
 
   it('deletes the object and its table', async () => {

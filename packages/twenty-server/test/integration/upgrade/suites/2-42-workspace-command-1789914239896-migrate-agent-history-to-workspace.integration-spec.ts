@@ -140,6 +140,10 @@ describe('versioned agent history upgrade (integration)', () => {
     dataSource = owners.manager.connection;
     const owner = await owners.findOneByOrFail({ workspaceId: WORKSPACE_ID });
 
+    // Capture the current schema before rolling it back to the historical shape.
+    seededAgentChatThreadTarget =
+      await describeAgentChatThreadTarget(dataSource);
+
     // Recreate the pre-2.47 state this upgrade rolls back from: the core
     // tables, and the route 2.42 recorded on every workspace it moved
     const runner = dataSource.createQueryRunner();
@@ -162,9 +166,6 @@ describe('versioned agent history upgrade (integration)', () => {
       [threadId, WORKSPACE_ID, owner.id, 'History before upgrade', streamId],
     );
 
-    seededAgentChatThreadTarget =
-      await describeAgentChatThreadTarget(dataSource);
-
     // Later objects relate into history and would be stranded when the thread object is deleted.
     const historyObjectNames = ACTIVE_AGENT_HISTORY_TABLES.map(
       ({ name }) => name,
@@ -185,6 +186,19 @@ describe('versioned agent history upgrade (integration)', () => {
     ).map(({ nameSingular }) => nameSingular);
 
     expect(laterObjectNames).toContain('agentChatThreadTarget');
+
+    // Raw field cascades remove index bindings, but not indexes owned by surviving objects.
+    await dataSource.query(
+      `DELETE FROM core."indexMetadata" indexMetadata
+       USING core."indexFieldMetadata" indexField, core."fieldMetadata" field,
+             core."objectMetadata" targetObject
+       WHERE indexField."indexMetadataId" = indexMetadata.id
+         AND indexField."fieldMetadataId" = field.id
+         AND field."relationTargetObjectMetadataId" = targetObject.id
+         AND targetObject."workspaceId" = $1
+         AND targetObject."nameSingular" = ANY($2)`,
+      [WORKSPACE_ID, [...historyObjectNames, ...laterObjectNames]],
+    );
 
     // Recreate a pre-upgrade workspace: history only in core, no standard or later objects installed.
     await dataSource.query(
@@ -313,16 +327,17 @@ describe('versioned agent history upgrade (integration)', () => {
         buildSystemAuthContext(WORKSPACE_ID),
       );
     }
-    await assertChatParticipantSchema(dataSource, WORKSPACE_ID);
-    expect(await describeAgentChatThreadTarget(dataSource)).toEqual(
-      seededAgentChatThreadTarget,
-    );
     const runner = dataSource.createQueryRunner();
     try {
       await new DropCoreAgentHistoryTablesFastInstanceCommand().up(runner);
     } finally {
       await runner.release();
     }
+    // Assertions must not strand the legacy core tables if restoration differs.
+    await assertChatParticipantSchema(dataSource, WORKSPACE_ID);
+    expect(await describeAgentChatThreadTarget(dataSource)).toEqual(
+      seededAgentChatThreadTarget,
+    );
   });
 
   it('skips absent schemas only when no history or migration state exists', async () => {

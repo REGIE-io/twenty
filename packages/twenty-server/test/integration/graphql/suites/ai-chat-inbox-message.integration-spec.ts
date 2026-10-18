@@ -1,4 +1,7 @@
 import { parse } from 'graphql';
+import { createOneOperationFactory } from 'test/integration/graphql/utils/create-one-operation-factory.util';
+import { destroyManyOperationFactory } from 'test/integration/graphql/utils/destroy-many-operation-factory.util';
+import { makeGraphqlApiRequest } from 'test/integration/graphql/utils/make-graphql-api-request.util';
 import { answerToolCall } from 'test/integration/graphql/suites/workflow/utils/answer-tool-call.util';
 import { cleanupApplicationAndAppRegistration } from 'test/integration/metadata/suites/application/utils/cleanup-application-and-app-registration.util';
 import {
@@ -22,11 +25,44 @@ import { buildSystemAuthContext } from 'src/engine/twenty-orm/utils/build-system
 import { type WorkspaceOrmManager } from 'src/engine/twenty-orm/workspace-orm.manager';
 import { getWorkspaceSchemaName } from 'src/engine/workspace-datasource/utils/get-workspace-schema-name.util';
 import { SEED_APPLE_WORKSPACE_ID } from 'src/engine/workspace-manager/dev-seeder/core/constants/seeder-workspaces.constant';
-import { OPPORTUNITY_DATA_SEED_IDS } from 'src/engine/workspace-manager/dev-seeder/data/constants/opportunity-data-seeds.constant';
 import { USER_WORKSPACE_DATA_SEED_IDS } from 'src/engine/workspace-manager/dev-seeder/core/utils/seed-user-workspaces.util';
 import { WORKSPACE_MEMBER_DATA_SEED_IDS } from 'src/engine/workspace-manager/dev-seeder/data/constants/workspace-member-data-seeds.constant';
 
 const schema = getWorkspaceSchemaName(SEED_APPLE_WORKSPACE_ID);
+const OPPORTUNITY_ID = uuidv4();
+
+beforeAll(async () => {
+  const response = await makeGraphqlApiRequest(
+    createOneOperationFactory({
+      objectMetadataSingularName: 'opportunity',
+      gqlFields: 'id stage',
+      data: {
+        id: OPPORTUNITY_ID,
+        name: 'Inbox proposal fixture',
+        stage: 'NEW',
+      },
+    }),
+  );
+
+  expect(response.body.errors).toBeUndefined();
+  expect(response.body.data.createOpportunity).toMatchObject({
+    id: OPPORTUNITY_ID,
+    stage: 'NEW',
+  });
+});
+
+afterAll(async () => {
+  const response = await makeGraphqlApiRequest(
+    destroyManyOperationFactory({
+      objectMetadataSingularName: 'opportunity',
+      objectMetadataPluralName: 'opportunities',
+      gqlFields: 'id',
+      filter: { id: { eq: OPPORTUNITY_ID } },
+    }),
+  );
+
+  expect(response.body.errors).toBeUndefined();
+});
 
 const SEND_INBOX_MESSAGE = parse(`
   mutation SendInboxMessage($input: SendInboxMessageInput!) {
@@ -160,7 +196,7 @@ describe('Sending an inbox message as an application', () => {
         toolName: 'propose_tool_call',
         input: {
           toolName: 'update_one_opportunity',
-          arguments: { id: OPPORTUNITY_DATA_SEED_IDS.ID_1, stage: 'WON' },
+          arguments: { id: OPPORTUNITY_ID, stage: 'WON' },
           summary: 'Mark the deal as won',
         },
       },
@@ -452,7 +488,7 @@ describe('Proposing a record call as an application', () => {
               toolName: 'propose_tool_call',
               input: {
                 toolName: 'update_one_opportunity',
-                arguments: { id: OPPORTUNITY_DATA_SEED_IDS.ID_1, stage: 'WON' },
+                arguments: { id: OPPORTUNITY_ID, stage: 'WON' },
                 summary: 'Mark the deal as won',
               },
             },
@@ -474,7 +510,7 @@ describe('Proposing a record call as an application', () => {
 
     const [opportunity] = await global.testDataSource.query(
       `SELECT stage FROM "${schema}"."opportunity" WHERE id = $1`,
-      [OPPORTUNITY_DATA_SEED_IDS.ID_1],
+      [OPPORTUNITY_ID],
     );
 
     expect(part.toolOutput.result).toMatchObject({
@@ -483,9 +519,10 @@ describe('Proposing a record call as an application', () => {
         toolName: 'update_one_opportunity',
         template: 'recordUpdate',
         objectNameSingular: 'opportunity',
-        recordId: OPPORTUNITY_DATA_SEED_IDS.ID_1,
-        currentValues: { stage: opportunity.stage },
+        recordId: OPPORTUNITY_ID,
+        currentValues: { stage: 'NEW' },
       },
     });
+    expect(opportunity.stage).toBe('NEW');
   });
 });

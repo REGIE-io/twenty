@@ -8,6 +8,7 @@ import { createOneOperationFactory } from 'test/integration/graphql/utils/create
 import { deleteManyOperationFactory } from 'test/integration/graphql/utils/delete-many-operation-factory.util';
 import { deleteOneOperationFactory } from 'test/integration/graphql/utils/delete-one-operation-factory.util';
 import { deleteRole } from 'test/integration/graphql/utils/delete-one-role.util';
+import { destroyManyOperationFactory } from 'test/integration/graphql/utils/destroy-many-operation-factory.util';
 import { findManyOperationFactory } from 'test/integration/graphql/utils/find-many-operation-factory.util';
 import { findOneOperationFactory } from 'test/integration/graphql/utils/find-one-operation-factory.util';
 import { groupByOperationFactory } from 'test/integration/graphql/utils/group-by-operation-factory.util';
@@ -169,14 +170,14 @@ describe('Field permissions restrictions', () => {
       data: { id: companyId, name: 'TestCompany' },
     });
 
-    await makeGraphqlApiRequest(createCompanyOp);
+    expectNoGraphQLErrors(await makeGraphqlApiRequest(createCompanyOp));
     const createPersonOperation = createOneOperationFactory({
       objectMetadataSingularName: 'person',
       gqlFields: 'id jobTitle',
       data: { id: personId, jobTitle: 'Paris', companyId },
     });
 
-    await makeGraphqlApiRequest(createPersonOperation);
+    expectNoGraphQLErrors(await makeGraphqlApiRequest(createPersonOperation));
 
     const getObjectMetadataOp = {
       query: gql`
@@ -252,6 +253,27 @@ describe('Field permissions restrictions', () => {
       .post('/metadata')
       .set('Authorization', `Bearer ${APPLE_JANE_ADMIN_ACCESS_TOKEN}`)
       .send(restoreMemberRoleQuery);
+
+    for (const [
+      objectMetadataSingularName,
+      objectMetadataPluralName,
+      recordId,
+    ] of [
+      ['person', 'people', personId],
+      ['company', 'companies', companyId],
+    ]) {
+      if (!recordId) continue;
+      const response = await makeGraphqlApiRequest(
+        destroyManyOperationFactory({
+          objectMetadataSingularName,
+          objectMetadataPluralName,
+          gqlFields: 'id',
+          filter: { id: { eq: recordId } },
+        }),
+      );
+
+      expectNoGraphQLErrors(response);
+    }
   });
 
   beforeEach(async () => {
@@ -271,6 +293,11 @@ describe('Field permissions restrictions', () => {
 
   afterEach(async () => {
     if (customRoleId) {
+      await updateWorkspaceMemberRole({
+        client,
+        roleId: originalMemberRoleId,
+        workspaceMemberId: WORKSPACE_MEMBER_DATA_SEED_IDS.JONY,
+      });
       await deleteRole(client, customRoleId);
       customRoleId = '';
     }
@@ -290,6 +317,7 @@ describe('Field permissions restrictions', () => {
         objectMetadataSingularName: 'company',
         objectMetadataPluralName: 'companies',
         gqlFields: COMPANY_GQL_FIELDS_WITH_POSITION,
+        filter: { id: { eq: companyId } },
       });
       const response =
         await makeGraphqlApiRequestWithMemberRole(graphqlOperation);
@@ -408,11 +436,19 @@ describe('Field permissions restrictions', () => {
       objectMetadataSingularName: 'company',
       objectMetadataPluralName: 'companies',
       gqlFields: COMPANY_GQL_FIELDS_WITH_PEOPLE_JOB_TITLE,
+      filter: { id: { eq: companyId } },
     });
     const response =
       await makeGraphqlApiRequestWithMemberRole(graphqlOperation);
 
     expectNoGraphQLErrors(response);
+    expect(response.body.data.companies.edges).toHaveLength(1);
+    expect(
+      response.body.data.companies.edges[0].node.people.edges,
+    ).toHaveLength(1);
+    expect(
+      response.body.data.companies.edges[0].node.people.edges[0].node.id,
+    ).toBe(personId);
     expect(
       response.body.data.companies.edges[0].node.people.edges[0].node.jobTitle,
     ).toBeDefined();
@@ -435,6 +471,7 @@ describe('Field permissions restrictions', () => {
       objectMetadataPluralName: 'companies',
       gqlFields:
         COMPANY_GQL_FIELDS_WITHOUT_POSITION_AND_WITHOUT_PEOPLE_JOB_TITLE,
+      filter: { id: { eq: companyId } },
     });
     const response =
       await makeGraphqlApiRequestWithMemberRole(graphqlOperation);
@@ -612,6 +649,7 @@ describe('Field permissions restrictions', () => {
         objectMetadataSingularName: 'company',
         objectMetadataPluralName: 'companies',
         gqlFields: COMPANY_GQL_FIELDS_WITH_PEOPLE_JOB_TITLE_AGGREGATE,
+        filter: { id: { eq: companyId } },
       });
       const response =
         await makeGraphqlApiRequestWithMemberRole(graphqlOperation);
