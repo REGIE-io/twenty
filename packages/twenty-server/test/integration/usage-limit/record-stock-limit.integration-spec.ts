@@ -5,19 +5,26 @@ import { makeGraphqlApiRequest } from 'test/integration/graphql/utils/make-graph
 import { expectEventually } from 'test/integration/utils/expect-eventually.util';
 import { getAppProviderByClassName } from 'test/integration/utils/get-app-provider-by-class-name.util';
 import { getCoreRepository } from 'test/integration/utils/get-core-repository.util';
+import { waitForAllJobsToFinish } from 'test/integration/utils/wait-for-all-jobs-to-finish.util';
 
-import { createClient } from 'redis';
 import { type Repository } from 'typeorm';
 import { v4 } from 'uuid';
 
-import { RECORD_STOCK_TRACKED_SYSTEM_OBJECT_UNIVERSAL_IDENTIFIERS } from 'src/engine/core-modules/usage-limit/constants/record-stock-tracked-system-object-universal-identifiers.constant';
+import { type CacheStorageService } from 'src/engine/core-modules/cache-storage/services/cache-storage.service';
+import { CacheStorageNamespace } from 'src/engine/core-modules/cache-storage/types/cache-storage-namespace.enum';
+import { COUNT_LIVE_RECORDS_QUERY } from 'src/engine/core-modules/usage-limit/constants/count-live-records-query.constant';
+import { type UsageLimitStockService } from 'src/engine/core-modules/usage-limit/services/usage-limit-stock.service';
+import { buildRecordStockTableNames } from 'src/engine/core-modules/usage-limit/utils/build-record-stock-table-names.util';
+import { buildStockCounterKey } from 'src/engine/core-modules/usage-limit/utils/build-stock-counter-key.util';
 import { UsageLimitEntity } from 'src/engine/core-modules/usage-limit/usage-limit.entity';
 import { UsageOperationType } from 'src/engine/core-modules/usage/enums/usage-operation-type.enum';
 import { UsageResourceType } from 'src/engine/core-modules/usage/enums/usage-resource-type.enum';
 import { UsageUnit } from 'src/engine/core-modules/usage/enums/usage-unit.enum';
 import { type WorkspaceCacheService } from 'src/engine/workspace-cache/services/workspace-cache.service';
+import { type WorkspaceOrmManager } from 'src/engine/twenty-orm/workspace-orm.manager';
 import { getWorkspaceSchemaName } from 'src/engine/workspace-datasource/utils/get-workspace-schema-name.util';
 import { SEED_APPLE_WORKSPACE_ID } from 'src/engine/workspace-manager/dev-seeder/core/constants/seeder-workspaces.constant';
+import { escapeIdentifier } from 'src/engine/workspace-manager/workspace-migration/utils/remove-sql-injection.util';
 
 const SCHEMA_NAME = getWorkspaceSchemaName(SEED_APPLE_WORKSPACE_ID);
 const HEADROOM = 2;
@@ -25,9 +32,10 @@ const STATS_FLUSH_TIMEOUT_MS = 30_000;
 
 describe('Record stock limit', () => {
   let usageLimitRepository: Repository<UsageLimitEntity>;
-  let redis: Awaited<ReturnType<typeof createClient>>;
   let usageLimitId: string;
   let baselineRecordCount: number;
+  let trackedTableNames: string[];
+  let savedUsageLimits: UsageLimitEntity[] = [];
   const createdRocketIds: string[] = [];
 
   const createRockets = async (count: number) => {
@@ -66,32 +74,68 @@ describe('Record stock limit', () => {
     );
 
   const findTrackedTableNames = async (): Promise<string[]> => {
-    const rows: { nameSingular: string; isCustom: boolean }[] =
-      await global.testDataSource.query(
-        `SELECT "nameSingular", "applicationId" <> (
-           SELECT "applicationId" FROM core."objectMetadata"
-           WHERE "workspaceId" = $1 AND "nameSingular" = 'person'
-         ) AS "isCustom"
-         FROM core."objectMetadata"
-         WHERE "workspaceId" = $1
-           AND (NOT "isSystem" OR "universalIdentifier" = ANY($2))`,
-        [
-          SEED_APPLE_WORKSPACE_ID,
-          RECORD_STOCK_TRACKED_SYSTEM_OBJECT_UNIVERSAL_IDENTIFIERS,
-        ],
-      );
+    const { flatObjectMetadataMaps } =
+      await getAppProviderByClassName<WorkspaceCacheService>(
+        'WorkspaceCacheService',
+      ).getOrRecompute(SEED_APPLE_WORKSPACE_ID, ['flatObjectMetadataMaps']);
 
-    return rows.map(({ nameSingular, isCustom }) =>
-      isCustom ? `_${nameSingular}` : nameSingular,
+    return buildRecordStockTableNames(flatObjectMetadataMaps);
+  };
+
+  const analyzeTrackedTables = async () => {
+    // The new ORM writes through a separate pool. Pending deltas from those
+    // backends can arrive after ANALYZE and move an otherwise correct baseline.
+    // Both ORM generations have a WorkspaceSchemaService; follow the active manager.
+    const pool = getAppProviderByClassName<WorkspaceOrmManager>(
+      'WorkspaceOrmManager',
+    )['workspaceSchemaService']['primaryPool'];
+
+    if (!pool) {
+      throw new Error('Workspace primary pool is not initialized');
+    }
+
+    const clients = await Promise.all(
+      Array.from({ length: pool.totalCount }, () => pool.connect()),
     );
+
+    try {
+      await Promise.all(
+        clients.map(async (client) => {
+          await client.query('SELECT pg_stat_force_next_flush()');
+          await client.query('SELECT 1');
+        }),
+      );
+    } finally {
+      clients.forEach((client) => client.release());
+    }
+
+    await global.testDataSource.query(
+      `ANALYZE ${trackedTableNames
+        .map(
+          (tableName) =>
+            `${escapeIdentifier(SCHEMA_NAME)}.${escapeIdentifier(tableName)}`,
+        )
+        .join(', ')}`,
+    );
+  };
+
+  const countActualRecords = async (): Promise<number> => {
+    const [row]: { quantity: string }[] = await global.testDataSource.query(
+      `SELECT SUM(quantity)::bigint AS quantity FROM (${trackedTableNames
+        .map(
+          (tableName) =>
+            `SELECT COUNT(*) AS quantity FROM ${escapeIdentifier(SCHEMA_NAME)}.${escapeIdentifier(tableName)}`,
+        )
+        .join(' UNION ALL ')}) AS record_counts`,
+    );
+
+    return Number(row.quantity);
   };
 
   const countRecords = async (): Promise<number> => {
     const [row]: { quantity: string }[] = await global.testDataSource.query(
-      `SELECT COALESCE(SUM(n_live_tup), 0)::bigint AS quantity
-       FROM pg_stat_user_tables
-       WHERE schemaname = $1 AND relname = ANY($2)`,
-      [SCHEMA_NAME, await findTrackedTableNames()],
+      COUNT_LIVE_RECORDS_QUERY,
+      [SCHEMA_NAME, trackedTableNames],
     );
 
     return Number(row.quantity);
@@ -105,32 +149,42 @@ describe('Record stock limit', () => {
       { timeoutMs: STATS_FLUSH_TIMEOUT_MS },
     );
 
-  const waitForStatsToSettle = async (): Promise<number> => {
-    let previous = await countRecords();
+  const synchronizeRecordStats = async (): Promise<number> => {
+    await waitForAllJobsToFinish();
+    const actual = await countActualRecords();
 
-    for (;;) {
-      await new Promise((resolve) => setTimeout(resolve, 1_500));
+    // Equal statistics samples can both be stale. Calibrate against real rows.
+    await analyzeTrackedTables();
+    await waitForRecordCount(actual);
 
-      const current = await countRecords();
-
-      if (current === previous) {
-        return current;
-      }
-
-      previous = current;
-    }
-  };
-
-  const dropKeys = async (pattern: string) => {
-    const keys = await redis.keys(pattern);
-
-    if (keys.length > 0) {
-      await redis.del(keys);
-    }
+    return actual;
   };
 
   const dropStockCounter = () =>
-    dropKeys(`*{${SEED_APPLE_WORKSPACE_ID}}:stock-held:RECORD:*`);
+    getAppProviderByClassName<UsageLimitStockService>(
+      'UsageLimitStockService',
+    ).invalidateStock({
+      workspaceId: SEED_APPLE_WORKSPACE_ID,
+      resourceType: UsageResourceType.RECORD,
+      operationType: UsageOperationType.RECORD_WRITE,
+      spenders: {},
+    });
+
+  const readStockCounter = () =>
+    global.app
+      .get<CacheStorageService>(CacheStorageNamespace.EngineUsageLimit)
+      .get<number>(
+        buildStockCounterKey({
+          workspaceId: SEED_APPLE_WORKSPACE_ID,
+          counter: {
+            resourceType: UsageResourceType.RECORD,
+            operationType: UsageOperationType.RECORD_WRITE,
+            spenderType: 'workspace',
+            spenderId: null,
+            unit: UsageUnit.RECORD,
+          },
+        }),
+      );
 
   const refreshUsageLimitsCache = () =>
     getAppProviderByClassName<WorkspaceCacheService>(
@@ -151,13 +205,18 @@ describe('Record stock limit', () => {
   beforeAll(async () => {
     usageLimitRepository =
       getCoreRepository<UsageLimitEntity>(UsageLimitEntity);
-    redis = await createClient({ url: process.env.REDIS_URL }).connect();
 
+    trackedTableNames = await findTrackedTableNames();
+    expect(trackedTableNames).toContain('_rocket');
+    savedUsageLimits = await usageLimitRepository.findBy({
+      workspaceId: SEED_APPLE_WORKSPACE_ID,
+      resourceType: UsageResourceType.RECORD,
+    });
     await usageLimitRepository.delete({
       workspaceId: SEED_APPLE_WORKSPACE_ID,
       resourceType: UsageResourceType.RECORD,
     });
-    baselineRecordCount = await waitForStatsToSettle();
+    baselineRecordCount = await synchronizeRecordStats();
 
     const [usageLimit] = await usageLimitRepository.save([
       {
@@ -178,37 +237,60 @@ describe('Record stock limit', () => {
     usageLimitId = usageLimit.id;
 
     await refreshUsageLimitsCache();
-  });
+  }, STATS_FLUSH_TIMEOUT_MS + 5_000);
 
   beforeEach(async () => {
-    await waitForRecordCount(baselineRecordCount);
+    baselineRecordCount = await synchronizeRecordStats();
+    await usageLimitRepository.update(usageLimitId, {
+      limitValue: baselineRecordCount + HEADROOM,
+    });
+    await refreshUsageLimitsCache();
     await dropStockCounter();
+    expect(await readStockCounter()).toBeUndefined();
   }, STATS_FLUSH_TIMEOUT_MS + 5_000);
 
   afterEach(async () => {
     if (createdRocketIds.length > 0) {
-      await global.testDataSource.query(
-        `DELETE FROM "${SCHEMA_NAME}"."_rocket" WHERE id = ANY($1)`,
-        [createdRocketIds],
-      );
-      createdRocketIds.length = 0;
+      const queryRunner = global.testDataSource.createQueryRunner();
+
+      await queryRunner.connect();
+      try {
+        await queryRunner.query(
+          `DELETE FROM "${SCHEMA_NAME}"."_rocket" WHERE id = ANY($1)`,
+          [createdRocketIds],
+        );
+        // Flush the DELETE from its own backend before the next test warms Redis.
+        await queryRunner.query('SELECT pg_stat_force_next_flush()');
+        createdRocketIds.length = 0;
+      } finally {
+        await queryRunner.release();
+      }
     }
+    await waitForAllJobsToFinish();
+    await analyzeTrackedTables();
+    await dropStockCounter();
   });
 
   afterAll(async () => {
-    await usageLimitRepository.delete({ id: usageLimitId });
-    await refreshUsageLimitsCache();
     await dropStockCounter();
-    await redis.quit();
+    if (usageLimitId) {
+      await usageLimitRepository.delete({ id: usageLimitId });
+    }
+    if (savedUsageLimits.length > 0) {
+      await usageLimitRepository.save(savedUsageLimits);
+    }
+    await refreshUsageLimitsCache();
   });
 
   it('refuses the write that would cross the limit', async () => {
     expectAdmitted(await createRockets(HEADROOM));
+    expect(await readStockCounter()).toBe(baselineRecordCount + HEADROOM);
     expectRefused(await createRockets(1));
   });
 
   it('refuses a batch as a whole when only part of it fits', async () => {
     expectRefused(await createRockets(HEADROOM + 1));
+    expect(await countActualRecords()).toBe(baselineRecordCount);
     expectAdmitted(await createRockets(HEADROOM));
   });
 
@@ -220,6 +302,7 @@ describe('Record stock limit', () => {
 
     await destroyRockets([admitted.body.data.createRockets[0].id]);
 
+    expect(await readStockCounter()).toBe(baselineRecordCount + HEADROOM - 1);
     expectAdmitted(await createRockets(1));
   });
 
@@ -229,6 +312,15 @@ describe('Record stock limit', () => {
     expectAdmitted(admitted);
 
     await softDeleteRockets([admitted.body.data.createRockets[0].id]);
+
+    expectRefused(await createRockets(1));
+  });
+
+  it('rewarms a cold counter from PostgreSQL including existing records', async () => {
+    expectAdmitted(await createRockets(HEADROOM));
+    await analyzeTrackedTables();
+    await waitForRecordCount(baselineRecordCount + HEADROOM);
+    await dropStockCounter();
 
     expectRefused(await createRockets(1));
   });
