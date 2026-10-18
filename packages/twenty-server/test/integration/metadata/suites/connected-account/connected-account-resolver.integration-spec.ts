@@ -1,8 +1,19 @@
+import { randomUUID } from 'node:crypto';
+
 import { gql } from 'graphql-tag';
+import { getCoreRepository } from 'test/integration/utils/get-core-repository.util';
+import { ConnectedAccountProvider } from 'twenty-shared/types';
+import { In } from 'typeorm';
 import { makeMetadataApiRequestWithMemberRole } from 'test/integration/metadata/suites/utils/make-metadata-api-request-with-member-role.util';
 import { makeMetadataApiRequest } from 'test/integration/metadata/suites/utils/make-metadata-api-request.util';
 
 import { CONNECTED_ACCOUNT_DATA_SEED_IDS } from 'src/engine/workspace-manager/dev-seeder/data/constants/connected-account-data-seeds.constant';
+import {
+  ConnectedAccountEntity,
+  type ConnectedAccountVisibility,
+} from 'src/engine/metadata-modules/connected-account/entities/connected-account.entity';
+import { SEED_APPLE_WORKSPACE_ID } from 'src/engine/workspace-manager/dev-seeder/core/constants/seeder-workspaces.constant';
+import { USER_WORKSPACE_DATA_SEED_IDS } from 'src/engine/workspace-manager/dev-seeder/core/utils/seed-user-workspaces.util';
 
 describe('connectedAccountResolver (e2e)', () => {
   describe('myConnectedAccounts', () => {
@@ -194,7 +205,46 @@ describe('connectedAccountResolver (e2e)', () => {
   });
 
   describe('deleteConnectedAccount', () => {
+    const fixtureIds: string[] = [];
+    const accountRepository = () =>
+      getCoreRepository<ConnectedAccountEntity>(ConnectedAccountEntity);
+
+    const createDeletableAccount = async (
+      userWorkspaceId: string,
+      visibility: ConnectedAccountVisibility,
+    ) => {
+      const id = randomUUID();
+
+      fixtureIds.push(id);
+      await accountRepository().insert({
+        id,
+        workspaceId: SEED_APPLE_WORKSPACE_ID,
+        userWorkspaceId,
+        visibility,
+        provider: ConnectedAccountProvider.GOOGLE,
+        handle: `delete-account-${id}@example.com`,
+      });
+
+      return id;
+    };
+
+    afterEach(async () => {
+      if (fixtureIds.length === 0) return;
+      const criteria = {
+        workspaceId: SEED_APPLE_WORKSPACE_ID,
+        id: In(fixtureIds),
+      };
+
+      await accountRepository().delete(criteria);
+      expect(await accountRepository().countBy(criteria)).toBe(0);
+      fixtureIds.length = 0;
+    });
+
     it('should allow deleting own account', async () => {
+      const id = await createDeletableAccount(
+        USER_WORKSPACE_DATA_SEED_IDS.JANE,
+        'user',
+      );
       const response = await makeMetadataApiRequest({
         query: gql`
           mutation DeleteConnectedAccount($id: UUID!) {
@@ -203,14 +253,13 @@ describe('connectedAccountResolver (e2e)', () => {
             }
           }
         `,
-        variables: { id: CONNECTED_ACCOUNT_DATA_SEED_IDS.JANE_DELETABLE },
+        variables: { id },
       });
 
       expect(response.status).toBe(200);
       expect(response.body.errors).toBeUndefined();
-      expect(response.body.data.deleteConnectedAccount.id).toBe(
-        CONNECTED_ACCOUNT_DATA_SEED_IDS.JANE_DELETABLE,
-      );
+      expect(response.body.data.deleteConnectedAccount.id).toBe(id);
+      expect(await accountRepository().countBy({ id })).toBe(0);
     });
 
     it('should deny deleting another user account', async () => {
@@ -265,6 +314,10 @@ describe('connectedAccountResolver (e2e)', () => {
     });
 
     it('should allow a member deleting a workspace-shared account they own', async () => {
+      const id = await createDeletableAccount(
+        USER_WORKSPACE_DATA_SEED_IDS.JONY,
+        'workspace',
+      );
       const response = await makeMetadataApiRequestWithMemberRole({
         query: gql`
           mutation DeleteConnectedAccount($id: UUID!) {
@@ -273,17 +326,20 @@ describe('connectedAccountResolver (e2e)', () => {
             }
           }
         `,
-        variables: { id: CONNECTED_ACCOUNT_DATA_SEED_IDS.JONY_SHARED },
+        variables: { id },
       });
 
       expect(response.status).toBe(200);
       expect(response.body.errors).toBeUndefined();
-      expect(response.body.data.deleteConnectedAccount.id).toBe(
-        CONNECTED_ACCOUNT_DATA_SEED_IDS.JONY_SHARED,
-      );
+      expect(response.body.data.deleteConnectedAccount.id).toBe(id);
+      expect(await accountRepository().countBy({ id })).toBe(0);
     });
 
     it('should allow an admin deleting a workspace-shared account', async () => {
+      const id = await createDeletableAccount(
+        USER_WORKSPACE_DATA_SEED_IDS.TIM,
+        'workspace',
+      );
       const response = await makeMetadataApiRequest({
         query: gql`
           mutation DeleteConnectedAccount($id: UUID!) {
@@ -292,14 +348,13 @@ describe('connectedAccountResolver (e2e)', () => {
             }
           }
         `,
-        variables: { id: CONNECTED_ACCOUNT_DATA_SEED_IDS.CONTACT_GROUP },
+        variables: { id },
       });
 
       expect(response.status).toBe(200);
       expect(response.body.errors).toBeUndefined();
-      expect(response.body.data.deleteConnectedAccount.id).toBe(
-        CONNECTED_ACCOUNT_DATA_SEED_IDS.CONTACT_GROUP,
-      );
+      expect(response.body.data.deleteConnectedAccount.id).toBe(id);
+      expect(await accountRepository().countBy({ id })).toBe(0);
     });
   });
 });
