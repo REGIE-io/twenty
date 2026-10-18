@@ -1,5 +1,7 @@
 import { randomUUID } from 'node:crypto';
 
+import { createOneOperationFactory } from 'test/integration/graphql/utils/create-one-operation-factory.util';
+import { destroyManyOperationFactory } from 'test/integration/graphql/utils/destroy-many-operation-factory.util';
 import { findManyOperationFactory } from 'test/integration/graphql/utils/find-many-operation-factory.util';
 import { makeGraphqlApiRequest } from 'test/integration/graphql/utils/make-graphql-api-request.util';
 import { destroyAgentChatThread } from 'test/integration/utils/destroy-agent-chat-thread.util';
@@ -12,7 +14,6 @@ import { type AgentChatThreadService } from 'src/engine/metadata-modules/ai/ai-c
 import { createAttachConversationToRecordTool } from 'src/engine/metadata-modules/ai/ai-chat/tools/attach-conversation-to-record.tool';
 import { SEED_APPLE_WORKSPACE_ID } from 'src/engine/workspace-manager/dev-seeder/core/constants/seeder-workspaces.constant';
 import { USER_WORKSPACE_DATA_SEED_IDS } from 'src/engine/workspace-manager/dev-seeder/core/utils/seed-user-workspaces.util';
-import { COMPANY_DATA_SEED_IDS } from 'src/engine/workspace-manager/dev-seeder/data/constants/company-data-seeds.constant';
 import { WORKSPACE_MEMBER_DATA_SEED_IDS } from 'src/engine/workspace-manager/dev-seeder/data/constants/workspace-member-data-seeds.constant';
 
 const getAgentChatThreadService = () =>
@@ -21,7 +22,6 @@ const getAgentChatThreadService = () =>
 const workspaceId = SEED_APPLE_WORKSPACE_ID;
 const workspaceMemberId = WORKSPACE_MEMBER_DATA_SEED_IDS.JANE;
 const userWorkspaceId = USER_WORKSPACE_DATA_SEED_IDS.JANE;
-const companyId = COMPANY_DATA_SEED_IDS.ID_1;
 
 describe('Attaching a conversation to a record from a chat turn', () => {
   let chat: AgentChatService;
@@ -29,8 +29,21 @@ describe('Attaching a conversation to a record from a chat turn', () => {
   let targets: AgentChatThreadTargetService;
   let message: Awaited<ReturnType<AgentChatService['addMessage']>>;
   const threadId = randomUUID();
+  const companyId = randomUUID();
+  let threadCreated = false;
 
   beforeAll(async () => {
+    // Search and CRUD suites deliberately delete the shared company seeds.
+    const companyResponse = await makeGraphqlApiRequest(
+      createOneOperationFactory({
+        objectMetadataSingularName: 'company',
+        gqlFields: 'id',
+        data: { id: companyId, name: 'Chat attachment fixture' },
+      }),
+    );
+
+    expect(companyResponse.body.errors).toBeUndefined();
+
     chat = getAppProviderByClassName<AgentChatService>('AgentChatService');
     actors = getAppProviderByClassName<AgentChatActorService>(
       'AgentChatActorService',
@@ -44,6 +57,7 @@ describe('Attaching a conversation to a record from a chat turn', () => {
       id: threadId,
       title: 'Renewal prep',
     });
+    threadCreated = true;
     message = await chat.addMessage({
       workspaceId,
       threadId,
@@ -56,7 +70,22 @@ describe('Attaching a conversation to a record from a chat turn', () => {
   });
 
   afterAll(async () => {
-    await destroyAgentChatThread({ threadId });
+    try {
+      if (threadCreated) {
+        await destroyAgentChatThread({ threadId });
+      }
+    } finally {
+      const response = await makeGraphqlApiRequest(
+        destroyManyOperationFactory({
+          objectMetadataSingularName: 'company',
+          objectMetadataPluralName: 'companies',
+          gqlFields: 'id',
+          filter: { id: { eq: companyId } },
+        }),
+      );
+
+      expect(response.body.errors).toBeUndefined();
+    }
   });
 
   const buildTool = async () => {

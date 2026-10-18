@@ -4,6 +4,7 @@ import { v4 } from 'uuid';
 
 import { MigrateCanvasTabsToVerticalListSlowInstanceCommand } from 'src/database/commands/upgrade-version-command/2-40/2-40-instance-command-slow-1789139070588-migrate-canvas-tabs-to-vertical-list';
 import { type WorkspaceCacheService } from 'src/engine/workspace-cache/services/workspace-cache.service';
+import { SEED_APPLE_WORKSPACE_ID } from 'src/engine/workspace-manager/dev-seeder/core/constants/seeder-workspaces.constant';
 
 jest.useRealTimers();
 
@@ -164,9 +165,8 @@ describe('MigrateCanvasTabsToVerticalListSlowInstanceCommand (integration)', () 
     const [source] = (await dataSource.query(
       `SELECT "id" AS "workspaceId", "workspaceCustomApplicationId" AS "applicationId"
        FROM "core"."workspace"
-       WHERE "workspaceCustomApplicationId" IS NOT NULL
-       ORDER BY "id"
-       LIMIT 1`,
+       WHERE "id" = $1 AND "workspaceCustomApplicationId" IS NOT NULL`,
+      [SEED_APPLE_WORKSPACE_ID],
     )) as { workspaceId: string; applicationId: string }[];
 
     if (!isDefined(source)) {
@@ -294,14 +294,20 @@ describe('MigrateCanvasTabsToVerticalListSlowInstanceCommand (integration)', () 
     });
     const cacheError = new Error('Cache unavailable');
 
-    workspaceCacheService.flush.mockRejectedValueOnce(cacheError);
+    workspaceCacheService.flush.mockImplementation(
+      async (flushedWorkspaceId: string) => {
+        if (flushedWorkspaceId === workspaceId) {
+          throw cacheError;
+        }
+      },
+    );
 
     await expect(command.runDataMigration(dataSource)).rejects.toThrow(
       cacheError,
     );
     expect(await readTabLayoutMode(canvasTab.tabId)).toBe('VERTICAL_LIST');
 
-    workspaceCacheService.flush.mockClear();
+    workspaceCacheService.flush.mockReset().mockResolvedValue(undefined);
 
     await command.runDataMigration(dataSource);
 
@@ -379,6 +385,16 @@ describe('MigrateCanvasTabsToVerticalListSlowInstanceCommand (integration)', () 
   it.each(['pageLayoutTab', 'pageLayoutWidget'] as const)(
     'preserves manifest-owned %s and its Canvas position override',
     async (entity) => {
+      const manifestApplicationId = v4();
+
+      // Do not depend on another suite installing an application or its layouts.
+      await dataSource.query(
+        `INSERT INTO "core"."application" (
+          "id", "workspaceId", "universalIdentifier", "name", "sourcePath"
+        ) VALUES ($1, $2, $3, 'Canvas migration manifest fixture', '')`,
+        [manifestApplicationId, workspaceId, v4()],
+      );
+
       const tab = await seedTab({
         layoutMode: 'CANVAS',
         widgetIsActiveValues: [true],
@@ -386,13 +402,9 @@ describe('MigrateCanvasTabsToVerticalListSlowInstanceCommand (integration)', () 
       });
 
       await dataSource.query(
-        `UPDATE "core"."${entity}" SET "applicationId" = (
-          SELECT "applicationId" FROM "core"."pageLayout"
-          WHERE "workspaceId" = $1 AND "applicationId" <> $2 LIMIT 1
-        ) WHERE "id" = $3`,
+        `UPDATE "core"."${entity}" SET "applicationId" = $1 WHERE "id" = $2`,
         [
-          workspaceId,
-          applicationId,
+          manifestApplicationId,
           entity === 'pageLayoutTab' ? tab.tabId : tab.widgetIds[0],
         ],
       );
