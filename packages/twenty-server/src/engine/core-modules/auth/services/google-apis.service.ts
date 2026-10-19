@@ -10,7 +10,7 @@ import {
   type MessageChannelVisibility,
 } from 'twenty-shared/types';
 import { v4 } from 'uuid';
-import { EntityManager, Repository } from 'typeorm';
+import { EntityManager, IsNull, Repository } from 'typeorm';
 
 import {
   AuthException,
@@ -157,6 +157,7 @@ export class GoogleAPIsService {
             userWorkspaceId,
             workspaceId,
             provider: ConnectedAccountProvider.GOOGLE,
+            name: IsNull(),
           },
         });
 
