@@ -2539,7 +2539,7 @@ describe('core workflow execution and queue compatibility (e2e)', () => {
     }
   });
 
-  it('provisions a fresh workspace with core-only workflows and nullable run relations', async () => {
+  it('provisions a fresh workspace without legacy prefill workflows and with nullable run relations', async () => {
     const services = global.workflowTestServices;
     const freshWorkspaceId = randomUUID();
     const applicationId = randomUUID();
@@ -2596,15 +2596,7 @@ describe('core workflow execution and queue compatibility (e2e)', () => {
          WHERE cv."workspaceId" = $1`,
         [freshWorkspaceId],
       );
-      expect(coreVersions).toHaveLength(2);
-      for (const coreVersion of coreVersions) {
-        expect(coreVersion).toMatchObject({
-          workspaceWorkflowVersionId: null,
-          workflowId: null,
-          workspaceWorkflowId: null,
-          lastPublishedCoreWorkflowVersionId: coreVersion.id,
-        });
-      }
+      expect(coreVersions).toHaveLength(0);
       const [{ workspaceWorkflowCount }] = await global.testDataSource.query(
         `SELECT (SELECT count(*) FROM "${freshSchema}"."workflow")::int + (SELECT count(*) FROM "${freshSchema}"."workflowVersion")::int AS "workspaceWorkflowCount"`,
       );
