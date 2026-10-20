@@ -77,6 +77,10 @@ describe('buildTimelineActivityMergeKey', () => {
     expect(buildKey({ source: null })).toBe(buildKey());
   });
 
+  it('normalizes the empty source stored by legacy rows', () => {
+    expect(buildKey({ source: '' as RegieSource })).toBe(buildKey());
+  });
+
   it('normalizes an absent author', () => {
     expect(buildKey({ workspaceMemberId: null })).toBe(
       buildTimelineActivityMergeKey({

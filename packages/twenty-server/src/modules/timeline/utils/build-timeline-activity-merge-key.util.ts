@@ -18,7 +18,7 @@ export const buildTimelineActivityMergeKey = ({
 }: TimelineActivityMergeKeyArgs): string =>
   JSON.stringify([
     recordId,
-    source ?? null,
+    source || null,
     workspaceMemberId ?? null,
     timelineActivityTypeId,
     timelineActivityTypeSnapshot?.universalIdentifier,
