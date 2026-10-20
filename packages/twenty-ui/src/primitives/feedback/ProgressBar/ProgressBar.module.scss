@@ -1,0 +1,67 @@
+.bar {
+  position: relative;
+  height: var(--t-spacing-2);
+  width: 100%;
+  background-color: var(--progress-bar-background-color, none);
+  border-radius: 0;
+  overflow: hidden;
+
+  &[data-size='sm'] {
+    height: var(--t-spacing-1_5);
+  }
+
+  &[data-with-border-radius] {
+    border-radius: var(--t-border-radius-pill);
+    corner-shape: round;
+  }
+}
+
+.track {
+  position: relative;
+  height: 100%;
+  width: 100%;
+}
+
+.indicator {
+  height: 100%;
+  background-color: var(--progress-bar-color, var(--t-font-color-primary));
+  border-radius: 0;
+  overflow: hidden;
+  position: relative;
+  transition: width duration(normal) linear;
+
+  &[data-with-border-radius] {
+    border-radius: var(--t-border-radius-pill);
+    corner-shape: round;
+  }
+
+  &[data-minimum-fill] {
+    min-width: min(12px, 50%);
+  }
+
+  &[data-indeterminate] {
+    animation: progressBarIndeterminate calc(#{duration(normal)} * 5)
+      ease-in-out infinite;
+    width: 25%;
+  }
+}
+
+@keyframes progressBarIndeterminate {
+  from {
+    transform: translateX(-100%);
+  }
+
+  to {
+    transform: translateX(400%);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .indicator {
+    transition: none;
+
+    &[data-indeterminate] {
+      animation: none;
+    }
+  }
+}

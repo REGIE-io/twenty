@@ -15,7 +15,6 @@ jest.useRealTimers();
 
 config({
   path: process.env.NODE_ENV === 'test' ? '.env.test' : '.env',
-  override: true,
 });
 
 const PUBLIC_KEY_FIXTURE =
@@ -136,7 +135,9 @@ describe('2-5 slow instance command 1798000007000 - EncryptSigningKeyPrivateKeys
   it('leaves enc:v2 rows untouched and is idempotent across re-runs', async () => {
     const plaintext =
       '-----BEGIN PRIVATE KEY-----\nalready-v2\n-----END PRIVATE KEY-----';
-    const preexistingV2 = secretEncryptionService.encryptVersioned(plaintext as PlaintextString);
+    const preexistingV2 = secretEncryptionService.encryptVersioned(
+      plaintext as PlaintextString,
+    );
     const id = await seedRow({ privateKey: preexistingV2 });
 
     await command.runDataMigration(dataSource);

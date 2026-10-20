@@ -1,6 +1,13 @@
 import { RuleTester } from 'oxlint/plugins-dev';
 
+import { AUTHENTICATING_GUARD_NAMES } from '../utils/typedTokenHelpers';
 import { rule, RULE_NAME } from './rest-api-methods-should-be-guarded';
+
+const ACCEPT_EVERY_PRINCIPAL =
+  'AuthPrincipalGuard({ userSession: true, apiKey: true, oauthClient: true, application: true })';
+
+const ACCEPT_USER_SESSIONS =
+  'AuthPrincipalGuard({ userSession: true, apiKey: false, oauthClient: false, application: false })';
 
 const ruleTester = new RuleTester();
 
@@ -10,7 +17,7 @@ ruleTester.run(RULE_NAME, rule, {
       code: `
         class TestController {
           @Get()
-          @UseGuards(UserAuthGuard, NoPermissionGuard)
+          @UseGuards(${ACCEPT_USER_SESSIONS}, NoPermissionGuard)
           testMethod() {}
         }
       `,
@@ -20,7 +27,7 @@ ruleTester.run(RULE_NAME, rule, {
       code: `
         class TestController {
           @Get()
-          @UseGuards(WorkspaceAuthGuard, CustomPermissionGuard)
+          @UseGuards(${ACCEPT_EVERY_PRINCIPAL}, CustomPermissionGuard)
           testMethod() {}
         }
       `,
@@ -58,7 +65,7 @@ ruleTester.run(RULE_NAME, rule, {
     },
     {
       code: `
-        @UseGuards(UserAuthGuard, NoPermissionGuard)
+        @UseGuards(${ACCEPT_USER_SESSIONS}, NoPermissionGuard)
         class TestController {
           @Get()
           testMethod() {}
@@ -68,7 +75,7 @@ ruleTester.run(RULE_NAME, rule, {
     },
     {
       code: `
-        @UseGuards(WorkspaceAuthGuard, CustomPermissionGuard)
+        @UseGuards(${ACCEPT_EVERY_PRINCIPAL}, CustomPermissionGuard)
         class TestController {
           @Get()
           testMethod() {}
@@ -90,7 +97,7 @@ ruleTester.run(RULE_NAME, rule, {
       code: `
         class TestController {
           @Post()
-          @UseGuards(WorkspaceAuthGuard, CustomPermissionGuard)
+          @UseGuards(${ACCEPT_EVERY_PRINCIPAL}, CustomPermissionGuard)
           createMethod() {}
         }
       `,
@@ -100,7 +107,7 @@ ruleTester.run(RULE_NAME, rule, {
       code: `
         class TestController {
           @Put()
-          @UseGuards(WorkspaceAuthGuard, UpdatePermissionGuard)
+          @UseGuards(${ACCEPT_EVERY_PRINCIPAL}, UpdatePermissionGuard)
           updateMethod() {}
         }
       `,
@@ -110,7 +117,7 @@ ruleTester.run(RULE_NAME, rule, {
       code: `
         class TestController {
           @Patch()
-          @UseGuards(WorkspaceAuthGuard, NoPermissionGuard)
+          @UseGuards(${ACCEPT_EVERY_PRINCIPAL}, NoPermissionGuard)
           patchMethod() {}
         }
       `,
@@ -120,7 +127,7 @@ ruleTester.run(RULE_NAME, rule, {
       code: `
         class TestController {
           @Delete()
-          @UseGuards(WorkspaceAuthGuard, DeletePermissionGuard)
+          @UseGuards(${ACCEPT_EVERY_PRINCIPAL}, DeletePermissionGuard)
           deleteMethod() {}
         }
       `,
@@ -128,7 +135,7 @@ ruleTester.run(RULE_NAME, rule, {
     },
     {
       code: `
-        @UseGuards(WorkspaceAuthGuard, CustomPermissionGuard)
+        @UseGuards(${ACCEPT_EVERY_PRINCIPAL}, CustomPermissionGuard)
         class TestController {
           @Post()
           createMethod() {}
@@ -138,7 +145,7 @@ ruleTester.run(RULE_NAME, rule, {
     },
     {
       code: `
-        @UseGuards(WorkspaceAuthGuard, SettingsPermissionGuard(PermissionFlagType.WORKSPACE))
+        @UseGuards(${ACCEPT_EVERY_PRINCIPAL}, SettingsPermissionGuard(PermissionFlagType.WORKSPACE))
         class TestController {
           @Delete()
           deleteMethod() {}
@@ -152,6 +159,75 @@ ruleTester.run(RULE_NAME, rule, {
           regularMethod() {}
         }
       `,
+    },
+    {
+      code: `
+        class TestController {
+          @Get()
+          @UseGuards(FileByIdGuard, NoPermissionGuard)
+          testMethod() {}
+        }
+      `,
+      filename: 'test.tsx',
+    },
+    {
+      code: `
+        class TestController {
+          @Post()
+          @UseGuards(FileUploadTokenGuard, NoPermissionGuard)
+          testMethod() {}
+        }
+      `,
+      filename: 'test.tsx',
+    },
+    {
+      code: `
+        class TestController {
+          @Get()
+          @UseGuards(FilePathGuard, NoPermissionGuard)
+          testMethod() {}
+        }
+      `,
+      filename: 'test.tsx',
+    },
+    ...AUTHENTICATING_GUARD_NAMES.map((authenticatingGuardName) => ({
+      code: `
+        @UseGuards(
+          ${authenticatingGuardName},
+          ${ACCEPT_EVERY_PRINCIPAL},
+          WorkspaceNotSuspendedGuard,
+          NoPermissionGuard,
+        )
+        class TestController {
+          @Post()
+          createMethod() {}
+        }
+      `,
+      filename: 'test.tsx',
+    })),
+    {
+      code: `
+        @UseGuards(JwtAuthGuard, ${ACCEPT_EVERY_PRINCIPAL}, NoPermissionGuard)
+        class TestController {
+          @Post()
+          @UseGuards(
+            AuthPrincipalGuard({
+              userSession: {
+                standard: true,
+                impersonated: true,
+                playground: false,
+                workspaceAgnostic: false,
+              },
+              apiKey: false,
+              oauthClient: false,
+              application: false,
+            }),
+            SettingsPermissionGuard(PermissionFlagType.ROLES),
+          )
+          createMethod() {}
+        }
+      `,
+      filename: 'test.tsx',
     },
   ],
   invalid: [
@@ -187,7 +263,7 @@ ruleTester.run(RULE_NAME, rule, {
       code: `
         class TestController {
           @Get()
-          @UseGuards(WorkspaceAuthGuard)
+          @UseGuards(${ACCEPT_EVERY_PRINCIPAL})
           testMethod() {}
         }
       `,
@@ -230,7 +306,7 @@ ruleTester.run(RULE_NAME, rule, {
     },
     {
       code: `
-        @UseGuards(WorkspaceAuthGuard)
+        @UseGuards(${ACCEPT_EVERY_PRINCIPAL})
         class TestController {
           @Get()
           testMethod() {}
@@ -247,7 +323,7 @@ ruleTester.run(RULE_NAME, rule, {
       code: `
         class TestController {
           @Post()
-          @UseGuards(WorkspaceAuthGuard)
+          @UseGuards(${ACCEPT_EVERY_PRINCIPAL})
           createMethod() {}
         }
       `,
@@ -262,7 +338,7 @@ ruleTester.run(RULE_NAME, rule, {
       code: `
         class TestController {
           @Put()
-          @UseGuards(WorkspaceAuthGuard)
+          @UseGuards(${ACCEPT_EVERY_PRINCIPAL})
           updateMethod() {}
         }
       `,
@@ -277,7 +353,7 @@ ruleTester.run(RULE_NAME, rule, {
       code: `
         class TestController {
           @Patch()
-          @UseGuards(WorkspaceAuthGuard)
+          @UseGuards(${ACCEPT_EVERY_PRINCIPAL})
           patchMethod() {}
         }
       `,
@@ -292,7 +368,7 @@ ruleTester.run(RULE_NAME, rule, {
       code: `
         class TestController {
           @Delete()
-          @UseGuards(WorkspaceAuthGuard)
+          @UseGuards(${ACCEPT_EVERY_PRINCIPAL})
           deleteMethod() {}
         }
       `,
@@ -305,7 +381,7 @@ ruleTester.run(RULE_NAME, rule, {
     },
     {
       code: `
-        @UseGuards(WorkspaceAuthGuard)
+        @UseGuards(${ACCEPT_EVERY_PRINCIPAL})
         class TestController {
           @Post()
           createMethod() {}
@@ -320,7 +396,7 @@ ruleTester.run(RULE_NAME, rule, {
     },
     {
       code: `
-        @UseGuards(WorkspaceAuthGuard)
+        @UseGuards(${ACCEPT_EVERY_PRINCIPAL})
         class TestController {
           @Delete()
           deleteMethod() {}
@@ -331,6 +407,88 @@ ruleTester.run(RULE_NAME, rule, {
           messageId: 'restApiMethodsShouldBeGuarded',
         },
       ],
+      filename: 'test.tsx',
+    },
+    ...[
+      'AuthPrincipalGuard(AUTH_PRINCIPAL_GUARD_CONFIG)',
+      'AuthPrincipalGuard({ ...USER_SESSIONS_ONLY, apiKey: true })',
+      'AuthPrincipalGuard({ userSession: USER_SESSION_VARIANTS, apiKey: false, oauthClient: false, application: false })',
+      'AuthPrincipalGuard({ userSession, apiKey: false, oauthClient: false, application: false })',
+    ].map((authPrincipalGuard) => ({
+      code: `
+        class TestController {
+          @Get()
+          @UseGuards(${authPrincipalGuard}, NoPermissionGuard)
+          testMethod() {}
+        }
+      `,
+      errors: [
+        { messageId: 'restApiMethodsShouldBeGuarded' },
+        { messageId: 'authPrincipalGuardConfigNotInline' },
+      ],
+      filename: 'test.tsx',
+    })),
+    {
+      code: `
+        @UseGuards(
+          JwtAuthGuard,
+          AuthPrincipalGuard({
+            userSession: {
+              standard: true,
+              impersonated: true,
+              playground: true,
+              workspaceAgnostic: false,
+            },
+            apiKey: true,
+            oauthClient: { withUser: true, withoutUser: false },
+            application: { withUser: true, withoutUser: false },
+          }),
+          NoPermissionGuard,
+        )
+        class TestController {
+          @Get()
+          @UseGuards(
+            AuthPrincipalGuard({
+              userSession: true,
+              apiKey: false,
+              oauthClient: true,
+              application: { withUser: true, withoutUser: false },
+            }),
+          )
+          testMethod() {}
+        }
+      `,
+      errors: [
+        {
+          messageId: 'authPrincipalGuardWiderThanClass',
+          data: {
+            principalVariants:
+              'userSession.workspaceAgnostic, oauthClient.withoutUser',
+          },
+        },
+      ],
+      filename: 'test.tsx',
+    },
+    {
+      code: `
+        @UseGuards(JwtAuthGuard, WorkspaceNotSuspendedGuard, ${ACCEPT_EVERY_PRINCIPAL}, NoPermissionGuard)
+        class TestController {
+          @Get()
+          testMethod() {}
+        }
+      `,
+      errors: [{ messageId: 'authPrincipalGuardNotFirst' }],
+      filename: 'test.tsx',
+    },
+    {
+      code: `
+        class TestController {
+          @Post()
+          @UseGuards(CaptchaGuard, ${ACCEPT_USER_SESSIONS}, NoPermissionGuard)
+          createMethod() {}
+        }
+      `,
+      errors: [{ messageId: 'authPrincipalGuardNotFirst' }],
       filename: 'test.tsx',
     },
   ],

@@ -5,7 +5,7 @@ import { FieldMetadataType } from 'twenty-shared/types';
 
 import { type TwentyConfigService } from 'src/engine/core-modules/twenty-config/twenty-config.service';
 
-import { makeRestAPIRequest } from 'test/integration/rest/utils/make-rest-api-request.util';
+import { makeRestApiRequest } from 'test/integration/rest/utils/make-rest-api-request.util';
 import crmSchemaApplyRequest from 'test/integration/workspace-provisioning/fixtures/crm-schema-apply-request.json';
 import { getAppProviderByClassName } from 'test/integration/utils/get-app-provider-by-class-name.util';
 
@@ -117,7 +117,7 @@ describe('internal workspace provisioning with an API key', () => {
       apiKeyId: expect.any(String),
     });
 
-    const applyResponse = await makeRestAPIRequest({
+    const applyResponse = await makeRestApiRequest({
       method: 'post',
       path: '/metadata/schema/apply',
       bearer: apiKey.apiKey,
@@ -155,7 +155,7 @@ describe('internal workspace provisioning with an API key', () => {
     workspaceIds.push(createResponse.body.workspaceId);
 
     const applyCrmSchema = () =>
-      makeRestAPIRequest({
+      makeRestApiRequest({
         method: 'post',
         path: '/metadata/schema/apply',
         bearer: createResponse.body.apiKey.apiKey,

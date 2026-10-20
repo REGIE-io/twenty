@@ -744,7 +744,15 @@ describe('SearchVectorTriggerConversionService.buildWorkspaceTablePlans', () => 
           objects.map((object) => [object.id, object]),
         ),
       },
-      flatFieldMetadataMaps: { byUniversalIdentifier: {}, byId: {} },
+      flatFieldMetadataMaps: {
+        byUniversalIdentifier: Object.fromEntries(
+          objects.map((object) => [
+            object.id,
+            { id: object.id, universalIdentifier: object.id },
+          ]),
+        ),
+        byId: {},
+      },
       flatSearchFieldMetadataMaps: { byUniversalIdentifier: {} },
       flatIndexMaps: {
         byUniversalIdentifier: Object.fromEntries(
@@ -767,7 +775,7 @@ describe('SearchVectorTriggerConversionService.buildWorkspaceTablePlans', () => 
       .mocked(findTsVectorFlatFieldMetadataForObject)
       .mockImplementation(
         ({ fieldUniversalIdentifiers }) =>
-          ({ id: fieldUniversalIdentifiers[0] }) as never,
+          ({ universalIdentifier: fieldUniversalIdentifiers[0] }) as never,
       );
     jest
       .mocked(getTargetSearchFieldMetadatasForTsVectorField)

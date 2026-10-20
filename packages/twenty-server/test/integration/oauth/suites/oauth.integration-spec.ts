@@ -3,8 +3,8 @@ import crypto from 'crypto';
 import bcrypt from 'bcrypt';
 import gql from 'graphql-tag';
 import request from 'supertest';
-import { makeMetadataAPIRequest } from 'test/integration/metadata/suites/utils/make-metadata-api-request.util';
-import { base64UrlEncode } from 'twenty-shared/utils';
+import { makeMetadataApiRequest } from 'test/integration/metadata/suites/utils/make-metadata-api-request.util';
+import { assertIsDefinedOrThrow, base64UrlEncode } from 'twenty-shared/utils';
 import { type DataSource } from 'typeorm';
 
 import { AppTokenType } from 'src/engine/core-modules/app-token/app-token.entity';
@@ -257,6 +257,75 @@ describe('OAuth (integration)', () => {
       expect(res.body.code_challenge_methods_supported).toContain('S256');
       expect(res.body.scopes_supported).toBeDefined();
       expect(res.body.response_types_supported).toContain('code');
+    });
+
+    it('should promise `iss` when it serves its own authorization endpoint', async () => {
+      const res = await request(baseUrl)
+        .get('/.well-known/oauth-authorization-server')
+        .expect(200);
+
+      expect(res.body.authorization_endpoint).toBe(
+        `${res.body.issuer}/authorize`,
+      );
+      expect(res.body.authorization_response_iss_parameter_supported).toBe(
+        true,
+      );
+    });
+  });
+
+  describe('Authorization endpoint (authorizeApp)', () => {
+    const authorizeAppMutation = gql`
+      mutation AuthorizeApp(
+        $clientId: String!
+        $redirectUrl: String!
+        $state: String
+      ) {
+        authorizeApp(
+          clientId: $clientId
+          redirectUrl: $redirectUrl
+          state: $state
+        ) {
+          redirectUrl
+        }
+      }
+    `;
+
+    it('should return an `iss` matching the advertised issuer alongside code and state', async () => {
+      const state = 'integration-state-123';
+
+      const response = await makeMetadataApiRequest({
+        query: authorizeAppMutation,
+        variables: {
+          clientId: testRegistration.oAuthClientId,
+          redirectUrl: testRegistration.oAuthRedirectUris[0],
+          state,
+        },
+      });
+
+      expect(response.body.errors).toBeUndefined();
+
+      const callbackUrl = new URL(response.body.data.authorizeApp.redirectUrl);
+      const code = callbackUrl.searchParams.get('code');
+
+      const metadata = await request(baseUrl)
+        .get('/.well-known/oauth-authorization-server')
+        .expect(200);
+
+      expect(`${callbackUrl.origin}${callbackUrl.pathname}`).toBe(
+        testRegistration.oAuthRedirectUris[0],
+      );
+      expect(code).toMatch(/^[0-9a-f]+$/);
+      expect(callbackUrl.searchParams.get('iss')).toBe(metadata.body.issuer);
+      expect(callbackUrl.searchParams.get('state')).toBe(state);
+
+      assertIsDefinedOrThrow(code);
+
+      const [issuedToken] = await ds.query(
+        `SELECT id FROM core."appToken" WHERE value = $1`,
+        [crypto.createHash('sha256').update(code).digest('hex')],
+      );
+
+      createdEntityIds.tokens.push(issuedToken.id);
     });
   });
 
@@ -963,8 +1032,7 @@ describe('OAuth (integration)', () => {
         })
         .expect(200);
 
-    // 'read' alone, not the registration's full scope list, so the assertion
-    // fails if the granted scope is ignored in favour of the declared one.
+    // 'read' alone, so the assertion fails if the declared scope is used instead of the granted one.
     it('should record the authorization with the scopes the user granted', async () => {
       await exchangeForTokens('read');
 
@@ -1009,8 +1077,7 @@ describe('OAuth (integration)', () => {
       }).expect(200);
     });
 
-    // Deleting the row leaves a refresh token in the state every token minted
-    // before this table existed is in.
+    // Deleting the row recreates the state of tokens minted before this table existed.
     it('should backfill a refresh token that predates the authorization record without inventing a consent', async () => {
       const { refreshToken } = await exchangeForTokens('read write');
 
@@ -1079,7 +1146,7 @@ describe('OAuth (integration)', () => {
     const findListedAuthorization = async (
       token = APPLE_JANE_ADMIN_ACCESS_TOKEN,
     ) => {
-      const res = await makeMetadataAPIRequest(
+      const res = await makeMetadataApiRequest(
         LIST_AUTHORIZATIONS_OPERATION,
         token,
       );
@@ -1096,7 +1163,7 @@ describe('OAuth (integration)', () => {
       applicationAuthorizationId: string,
       token: string,
     ) =>
-      makeMetadataAPIRequest(
+      makeMetadataApiRequest(
         revokeAuthorizationOperation(applicationAuthorizationId),
         token,
       );

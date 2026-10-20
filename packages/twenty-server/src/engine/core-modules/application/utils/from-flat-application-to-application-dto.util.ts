@@ -4,6 +4,7 @@ import { type FlatApplication } from 'src/engine/core-modules/application/types/
 export const fromFlatApplicationToApplicationDto = ({
   canBeUninstalled,
   autoUpgrade,
+  createdAt,
   description,
   id,
   logo,
@@ -16,10 +17,12 @@ export const fromFlatApplicationToApplicationDto = ({
   universalIdentifier,
   version,
   settingsCustomTabFrontComponentId,
+  healthCheckLogicFunctionId,
 }: FlatApplication): ApplicationDTO => {
   return {
     canBeUninstalled,
     autoUpgrade,
+    createdAt: new Date(createdAt),
     description: description ?? undefined,
     id,
     logo: logo ?? undefined,
@@ -34,5 +37,6 @@ export const fromFlatApplicationToApplicationDto = ({
     version: version ?? undefined,
     settingsCustomTabFrontComponentId:
       settingsCustomTabFrontComponentId ?? undefined,
+    healthCheckLogicFunctionId: healthCheckLogicFunctionId ?? undefined,
   };
 };

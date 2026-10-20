@@ -19,6 +19,7 @@ export const TWENTY_STANDARD_ALL_METADATA_NAME = [
   'pageLayoutTab',
   'pageLayoutWidget',
   'commandMenuItem',
+  'timelineActivityType',
 ] as const satisfies AllMetadataName[];
 
 export const TWENTY_STANDARD_UI_METADATA_NAME = [

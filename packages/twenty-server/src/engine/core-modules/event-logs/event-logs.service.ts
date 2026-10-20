@@ -1,17 +1,19 @@
 /* @license Enterprise */
 
-import { BadRequestException, Injectable } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 
 import { EventLogTable } from 'twenty-shared/types';
 import { isDefined } from 'twenty-shared/utils';
 import { Repository } from 'typeorm';
 
-import { ClickHouseService } from 'src/database/clickHouse/clickHouse.service';
-import { formatDateTimeForClickHouse } from 'src/database/clickHouse/clickHouse.util';
+import { ClickHouseService } from 'src/database/clickhouse/clickhouse.service';
+import { formatDateTimeForClickHouse } from 'src/database/clickhouse/utils/format-date-time-for-clickhouse.util';
 import { BillingService } from 'src/engine/core-modules/billing/services/billing.service';
 import { EnterprisePlanService } from 'src/engine/core-modules/enterprise/services/enterprise-plan.service';
+import { EventLogRetentionService } from 'src/engine/core-modules/event-logs/retention/services/event-log-retention.service';
 import { UserWorkspaceEntity } from 'src/engine/core-modules/user-workspace/user-workspace.entity';
+import { type WorkspaceEntity } from 'src/engine/core-modules/workspace/workspace.entity';
 
 import {
   EventLogsException,
@@ -25,6 +27,7 @@ import {
   EVENT_LOG_TYPES,
   getClickHouseTableName,
 } from './registry/event-log-registry';
+import { buildEventLogFieldFilterCondition } from './utils/build-event-log-field-filter-condition.util';
 import { normalizeEventLogRecords } from './utils/normalize-event-log-records';
 
 const ALLOWED_TABLES = Object.values(EventLogTable);
@@ -36,26 +39,46 @@ export class EventLogsService {
     private readonly clickHouseService: ClickHouseService,
     private readonly billingService: BillingService,
     private readonly enterprisePlanService: EnterprisePlanService,
+    private readonly eventLogRetentionService: EventLogRetentionService,
     @InjectRepository(UserWorkspaceEntity)
     private readonly userWorkspaceRepository: Repository<UserWorkspaceEntity>,
   ) {}
 
   async queryEventLogs(
-    workspaceId: string,
+    workspace: Pick<WorkspaceEntity, 'id' | 'eventLogRetentionDays'>,
     input: EventLogQueryInput,
+    { callingApplicationId }: { callingApplicationId?: string } = {},
   ): Promise<EventLogQueryResult> {
-    await this.validateAccess(workspaceId, input.table);
+    const workspaceId = workspace.id;
 
-    if (!ALLOWED_TABLES.includes(input.table)) {
-      throw new BadRequestException(`Invalid table: ${input.table}`);
-    }
+    await this.validateAccess(workspaceId, input.table);
 
     const limit = Math.min(input.first ?? 100, MAX_LIMIT);
     const tableName = getClickHouseTableName(input.table);
     const eventFieldName = EVENT_LOG_TYPES[input.table].eventFieldName;
 
-    const whereClauses: string[] = ['"workspaceId" = {workspaceId:String}'];
-    const params: Record<string, unknown> = { workspaceId };
+    const retentionStartDate =
+      await this.eventLogRetentionService.getRetentionStartDate({
+        workspaceId,
+        workspaceRetentionInDays: workspace.eventLogRetentionDays,
+      });
+
+    const whereClauses: string[] = [
+      '"workspaceId" = {workspaceId:String}',
+      '"timestamp" >= {retentionStartDate:DateTime64(3)}',
+    ];
+    const params: Record<string, unknown> = {
+      workspaceId,
+      retentionStartDate: formatDateTimeForClickHouse(retentionStartDate),
+    };
+
+    if (
+      input.table === EventLogTable.APPLICATION_LOG &&
+      isDefined(callingApplicationId)
+    ) {
+      whereClauses.push('"applicationId" = {callingApplicationId:String}');
+      params.callingApplicationId = callingApplicationId;
+    }
 
     await this.applyFilters(
       whereClauses,
@@ -93,6 +116,13 @@ export class EventLogsService {
       LIMIT {limit:Int32}
     `;
 
+    const recordsAtLastTimestampQuery = `
+      SELECT *
+      FROM ${tableName}
+      WHERE ${filterWhereClause} AND "timestamp" = {lastRecordTimestamp:DateTime64(3)}
+      LIMIT {maxLimit:Int32}
+    `;
+
     params.limit = limit + 1;
 
     const [records, countResult] = await Promise.all([
@@ -102,12 +132,37 @@ export class EventLogsService {
 
     const totalCount = countResult[0]?.totalCount ?? 0;
     const hasNextPage = records.length > limit;
+    const lastRecordTimestamp = records[limit - 1]?.timestamp;
+    const hasMoreRecordsAtLastTimestamp =
+      hasNextPage && records[limit].timestamp === lastRecordTimestamp;
 
-    if (hasNextPage) {
-      records.pop();
+    let pageRecords = records.slice(0, limit);
+
+    if (hasMoreRecordsAtLastTimestamp) {
+      params.lastRecordTimestamp = lastRecordTimestamp;
+      params.maxLimit = MAX_LIMIT;
+
+      const recordsAtLastTimestamp = await this.clickHouseService.select<
+        Record<string, unknown>
+      >(recordsAtLastTimestampQuery, params);
+      const pageRecordsAtLastTimestamp = pageRecords.filter(
+        (record) => record.timestamp === lastRecordTimestamp,
+      );
+
+      if (recordsAtLastTimestamp.length >= pageRecordsAtLastTimestamp.length) {
+        pageRecords = [
+          ...pageRecords.filter(
+            (record) => record.timestamp !== lastRecordTimestamp,
+          ),
+          ...recordsAtLastTimestamp,
+        ];
+      }
     }
 
-    const normalizedRecords = normalizeEventLogRecords(records, input.table);
+    const normalizedRecords = normalizeEventLogRecords(
+      pageRecords,
+      input.table,
+    );
     const lastRecord = normalizedRecords[normalizedRecords.length - 1];
     const endCursor =
       hasNextPage && lastRecord
@@ -128,6 +183,13 @@ export class EventLogsService {
     workspaceId: string,
     table: EventLogTable,
   ): Promise<void> {
+    if (!ALLOWED_TABLES.includes(table)) {
+      throw new EventLogsException(
+        `Invalid table: ${table}`,
+        EventLogsExceptionCode.INVALID_TABLE,
+      );
+    }
+
     if (!this.clickHouseService.getMainClient()) {
       throw new EventLogsException(
         'Audit logs require ClickHouse to be configured. Please set the CLICKHOUSE_URL environment variable.',
@@ -150,7 +212,7 @@ export class EventLogsService {
 
     if (!hasAccess) {
       throw new EventLogsException(
-        'Audit logs require an Enterprise subscription.',
+        'Audit logs require an Organization subscription.',
         EventLogsExceptionCode.NO_ENTITLEMENT,
       );
     }
@@ -215,6 +277,19 @@ export class EventLogsService {
         params.objectMetadataId = filters.objectMetadataId;
       }
     }
+
+    filters.fieldFilters?.forEach((fieldFilter, index) => {
+      const parameterName = `fieldFilter${index}`;
+
+      whereClauses.push(
+        buildEventLogFieldFilterCondition({
+          fieldFilter,
+          parameterName,
+          table,
+        }),
+      );
+      params[parameterName] = fieldFilter.values;
+    });
   }
 
   private encodeCursor(timestamp: Date): string {

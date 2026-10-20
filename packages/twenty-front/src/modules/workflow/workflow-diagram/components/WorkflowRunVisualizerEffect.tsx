@@ -35,8 +35,13 @@ export const WorkflowRunVisualizerEffect = ({
     workflowVisualizerWorkflowRunIdComponentState,
   );
 
-  const workflowVersionId = workflowRun?.workflowVersionId;
-  const workflowVersion = useWorkflowVersion(workflowVersionId);
+  const workflowVersionId =
+    workflowRun?.coreWorkflowVersionId ??
+    workflowRun?.workflowVersionId ??
+    undefined;
+  const workflowVersion = useWorkflowVersion(
+    workflowRun?.coreWorkflowVersionId ?? undefined,
+  );
   const setWorkflowVisualizerWorkflowVersionId = useSetAtomComponentState(
     workflowVisualizerWorkflowVersionIdComponentState,
   );
@@ -83,7 +88,9 @@ export const WorkflowRunVisualizerEffect = ({
       return;
     }
 
-    setWorkflowVisualizerWorkflowId(workflowRun.workflowId);
+    setWorkflowVisualizerWorkflowId(
+      workflowRun.coreWorkflowId ?? workflowRun.workflowId ?? undefined,
+    );
   }, [setWorkflowVisualizerWorkflowId, workflowRun]);
 
   useEffect(() => {
@@ -235,14 +242,14 @@ export const WorkflowRunVisualizerEffect = ({
   useEffect(() => {
     handleWorkflowRunDiagramGeneration({
       workflowRunState: workflowRun?.state ?? undefined,
-      workflowVersionId: workflowRun?.workflowVersionId,
+      workflowVersionId,
       isInSidePanel,
     });
   }, [
     handleWorkflowRunDiagramGeneration,
     isInSidePanel,
     workflowRun?.state,
-    workflowRun?.workflowVersionId,
+    workflowVersionId,
   ]);
 
   useEffect(() => {

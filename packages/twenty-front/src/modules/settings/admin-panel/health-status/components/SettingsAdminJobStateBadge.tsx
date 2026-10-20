@@ -1,6 +1,7 @@
 import { styled } from '@linaria/react';
-import { Tag, type TagColor } from 'twenty-ui/data-display';
-import { themeCssVariables } from 'twenty-ui/theme-constants';
+import { plural } from '@lingui/core/macro';
+import { Tag, type TagColor } from 'twenty-ui/primitives/data-display';
+import { themeCssVariables } from 'twenty-ui/theme';
 import { JobState } from '~/generated-admin/graphql';
 
 type SettingsAdminJobStateBadgeProps = {
@@ -24,15 +25,8 @@ const StyledContainer = styled.div`
   gap: ${themeCssVariables.spacing[2]};
 `;
 
-const StyledAttemptBadge = styled.span`
-  background-color: ${themeCssVariables.background.danger};
-  border: 1px solid ${themeCssVariables.border.color.danger};
-  border-radius: ${themeCssVariables.border.radius.sm};
-  color: ${themeCssVariables.font.color.danger};
-  font-size: ${themeCssVariables.font.size.xs};
-  font-weight: ${themeCssVariables.font.weight.medium};
-  padding: ${themeCssVariables.spacing['0.5']} ${themeCssVariables.spacing[1]};
-  white-space: nowrap;
+const StyledAttemptsTag = styled(Tag)`
+  min-width: fit-content;
 `;
 
 export const SettingsAdminJobStateBadge = ({
@@ -44,9 +38,14 @@ export const SettingsAdminJobStateBadge = ({
 
   return (
     <StyledContainer>
-      <Tag color={color} text={state} />
+      <Tag color={color}>{state}</Tag>
       {showAttempts && (
-        <StyledAttemptBadge>{attemptsMade} attempts</StyledAttemptBadge>
+        <StyledAttemptsTag color="red" weight="medium" truncate={false}>
+          {plural(attemptsMade, {
+            one: `${attemptsMade} attempt`,
+            other: `${attemptsMade} attempts`,
+          })}
+        </StyledAttemptsTag>
       )}
     </StyledContainer>
   );

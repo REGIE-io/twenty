@@ -1,4 +1,4 @@
-import { DEFAULT_ADVANCED_FILTER_DROPDOWN_OFFSET } from '@/object-record/advanced-filter/constants/DefaultAdvancedFilterDropdownOffset';
+import { DEFAULT_ADVANCED_FILTER_DROPDOWN_SIDE_OFFSET } from '@/object-record/advanced-filter/constants/DefaultAdvancedFilterDropdownSideOffset';
 import { getOperandLabel } from '@/object-record/object-filter-dropdown/utils/getOperandLabel';
 import { useGetRelativeDateFilterWithUserTimezone } from '@/object-record/record-filter/hooks/useGetRelativeDateFilterWithUserTimezone';
 import { Select } from '@/ui/input/components/Select';
@@ -14,18 +14,22 @@ import { ViewFilterOperand, type StepFilter } from 'twenty-shared/types';
 
 type WorkflowStepFilterOperandSelectProps = {
   stepFilter: StepFilter;
+  operands?: readonly ViewFilterOperand[];
 };
 
 export const WorkflowStepFilterOperandSelect = ({
   stepFilter,
+  operands: operandsOverride,
 }: WorkflowStepFilterOperandSelectProps) => {
   const { readonly } = useContext(WorkflowStepFilterContext);
 
   const { upsertStepFilterSettings } = useUpsertStepFilterSettings();
-  const operands = getStepFilterOperands({
-    filterType: stepFilter.type,
-    subFieldName: stepFilter.compositeFieldSubFieldName,
-  });
+  const operands =
+    operandsOverride ??
+    getStepFilterOperands({
+      filterType: stepFilter.type,
+      subFieldName: stepFilter.compositeFieldSubFieldName,
+    });
 
   const options = operands.map((operand) => ({
     value: operand,
@@ -69,7 +73,7 @@ export const WorkflowStepFilterOperandSelect = ({
       options={options}
       onChange={handleChange}
       disabled={readonly}
-      dropdownOffset={DEFAULT_ADVANCED_FILTER_DROPDOWN_OFFSET}
+      dropdownSideOffset={DEFAULT_ADVANCED_FILTER_DROPDOWN_SIDE_OFFSET}
     />
   );
 };

@@ -1,7 +1,9 @@
-import { readFile, writeFile } from 'node:fs/promises';
-import * as path from 'path';
+import { readFile } from 'node:fs/promises';
 
-import { ensureDir, ensureFile } from '@/cli/utilities/file/fs-utils';
+import {
+  ensurePrivateFile,
+  writePrivateFile,
+} from '@/cli/utilities/file/fs-utils';
 
 import { getConfigPath } from '@/cli/utilities/config/get-config-path';
 
@@ -16,8 +18,6 @@ export type RemoteConfig = {
   // App registration credentials (from `createApplicationRegistration`)
   appRegistrationId?: string;
   appRegistrationClientId?: string;
-  appAccessToken?: string;
-  appRefreshToken?: string;
 };
 
 type PersistedConfig = {
@@ -51,95 +51,11 @@ export class ConfigService {
   }
 
   private async readRawConfig(): Promise<PersistedConfig> {
-    await ensureFile(this.configPath);
+    await ensurePrivateFile(this.configPath);
     const content = await readFile(this.configPath, 'utf8');
     const raw = JSON.parse(content || '{}');
 
-    return this.migrateConfigIfNeeded(raw);
-  }
-
-  // TODO: Remove after 2026-04-30 — migrates legacy config format
-  // (profiles, top-level keys, applicationAccessToken/applicationRefreshToken)
-  // to the current format (remotes, twentyCLIAccessToken/twentyCLIRefreshToken)
-  private async migrateConfigIfNeeded(
-    raw: Record<string, unknown>,
-  ): Promise<PersistedConfig> {
-    if ((raw as PersistedConfig).version === CONFIG_VERSION) {
-      return raw as PersistedConfig;
-    }
-
-    const hasLegacyProfiles = 'profiles' in raw;
-    const hasTopLevelApiUrl = 'apiUrl' in raw && !('remotes' in raw);
-
-    if (!hasLegacyProfiles && !hasTopLevelApiUrl) {
-      return raw as PersistedConfig;
-    }
-
-    const migrated: PersistedConfig = { version: CONFIG_VERSION };
-
-    const str = (value: unknown): string | undefined =>
-      typeof value === 'string' ? value : undefined;
-
-    const migrateRemoteFields = (
-      source: Record<string, unknown>,
-    ): RemoteConfig => ({
-      apiUrl: str(source.apiUrl) ?? '',
-      apiKey: str(source.apiKey),
-      twentyCLIRegistrationClientId:
-        str(source.twentyCLIRegistrationClientId) ?? str(source.oauthClientId),
-      twentyCLIAccessToken:
-        str(source.twentyCLIAccessToken) ??
-        str(source.accessToken) ??
-        str(source.applicationAccessToken),
-      twentyCLIRefreshToken:
-        str(source.twentyCLIRefreshToken) ??
-        str(source.refreshToken) ??
-        str(source.applicationRefreshToken),
-      appRegistrationId: str(source.appRegistrationId),
-      appRegistrationClientId: str(source.appRegistrationClientId),
-      appAccessToken: str(source.appAccessToken),
-      appRefreshToken: str(source.appRefreshToken),
-    });
-
-    const profiles =
-      (raw.profiles as Record<string, Record<string, unknown>> | undefined) ??
-      {};
-
-    migrated.remotes = {};
-
-    for (const [name, profile] of Object.entries(profiles)) {
-      const remoteName = name === 'default' ? DEFAULT_REMOTE_NAME : name;
-
-      migrated.remotes[remoteName] = migrateRemoteFields(profile);
-    }
-
-    // Current-format remotes override legacy profiles — they're newer.
-    const existingRemotes =
-      (raw.remotes as Record<string, RemoteConfig> | undefined) ?? {};
-
-    for (const [name, remote] of Object.entries(existingRemotes)) {
-      const remoteName = name === 'default' ? DEFAULT_REMOTE_NAME : name;
-
-      migrated.remotes[remoteName] = remote;
-    }
-
-    if (hasTopLevelApiUrl && !migrated.remotes[DEFAULT_REMOTE_NAME]) {
-      migrated.remotes[DEFAULT_REMOTE_NAME] = migrateRemoteFields(
-        raw as Record<string, unknown>,
-      );
-    }
-
-    const legacyDefault = raw.defaultWorkspace as string | undefined;
-
-    if (legacyDefault) {
-      migrated.defaultRemote =
-        legacyDefault === 'default' ? DEFAULT_REMOTE_NAME : legacyDefault;
-    }
-
-    await ensureDir(path.dirname(this.configPath));
-    await writeFile(this.configPath, JSON.stringify(migrated, null, 2));
-
-    return migrated;
+    return raw as PersistedConfig;
   }
 
   async getConfig(): Promise<RemoteConfig> {
@@ -167,8 +83,6 @@ export class ConfigService {
         twentyCLIRefreshToken: remoteConfig.twentyCLIRefreshToken,
         appRegistrationId: remoteConfig.appRegistrationId,
         appRegistrationClientId: remoteConfig.appRegistrationClientId,
-        appAccessToken: remoteConfig.appAccessToken,
-        appRefreshToken: remoteConfig.appRefreshToken,
       };
     } catch {
       return defaultConfig;
@@ -189,8 +103,7 @@ export class ConfigService {
 
     raw.remotes[remote] = { ...currentRemote, ...config };
 
-    await ensureDir(path.dirname(this.configPath));
-    await writeFile(this.configPath, JSON.stringify(raw, null, 2));
+    await writePrivateFile(this.configPath, JSON.stringify(raw, null, 2));
   }
 
   async clearConfig(): Promise<void> {
@@ -205,8 +118,7 @@ export class ConfigService {
       delete raw.remotes[remote];
     }
 
-    await ensureDir(path.dirname(this.configPath));
-    await writeFile(this.configPath, JSON.stringify(raw, null, 2));
+    await writePrivateFile(this.configPath, JSON.stringify(raw, null, 2));
   }
 
   private getDefaultConfig(): RemoteConfig {
@@ -247,7 +159,6 @@ export class ConfigService {
 
     raw.defaultRemote = name;
 
-    await ensureDir(path.dirname(this.configPath));
-    await writeFile(this.configPath, JSON.stringify(raw, null, 2));
+    await writePrivateFile(this.configPath, JSON.stringify(raw, null, 2));
   }
 }

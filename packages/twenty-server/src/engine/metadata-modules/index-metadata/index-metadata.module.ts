@@ -1,5 +1,4 @@
 import { Module } from '@nestjs/common';
-import { TypeOrmModule } from '@nestjs/typeorm';
 
 import { ApplicationModule } from 'src/engine/core-modules/application/application.module';
 import { TokenModule } from 'src/engine/core-modules/auth/token/token.module';
@@ -8,14 +7,12 @@ import { IndexMetadataController } from 'src/engine/metadata-modules/index-metad
 import { IndexMetadataEntity } from 'src/engine/metadata-modules/index-metadata/index-metadata.entity';
 import { IndexMetadataResolver } from 'src/engine/metadata-modules/index-metadata/index-metadata.resolver';
 import { IndexMetadataService } from 'src/engine/metadata-modules/index-metadata/services/index-metadata.service';
-import { UniqueFieldMetadataIdsService } from 'src/engine/metadata-modules/index-metadata/services/unique-field-metadata-ids.service';
 import { PermissionsModule } from 'src/engine/metadata-modules/permissions/permissions.module';
 import { WorkspaceMigrationModule } from 'src/engine/workspace-manager/workspace-migration/workspace-migration.module';
 import { WorkspaceCacheStorageModule } from 'src/engine/workspace-cache-storage/workspace-cache-storage.module';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([IndexMetadataEntity]),
     ApplicationModule,
     TokenModule,
     PermissionsModule,
@@ -24,11 +21,7 @@ import { WorkspaceCacheStorageModule } from 'src/engine/workspace-cache-storage/
     WorkspaceCacheStorageModule,
   ],
   controllers: [IndexMetadataController],
-  providers: [
-    IndexMetadataResolver,
-    IndexMetadataService,
-    UniqueFieldMetadataIdsService,
-  ],
-  exports: [IndexMetadataService, UniqueFieldMetadataIdsService],
+  providers: [IndexMetadataResolver, IndexMetadataService],
+  exports: [IndexMetadataService],
 })
 export class IndexMetadataModule {}

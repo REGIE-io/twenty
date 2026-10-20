@@ -32,7 +32,6 @@ export class MicrosoftAuthController {
     NoPermissionGuard,
   )
   async microsoftAuth() {
-    // As this method is protected by Microsoft Auth guard, it will trigger Microsoft SSO flow
     return;
   }
 
@@ -48,7 +47,7 @@ export class MicrosoftAuthController {
     @Res() res: Response,
   ) {
     return res.redirect(
-      await this.authService.signInUpWithSocialSSO(
+      await this.authService.signInUpWithSocialSso(
         req.user,
         AuthProviderEnum.Microsoft,
       ),

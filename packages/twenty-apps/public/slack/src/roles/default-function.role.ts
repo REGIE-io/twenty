@@ -14,13 +14,13 @@ export default defineApplicationRole({
   universalIdentifier: DEFAULT_ROLE_UNIVERSAL_IDENTIFIER,
   label: 'Twenty Slack tools role',
   description:
-    'Tools only forward requests to Slack using the configured connected account. Tracks assistant requests, links Slack accounts to workspace members (which needs read access on workspace members for the email match), and runs the assistant agent; wider CRM access is granted separately through the role assigned to the agent.',
+    "Everything the Slack app can do in the CRM. Tools only forward requests to Slack using the configured connected account. Tracks assistant requests, links Slack accounts to workspace members (which needs read access on workspace members for the email match), reads CRM records to render record link previews in Slack, and hosts the assistant agent, which always runs as the linked workspace member who asked and acts with that member's own permissions.",
   canReadAllObjectRecords: false,
   canUpdateAllObjectRecords: false,
   canSoftDeleteAllObjectRecords: false,
   canDestroyAllObjectRecords: false,
   canUpdateAllSettings: false,
-  canBeAssignedToAgents: false,
+  canBeAssignedToAgents: true,
   canBeAssignedToUsers: false,
   canBeAssignedToApiKeys: false,
   objectPermissions: [
@@ -37,7 +37,7 @@ export default defineApplicationRole({
       canReadObjectRecords: true,
       canUpdateObjectRecords: true,
       canSoftDeleteObjectRecords: false,
-      canDestroyObjectRecords: false,
+      canDestroyObjectRecords: true,
     },
     {
       objectUniversalIdentifier:
@@ -48,7 +48,27 @@ export default defineApplicationRole({
       canSoftDeleteObjectRecords: false,
       canDestroyObjectRecords: false,
     },
+    ...(
+      [
+        STANDARD_OBJECT_UNIVERSAL_IDENTIFIERS.person.universalIdentifier,
+        STANDARD_OBJECT_UNIVERSAL_IDENTIFIERS.company.universalIdentifier,
+        STANDARD_OBJECT_UNIVERSAL_IDENTIFIERS.opportunity.universalIdentifier,
+        STANDARD_OBJECT_UNIVERSAL_IDENTIFIERS.note.universalIdentifier,
+        STANDARD_OBJECT_UNIVERSAL_IDENTIFIERS.noteTarget.universalIdentifier,
+        STANDARD_OBJECT_UNIVERSAL_IDENTIFIERS.task.universalIdentifier,
+        STANDARD_OBJECT_UNIVERSAL_IDENTIFIERS.taskTarget.universalIdentifier,
+      ] as const
+    ).map((objectUniversalIdentifier) => ({
+      objectUniversalIdentifier,
+      canReadObjectRecords: true,
+      canUpdateObjectRecords: true,
+      canSoftDeleteObjectRecords: true,
+      canDestroyObjectRecords: false,
+    })),
   ],
   fieldPermissions: [],
-  permissionFlagUniversalIdentifiers: [SystemPermissionFlag.AI],
+  permissionFlagUniversalIdentifiers: [
+    SystemPermissionFlag.AI,
+    SystemPermissionFlag.UPLOAD_FILE,
+  ],
 });

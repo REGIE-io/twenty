@@ -1,12 +1,13 @@
 import {
   AggregateOperations,
   FieldMetadataType,
+  PageLayoutTabLayoutMode,
   ViewFilterOperand,
+  WidgetType,
 } from 'twenty-shared/types';
 
 import { buildFieldByObjectIdAndNameKey } from 'src/engine/metadata-modules/flat-field-metadata/utils/build-field-by-object-id-and-name-key.util';
 import { WidgetConfigurationType } from 'src/engine/metadata-modules/page-layout-widget/enums/widget-configuration-type.type';
-import { WidgetType } from 'src/engine/metadata-modules/page-layout-widget/enums/widget-type.enum';
 import { type DashboardIdentifierMaps } from 'src/modules/dashboard/tools/types/dashboard-identifier-maps.type';
 import { type WidgetIdentifiersInput } from 'src/modules/dashboard/tools/types/widget-identifiers-input.type';
 import { resolveWidgetFieldNamesToIds } from 'src/modules/dashboard/tools/utils/resolve-widget-field-names-to-metadata-ids.util';
@@ -15,6 +16,7 @@ const OBJECT_ID = '11111111-1111-4111-8111-111111111111';
 const AMOUNT_FIELD_ID = '22222222-2222-4222-8222-222222222222';
 const STAGE_FIELD_ID = '33333333-3333-4333-8333-333333333333';
 const CREATED_AT_FIELD_ID = '44444444-4444-4444-8444-444444444444';
+const OWNER_FIELD_ID = '55555555-5555-4555-8555-555555555555';
 
 const buildMaps = (): DashboardIdentifierMaps => ({
   objectIdByName: { opportunity: OBJECT_ID, opportunities: OBJECT_ID },
@@ -25,11 +27,13 @@ const buildMaps = (): DashboardIdentifierMaps => ({
       buildFieldByObjectIdAndNameKey(OBJECT_ID, 'createdAt'),
       CREATED_AT_FIELD_ID,
     ],
+    [buildFieldByObjectIdAndNameKey(OBJECT_ID, 'owner'), OWNER_FIELD_ID],
   ]),
   fieldById: new Map([
     [AMOUNT_FIELD_ID, { type: FieldMetadataType.CURRENCY }],
     [STAGE_FIELD_ID, { type: FieldMetadataType.SELECT }],
     [CREATED_AT_FIELD_ID, { type: FieldMetadataType.DATE_TIME }],
+    [OWNER_FIELD_ID, { type: FieldMetadataType.MORPH_RELATION }],
   ]),
 });
 
@@ -53,7 +57,13 @@ const buildAggregateWidget = (
 ): WidgetIdentifiersInput => ({
   title: 'KPI',
   type: WidgetType.GRAPH,
-  gridPosition: { row: 0, column: 0, rowSpan: 2, columnSpan: 4 },
+  position: {
+    layoutMode: PageLayoutTabLayoutMode.GRID,
+    row: 0,
+    column: 0,
+    rowSpan: 2,
+    columnSpan: 4,
+  },
   objectName: 'opportunity',
   configuration: {
     configurationType: WidgetConfigurationType.AGGREGATE_CHART,
@@ -127,6 +137,25 @@ describe('resolveWidgetFieldNamesToIds - chart filters', () => {
       positionInRecordFilterGroup: 0,
     });
     expect(filter.recordFilters[0].id).toEqual(expect.any(String));
+  });
+
+  it('stores the filter type rather than the raw field type', () => {
+    const widget = buildAggregateWidget({
+      recordFilters: [
+        {
+          fieldName: 'owner',
+          operand: ViewFilterOperand.IS_EMPTY,
+        },
+      ],
+    });
+
+    const result = resolveWidgetFieldNamesToIds(widget, buildMaps());
+    const filter = getResolvedFilter(result.configuration);
+
+    expect(filter.recordFilters[0]).toMatchObject({
+      fieldMetadataId: OWNER_FIELD_ID,
+      type: 'RELATION',
+    });
   });
 
   it('preserves an explicit filter fieldMetadataId', () => {

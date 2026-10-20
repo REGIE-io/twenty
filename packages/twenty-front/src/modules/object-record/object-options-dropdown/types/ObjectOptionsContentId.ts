@@ -6,9 +6,8 @@ export type ObjectOptionsContentId =
   | 'hiddenRecordGroups'
   | 'recordGroupFields'
   | 'recordGroupSort'
+  | 'recordGroupLoadLimit'
   | 'addRecordGroup'
-  | 'calendarDateFields'
   | 'calendarFields'
-  | 'calendarEndFields'
   | 'calendarView'
   | 'visibility';

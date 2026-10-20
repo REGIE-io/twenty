@@ -18,7 +18,7 @@ import { ALL_METADATA_ENTITY_BY_METADATA_NAME } from 'src/engine/metadata-module
 import { ALL_METADATA_NAMES_SORTED_ATOMICALLY } from 'src/engine/metadata-modules/flat-entity/constant/all-metadata-names-sorted-atomically.constant';
 import { WorkspaceManyOrAllFlatEntityMapsCacheService } from 'src/engine/metadata-modules/flat-entity/services/workspace-many-or-all-flat-entity-maps-cache.service';
 import { WorkspaceCacheStorageService } from 'src/engine/workspace-cache-storage/workspace-cache-storage.service';
-import { WorkspaceDataSourceService } from 'src/engine/workspace-datasource/workspace-datasource.service';
+import { WorkspaceSchemaService } from 'src/engine/workspace-datasource/workspace-schema.service';
 import {
   WORKSPACE_DELETION_CLIENT_TIMEOUT_MS,
   WORKSPACE_DELETION_LOCK_TIMEOUT_MS,
@@ -54,7 +54,7 @@ export class WorkspaceDeletionPhaseOperationsService {
     private readonly workspaceService: WorkspaceService,
     private readonly billingService: BillingService,
     private readonly billingSubscriptionService: BillingSubscriptionService,
-    private readonly workspaceDataSourceService: WorkspaceDataSourceService,
+    private readonly workspaceSchemaService: WorkspaceSchemaService,
     private readonly phoneSearchWorkspaceCleanupService: PhoneSearchWorkspaceCleanupService,
     private readonly workspaceCacheStorageService: WorkspaceCacheStorageService,
     private readonly flatEntityMapsCacheService: WorkspaceManyOrAllFlatEntityMapsCacheService,
@@ -118,7 +118,7 @@ export class WorkspaceDeletionPhaseOperationsService {
   }
 
   async deleteSchema(workspaceId: string): Promise<void> {
-    await this.workspaceDataSourceService.deleteWorkspaceDBSchema(workspaceId);
+    await this.workspaceSchemaService.deleteWorkspaceDBSchema(workspaceId);
     await this.phoneSearchWorkspaceCleanupService.cleanupWorkspace(workspaceId);
   }
 

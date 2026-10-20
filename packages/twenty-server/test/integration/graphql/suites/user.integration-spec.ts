@@ -6,7 +6,7 @@ import { getCurrentUser } from 'test/integration/graphql/utils/get-current-user.
 import { signUpOperationFactory } from 'test/integration/graphql/utils/sign-up-operation-factory.util';
 import { signUpInWorkspaceAndGetAccessToken } from 'test/integration/graphql/utils/sign-up-in-workspace-and-get-access-token.util';
 import { deleteUser } from 'test/integration/graphql/utils/delete-user.util';
-import { makeMetadataAPIRequest } from 'test/integration/metadata/suites/utils/make-metadata-api-request.util';
+import { makeMetadataApiRequest } from 'test/integration/metadata/suites/utils/make-metadata-api-request.util';
 import { updateConfigVariable } from 'test/integration/twenty-config/utils/update-config-variable.util';
 
 import { ErrorCode } from 'src/engine/core-modules/graphql/utils/graphql-errors.util';
@@ -68,7 +68,6 @@ describe('deleteUser', () => {
   });
 
   it('should soft delete user and remove workspace relations when deleting a user in their only workspace', async () => {
-    // 1.  Arrange
     // Enable public invite link to allow sign up without personal token
     const enablePublicInviteLinkMutation = {
       query: `
@@ -91,6 +90,24 @@ describe('deleteUser', () => {
         expect(res.body.data.updateWorkspace.isPublicInviteLinkEnabled).toBe(
           true,
         );
+      });
+
+    const getRolesWithMembersQuery = {
+      query: `
+        query GetRoles {
+          getRoles { id label workspaceMembers { id } }
+        }
+      `,
+    };
+
+    // Primes the memoized member cache, so a missed invalidation on join would hide the new member
+    await client
+      .post('/metadata')
+      .set('Authorization', `Bearer ${APPLE_JANE_ADMIN_ACCESS_TOKEN}`)
+      .send(getRolesWithMembersQuery)
+      .expect(200)
+      .expect((res) => {
+        expect(res.body.errors).toBeUndefined();
       });
 
     const testEmail = `test_user_${Date.now()}@example.com`;
@@ -134,6 +151,24 @@ describe('deleteUser', () => {
     expect(createdMember).toBeDefined();
     const createdWorkspaceMemberId = createdMember.id;
 
+    const rolesAfterJoinResponse = await client
+      .post('/metadata')
+      .set('Authorization', `Bearer ${APPLE_JANE_ADMIN_ACCESS_TOKEN}`)
+      .send(getRolesWithMembersQuery);
+
+    expect(rolesAfterJoinResponse.body.errors).toBeUndefined();
+    expect(
+      (
+        rolesAfterJoinResponse.body.data.getRoles as Array<{
+          workspaceMembers: Array<{ id: string }>;
+        }>
+      ).some((role) =>
+        role.workspaceMembers.some(
+          (workspaceMember) => workspaceMember.id === createdWorkspaceMemberId,
+        ),
+      ),
+    ).toBe(true);
+
     const deleteUserFromWorkspaceMutation = {
       query: `
         mutation DeleteUserFromWorkspace {
@@ -162,14 +197,6 @@ describe('deleteUser', () => {
       membersAfterDeletionResponse.body.data.workspaceMember;
 
     expect(createdMemberAfterDeletion).toBeNull();
-
-    const getRolesWithMembersQuery = {
-      query: `
-        query GetRoles {
-          getRoles { id label workspaceMembers { id } }
-        }
-      `,
-    };
 
     const rolesResponse = await client
       .post('/metadata')
@@ -218,7 +245,7 @@ describe('updateUserEmail', () => {
       }
     `;
 
-    const updateResponse = await makeMetadataAPIRequest(
+    const updateResponse = await makeMetadataApiRequest(
       {
         query: updateEmailMutation,
         variables: { newEmail: updatedEmail },
@@ -259,7 +286,7 @@ describe('updateUserEmail', () => {
         }
       `;
 
-      const updateResponse = await makeMetadataAPIRequest(
+      const updateResponse = await makeMetadataApiRequest(
         {
           query: updateEmailMutation,
           variables: { newEmail: updatedEmail },

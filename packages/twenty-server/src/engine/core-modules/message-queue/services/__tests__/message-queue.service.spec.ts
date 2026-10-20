@@ -25,7 +25,7 @@ describe('MessageQueueService with disabled jobs', () => {
 
     await service.add('CallWebhookJobsJob', { workspaceId: 'workspace-id' });
     await service.bulkAdd('CallWebhookJobsJob', [
-      { workspaceId: 'workspace-id' },
+      { data: { workspaceId: 'workspace-id' } },
     ]);
 
     expect(driver.add).not.toHaveBeenCalled();

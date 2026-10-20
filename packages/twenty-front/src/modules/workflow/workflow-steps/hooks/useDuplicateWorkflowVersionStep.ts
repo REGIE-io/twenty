@@ -1,36 +1,38 @@
+import { useWorkflowEditorMutationErrorHandler } from '@/workflow/hooks/useWorkflowEditorMutationErrorHandler';
+import { invalidateCoreWorkflowVersions } from '@/object-core/workflows/versions/utils/invalidateCoreWorkflowVersions';
 import { useApolloCoreClient } from '@/object-metadata/hooks/useApolloCoreClient';
-import { DUPLICATE_WORKFLOW_VERSION_STEP } from '@/workflow/graphql/mutations/duplicateWorkflowVersionStep';
 import { useApplyWorkflowVersionStepChanges } from '@/workflow/workflow-steps/hooks/useApplyWorkflowVersionStepChanges';
-import { useSnackBar } from '@/ui/feedback/snack-bar-manager/hooks/useSnackBar';
 import { useMutation } from '@apollo/client/react';
 import {
-  type DuplicateWorkflowVersionStepInput,
-  type DuplicateWorkflowVersionStepMutation,
-  type DuplicateWorkflowVersionStepMutationVariables,
+  DuplicateCoreWorkflowVersionStepDocument,
+  type DuplicateCoreWorkflowVersionStepInput,
 } from '~/generated/graphql';
+
+export type DuplicateWorkflowVersionStepInput = Omit<
+  DuplicateCoreWorkflowVersionStepInput,
+  'coreWorkflowVersionId'
+> & {
+  workflowVersionId: string;
+};
 
 export const useDuplicateWorkflowVersionStep = () => {
   const apolloCoreClient = useApolloCoreClient();
+  const handleCoreMutationError = useWorkflowEditorMutationErrorHandler();
+  const [mutateCore] = useMutation(DuplicateCoreWorkflowVersionStepDocument, {
+    client: apolloCoreClient,
+    onError: handleCoreMutationError,
+  });
 
   const { applyWorkflowVersionStepChanges } =
     useApplyWorkflowVersionStepChanges();
 
-  const { enqueueErrorSnackBar } = useSnackBar();
-
-  const [mutate] = useMutation<
-    DuplicateWorkflowVersionStepMutation,
-    DuplicateWorkflowVersionStepMutationVariables
-  >(DUPLICATE_WORKFLOW_VERSION_STEP, {
-    client: apolloCoreClient,
-  });
-
   const duplicateWorkflowVersionStep = async (
     input: DuplicateWorkflowVersionStepInput,
   ) => {
-    const result = await mutate({
-      variables: { input },
-      onError: (error) => {
-        enqueueErrorSnackBar({ apolloError: error });
+    const { workflowVersionId, ...stepInput } = input;
+    const result = await mutateCore({
+      variables: {
+        input: { ...stepInput, coreWorkflowVersionId: workflowVersionId },
       },
     });
 
@@ -39,8 +41,10 @@ export const useDuplicateWorkflowVersionStep = () => {
 
     applyWorkflowVersionStepChanges({
       workflowVersionStepChanges,
-      workflowVersionId: input.workflowVersionId,
+      workflowVersionId,
     });
+
+    await invalidateCoreWorkflowVersions(apolloCoreClient);
 
     return result;
   };

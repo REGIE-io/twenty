@@ -4,10 +4,13 @@ import { ConnectedAccountProvider } from 'twenty-shared/types';
 
 import { setupGoogleMock } from 'test/integration/google/mocks/setup-google-mock.util';
 import { runWorkflowActionStep } from 'test/integration/graphql/suites/workflow/utils/run-workflow-action-step.util';
+import { buildEmailDocument } from 'test/integration/utils/build-email-document.util';
 import { connectMessagingAccount } from 'test/integration/utils/connect-messaging-account.util';
 import { findRecordNodesByFilter } from 'test/integration/utils/find-records-by-filter.util';
+import { setTestConnectedAccountHandleAliases } from 'test/integration/utils/set-test-connected-account-handle-aliases.util';
 
 const HANDLE = 'gmail-send-email-action@apple.dev';
+const ALIAS = 'gmail-send-email-action-alias@apple.dev';
 const RECIPIENTS = {
   to: 'to-recipient@example.com',
   cc: 'cc-recipient@example.com',
@@ -23,6 +26,10 @@ describe('SEND_EMAIL workflow action on Gmail (integration)', () => {
     channel = await connectMessagingAccount({
       provider: ConnectedAccountProvider.GOOGLE,
       handle: HANDLE,
+    });
+    await setTestConnectedAccountHandleAliases({
+      connectedAccountId: channel.connectedAccountId,
+      handleAliases: [ALIAS],
     });
   }, 60000);
 
@@ -44,7 +51,7 @@ describe('SEND_EMAIL workflow action on Gmail (integration)', () => {
           bcc: '{{trigger.bcc}}',
         },
         subject: '{{trigger.subject}}',
-        body: '<p>Gmail workflow body</p>',
+        body: JSON.stringify(buildEmailDocument('Gmail workflow body')),
       },
       payload: { ...RECIPIENTS, subject },
     });
@@ -107,5 +114,57 @@ describe('SEND_EMAIL workflow action on Gmail (integration)', () => {
         expect.objectContaining({ handle: RECIPIENTS.bcc, role: 'BCC' }),
       ]),
     );
+  }, 60000);
+
+  it('sends from a verified alias configured on the step', async () => {
+    const subject = `Gmail workflow alias send ${randomUUID()}`;
+
+    const workflowRun = await runWorkflowActionStep({
+      name: 'Gmail alias send email workflow',
+      stepType: 'SEND_EMAIL',
+      input: {
+        connectedAccountId: channel.connectedAccountId,
+        fromHandle: ALIAS,
+        recipients: { to: RECIPIENTS.to, cc: '', bcc: '' },
+        subject,
+        body: JSON.stringify(buildEmailDocument('Gmail workflow alias body')),
+      },
+    });
+
+    expect(workflowRun).toMatchObject({
+      status: 'COMPLETED',
+      stepStatus: 'SUCCESS',
+    });
+
+    const [{ raw }] = google.sentMessages.slice(-1);
+
+    expect(raw).toContain(`<${ALIAS}>`);
+  }, 60000);
+
+  it('fails the step when the from handle is not a verified alias', async () => {
+    const sentMessageCount = google.sentMessages.length;
+
+    const workflowRun = await runWorkflowActionStep({
+      name: 'Gmail rejected sender send email workflow',
+      stepType: 'SEND_EMAIL',
+      input: {
+        connectedAccountId: channel.connectedAccountId,
+        fromHandle: 'not-my-alias@apple.dev',
+        recipients: { to: RECIPIENTS.to, cc: '', bcc: '' },
+        subject: `Gmail workflow rejected sender ${randomUUID()}`,
+        body: JSON.stringify(
+          buildEmailDocument('Gmail workflow rejected body'),
+        ),
+      },
+    });
+
+    expect(workflowRun).toMatchObject({
+      status: 'FAILED',
+      stepStatus: 'FAILED',
+      stepError: expect.stringContaining(
+        'is not the connected account handle nor one of its verified aliases',
+      ),
+    });
+    expect(google.sentMessages).toHaveLength(sentMessageCount);
   }, 60000);
 });

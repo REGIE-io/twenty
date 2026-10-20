@@ -2,7 +2,7 @@ import { v4 } from 'uuid';
 import { isDefined } from 'twenty-shared/utils';
 
 import { type ApplicationService } from 'src/engine/core-modules/application/application.service';
-import { CommandMenuItemAvailabilityType } from 'src/engine/metadata-modules/command-menu-item/enums/command-menu-item-availability-type.enum';
+import { CommandMenuItemAvailabilityType } from 'twenty-shared/types';
 import { EngineComponentKey } from 'src/engine/metadata-modules/command-menu-item/enums/engine-component-key.enum';
 import { type FlatCommandMenuItem } from 'src/engine/metadata-modules/flat-command-menu-item/types/flat-command-menu-item.type';
 import { type WorkspaceManyOrAllFlatEntityMapsCacheService } from 'src/engine/metadata-modules/flat-entity/services/workspace-many-or-all-flat-entity-maps-cache.service';
@@ -46,7 +46,7 @@ export const prefillWorkflowCommandMenuItems = async ({
 
   const now = new Date().toISOString();
 
-  const { quickLeadWorkflowVersionId } = getWorkflowPrefillIds(workspaceId);
+  const { coreQuickLeadWorkflowVersionId } = getWorkflowPrefillIds(workspaceId);
 
   const quickLeadFlatCommandMenuItem: FlatCommandMenuItem = {
     id: v4(),
@@ -55,7 +55,8 @@ export const prefillWorkflowCommandMenuItems = async ({
     applicationUniversalIdentifier:
       workspaceCustomFlatApplication.universalIdentifier,
     workspaceId,
-    workflowVersionId: quickLeadWorkflowVersionId,
+    workflowVersionId: null,
+    coreWorkflowVersionId: coreQuickLeadWorkflowVersionId,
     frontComponentId: null,
     frontComponentUniversalIdentifier: null,
     engineComponentKey: EngineComponentKey.TRIGGER_WORKFLOW_VERSION,
@@ -66,8 +67,11 @@ export const prefillWorkflowCommandMenuItems = async ({
     isPinned: false,
     availabilityType: CommandMenuItemAvailabilityType.GLOBAL,
     conditionalAvailabilityExpression: null,
+    conditionalPinnedExpression: null,
     availabilityObjectMetadataId: null,
     availabilityObjectMetadataUniversalIdentifier: null,
+    navigationTargetObjectMetadataId: null,
+    navigationTargetObjectMetadataUniversalIdentifier: null,
     payload: null,
     hotKeys: null,
     pageLayoutId: null,

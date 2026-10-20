@@ -24,9 +24,6 @@ import { WorkspaceMigrationRunnerModule } from 'src/engine/workspace-manager/wor
     WorkspaceMigrationBuildOrchestratorService,
     WorkspaceMigrationFlatEntityMapsService,
   ],
-  exports: [
-    WorkspaceMigrationValidateBuildAndRunService,
-    WorkspaceMigrationBuildOrchestratorService,
-  ],
+  exports: [WorkspaceMigrationValidateBuildAndRunService],
 })
 export class WorkspaceMigrationModule {}

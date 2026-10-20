@@ -1,49 +1,38 @@
+import { useWorkflowEditorMutationErrorHandler } from '@/workflow/hooks/useWorkflowEditorMutationErrorHandler';
+import { invalidateCoreWorkflowVersions } from '@/object-core/workflows/versions/utils/invalidateCoreWorkflowVersions';
 import { useApolloCoreClient } from '@/object-metadata/hooks/useApolloCoreClient';
-import { CoreObjectNameSingular } from 'twenty-shared/types';
-import { useFindOneRecordQuery } from '@/object-record/hooks/useFindOneRecordQuery';
-import { DELETE_WORKFLOW_VERSION_STEP } from '@/workflow/graphql/mutations/deleteWorkflowVersionStep';
 import { useApplyWorkflowVersionStepChanges } from '@/workflow/workflow-steps/hooks/useApplyWorkflowVersionStepChanges';
-import { useSnackBar } from '@/ui/feedback/snack-bar-manager/hooks/useSnackBar';
 import { useMutation } from '@apollo/client/react';
 import {
-  type DeleteWorkflowVersionStepInput,
-  type DeleteWorkflowVersionStepMutation,
-  type DeleteWorkflowVersionStepMutationVariables,
+  DeleteCoreWorkflowVersionStepDocument,
+  type DeleteCoreWorkflowVersionStepInput,
 } from '~/generated/graphql';
+
+export type DeleteWorkflowVersionStepInput = Omit<
+  DeleteCoreWorkflowVersionStepInput,
+  'coreWorkflowVersionId'
+> & {
+  workflowVersionId: string;
+};
 
 export const useDeleteWorkflowVersionStep = () => {
   const apolloCoreClient = useApolloCoreClient();
+  const handleCoreMutationError = useWorkflowEditorMutationErrorHandler();
+  const [mutateCore] = useMutation(DeleteCoreWorkflowVersionStepDocument, {
+    client: apolloCoreClient,
+    onError: handleCoreMutationError,
+  });
 
   const { applyWorkflowVersionStepChanges } =
     useApplyWorkflowVersionStepChanges();
-  const { enqueueErrorSnackBar } = useSnackBar();
-
-  const { findOneRecordQuery: findOneWorkflowVersionQuery } =
-    useFindOneRecordQuery({
-      objectNameSingular: CoreObjectNameSingular.WorkflowVersion,
-    });
-
-  const [mutate] = useMutation<
-    DeleteWorkflowVersionStepMutation,
-    DeleteWorkflowVersionStepMutationVariables
-  >(DELETE_WORKFLOW_VERSION_STEP, {
-    client: apolloCoreClient,
-  });
 
   const deleteWorkflowVersionStep = async (
     input: DeleteWorkflowVersionStepInput,
   ) => {
-    const result = await mutate({
-      variables: { input },
-      awaitRefetchQueries: true,
-      refetchQueries: [
-        {
-          query: findOneWorkflowVersionQuery,
-          variables: { objectRecordId: input.workflowVersionId },
-        },
-      ],
-      onError: (error) => {
-        enqueueErrorSnackBar({ apolloError: error });
+    const { workflowVersionId, ...stepInput } = input;
+    const result = await mutateCore({
+      variables: {
+        input: { ...stepInput, coreWorkflowVersionId: workflowVersionId },
       },
     });
 
@@ -51,8 +40,10 @@ export const useDeleteWorkflowVersionStep = () => {
 
     applyWorkflowVersionStepChanges({
       workflowVersionStepChanges,
-      workflowVersionId: input.workflowVersionId,
+      workflowVersionId,
     });
+
+    await invalidateCoreWorkflowVersions(apolloCoreClient);
 
     return workflowVersionStepChanges;
   };

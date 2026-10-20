@@ -14,7 +14,10 @@ export const PERSON_FRAGMENT_WITH_DEPTH_ZERO_RELATIONS = `
         source
         workspaceMemberId
         name
-        context
+        context {
+          provider
+          applicationId
+        }
       }
       deletedAt
       emails {
@@ -27,7 +30,10 @@ export const PERSON_FRAGMENT_WITH_DEPTH_ZERO_RELATIONS = `
       linkedinLink {
         primaryLinkUrl
         primaryLinkLabel
-        secondaryLinks
+        secondaryLinks {
+          label
+          url
+        }
       }
       name {
         firstName
@@ -38,7 +44,11 @@ export const PERSON_FRAGMENT_WITH_DEPTH_ZERO_RELATIONS = `
         primaryPhoneNumber
         primaryPhoneCountryCode
         primaryPhoneCallingCode
-        additionalPhones
+        additionalPhones {
+          number
+          callingCode
+          countryCode
+        }
       }
       position
       updatedAt
@@ -46,19 +56,29 @@ export const PERSON_FRAGMENT_WITH_DEPTH_ZERO_RELATIONS = `
         source
         workspaceMemberId
         name
-        context
+        context {
+          provider
+          applicationId
+        }
       }
       whatsapp {
         primaryPhoneNumber
         primaryPhoneCountryCode
         primaryPhoneCallingCode
-        additionalPhones
+        additionalPhones {
+          number
+          callingCode
+          countryCode
+        }
       }
       workPreference
       xLink {
         primaryLinkUrl
         primaryLinkLabel
-        secondaryLinks
+        secondaryLinks {
+          label
+          url
+        }
       }
 `;
 
@@ -108,7 +128,10 @@ export const PERSON_FRAGMENT_WITH_DEPTH_ONE_RELATIONS = `
         domainName {
           primaryLinkUrl
           primaryLinkLabel
-          secondaryLinks
+          secondaryLinks {
+            label
+            url
+          }
         }
         id
         name
@@ -119,7 +142,10 @@ export const PERSON_FRAGMENT_WITH_DEPTH_ONE_RELATIONS = `
         source
         workspaceMemberId
         name
-        context
+        context {
+          provider
+          applicationId
+        }
       }
       deletedAt
       emails {
@@ -132,7 +158,10 @@ export const PERSON_FRAGMENT_WITH_DEPTH_ONE_RELATIONS = `
       linkedinLink {
         primaryLinkUrl
         primaryLinkLabel
-        secondaryLinks
+        secondaryLinks {
+          label
+          url
+        }
       }
       messageParticipants {
         edges {
@@ -165,7 +194,11 @@ export const PERSON_FRAGMENT_WITH_DEPTH_ONE_RELATIONS = `
         primaryPhoneNumber
         primaryPhoneCountryCode
         primaryPhoneCallingCode
-        additionalPhones
+        additionalPhones {
+          number
+          callingCode
+          countryCode
+        }
       }
       pointOfContactForOpportunities {
         edges {
@@ -186,7 +219,10 @@ export const PERSON_FRAGMENT_WITH_DEPTH_ONE_RELATIONS = `
               domainName {
                 primaryLinkUrl
                 primaryLinkLabel
-                secondaryLinks
+                secondaryLinks {
+                  label
+                  url
+                }
               }
               id
               name
@@ -222,18 +258,28 @@ export const PERSON_FRAGMENT_WITH_DEPTH_ONE_RELATIONS = `
         source
         workspaceMemberId
         name
-        context
+        context {
+          provider
+          applicationId
+        }
       }
       whatsapp {
         primaryPhoneNumber
         primaryPhoneCountryCode
         primaryPhoneCallingCode
-        additionalPhones
+        additionalPhones {
+          number
+          callingCode
+          countryCode
+        }
       }
       workPreference
       xLink {
         primaryLinkUrl
         primaryLinkLabel
-        secondaryLinks
+        secondaryLinks {
+          label
+          url
+        }
       }
 `;

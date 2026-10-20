@@ -1,6 +1,6 @@
 import { styled } from '@linaria/react';
 import { IconAlignCenter, IconAlignLeft, IconAlignRight } from 'twenty-ui/icon';
-import { themeCssVariables } from 'twenty-ui/theme-constants';
+import { themeCssVariables } from 'twenty-ui/theme';
 
 import { StyledEmailFieldLabel } from '@/side-panel/pages/email-block-settings/components/StyledEmailFieldLabel';
 
@@ -34,7 +34,7 @@ const StyledAlignButton = styled.button<{ isActive: boolean }>`
   }
 `;
 
-export const CAMPAIGN_ALIGN_OPTIONS = [
+const CAMPAIGN_ALIGN_OPTIONS = [
   { align: 'left', Icon: IconAlignLeft },
   { align: 'center', Icon: IconAlignCenter },
   { align: 'right', Icon: IconAlignRight },

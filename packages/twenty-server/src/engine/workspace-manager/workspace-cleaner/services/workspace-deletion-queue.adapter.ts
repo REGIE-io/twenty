@@ -13,8 +13,8 @@ export class WorkspaceDeletionQueueAdapter implements WorkspaceDeletionEnqueuer 
     private readonly queue: MessageQueueService,
   ) {}
 
-  enqueue(input: { workspaceId: string; jobId: string }): Promise<void> {
-    return this.queue.add(
+  async enqueue(input: { workspaceId: string; jobId: string }): Promise<void> {
+    await this.queue.add(
       WorkspaceDeletionJob.name,
       { workspaceId: input.workspaceId },
       {

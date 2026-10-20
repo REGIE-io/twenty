@@ -1,5 +1,7 @@
 import { type QueryRunner } from 'typeorm';
 
+import { type FeatureFlagMap } from 'src/engine/core-modules/feature-flag/interfaces/feature-flag-map.interface';
+
 import { type FlatApplication } from 'src/engine/core-modules/application/types/flat-application.type';
 import { type SearchListChange } from 'src/engine/core-modules/search-vector-trigger/utils/search-vector-backfill.util';
 import { type AllFlatEntityMaps } from 'src/engine/metadata-modules/flat-entity/types/all-flat-entity-maps.type';
@@ -8,7 +10,7 @@ import { type PreallocatedIdByUniversalIdentifierByMetadataName } from 'src/engi
 import {
   type AllFlatWorkspaceMigrationAction,
   type AllUniversalWorkspaceMigrationAction,
-} from 'src/engine/workspace-manager/workspace-migration/workspace-migration-builder/types/workspace-migration-action-common';
+} from 'src/engine/workspace-manager/workspace-migration/workspace-migration-builder/types/workspace-migration-action-common.type';
 
 export type WorkspaceMigrationActionRunnerArgs<
   TUniversalAction extends AllUniversalWorkspaceMigrationAction,
@@ -30,6 +32,7 @@ export type WorkspaceMigrationActionRunnerArgs<
   isSearchVectorFormulaChange?: boolean;
   // The workspace is converted (IS_SEARCH_VECTOR_TRIGGER_ENABLED), so new tables start in trigger mode.
   isSearchVectorTriggerEnabled?: boolean;
+  featureFlagsMap?: FeatureFlagMap;
 };
 
 export type WorkspaceMigrationActionRunnerContext<

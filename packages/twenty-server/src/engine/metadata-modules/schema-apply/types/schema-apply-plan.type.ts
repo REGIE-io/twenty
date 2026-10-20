@@ -1,4 +1,4 @@
-import { type IndexType } from 'src/engine/metadata-modules/index-metadata/types/indexType.types';
+import { type IndexType } from 'twenty-shared/types';
 import { type ApplySchemaFieldSettingsInput } from 'src/engine/metadata-modules/schema-apply/dtos/apply-schema-field-settings.input';
 import { type ApplySchemaFieldInput } from 'src/engine/metadata-modules/schema-apply/dtos/apply-schema-field.input';
 import { type ApplySchemaIndexInput } from 'src/engine/metadata-modules/schema-apply/dtos/apply-schema-index.input';

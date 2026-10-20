@@ -1,7 +1,7 @@
 import { faker } from '@faker-js/faker';
 import { searchPeopleByPhone } from 'test/integration/graphql/utils/search-people-by-phone.util';
 import { updateOneOperationFactory } from 'test/integration/graphql/utils/update-one-operation-factory.util';
-import { makeGraphqlAPIRequest } from 'test/integration/graphql/utils/make-graphql-api-request.util';
+import { makeGraphqlApiRequest } from 'test/integration/graphql/utils/make-graphql-api-request.util';
 import { search } from 'test/integration/graphql/utils/search.util';
 import { createOneOperation } from 'test/integration/graphql/utils/create-one-operation.util';
 import { deleteOneOperationFactory } from 'test/integration/graphql/utils/delete-one-operation-factory.util';
@@ -9,7 +9,7 @@ import { deleteRecordsByIds } from 'test/integration/utils/delete-records-by-ids
 import { createOneFieldMetadata } from 'test/integration/metadata/suites/field-metadata/utils/create-one-field-metadata.util';
 import { deleteOneFieldMetadata } from 'test/integration/metadata/suites/field-metadata/utils/delete-one-field-metadata.util';
 import { updateOneFieldMetadata } from 'test/integration/metadata/suites/field-metadata/utils/update-one-field-metadata.util';
-import { makeMetadataAPIRequest } from 'test/integration/metadata/suites/utils/make-metadata-api-request.util';
+import { makeMetadataApiRequest } from 'test/integration/metadata/suites/utils/make-metadata-api-request.util';
 import { getAppProviderByClassName } from 'test/integration/utils/get-app-provider-by-class-name.util';
 import gql from 'graphql-tag';
 import { FieldMetadataType } from 'twenty-shared/types';
@@ -132,7 +132,7 @@ describe('SearchPeopleByPhone resolver', () => {
       total: 1,
     });
 
-    const objectsResponse = await makeMetadataAPIRequest({
+    const objectsResponse = await makeMetadataApiRequest({
       query: gql`
         query PhoneSearchTestObjects {
           objects(paging: { first: 1000 }) {
@@ -420,7 +420,7 @@ describe('SearchPeopleByPhone resolver', () => {
 
   it('excludes a matching soft-deleted Person even while trigger cleanup is not required', async () => {
     const recordId = personByCase.standardAdditional;
-    const deleted = await makeGraphqlAPIRequest(
+    const deleted = await makeGraphqlApiRequest(
       deleteOneOperationFactory({
         objectMetadataSingularName: 'person',
         gqlFields: 'id deletedAt',
@@ -435,7 +435,7 @@ describe('SearchPeopleByPhone resolver', () => {
 
   it('updates primary/additional values and leaves generic search behavior unchanged', async () => {
     const recordId = personByCase.standardPrimary;
-    const updateResponse = await makeGraphqlAPIRequest(
+    const updateResponse = await makeGraphqlApiRequest(
       updateOneOperationFactory({
         objectMetadataSingularName: 'person',
         recordId,
@@ -454,7 +454,7 @@ describe('SearchPeopleByPhone resolver', () => {
     await expectSearchIds(toE164('4155550120'), [recordId]);
     await expectSearchIds(toE164('4155550121'), [recordId]);
 
-    const removeResponse = await makeGraphqlAPIRequest(
+    const removeResponse = await makeGraphqlApiRequest(
       updateOneOperationFactory({
         objectMetadataSingularName: 'person',
         recordId,

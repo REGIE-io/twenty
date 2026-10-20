@@ -19,6 +19,16 @@ msgstr ""
 "X-Crowdin-File-ID: 27\n"
 
 #. js-lingui-explicit-id
+#: src/emails/two-factor-authentication-recovery-code-issued.email.tsx
+msgid "{actorName} generated a recovery code that lets you sign in to {workspaceDisplayName} without your authenticator app."
+msgstr "{actorName} је генерисао/ла код за опоравак који вам омогућава да се пријавите у {workspaceDisplayName} без апликације за потврду идентитета."
+
+#. js-lingui-explicit-id
+#: src/emails/server-admin-access-changed.email.tsx
+msgid "{actorName} updated server administrator access for {targetName} ({targetEmail})."
+msgstr "{actorName} је изменио приступ администратора сервера за {targetName} ({targetEmail})."
+
+#. js-lingui-explicit-id
 #: src/emails/send-invite-link.email.tsx
 msgid "{senderName} (<0>{senderEmail}</0>) has invited you to join a workspace called <1>{workspaceName}</1>."
 msgstr "{senderName} (<0>{senderEmail}</0>) вас је позвао да се придружите радном простору који се зове <1>{workspaceName}</1>."
@@ -34,6 +44,11 @@ msgid "A heads up before your trial ends"
 msgstr "Најава пре истека вашег пробног периода"
 
 #. js-lingui-explicit-id
+#: src/emails/two-factor-authentication-reset.email.tsx
+msgid "A recovery code was used to sign in to {workspaceDisplayName}. Your authenticator for this workspace was removed and your other sessions there were signed out."
+msgstr "Код за опоравак је употребљен за пријављивање у {workspaceDisplayName}. Уклањање је апликација за потврду идентитета за овај радни простор, а ваше друге сесије у њему су одјављене."
+
+#. js-lingui-explicit-id
 #: src/emails/send-invite-link.email.tsx
 msgid "Accept invite"
 msgstr "Прихвати позив"
@@ -41,12 +56,12 @@ msgstr "Прихвати позив"
 #. js-lingui-explicit-id
 #: src/emails/billing-trial-ending.email.tsx
 msgid "Add a payment method"
-msgstr "Додај начин плаћања"
+msgstr "Додајте начин плаћања"
 
 #. js-lingui-explicit-id
 #: src/emails/warn-suspended-workspace.email.tsx
 msgid "After that, the workspace and all of its data will be permanently deleted — and we won't be able to bring it back."
-msgstr "Након тога, радни простор и сви његови подаци биће трајно обрисани — и нећемо моћи да их вратимо."
+msgstr "Након тога, радни простор и сви његови подаци биће трајно обрисани — и нећемо моћи да га вратимо."
 
 #. js-lingui-explicit-id
 #: src/emails/send-email-verification-link.email.tsx
@@ -89,6 +104,11 @@ msgid "Enabled"
 msgstr "Омогућено"
 
 #. js-lingui-explicit-id
+#: src/emails/server-admin-access-changed.email.tsx
+msgid "Full admin panel access: {fullAdminStatus}"
+msgstr "Пуни приступ администраторској табли: {fullAdminStatus}"
+
+#. js-lingui-explicit-id
 #: src/components/Footer.tsx
 msgid "Github"
 msgstr "Гитхаб"
@@ -118,9 +138,24 @@ msgid "Hi {userName},"
 msgstr "Здраво {userName},"
 
 #. js-lingui-explicit-id
+#: src/emails/two-factor-authentication-reset.email.tsx
+msgid "If this was not you, contact your workspace administrator and change your password."
+msgstr "Ако ово нисте били ви, обратите се администратору радног простора и промените лозинку."
+
+#. js-lingui-explicit-id
 #: src/emails/billing-trial-converting.email.tsx
 msgid "If Twenty is working for you, you're all set — there's nothing to do. If it's not the right fit, you can cancel in one click before then and you won't be charged."
 msgstr "Ако вам Twenty одговара, све је спремно — не морате ништа да радите. Ако ипак није прави избор, можете отказати једним кликом пре тог датума и нећете бити терећени."
+
+#. js-lingui-explicit-id
+#: src/emails/two-factor-authentication-recovery-code-issued.email.tsx
+msgid "If you did not ask for this, contact your workspace administrator and change your password."
+msgstr "Ако ово нисте затражили, обратите се администратору радног простора и промените лозинку."
+
+#. js-lingui-explicit-id
+#: src/emails/server-admin-access-changed.email.tsx
+msgid "If you did not expect this change, review your server administrators immediately."
+msgstr "Ако нисте очекивали ову промену, одмах прегледајте администраторе сервера."
 
 #. js-lingui-explicit-id
 #: src/emails/password-update-notify.email.tsx
@@ -130,12 +165,17 @@ msgstr "Ако ову промену нисте покренули ви, мол�
 #. js-lingui-explicit-id
 #: src/emails/billing-trial-ending.email.tsx
 msgid "If you do nothing, we'll pause your workspace and keep your data safe for {dataRetentionDays} days in case you change your mind — no card will be charged."
-msgstr "Ако не предузмете ништа, паузираћемо ваш радни простор и чувати ваше податке на безбедном {dataRetentionDays} {dayOrDays}, у случају да се предомислите — картица вам неће бити терећена."
+msgstr ""
 
 #. js-lingui-explicit-id
 #: src/emails/clean-suspended-workspace.email.tsx
 msgid "If you'd ever like to give Twenty another try, you can start a fresh workspace in minutes — we'd love to have you back."
-msgstr "Ако икада пожелите да Twenty дате још једну шансу, можете покренути нови радни простор за неколико минута — радо бисмо вам пожелели добродошлицу назад."
+msgstr "Ако икада пожелите да Twenty дате још једну шансу, можете за неколико минута покренути нови радни простор — радо бисмо вас поново видели."
+
+#. js-lingui-explicit-id
+#: src/emails/server-admin-access-changed.email.tsx
+msgid "Impersonation: {impersonateStatus}"
+msgstr "Имитација: {impersonateStatus}"
 
 #. js-lingui-explicit-id
 #: src/components/WhatIsTwenty.tsx
@@ -155,13 +195,13 @@ msgstr "Придружите се свом тиму на Twenty"
 #. js-lingui-explicit-id
 #: src/emails/billing-subscription-renewing.email.tsx
 msgid "Just so it's never a surprise, here's a heads up about your annual plan."
-msgstr "Како никада не би било изненађења, ево најаве у вези са вашим годишњим пакетом."
+msgstr "Како никада не би било изненађења, ево најаве у вези са вашим годишњим планом."
 
 #. js-lingui-explicit-id
 #: src/emails/billing-subscription-renewing.email.tsx
 #: src/emails/billing-trial-converting.email.tsx
 msgid "Manage subscription"
-msgstr "Управљај претплатом"
+msgstr "Управљајте претплатом"
 
 #. js-lingui-explicit-id
 #: src/emails/billing-subscription-renewing.email.tsx
@@ -176,12 +216,12 @@ msgstr "Шифра је освежена"
 #. js-lingui-explicit-id
 #: src/emails/warn-suspended-workspace.email.tsx
 msgid "Reactivate it within the next {remainingDays} {dayOrDays} and you'll pick up exactly where you left off, with every record, view and setting right where you left it."
-msgstr "Поново га активирајте у наредних {remainingDays} {dayOrDays} и наставићете тачно тамо где сте стали, са сваком евиденцијом, прегледом и подешавањем на свом месту."
+msgstr "Поново га активирајте у наредних {remainingDays} {dayOrDays} и наставићете тачно тамо где сте стали, са свим записима, приказима и подешавањима на месту где сте их оставили."
 
 #. js-lingui-explicit-id
 #: src/emails/warn-suspended-workspace.email.tsx
 msgid "Reactivate workspace"
-msgstr "Поново активирај радни простор"
+msgstr "Поново активирајте радни простор"
 
 #. js-lingui-explicit-id
 #: src/components/Footer.tsx
@@ -206,32 +246,17 @@ msgstr "Сан Франциско / Париз"
 #. js-lingui-explicit-id
 #: src/emails/server-admin-access-changed.email.tsx
 msgid "Server administrator access changed"
-msgstr "Приступ администратора сервера је измењен"
-
-#. js-lingui-explicit-id
-#: src/emails/server-admin-access-changed.email.tsx
-msgid "serverAdminAccessChanged.fullAdmin"
-msgstr "serverAdminAccessChanged.fullAdmin"
-
-#. js-lingui-explicit-id
-#: src/emails/server-admin-access-changed.email.tsx
-msgid "serverAdminAccessChanged.impersonation"
-msgstr "serverAdminAccessChanged.impersonation"
-
-#. js-lingui-explicit-id
-#: src/emails/server-admin-access-changed.email.tsx
-msgid "serverAdminAccessChanged.summary"
-msgstr "serverAdminAccessChanged.summary"
-
-#. js-lingui-explicit-id
-#: src/emails/server-admin-access-changed.email.tsx
-msgid "serverAdminAccessChanged.warning"
-msgstr "serverAdminAccessChanged.warning"
+msgstr "Промењен је приступ администратора сервера"
 
 #. js-lingui-explicit-id
 #: src/emails/password-reset-link.email.tsx
 msgid "Set"
 msgstr "Подесити"
+
+#. js-lingui-explicit-id
+#: src/emails/two-factor-authentication-reset.email.tsx
+msgid "Set up two-factor authentication again under Settings, Profile."
+msgstr "Поново подесите двофакторску аутентификацију у оквиру Подешавања, Профил."
 
 #. js-lingui-explicit-id
 #: src/emails/password-reset-link.email.tsx
@@ -241,12 +266,17 @@ msgstr "Подесите своју лозинку 🗝"
 #. js-lingui-explicit-id
 #: src/emails/clean-suspended-workspace.email.tsx
 msgid "Start a new workspace"
-msgstr "Покрени нови радни простор"
+msgstr "Покрените нови радни простор"
 
 #. js-lingui-explicit-id
 #: src/emails/test.email.tsx
 msgid "Test email"
 msgstr "Тест имејл"
+
+#. js-lingui-explicit-id
+#: src/emails/two-factor-authentication-recovery-code-issued.email.tsx
+msgid "The code can be used once and expires on {formattedExpiresAt}. Using it removes your current authenticator for this workspace and signs you out of your other sessions there."
+msgstr "Код се може употребити једном и истиче {formattedExpiresAt}. Његовом употребом уклањате тренутни аутентификатор за овај радни простор и одјављујете се из других сесија у њему."
 
 #. js-lingui-explicit-id
 #: src/emails/password-update-notify.email.tsx
@@ -261,12 +291,22 @@ msgstr "Овај линк је валидан само следећих {duratio
 #. js-lingui-explicit-id
 #: src/emails/billing-trial-ending.email.tsx
 msgid "To keep your workspace and everything you've built, add a payment method and pick a plan."
-msgstr "Да бисте задржали свој радни простор и све што сте направили, додајте начин плаћања и изаберите пакет."
+msgstr "Да бисте задржали свој радни простор и све што сте направили, додајте начин плаћања и изаберите план."
 
 #. js-lingui-explicit-id
 #: src/components/Footer.tsx
 msgid "Twenty.com, Public Benefit Corporation"
 msgstr "Twenty.com, јавна корпорација"
+
+#. js-lingui-explicit-id
+#: src/emails/two-factor-authentication-recovery-code-issued.email.tsx
+msgid "Two-factor authentication recovery code issued"
+msgstr "Издат је кôд за опоравак двофакторске аутентификације"
+
+#. js-lingui-explicit-id
+#: src/emails/two-factor-authentication-reset.email.tsx
+msgid "Two-factor authentication reset"
+msgstr "Ресетовање двофакторске аутентификације"
 
 #. js-lingui-explicit-id
 #: src/components/Footer.tsx
@@ -317,7 +357,7 @@ msgstr "Шта је Twenty?"
 #. js-lingui-explicit-id
 #: src/emails/billing-subscription-renewing.email.tsx
 msgid "Your annual plan for <0>{workspaceDisplayName}</0> renews on {formattedDate}."
-msgstr "Ваш годишњи пакет за <0>{workspaceDisplayName}</0> биће обновљен {formattedDate}."
+msgstr "Ваш годишњи план за <0>{workspaceDisplayName}</0> биће обновљен {formattedDate}."
 
 #. js-lingui-explicit-id
 #: src/emails/billing-trial-ending.email.tsx
@@ -327,17 +367,17 @@ msgstr "Ваш бесплатни пробни период за <0>{workspaceDi
 #. js-lingui-explicit-id
 #: src/emails/billing-trial-converting.email.tsx
 msgid "Your free trial of <0>{workspaceDisplayName}</0> ends on {formattedDate}. Unless you cancel before then, the card on file will be charged for your annual plan."
-msgstr "Ваш бесплатни пробни период за <0>{workspaceDisplayName}</0> истиче {formattedDate}. Уколико до тада не откажете, картица коју имамо у евиденцији биће терећена за ваш годишњи пакет."
+msgstr "Ваш бесплатни пробни период за <0>{workspaceDisplayName}</0> истиче {formattedDate}. Уколико до тада не откажете, картица коју имамо у евиденцији биће терећена за ваш годишњи план."
 
 #. js-lingui-explicit-id
 #: src/emails/billing-trial-converting.email.tsx
 msgid "Your free trial of <0>{workspaceDisplayName}</0> ends on {formattedDate}. Unless you cancel before then, the card on file will be charged for your monthly plan."
-msgstr "Ваш бесплатни пробни период за <0>{workspaceDisplayName}</0> истиче {formattedDate}. Уколико до тада не откажете, картица коју имамо у евиденцији биће терећена за ваш месечни пакет."
+msgstr "Ваш бесплатни пробни период за <0>{workspaceDisplayName}</0> истиче {formattedDate}. Уколико до тада не откажете, картица коју имамо у евиденцији биће терећена за ваш месечни план."
 
 #. js-lingui-explicit-id
 #: src/emails/billing-subscription-renewing.email.tsx
 msgid "Your plan renews soon"
-msgstr "Ваш пакет ће ускоро бити обновљен"
+msgstr "Ваш план ће ускоро бити обновљен"
 
 #. js-lingui-explicit-id
 #: src/emails/billing-trial-ending.email.tsx
@@ -347,7 +387,7 @@ msgstr "Ваш пробни период ускоро истиче"
 #. js-lingui-explicit-id
 #: src/emails/clean-suspended-workspace.email.tsx
 msgid "Your workspace <0>{workspaceDisplayName}</0> has now been permanently deleted — it was paused {daysSinceInactive} days ago and wasn't reactivated in time."
-msgstr "Ваш радни простор <0>{workspaceDisplayName}</0> сада је трајно обрисан — био је паузиран пре {daysSinceInactive} {dayOrDays} и није поново активиран на време."
+msgstr ""
 
 #. js-lingui-explicit-id
 #: src/emails/clean-suspended-workspace.email.tsx

@@ -21,6 +21,7 @@ import { fromMorphRelationCreateFieldInputToFlatFieldMetadatas } from 'src/engin
 import { fromRelationCreateFieldInputToFlatFieldMetadatas } from 'src/engine/metadata-modules/flat-field-metadata/utils/from-relation-create-field-input-to-flat-field-metadatas.util';
 import { isUniversalFieldMetadataSettingsOftype } from 'src/engine/metadata-modules/field-metadata/utils/is-field-metadata-settings-of-type.util';
 import { getDefaultFlatFieldMetadata } from 'src/engine/metadata-modules/flat-field-metadata/utils/get-default-flat-field-metadata-from-create-field-input.util';
+import { sanitizeSelectOptionColors } from 'src/engine/metadata-modules/flat-field-metadata/utils/sanitize-select-option-colors.util';
 import { type UniversalFlatFieldMetadata } from 'src/engine/workspace-manager/workspace-migration/universal-flat-entity/types/universal-flat-field-metadata.type';
 import { type UniversalFlatIndexMetadata } from 'src/engine/workspace-manager/workspace-migration/universal-flat-entity/types/universal-flat-index-metadata.type';
 
@@ -128,15 +129,19 @@ export const fromCreateFieldInputToFlatFieldMetadatasToCreate = async ({
     }
     case FieldMetadataType.SELECT:
     case FieldMetadataType.MULTI_SELECT: {
-      const options = (createFieldInput?.options ?? []).map<
-        FieldMetadataOptions<typeof createFieldInput.type>[number]
-      >((option) => ({
-        id: v4(),
-        ...trimAndRemoveDuplicatedWhitespacesFromObjectStringProperties(
-          option as FieldMetadataOptions<typeof createFieldInput.type>[number],
-          ['label', 'value', 'id', 'color'],
-        ),
-      }));
+      const options = sanitizeSelectOptionColors(
+        (createFieldInput?.options ?? []).map<
+          FieldMetadataOptions<typeof createFieldInput.type>[number]
+        >((option) => ({
+          id: v4(),
+          ...trimAndRemoveDuplicatedWhitespacesFromObjectStringProperties(
+            option as FieldMetadataOptions<
+              typeof createFieldInput.type
+            >[number],
+            ['label', 'value', 'id'],
+          ),
+        })),
+      );
 
       return {
         status: 'success',

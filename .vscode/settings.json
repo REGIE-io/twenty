@@ -44,17 +44,12 @@
     "md",
     "mdx"
   ],
-  "cSpell.words": [
-    "twentyhq"
-  ],
+  "cSpell.words": ["twentyhq"],
   "typescript.preferences.importModuleSpecifier": "non-relative",
   "search.exclude": {
     "**/.yarn": true
   },
   "oxc.lint.enable": true,
-  "files.associations": {
-    ".cursorrules": "markdown"
-  },
   "jestrunner.codeLensSelector": "**/*.{test,spec,integration-spec}.{js,jsx,ts,tsx}",
   "typescript.tsdk": "node_modules/typescript/lib",
   "typescript.experimental.useTsgo": false,

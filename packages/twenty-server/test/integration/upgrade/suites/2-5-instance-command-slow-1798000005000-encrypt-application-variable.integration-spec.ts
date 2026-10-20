@@ -16,7 +16,6 @@ jest.useRealTimers();
 
 config({
   path: process.env.NODE_ENV === 'test' ? '.env.test' : '.env',
-  override: true,
 });
 
 const TEST_ROW_KEY_PREFIX = 'ENCRYPT_APP_VAR_TEST_';
@@ -191,9 +190,12 @@ describe('2-5 slow instance command 1798000005000 - EncryptApplicationVariableSl
 
   it('leaves enc:v2 rows untouched and is idempotent across re-runs', async () => {
     const plaintext = 'already-v2-secret';
-    const preexistingV2 = secretEncryptionService.encryptVersioned(plaintext as PlaintextString, {
-      workspaceId,
-    });
+    const preexistingV2 = secretEncryptionService.encryptVersioned(
+      plaintext as PlaintextString,
+      {
+        workspaceId,
+      },
+    );
     const id = await seedRow({ isSecret: true, value: preexistingV2 });
 
     await command.runDataMigration(dataSource);

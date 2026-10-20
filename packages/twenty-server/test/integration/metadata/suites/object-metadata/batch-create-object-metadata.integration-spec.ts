@@ -2,7 +2,7 @@ import { deleteOneObjectMetadata } from 'test/integration/metadata/suites/object
 import { findManyObjectMetadata } from 'test/integration/metadata/suites/object-metadata/utils/find-many-object-metadata.util';
 import { getMockCreateObjectInput } from 'test/integration/metadata/suites/object-metadata/utils/generate-mock-create-object-metadata-input';
 import { updateOneObjectMetadata } from 'test/integration/metadata/suites/object-metadata/utils/update-one-object-metadata.util';
-import { makeRestAPIRequest } from 'test/integration/rest/utils/make-rest-api-request.util';
+import { makeRestApiRequest } from 'test/integration/rest/utils/make-rest-api-request.util';
 
 // crm provisioning creates its internal objects in one request, so they share one
 // workspace migration instead of paying a cache rebuild each.
@@ -66,7 +66,7 @@ describe('Object metadata batch create', () => {
   });
 
   it('rejects the same object twice in one batch and creates none of it', async () => {
-    const response = await makeRestAPIRequest({
+    const response = await makeRestApiRequest({
       method: 'post',
       path: '/metadata/objects/batch',
       body: { objects: [BATCH_OBJECTS[0], BATCH_OBJECTS[0]] },
@@ -78,7 +78,7 @@ describe('Object metadata batch create', () => {
   });
 
   it('creates every requested object, with its table and its own menu positions', async () => {
-    const response = await makeRestAPIRequest({
+    const response = await makeRestApiRequest({
       method: 'post',
       path: '/metadata/objects/batch',
       body: { objects: BATCH_OBJECTS },

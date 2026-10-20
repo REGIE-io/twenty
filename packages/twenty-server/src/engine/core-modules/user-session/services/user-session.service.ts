@@ -66,8 +66,6 @@ export class UserSessionService {
     private readonly userSessionCookieService: UserSessionCookieService,
   ) {}
 
-  // Best effort by design: while token pairs remain the primary credential, a
-  // session failure must never break an otherwise successful sign-in.
   async issueSessionForTokenPair({
     tokenPair,
     request,
@@ -80,17 +78,19 @@ export class UserSessionService {
     const response = request.res;
 
     if (!isDefined(response)) {
-      return;
+      throw new Error('Cannot issue a user session without an HTTP response');
     }
 
-    // Cannot live in the CSRF middleware, which cannot know a request is about
-    // to issue a cookie.
+    // Not in the CSRF middleware, which cannot know a request is about to issue a cookie.
     if (!this.isRequestAllowedToReceiveSessionCookie(request)) {
       this.logger.warn(
         `Refused to issue a session cookie to origin ${request.headers.origin}`,
       );
 
-      return;
+      throw new AuthException(
+        'Request origin is not allowed to receive a session cookie',
+        AuthExceptionCode.FORBIDDEN_EXCEPTION,
+      );
     }
 
     try {
@@ -101,53 +101,37 @@ export class UserSessionService {
       );
 
       if (!isDefined(sessionInput)) {
-        return;
+        throw new AuthException(
+          'Cannot issue a session from an invalid token pair',
+          AuthExceptionCode.UNAUTHENTICATED,
+        );
       }
 
       const presentedSessionToken =
         this.userSessionCookieService.extractSessionTokenFromRequest(request);
 
-      if (isDefined(presentedSessionToken)) {
-        if (origin === 'renewal_bridge') {
-          try {
-            const { payload: presentedPayload } = await this.resolveSession(
-              presentedSessionToken,
-            );
+      if (isDefined(presentedSessionToken) && origin === 'renewal_bridge') {
+        try {
+          const { payload: presentedPayload } = await this.resolveSession(
+            presentedSessionToken,
+          );
 
-            if (
-              this.isSessionScopeMatchingRenewal(presentedPayload, sessionInput)
-            ) {
-              return;
-            }
-
-            await this.revokeSessionByToken(
-              presentedSessionToken,
-              UserSessionRevokedReason.Superseded,
-            );
-          } catch (error) {
-            if (
-              !(error instanceof AuthException) ||
-              error.code !== AuthExceptionCode.UNAUTHENTICATED
-            ) {
-              throw error;
-            }
+          if (
+            this.isSessionScopeMatchingRenewal(presentedPayload, sessionInput)
+          ) {
+            return;
           }
-        } else if (sessionInput.isImpersonating === true) {
-          // The one sign-in that must not revoke what it replaces: parking the
-          // impersonator's session lets stopImpersonation hand back the credential
-          // they already held.
-          this.userSessionCookieService.attachImpersonatorSessionTokenToResponse(
-            response,
-            presentedSessionToken,
-          );
-        } else {
-          await this.revokeSessionByToken(
-            presentedSessionToken,
-            UserSessionRevokedReason.Superseded,
-          );
+        } catch (error) {
+          if (
+            !(error instanceof AuthException) ||
+            error.code !== AuthExceptionCode.UNAUTHENTICATED
+          ) {
+            throw error;
+          }
         }
       }
 
+      // Create the replacement first so a failed insert leaves the browser its working credential.
       const { sessionToken, session } = await this.createSession(sessionInput);
 
       this.userSessionCookieService.attachSessionTokenToResponse(
@@ -155,26 +139,46 @@ export class UserSessionService {
         sessionToken,
         session.expiresAt,
       );
-    } catch (error) {
-      // Sign-in only: the presented cookie may be the previous account's. On
-      // renewal it is this user's own live session, which a transient failure
-      // must not kill.
-      if (origin === 'sign_in') {
-        try {
-          this.userSessionCookieService.clearSessionCookie(response);
-        } catch {}
+
+      if (!isDefined(presentedSessionToken)) {
+        return;
       }
 
+      if (sessionInput.isImpersonating === true) {
+        // Parked rather than revoked, so stopImpersonation can hand the impersonator's credential back.
+        this.userSessionCookieService.attachImpersonatorSessionTokenToResponse(
+          response,
+          presentedSessionToken,
+        );
+
+        return;
+      }
+
+      try {
+        await this.revokeSessionByToken(
+          presentedSessionToken,
+          UserSessionRevokedReason.Superseded,
+        );
+      } catch (error) {
+        // The handoff already succeeded; a cleanup failure must not turn it into another logout.
+        this.logger.error(
+          `Failed to revoke the superseded session: ${
+            error instanceof Error ? error.message : String(error)
+          }`,
+        );
+      }
+    } catch (error) {
       this.logger.error(
-        `Failed to issue a session alongside the token pair: ${
+        `Failed to issue a required session: ${
           error instanceof Error ? error.message : String(error)
         }`,
       );
+
+      throw error;
     }
   }
 
-  // No Origin means no browser to plant a cookie in, so scripted sign-ins keep
-  // working. Browsers always send one on the unsafe requests these arrive as.
+  // No Origin means no browser to plant a cookie in; browsers always send one on these unsafe requests.
   private isRequestAllowedToReceiveSessionCookie(request: Request): boolean {
     const origin = request.headers.origin;
 
@@ -387,9 +391,7 @@ export class UserSessionService {
     };
   }
 
-  // A revocation racing the write above may have had its cache delete land
-  // first, resurrecting the session for a full TTL. Re-checking afterwards
-  // closes it: anything committing later deletes what we just wrote.
+  // A racing revocation's cache delete may land first and resurrect the session for a TTL; re-checking closes that.
   private async assertNotRevokedAfterCaching(
     sessionId: string,
     tokenHash: string,
@@ -414,10 +416,8 @@ export class UserSessionService {
     });
   }
 
-  // Scoped to one workspace: a session belongs to the workspace its exchange
-  // selected, and the same person's membership of another workspace is not that
-  // workspace's business. Sessions with no workspace are the workspace-agnostic
-  // ones minted on the default subdomain, which belong to no workspace's list.
+  // A session belongs to the workspace its exchange selected, so other workspaces' sessions stay out;
+  // workspace-agnostic ones belong to no list.
   async findActiveSessionsForUserWorkspace({
     userId,
     workspaceId,
@@ -480,8 +480,7 @@ export class UserSessionService {
     return await this.revokeSessionEntity(session, reason);
   }
 
-  // workspaceId narrows this to one workspace, which is what the settings panel
-  // wants. Account-wide callers (password change) leave it out on purpose.
+  // Account-wide callers (password change) omit workspaceId on purpose.
   async revokeAllSessionsForUser({
     userId,
     workspaceId,
@@ -493,9 +492,7 @@ export class UserSessionService {
     reason: UserSessionRevokedReason;
     exceptSessionId?: string;
   }): Promise<number> {
-    // Applying the predicate in the UPDATE rather than to ids read beforehand
-    // narrows but does not close the window: a sign-in committing after this
-    // statement's snapshot survives, which would need a generation counter.
+    // Narrows but does not close the race: a sign-in committing after this snapshot survives.
     const revokingQuery = this.userSessionRepository
       .createQueryBuilder()
       .update(UserSessionEntity)
@@ -582,8 +579,7 @@ export class UserSessionService {
       return;
     }
 
-    // Outside the catch: a storage failure here leaves a usable refresh token
-    // behind, so it must surface rather than report success.
+    // Outside the catch: a storage failure leaves a usable refresh token behind, so it must surface.
     await this.appTokenRepository.update(
       {
         id: payload.jti,
@@ -640,8 +636,7 @@ export class UserSessionService {
     return ms(this.twentyConfigService.get('SESSION_IDLE_TIMEOUT'));
   }
 
-  // Must stay well inside the idle timeout, or a continuously active user goes
-  // idle between two touches.
+  // Must stay well inside the idle timeout, or a continuously active user goes idle between touches.
   private getTouchIntervalMs(): number {
     return Math.min(
       USER_SESSION_MAX_TOUCH_INTERVAL_MS,

@@ -3,44 +3,44 @@ import { RecordIndexCommandMenuDropdown } from '@/command-menu-item/components/R
 import { CommandMenuContextProvider } from '@/command-menu-item/contexts/CommandMenuContextProvider';
 import { PinnedCommandMenuItemButtons } from '@/command-menu-item/display/components/PinnedCommandMenuItemButtons';
 import { CommandMenuItemEditButton } from '@/command-menu-item/edit/components/CommandMenuItemEditButton';
-import { MAIN_CONTEXT_STORE_INSTANCE_ID } from '@/context-store/constants/MainContextStoreInstanceId';
 import { contextStoreCurrentObjectMetadataItemIdComponentState } from '@/context-store/states/contextStoreCurrentObjectMetadataItemIdComponentState';
 import { isLayoutCustomizationModeEnabledState } from '@/layout-customization/states/isLayoutCustomizationModeEnabledState';
+import { useWorkspaceSurface } from '@/ui/layout/hooks/useWorkspaceSurface';
 import { useAtomComponentStateValue } from '@/ui/utilities/state/jotai/hooks/useAtomComponentStateValue';
 import { useAtomStateValue } from '@/ui/utilities/state/jotai/hooks/useAtomStateValue';
+import { isDefined } from 'twenty-shared/utils';
 
 export const RecordIndexCommandMenu = () => {
+  const isInSidePanel = useWorkspaceSurface().type === 'side-panel';
+
   const contextStoreCurrentObjectMetadataItemId = useAtomComponentStateValue(
     contextStoreCurrentObjectMetadataItemIdComponentState,
-    MAIN_CONTEXT_STORE_INSTANCE_ID,
   );
 
   const isLayoutCustomizationModeEnabled = useAtomStateValue(
     isLayoutCustomizationModeEnabledState,
   );
 
+  if (!isDefined(contextStoreCurrentObjectMetadataItemId)) {
+    return null;
+  }
+
   return (
     <>
-      {contextStoreCurrentObjectMetadataItemId && (
-        <>
-          <CommandMenuContextProvider
-            isInSidePanel={false}
-            displayType="button"
-            containerType={CommandMenuItemContainerType.IndexPageHeader}
-            isInPreviewMode={isLayoutCustomizationModeEnabled}
-          >
-            <PinnedCommandMenuItemButtons />
-          </CommandMenuContextProvider>
-          <CommandMenuContextProvider
-            isInSidePanel={false}
-            displayType="dropdownItem"
-            containerType={CommandMenuItemContainerType.IndexPageDropdown}
-          >
-            <RecordIndexCommandMenuDropdown />
-          </CommandMenuContextProvider>
-          <CommandMenuItemEditButton />
-        </>
-      )}
+      <CommandMenuContextProvider
+        displayType="button"
+        containerType={CommandMenuItemContainerType.IndexPageHeader}
+        isInPreviewMode={isLayoutCustomizationModeEnabled && !isInSidePanel}
+      >
+        <PinnedCommandMenuItemButtons />
+      </CommandMenuContextProvider>
+      <CommandMenuContextProvider
+        displayType="dropdownItem"
+        containerType={CommandMenuItemContainerType.IndexPageDropdown}
+      >
+        <RecordIndexCommandMenuDropdown />
+      </CommandMenuContextProvider>
+      {!isInSidePanel && <CommandMenuItemEditButton />}
     </>
   );
 };

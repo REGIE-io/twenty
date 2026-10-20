@@ -19,6 +19,16 @@ msgstr ""
 "X-Crowdin-File-ID: 27\n"
 
 #. js-lingui-explicit-id
+#: src/emails/two-factor-authentication-recovery-code-issued.email.tsx
+msgid "{actorName} generated a recovery code that lets you sign in to {workspaceDisplayName} without your authenticator app."
+msgstr "{actorName} ha generato un codice di recupero che ti consente di accedere a {workspaceDisplayName} senza l'app di autenticazione."
+
+#. js-lingui-explicit-id
+#: src/emails/server-admin-access-changed.email.tsx
+msgid "{actorName} updated server administrator access for {targetName} ({targetEmail})."
+msgstr "{actorName} ha aggiornato l'accesso come amministratore del server per {targetName} ({targetEmail})."
+
+#. js-lingui-explicit-id
 #: src/emails/send-invite-link.email.tsx
 msgid "{senderName} (<0>{senderEmail}</0>) has invited you to join a workspace called <1>{workspaceName}</1>."
 msgstr "{senderName} (<0>{senderEmail}</0>) ti ha invitato a unirti a uno spazio di lavoro chiamato <1>{workspaceName}</1>."
@@ -34,6 +44,11 @@ msgid "A heads up before your trial ends"
 msgstr "Un avviso prima che la tua prova termini"
 
 #. js-lingui-explicit-id
+#: src/emails/two-factor-authentication-reset.email.tsx
+msgid "A recovery code was used to sign in to {workspaceDisplayName}. Your authenticator for this workspace was removed and your other sessions there were signed out."
+msgstr "È stato usato un codice di recupero per accedere a {workspaceDisplayName}. Il tuo autenticatore per questo spazio di lavoro è stato rimosso e le altre tue sessioni sono state disconnesse."
+
+#. js-lingui-explicit-id
 #: src/emails/send-invite-link.email.tsx
 msgid "Accept invite"
 msgstr "Accetta l'invito"
@@ -46,7 +61,7 @@ msgstr "Aggiungi un metodo di pagamento"
 #. js-lingui-explicit-id
 #: src/emails/warn-suspended-workspace.email.tsx
 msgid "After that, the workspace and all of its data will be permanently deleted — and we won't be able to bring it back."
-msgstr "Dopo questo periodo, il workspace e tutti i suoi dati verranno eliminati in modo definitivo — e non potremo ripristinarli."
+msgstr "Dopo questo periodo, lo spazio di lavoro e tutti i suoi dati verranno eliminati in modo definitivo — e non potremo ripristinarli."
 
 #. js-lingui-explicit-id
 #: src/emails/send-email-verification-link.email.tsx
@@ -89,6 +104,11 @@ msgid "Enabled"
 msgstr "Abilitato"
 
 #. js-lingui-explicit-id
+#: src/emails/server-admin-access-changed.email.tsx
+msgid "Full admin panel access: {fullAdminStatus}"
+msgstr "Accesso completo al pannello di amministrazione: {fullAdminStatus}"
+
+#. js-lingui-explicit-id
 #: src/components/Footer.tsx
 msgid "Github"
 msgstr "Github"
@@ -96,7 +116,7 @@ msgstr "Github"
 #. js-lingui-explicit-id
 #: src/emails/warn-suspended-workspace.email.tsx
 msgid "Good news first: your workspace <0>{workspaceDisplayName}</0> is only paused — none of your data is gone."
-msgstr "Prima le buone notizie: il tuo workspace <0>{workspaceDisplayName}</0> è solo in pausa — nessun dato è stato perso."
+msgstr "Prima le buone notizie: il tuo spazio di lavoro <0>{workspaceDisplayName}</0> è solo in pausa — nessun dato è stato perso."
 
 #. js-lingui-explicit-id
 #: src/emails/billing-subscription-renewing.email.tsx
@@ -118,9 +138,24 @@ msgid "Hi {userName},"
 msgstr "Ciao {userName},"
 
 #. js-lingui-explicit-id
+#: src/emails/two-factor-authentication-reset.email.tsx
+msgid "If this was not you, contact your workspace administrator and change your password."
+msgstr "Se non sei stato tu, contatta l'amministratore del tuo spazio di lavoro e modifica la password."
+
+#. js-lingui-explicit-id
 #: src/emails/billing-trial-converting.email.tsx
 msgid "If Twenty is working for you, you're all set — there's nothing to do. If it's not the right fit, you can cancel in one click before then and you won't be charged."
 msgstr "Se Twenty funziona per te, sei a posto — non devi fare nulla. Se invece non fa al caso tuo, puoi annullare con un clic prima di quella data e non ti verrà addebitato nulla."
+
+#. js-lingui-explicit-id
+#: src/emails/two-factor-authentication-recovery-code-issued.email.tsx
+msgid "If you did not ask for this, contact your workspace administrator and change your password."
+msgstr "Se non hai richiesto questa operazione, contatta l'amministratore del tuo spazio di lavoro e modifica la password."
+
+#. js-lingui-explicit-id
+#: src/emails/server-admin-access-changed.email.tsx
+msgid "If you did not expect this change, review your server administrators immediately."
+msgstr "Se non ti aspettavi questa modifica, controlla immediatamente gli amministratori del tuo server."
 
 #. js-lingui-explicit-id
 #: src/emails/password-update-notify.email.tsx
@@ -130,12 +165,17 @@ msgstr "Se non hai avviato questa modifica, contatta immediatamente il proprieta
 #. js-lingui-explicit-id
 #: src/emails/billing-trial-ending.email.tsx
 msgid "If you do nothing, we'll pause your workspace and keep your data safe for {dataRetentionDays} days in case you change your mind — no card will be charged."
-msgstr "Se non fai nulla, metteremo in pausa il tuo workspace e manterremo i tuoi dati al sicuro per {dataRetentionDays} giorni nel caso cambiassi idea — nessuna carta verrà addebitata."
+msgstr "Se non fai nulla, metteremo in pausa il tuo spazio di lavoro e manterremo i tuoi dati al sicuro per {dataRetentionDays} giorni nel caso cambiassi idea — nessuna carta verrà addebitata."
 
 #. js-lingui-explicit-id
 #: src/emails/clean-suspended-workspace.email.tsx
 msgid "If you'd ever like to give Twenty another try, you can start a fresh workspace in minutes — we'd love to have you back."
-msgstr "Se vorrai mai dare un’altra possibilità a Twenty, potrai creare un nuovo workspace in pochi minuti — ci farebbe piacere riaverti con noi."
+msgstr "Se vorrai mai dare un’altra possibilità a Twenty, potrai creare un nuovo spazio di lavoro in pochi minuti — ci farebbe piacere riaverti con noi."
+
+#. js-lingui-explicit-id
+#: src/emails/server-admin-access-changed.email.tsx
+msgid "Impersonation: {impersonateStatus}"
+msgstr "Impersonificazione: {impersonateStatus}"
 
 #. js-lingui-explicit-id
 #: src/components/WhatIsTwenty.tsx
@@ -181,7 +221,7 @@ msgstr "Riattivalo entro i prossimi {remainingDays} {dayOrDays} e riprenderai es
 #. js-lingui-explicit-id
 #: src/emails/warn-suspended-workspace.email.tsx
 msgid "Reactivate workspace"
-msgstr "Riattiva workspace"
+msgstr "Riattiva lo spazio di lavoro"
 
 #. js-lingui-explicit-id
 #: src/components/Footer.tsx
@@ -206,32 +246,17 @@ msgstr "San Francisco / Parigi"
 #. js-lingui-explicit-id
 #: src/emails/server-admin-access-changed.email.tsx
 msgid "Server administrator access changed"
-msgstr "Accesso amministratore server modificato"
-
-#. js-lingui-explicit-id
-#: src/emails/server-admin-access-changed.email.tsx
-msgid "serverAdminAccessChanged.fullAdmin"
-msgstr "serverAdminAccessChanged.fullAdmin"
-
-#. js-lingui-explicit-id
-#: src/emails/server-admin-access-changed.email.tsx
-msgid "serverAdminAccessChanged.impersonation"
-msgstr "serverAdminAccessChanged.impersonation"
-
-#. js-lingui-explicit-id
-#: src/emails/server-admin-access-changed.email.tsx
-msgid "serverAdminAccessChanged.summary"
-msgstr "serverAdminAccessChanged.summary"
-
-#. js-lingui-explicit-id
-#: src/emails/server-admin-access-changed.email.tsx
-msgid "serverAdminAccessChanged.warning"
-msgstr "serverAdminAccessChanged.warning"
+msgstr "Accesso dell'amministratore del server modificato"
 
 #. js-lingui-explicit-id
 #: src/emails/password-reset-link.email.tsx
 msgid "Set"
 msgstr "Imposta"
+
+#. js-lingui-explicit-id
+#: src/emails/two-factor-authentication-reset.email.tsx
+msgid "Set up two-factor authentication again under Settings, Profile."
+msgstr "Configura nuovamente l'autenticazione a due fattori in Impostazioni, Profilo."
 
 #. js-lingui-explicit-id
 #: src/emails/password-reset-link.email.tsx
@@ -241,12 +266,17 @@ msgstr "Imposta la tua password 🗝"
 #. js-lingui-explicit-id
 #: src/emails/clean-suspended-workspace.email.tsx
 msgid "Start a new workspace"
-msgstr "Avvia un nuovo workspace"
+msgstr "Avvia un nuovo spazio di lavoro"
 
 #. js-lingui-explicit-id
 #: src/emails/test.email.tsx
 msgid "Test email"
 msgstr "Email di prova"
+
+#. js-lingui-explicit-id
+#: src/emails/two-factor-authentication-recovery-code-issued.email.tsx
+msgid "The code can be used once and expires on {formattedExpiresAt}. Using it removes your current authenticator for this workspace and signs you out of your other sessions there."
+msgstr "Il codice può essere utilizzato una sola volta e scade il {formattedExpiresAt}. Usandolo, il tuo autenticatore attuale per questo spazio di lavoro viene rimosso e verrai disconnesso dalle altre sessioni al suo interno."
 
 #. js-lingui-explicit-id
 #: src/emails/password-update-notify.email.tsx
@@ -261,12 +291,22 @@ msgstr "Questo link è valido solo per i prossimi {duration}. Se il link non fun
 #. js-lingui-explicit-id
 #: src/emails/billing-trial-ending.email.tsx
 msgid "To keep your workspace and everything you've built, add a payment method and pick a plan."
-msgstr "Per mantenere il tuo workspace e tutto ciò che hai costruito, aggiungi un metodo di pagamento e scegli un piano."
+msgstr "Per mantenere il tuo spazio di lavoro e tutto ciò che hai costruito, aggiungi un metodo di pagamento e scegli un piano."
 
 #. js-lingui-explicit-id
 #: src/components/Footer.tsx
 msgid "Twenty.com, Public Benefit Corporation"
 msgstr "Twenty.com, Società di Pubblica Utilità"
+
+#. js-lingui-explicit-id
+#: src/emails/two-factor-authentication-recovery-code-issued.email.tsx
+msgid "Two-factor authentication recovery code issued"
+msgstr "Codice di recupero dell'autenticazione a due fattori emesso"
+
+#. js-lingui-explicit-id
+#: src/emails/two-factor-authentication-reset.email.tsx
+msgid "Two-factor authentication reset"
+msgstr "Reimpostazione dell'autenticazione a due fattori"
 
 #. js-lingui-explicit-id
 #: src/components/Footer.tsx
@@ -347,14 +387,14 @@ msgstr "La tua prova sta per terminare"
 #. js-lingui-explicit-id
 #: src/emails/clean-suspended-workspace.email.tsx
 msgid "Your workspace <0>{workspaceDisplayName}</0> has now been permanently deleted — it was paused {daysSinceInactive} days ago and wasn't reactivated in time."
-msgstr "Il tuo workspace <0>{workspaceDisplayName}</0> è stato ora eliminato in modo definitivo — era stato messo in pausa {daysSinceInactive} giorni fa e non è stato riattivato in tempo."
+msgstr "Il tuo spazio di lavoro <0>{workspaceDisplayName}</0> è stato ora eliminato in modo definitivo — era stato messo in pausa {daysSinceInactive} giorni fa e non è stato riattivato in tempo."
 
 #. js-lingui-explicit-id
 #: src/emails/clean-suspended-workspace.email.tsx
 msgid "Your workspace has been deleted"
-msgstr "Il tuo workspace è stato eliminato"
+msgstr "Il tuo spazio di lavoro è stato eliminato"
 
 #. js-lingui-explicit-id
 #: src/emails/warn-suspended-workspace.email.tsx
 msgid "Your workspace is paused"
-msgstr "Il tuo workspace è in pausa"
+msgstr "Il tuo spazio di lavoro è in pausa"

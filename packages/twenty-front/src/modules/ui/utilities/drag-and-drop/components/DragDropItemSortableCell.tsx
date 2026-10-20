@@ -1,18 +1,22 @@
+import { type CollisionDetector } from '@dnd-kit/abstract';
+import { defaultCollisionDetection } from '@dnd-kit/collision';
 import {
   RestrictToHorizontalAxis,
   RestrictToVerticalAxis,
 } from '@dnd-kit/abstract/modifiers';
-import { useSortable } from '@dnd-kit/react/sortable';
+import { type UseSortableInput, useSortable } from '@dnd-kit/react/sortable';
 import { styled } from '@linaria/react';
-import { type ReactNode } from 'react';
+import { type ReactNode, useCallback, useState } from 'react';
 import { isDefined } from 'twenty-shared/utils';
-import { themeCssVariables } from 'twenty-ui/theme-constants';
+import { themeCssVariables } from 'twenty-ui/theme';
 
 import { DND_KIT_PLUGINS_WITHOUT_OPTIMISTIC } from '@/ui/utilities/drag-and-drop/constants/DndKitPluginsWithoutOptimistic';
 import { DRAG_SOURCE_OPACITY } from '@/ui/utilities/drag-and-drop/constants/DragSourceOpacity';
 import { DragDropItemSortableHandleRefContext } from '@/ui/utilities/drag-and-drop/context/DragDropItemSortableHandleRefContext';
 import { type DragDropItemDropTargetOrientation } from '@/ui/utilities/drag-and-drop/types/DragDropItemDropTargetOrientation';
 import { preventNativeDragStart } from '@/ui/utilities/drag-and-drop/utils/preventNativeDragStart';
+import { getOwnDndKitAccessibilityAttributes } from '@/ui/utilities/drag-and-drop/utils/getOwnDndKitAccessibilityAttributes';
+import { removeDndKitAccessibilityAttributes } from '@/ui/utilities/drag-and-drop/utils/removeDndKitAccessibilityAttributes';
 
 const SORTABLE_COLLISION_PRIORITY = 3;
 
@@ -47,16 +51,16 @@ const StyledSortableRoot = styled.div<{
   transition: background 0.1s ease;
   will-change: transform;
 
-  /* When the cell delegates dragging to an explicit handle, only the handle
-     is grabbable, so the rest of the cell keeps its ambient cursor. */
   &:has([data-dnd-sortable-handle]) {
     cursor: inherit;
   }
 `;
 
 type DragDropItemSortableCellProps = {
-  accept?: string;
+  accept?: UseSortableInput['accept'];
+  allowNativeDragWhenDisabled?: boolean;
   children: ReactNode;
+  collisionDetector?: CollisionDetector;
   data?: Record<string, unknown>;
   disabled?: boolean;
   fadeSourceWhileDragging?: boolean;
@@ -67,15 +71,16 @@ type DragDropItemSortableCellProps = {
   id: string;
   index: number;
   restrictMovementTo?: 'x' | 'y' | 'none';
-  // Tags the split axis on the sortable's data so a pointer resolver can pick
-  // the drop boundary per hovered item across lists of mixed orientations.
+  // Lets a pointer resolver pick the drop boundary per item across lists of mixed orientations
   orientation?: DragDropItemDropTargetOrientation;
   type?: string;
 };
 
 export const DragDropItemSortableCell = ({
   accept,
+  allowNativeDragWhenDisabled = false,
   children,
+  collisionDetector = defaultCollisionDetection,
   data,
   disabled = false,
   fadeSourceWhileDragging = false,
@@ -96,8 +101,8 @@ export const DragDropItemSortableCell = ({
     type,
     accept,
     collisionPriority: SORTABLE_COLLISION_PRIORITY,
-    // Sortable metadata stays authoritative over consumer data so drag
-    // handlers always resolve the cell's real group and position.
+    collisionDetector,
+    // Sortable metadata overrides consumer data so handlers resolve the cell's real group and position
     data: {
       ...data,
       droppableId: group,
@@ -114,15 +119,64 @@ export const DragDropItemSortableCell = ({
     feedback: 'clone',
   });
 
+  const [ownAccessibilityAttributesByElement] = useState(
+    () => new WeakMap<Element, Set<string>>(),
+  );
+
+  // A disabled sortable stays unregistered so dnd-kit cannot mark its
+  // activator, and everything inside it, as a disabled button.
+  const connectToDndKit = useCallback(
+    (element: Element | null, connect: (element: Element | null) => void) => {
+      if (!disabled) {
+        if (
+          isDefined(element) &&
+          !ownAccessibilityAttributesByElement.has(element)
+        ) {
+          ownAccessibilityAttributesByElement.set(
+            element,
+            getOwnDndKitAccessibilityAttributes(element),
+          );
+        }
+        connect(element);
+        return;
+      }
+
+      connect(null);
+
+      const ownAttributes = isDefined(element)
+        ? ownAccessibilityAttributesByElement.get(element)
+        : undefined;
+
+      if (isDefined(element) && isDefined(ownAttributes)) {
+        removeDndKitAccessibilityAttributes({ element, ownAttributes });
+      }
+    },
+    [disabled, ownAccessibilityAttributesByElement],
+  );
+
+  const setSortableRef = useCallback(
+    (element: Element | null) => connectToDndKit(element, ref),
+    [connectToDndKit, ref],
+  );
+
+  const setSortableHandleRef = useCallback(
+    (element: Element | null) => connectToDndKit(element, handleRef),
+    [connectToDndKit, handleRef],
+  );
+
   return (
-    <DragDropItemSortableHandleRefContext.Provider value={handleRef}>
+    <DragDropItemSortableHandleRefContext.Provider value={setSortableHandleRef}>
       <StyledSortableRoot
-        ref={ref}
+        ref={setSortableRef}
         $disabled={disabled}
         $fill={fill}
         $isDragSourceFaded={fadeSourceWhileDragging && isDragSource}
         $isDraggingHighlighted={highlightWhileDragging && isDragging}
-        onDragStart={preventNativeDragStart}
+        onDragStart={
+          disabled && allowNativeDragWhenDisabled
+            ? undefined
+            : preventNativeDragStart
+        }
       >
         {children}
       </StyledSortableRoot>

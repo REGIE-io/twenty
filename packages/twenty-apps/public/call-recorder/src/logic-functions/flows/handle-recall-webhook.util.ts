@@ -1,9 +1,10 @@
 import { isUndefined } from '@sniptt/guards';
 import { type CoreApiClient } from 'twenty-client-sdk/core';
 
+import { CALL_RECORDING_ARTIFACT_IMPORT_SCOPES } from 'src/logic-functions/constants/call-recording-artifact-import-scopes';
 import { CallRecordingStatus } from 'src/logic-functions/constants/call-recording-status';
+import { enqueueCallRecordingArtifactsImport } from 'src/logic-functions/data/enqueue-call-recording-artifacts-import.util';
 import { findCallRecordingsByFilter } from 'src/logic-functions/data/find-call-recordings-by-filter.util';
-import { requestCallRecordingArtifactsImport } from 'src/logic-functions/data/request-call-recording-artifacts-import.util';
 import { isCallRecordingStatusDowngrade } from 'src/logic-functions/domain/is-call-recording-status-downgrade.util';
 import { isRecallRecordingDoneSignal } from 'src/logic-functions/domain/is-recall-recording-done-signal.util';
 import { mapRecallStatusCodeToCallRecordingStatus } from 'src/logic-functions/domain/map-recall-status-code-to-call-recording-status.util';
@@ -138,8 +139,13 @@ const handleRecallStatusEvent = async ({
       statusCode,
     })
   ) {
-    await requestCallRecordingArtifactsImportOrThrow({
-      callRecordingId: callRecording.id,
+    await enqueueCallRecordingArtifactsImport({
+      callRecordingIds: [callRecording.id],
+      scopes: CALL_RECORDING_ARTIFACT_IMPORT_SCOPES,
+      trigger:
+        event === 'recording.deleted' || statusCode === 'media_expired'
+          ? 'expired'
+          : 'recording',
     });
   }
 
@@ -175,8 +181,10 @@ const queueCallRecordingArtifactsImport = async ({
     };
   }
 
-  await requestCallRecordingArtifactsImportOrThrow({
-    callRecordingId: callRecording.id,
+  await enqueueCallRecordingArtifactsImport({
+    callRecordingIds: [callRecording.id],
+    scopes: ['transcript'],
+    trigger: 'transcript-ready',
   });
 
   return {
@@ -184,23 +192,6 @@ const queueCallRecordingArtifactsImport = async ({
     event: webhookEvent.event,
     callRecordingId: callRecording.id,
   };
-};
-
-const requestCallRecordingArtifactsImportOrThrow = async ({
-  callRecordingId,
-}: {
-  callRecordingId: string;
-}): Promise<void> => {
-  const importRequested = await requestCallRecordingArtifactsImport({
-    callRecordingId,
-    requestedAt: new Date().toISOString(),
-  });
-
-  if (!importRequested) {
-    throw new Error(
-      `failed to request artifact import for call recording ${callRecordingId}`,
-    );
-  }
 };
 
 const findMatchingCallRecording = async ({
@@ -245,10 +236,7 @@ const resolveStatusAgainstKnownRecording = ({
     !isUndefined(callRecording.externalRecordingId) ||
     !isUndefined(webhookEvent.externalRecordingId);
 
-  if (
-    mappedStatus !== CallRecordingStatus.NOT_RECORDED ||
-    !hasKnownRecording
-  ) {
+  if (mappedStatus !== CallRecordingStatus.NOT_RECORDED || !hasKnownRecording) {
     return mappedStatus;
   }
 
@@ -266,7 +254,7 @@ const mapRecallEventToCallRecordingStatus = ({
   statusCode: string | undefined;
   statusSubCode: string | undefined;
 }): CallRecordingStatus | undefined => {
-  if (event === 'recording.done') {
+  if (event === 'recording.done' || event === 'recording.deleted') {
     return CallRecordingStatus.PROCESSING;
   }
 

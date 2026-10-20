@@ -1,12 +1,13 @@
+import { CARD_ACTION_CLASS_NAME } from '@/ui/layout/card/styles/CardActionClassName';
 import { styled } from '@linaria/react';
 
-import { type ReactNode, useContext } from 'react';
 import { t } from '@lingui/core/macro';
-import { Card, CardContent } from 'twenty-ui/surfaces';
-import { IconChevronRight } from 'twenty-ui/icon';
-import { Pill } from 'twenty-ui/data-display';
+import { type ReactNode } from 'react';
 import { isDefined } from 'twenty-shared/utils';
-import { ThemeContext, themeCssVariables } from 'twenty-ui/theme-constants';
+import { IconChevronRight } from 'twenty-ui/icon';
+import { Badge } from 'twenty-ui/primitives/data-display';
+import { Card } from 'twenty-ui/primitives/surfaces';
+import { useTheme, themeCssVariables } from 'twenty-ui/theme';
 
 type SettingsCardProps = {
   description?: string;
@@ -22,32 +23,38 @@ type SettingsCardProps = {
 
 const StyledCardWrapper = styled.div<{
   disabled?: boolean;
-  clickable?: boolean;
 }>`
   color: ${({ disabled }) =>
     disabled
       ? themeCssVariables.font.color.extraLight
       : themeCssVariables.font.color.tertiary};
-  cursor: ${({ disabled, clickable }) =>
-    disabled ? 'not-allowed' : clickable ? 'pointer' : 'default'};
+  cursor: ${({ disabled }) => (disabled ? 'not-allowed' : 'default')};
   width: 100%;
 
-  > * {
+  > div {
     color: inherit;
   }
 `;
 
 const StyledCardContentContainer = styled.div`
-  > * {
+  > div {
     display: flex;
     flex-direction: column;
     gap: ${themeCssVariables.spacing[2]};
     padding: ${themeCssVariables.spacing[2]} ${themeCssVariables.spacing[2]};
+    position: relative;
+  }
 
-    &:hover {
-      background-color: ${themeCssVariables.background.quaternary};
-      cursor: pointer;
-    }
+  a:hover & > div,
+  > div:has(> button:not(:disabled):hover) {
+    background-color: ${themeCssVariables.background.quaternary};
+    cursor: pointer;
+  }
+`;
+
+const StyledCardAction = styled.button`
+  &:disabled {
+    cursor: not-allowed;
   }
 `;
 
@@ -107,24 +114,29 @@ export const SettingsCard = ({
   className,
   Status,
 }: SettingsCardProps) => {
-  const { theme } = useContext(ThemeContext);
+  const theme = useTheme();
 
   return (
-    <StyledCardWrapper
-      disabled={disabled}
-      clickable={!!onClick}
-      className={className}
-    >
-      <Card onClick={disabled ? undefined : onClick} rounded={true} fullWidth>
+    <StyledCardWrapper disabled={disabled} className={className}>
+      <Card.Root rounded={true} fullWidth>
         <StyledCardContentContainer>
-          <CardContent>
+          <Card.Content>
+            {isDefined(onClick) && (
+              <StyledCardAction
+                className={CARD_ACTION_CLASS_NAME}
+                type="button"
+                aria-label={title}
+                onClick={onClick}
+                disabled={disabled}
+              />
+            )}
             <StyledHeader>
               <StyledIconContainer disabled={disabled} iconColor={iconColor}>
                 {Icon}
               </StyledIconContainer>
               <StyledTitle disabled={disabled}>
                 {title}
-                {soon && <Pill label={t`Soon`} />}
+                {soon && <Badge>{t`Soon`}</Badge>}
               </StyledTitle>
               {isDefined(Status) && Status}
               <StyledIconChevronRightContainer>
@@ -134,9 +146,9 @@ export const SettingsCard = ({
             {description && (
               <StyledDescription>{description}</StyledDescription>
             )}
-          </CardContent>
+          </Card.Content>
         </StyledCardContentContainer>
-      </Card>
+      </Card.Root>
     </StyledCardWrapper>
   );
 };

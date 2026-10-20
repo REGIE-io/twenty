@@ -16,7 +16,6 @@ jest.useRealTimers();
 
 config({
   path: process.env.NODE_ENV === 'test' ? '.env.test' : '.env',
-  override: true,
 });
 
 const TEST_REGISTRATION_NAME_PREFIX = 'encrypt-app-reg-var-test-';
@@ -179,7 +178,9 @@ describe('2-5 slow instance command 1798000006000 - EncryptApplicationRegistrati
 
   it('leaves enc:v2 rows untouched and is idempotent across re-runs', async () => {
     const plaintext = 'already-v2-registration-secret';
-    const preexistingV2 = secretEncryptionService.encryptVersioned(plaintext as PlaintextString);
+    const preexistingV2 = secretEncryptionService.encryptVersioned(
+      plaintext as PlaintextString,
+    );
     const id = await seedVariable({ encryptedValue: preexistingV2 });
 
     await command.runDataMigration(dataSource);

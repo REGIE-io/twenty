@@ -1,27 +1,23 @@
-import { useOpenRecordInSidePanel } from '@/side-panel/hooks/useOpenRecordInSidePanel';
+import { getChipLabel } from '@/ui/field/display/utils/getChipLabel';
 import { getLinkToShowPage } from '@/object-metadata/utils/getLinkToShowPage';
 import { useRecordChipData } from '@/object-record/hooks/useRecordChipData';
 import { useResolveOpenRecordIn } from '@/object-record/record-index/hooks/useResolveOpenRecordIn';
 import { type ObjectRecord } from '@/object-record/types/ObjectRecord';
-import { CoreObjectNameSingular, OpenRecordIn } from 'twenty-shared/types';
-import { getAbsoluteImageUrl } from '~/utils/image/getAbsoluteImageUrl';
-import { t } from '@lingui/core/macro';
+import { useOpenRecordInSidePanel } from '@/side-panel/hooks/useOpenRecordInSidePanel';
+import { AvatarOrIcon } from '@/ui/field/display/components/internal/AvatarOrIcon/AvatarOrIcon';
+import { LinkChip } from '@/ui/navigation/link/components/LinkChip/LinkChip';
+import { type TriggerEventType } from '@/ui/navigation/types/TriggerEventType';
 import { type MouseEvent } from 'react';
+import { CoreObjectNameSingular, OpenRecordIn } from 'twenty-shared/types';
 import { isDefined } from 'twenty-shared/utils';
-import {
-  AvatarOrIcon,
-  Chip,
-  type ChipSize,
-  ChipVariant,
-  LinkChip,
-} from 'twenty-ui/data-display';
-import { type TriggerEventType } from 'twenty-ui/utilities';
+import { Chip, type ChipSize } from 'twenty-ui/primitives/data-display';
+import { getAbsoluteImageUrl } from '~/utils/image/getAbsoluteImageUrl';
 
-export type RecordChipProps = {
+type RecordChipProps = {
   objectNameSingular: string;
   record: ObjectRecord;
   className?: string;
-  variant?: ChipVariant.Highlighted | ChipVariant.Transparent;
+  variant?: 'soft' | 'ghost';
   forceDisableClick?: boolean;
   isBold?: boolean;
   maxWidth?: number;
@@ -53,6 +49,8 @@ export const RecordChip = ({
     record,
   });
 
+  const { text: label, content } = getChipLabel(recordChipData.name);
+
   const { openRecordInSidePanel } = useOpenRecordInSidePanel();
 
   const openRecordIn = useResolveOpenRecordIn(objectNameSingular);
@@ -76,24 +74,25 @@ export const RecordChip = ({
   ) {
     return (
       <Chip
-        label={recordChipData.name}
-        emptyLabel={t`Untitled`}
-        isBold={isBold}
+        weight={isBold ? 'medium' : 'regular'}
         size={size}
         maxWidth={maxWidth}
         className={className}
-        variant={ChipVariant.Transparent}
-        leftComponent={
+        variant="ghost"
+        startElement={
           isIconHidden ? null : (
             <AvatarOrIcon
-              placeholder={recordChipData.name}
-              placeholderColorSeed={record.id}
-              avatarType={recordChipData.avatarType}
-              avatarUrl={getAbsoluteImageUrl(recordChipData.avatarUrl ?? '')}
+              name={recordChipData.name}
+              colorSeed={record.id}
+              shape={recordChipData.avatarShape}
+              src={getAbsoluteImageUrl(recordChipData.avatarUrl ?? '')}
             />
           )
         }
-      />
+        style={{ paddingInlineStart: 0 }}
+      >
+        {isLabelHidden ? undefined : content}
+      </Chip>
     );
   }
 
@@ -101,28 +100,27 @@ export const RecordChip = ({
     <LinkChip
       size={size}
       maxWidth={maxWidth}
-      label={recordChipData.name}
-      emptyLabel={t`Untitled`}
-      isBold={isBold}
-      isLabelHidden={isLabelHidden}
-      leftComponent={
+      weight={isBold ? 'medium' : 'regular'}
+      aria-label={isLabelHidden ? label : undefined}
+      startElement={
         isIconHidden ? null : (
           <AvatarOrIcon
-            placeholder={recordChipData.name}
-            placeholderColorSeed={record.id}
-            avatarType={recordChipData.avatarType}
-            avatarUrl={getAbsoluteImageUrl(recordChipData.avatarUrl ?? '')}
+            name={recordChipData.name}
+            colorSeed={record.id}
+            shape={recordChipData.avatarShape}
+            src={getAbsoluteImageUrl(recordChipData.avatarUrl ?? '')}
           />
         )
       }
       className={className}
-      variant={
-        variant ??
-        (!forceDisableClick ? ChipVariant.Highlighted : ChipVariant.Transparent)
-      }
+      variant={variant ?? 'soft'}
+      clickable={variant !== 'ghost'}
+      style={variant === 'ghost' ? { paddingInlineStart: 0 } : undefined}
       to={to ?? getLinkToShowPage(objectNameSingular, record)}
       onClick={handleCustomClick}
       triggerEvent={triggerEvent}
-    />
+    >
+      {isLabelHidden ? undefined : content}
+    </LinkChip>
   );
 };

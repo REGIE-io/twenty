@@ -83,75 +83,6 @@ export class RowLevelPermissionPredicateService {
       .map(fromFlatRowLevelPermissionPredicateToDto);
   }
 
-  async findByRoleAndObject(
-    workspaceId: string,
-    roleId: string,
-    objectMetadataId: string,
-  ): Promise<RowLevelPermissionPredicateDTO[]> {
-    const hasRowLevelPermissionFeature =
-      await this.hasRowLevelPermissionFeature(workspaceId);
-
-    if (!hasRowLevelPermissionFeature) {
-      return [];
-    }
-
-    const { flatRowLevelPermissionPredicateMaps } =
-      await this.flatEntityMapsCacheService.getOrRecomputeManyOrAllFlatEntityMaps(
-        {
-          workspaceId,
-          flatMapsKeys: ['flatRowLevelPermissionPredicateMaps'],
-        },
-      );
-
-    return Object.values(
-      flatRowLevelPermissionPredicateMaps.byUniversalIdentifier,
-    )
-      .filter(isDefined)
-      .filter(
-        (predicate) =>
-          predicate.deletedAt === null &&
-          predicate.roleId === roleId &&
-          predicate.objectMetadataId === objectMetadataId,
-      )
-      .sort(
-        (a, b) =>
-          (a.positionInRowLevelPermissionPredicateGroup ?? 0) -
-          (b.positionInRowLevelPermissionPredicateGroup ?? 0),
-      )
-      .map(fromFlatRowLevelPermissionPredicateToDto);
-  }
-
-  async findById(
-    id: string,
-    workspaceId: string,
-  ): Promise<RowLevelPermissionPredicateDTO | null> {
-    const hasRowLevelPermissionFeature =
-      await this.hasRowLevelPermissionFeature(workspaceId);
-
-    if (!hasRowLevelPermissionFeature) {
-      return null;
-    }
-
-    const { flatRowLevelPermissionPredicateMaps } =
-      await this.flatEntityMapsCacheService.getOrRecomputeManyOrAllFlatEntityMaps(
-        {
-          workspaceId,
-          flatMapsKeys: ['flatRowLevelPermissionPredicateMaps'],
-        },
-      );
-
-    const flatPredicate = findFlatEntityByIdInFlatEntityMaps({
-      flatEntityId: id,
-      flatEntityMaps: flatRowLevelPermissionPredicateMaps,
-    });
-
-    if (!isDefined(flatPredicate) || flatPredicate.deletedAt !== null) {
-      return null;
-    }
-
-    return fromFlatRowLevelPermissionPredicateToDto(flatPredicate);
-  }
-
   async upsertRowLevelPermissionPredicates({
     input,
     workspaceId,
@@ -393,13 +324,9 @@ export class RowLevelPermissionPredicateService {
       }
     }
 
-    const groupsToDelete = existingGroups
-      .filter((group) => !inputGroupIds.has(group.id))
-      .map((group) => ({
-        ...group,
-        deletedAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-      }));
+    const groupsToDelete = existingGroups.filter(
+      (group) => !inputGroupIds.has(group.id),
+    );
 
     return {
       groupsToCreate,
@@ -493,13 +420,9 @@ export class RowLevelPermissionPredicateService {
       }
     }
 
-    const predicatesToDelete = existingPredicates
-      .filter((predicate) => !inputPredicateIds.has(predicate.id))
-      .map((predicate) => ({
-        ...predicate,
-        deletedAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-      }));
+    const predicatesToDelete = existingPredicates.filter(
+      (predicate) => !inputPredicateIds.has(predicate.id),
+    );
 
     return {
       predicatesToCreate,
@@ -536,16 +459,13 @@ export class RowLevelPermissionPredicateService {
           allFlatEntityOperationByMetadataName: {
             rowLevelPermissionPredicateGroup: {
               flatEntityToCreate: groupsToCreate,
-              flatEntityToUpdate: [...groupsToUpdate, ...groupsToDelete],
-              flatEntityToDelete: [],
+              flatEntityToUpdate: groupsToUpdate,
+              flatEntityToDelete: groupsToDelete,
             },
             rowLevelPermissionPredicate: {
               flatEntityToCreate: predicatesToCreate,
-              flatEntityToUpdate: [
-                ...predicatesToUpdate,
-                ...predicatesToDelete,
-              ],
-              flatEntityToDelete: [],
+              flatEntityToUpdate: predicatesToUpdate,
+              flatEntityToDelete: predicatesToDelete,
             },
           },
           workspaceId,
@@ -567,9 +487,7 @@ export class RowLevelPermissionPredicateService {
     ]);
   }
 
-  private async hasRowLevelPermissionFeature(
-    workspaceId: string,
-  ): Promise<boolean> {
+  async hasRowLevelPermissionFeature(workspaceId: string): Promise<boolean> {
     const hasValidEnterprisePlan = this.enterprisePlanService.isValid();
 
     const isRowLevelPermissionEnabled =

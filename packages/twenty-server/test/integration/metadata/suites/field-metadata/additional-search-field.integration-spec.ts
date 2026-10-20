@@ -1,6 +1,8 @@
 import { isDefined } from 'twenty-shared/utils';
 
 import { createManyOperation } from 'test/integration/graphql/utils/create-many-operation.util';
+import { deleteManyOperationFactory } from 'test/integration/graphql/utils/delete-many-operation-factory.util';
+import { makeGraphqlApiRequest } from 'test/integration/graphql/utils/make-graphql-api-request.util';
 import { search } from 'test/integration/graphql/utils/search.util';
 import { createOneFieldMetadata } from 'test/integration/metadata/suites/field-metadata/utils/create-one-field-metadata.util';
 import { updateOneFieldMetadata } from 'test/integration/metadata/suites/field-metadata/utils/update-one-field-metadata.util';
@@ -58,6 +60,28 @@ describe('Additional searchable field', () => {
     return result.data.search.edges.length;
   };
 
+  const deleteFixtureRecords = async () => {
+    const response = await makeGraphqlApiRequest(
+      deleteManyOperationFactory({
+        objectMetadataSingularName: OBJECT_NAME_SINGULAR,
+        objectMetadataPluralName: OBJECT_NAME_PLURAL,
+        gqlFields: 'id',
+        filter: {
+          name: {
+            in: [
+              RECORD_NAME_VALUE,
+              'AdditionalSearchSilverToken22',
+              'AdditionalSearchUnmarkedToken33',
+              'AdditionalSearchGuardToken44',
+            ],
+          },
+        },
+      }),
+    );
+
+    expect(response.body.errors).toBeUndefined();
+  };
+
   beforeAll(async () => {
     const { objects } = await findManyObjectMetadata({
       expectToFail: false,
@@ -72,9 +96,11 @@ describe('Additional searchable field', () => {
     jestExpectToBeDefined(companyObject);
 
     testObjectMetadataId = companyObject.id;
+    await deleteFixtureRecords();
   });
 
   afterAll(async () => {
+    await deleteFixtureRecords();
     // company is a standard object, so only the fields this suite added are removed.
     // A field has to be deactivated before it can be deleted.
     for (const fieldMetadataId of createdFieldMetadataIds) {
@@ -156,7 +182,10 @@ describe('Additional searchable field', () => {
       objectMetadataPluralName: OBJECT_NAME_PLURAL,
       gqlFields: `id name ${TIER_FIELD_NAME}`,
       data: [
-        { name: 'AdditionalSearchSilverToken22', [TIER_FIELD_NAME]: SILVER_VALUE },
+        {
+          name: 'AdditionalSearchSilverToken22',
+          [TIER_FIELD_NAME]: SILVER_VALUE,
+        },
       ],
       expectToFail: false,
     });
@@ -265,7 +294,10 @@ describe('Additional searchable field', () => {
       objectMetadataPluralName: OBJECT_NAME_PLURAL,
       gqlFields: `id name ${UNMARKED_FIELD_NAME}`,
       data: [
-        { name: 'AdditionalSearchUnmarkedToken33', [UNMARKED_FIELD_NAME]: 'BRONZE' },
+        {
+          name: 'AdditionalSearchUnmarkedToken33',
+          [UNMARKED_FIELD_NAME]: 'BRONZE',
+        },
       ],
       expectToFail: false,
     });

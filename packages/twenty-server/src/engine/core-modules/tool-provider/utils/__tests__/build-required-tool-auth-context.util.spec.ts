@@ -1,3 +1,4 @@
+import { type FlatApplication } from 'src/engine/core-modules/application/types/flat-application.type';
 import { AuthException } from 'src/engine/core-modules/auth/auth.exception';
 import { type ToolProviderContext } from 'src/engine/core-modules/tool-provider/interfaces/tool-provider-context.type';
 import { buildRequiredToolAuthContext } from 'src/engine/core-modules/tool-provider/utils/build-required-tool-auth-context.util';
@@ -7,13 +8,14 @@ describe('buildRequiredToolAuthContext', () => {
   const userId = '20202020-0000-4000-8000-000000000002';
   const userWorkspaceId = '20202020-0000-4000-8000-000000000003';
   const workspaceMemberId = '20202020-0000-4000-8000-000000000004';
+  const applicationId = '20202020-0000-4000-8000-000000000005';
 
   const buildContext = (
     overrides?: Partial<ToolProviderContext>,
   ): ToolProviderContext => ({
     workspaceId,
     roleId: 'role-1',
-    rolePermissionConfig: { unionOf: ['role-1'] },
+    rolePermissionConfig: { intersectionOf: { userWorkspaceRoleId: 'role-1' } },
     ...overrides,
   });
 
@@ -38,17 +40,11 @@ describe('buildRequiredToolAuthContext', () => {
         deletedAt: null,
       }),
     },
-    userWorkspaceRepository: {
-      findOne: jest.fn().mockResolvedValue({
-        id: userWorkspaceId,
-        userId,
-        workspaceId,
-      }),
-    },
     workspaceCacheService: {
       getOrRecompute: jest.fn().mockResolvedValue({
         flatWorkspaceMemberMaps: {
           idByUserId: { [userId]: workspaceMemberId },
+          userWorkspaceIdByUserId: { [userId]: userWorkspaceId },
           byId: {
             [workspaceMemberId]: {
               id: workspaceMemberId,
@@ -68,15 +64,30 @@ describe('buildRequiredToolAuthContext', () => {
       ...dependencies,
     });
 
-    expect(dependencies.userWorkspaceRepository.findOne).toHaveBeenCalledWith({
-      where: { id: userWorkspaceId, userId, workspaceId },
-    });
+    expect(
+      dependencies.workspaceCacheService.getOrRecompute,
+    ).toHaveBeenCalledTimes(1);
+    expect(
+      dependencies.workspaceCacheService.getOrRecompute,
+    ).toHaveBeenCalledWith(workspaceId, ['flatWorkspaceMemberMaps']);
     expect(authContext).toMatchObject({
       type: 'user',
       userWorkspaceId,
       workspaceMemberId,
       workspace: { id: workspaceId },
     });
+    expect(authContext).not.toHaveProperty('application');
+  });
+
+  it('should carry the application acting for the member', async () => {
+    const application = { id: applicationId } as FlatApplication;
+
+    const authContext = await buildRequiredToolAuthContext({
+      context: buildContext({ userId, userWorkspaceId, application }),
+      ...buildDependencies(),
+    });
+
+    expect(authContext).toMatchObject({ type: 'user', application });
   });
 
   it('should throw without a resolvable identity', async () => {
@@ -91,7 +102,13 @@ describe('buildRequiredToolAuthContext', () => {
   it('should throw when the userWorkspace does not bind this user to this workspace', async () => {
     const dependencies = buildDependencies();
 
-    dependencies.userWorkspaceRepository.findOne.mockResolvedValue(null);
+    dependencies.workspaceCacheService.getOrRecompute.mockResolvedValue({
+      flatWorkspaceMemberMaps: {
+        idByUserId: { [userId]: workspaceMemberId },
+        userWorkspaceIdByUserId: { [userId]: 'other-user-workspace-id' },
+        byId: {},
+      },
+    });
 
     await expect(
       buildRequiredToolAuthContext({
@@ -119,7 +136,11 @@ describe('buildRequiredToolAuthContext', () => {
     const dependencies = buildDependencies();
 
     dependencies.workspaceCacheService.getOrRecompute.mockResolvedValue({
-      flatWorkspaceMemberMaps: { idByUserId: {}, byId: {} },
+      flatWorkspaceMemberMaps: {
+        idByUserId: {},
+        userWorkspaceIdByUserId: { [userId]: userWorkspaceId },
+        byId: {},
+      },
     });
 
     await expect(

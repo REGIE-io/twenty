@@ -2,7 +2,7 @@ import { FieldMetadataType } from 'twenty-shared/types';
 
 import { PhoneSearchService } from 'src/engine/core-modules/search/services/phone-search.service';
 import { encodeCursorData } from 'src/engine/api/graphql/graphql-query-runner/utils/cursors.util';
-import { type GlobalWorkspaceOrmManager } from 'src/engine/twenty-orm/global-workspace-datasource/global-workspace-orm.manager';
+import { type WorkspaceOrmManager } from 'src/engine/twenty-orm/workspace-orm.manager';
 
 jest.mock(
   'src/engine/twenty-orm/storage/orm-workspace-context.storage',
@@ -29,7 +29,7 @@ describe('PhoneSearchService indexed query contract', () => {
       const dataSource = { query: jest.fn() };
       const manager = { executeInWorkspaceContext: jest.fn() };
       const service = new PhoneSearchService(
-        manager as unknown as GlobalWorkspaceOrmManager,
+        manager as unknown as WorkspaceOrmManager,
         dataSource as never,
       );
 
@@ -53,7 +53,7 @@ describe('PhoneSearchService indexed query contract', () => {
   it('accepts a valid UUID cursor', async () => {
     const manager = { executeInWorkspaceContext: jest.fn() };
     const service = new PhoneSearchService(
-      manager as unknown as GlobalWorkspaceOrmManager,
+      manager as unknown as WorkspaceOrmManager,
       { query: jest.fn() } as never,
     );
 
@@ -81,7 +81,7 @@ describe('PhoneSearchService indexed query contract', () => {
     const service = new PhoneSearchService(
       {
         executeInWorkspaceContext: jest.fn(),
-      } as unknown as GlobalWorkspaceOrmManager,
+      } as unknown as WorkspaceOrmManager,
       { query: jest.fn() } as never,
     );
 
@@ -103,7 +103,7 @@ describe('PhoneSearchService indexed query contract', () => {
     const dataSource = { query: jest.fn() };
     const manager = { executeInWorkspaceContext: jest.fn() };
     const service = new PhoneSearchService(
-      manager as unknown as GlobalWorkspaceOrmManager,
+      manager as unknown as WorkspaceOrmManager,
       dataSource as never,
     );
 
@@ -164,7 +164,7 @@ describe('PhoneSearchService indexed query contract', () => {
       getRepository: jest.fn().mockResolvedValue(repository),
     };
     const service = new PhoneSearchService(
-      manager as unknown as GlobalWorkspaceOrmManager,
+      manager as unknown as WorkspaceOrmManager,
       dataSource as never,
     );
     const readableUniversalIdentifier = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';

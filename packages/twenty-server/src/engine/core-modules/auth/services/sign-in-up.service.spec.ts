@@ -4,7 +4,7 @@ import {
   AuthException,
   AuthExceptionCode,
 } from 'src/engine/core-modules/auth/auth.exception';
-import { type SignInUpNewUserPayload } from 'src/engine/core-modules/auth/types/signInUp.type';
+import { type SignInUpNewUserPayload } from 'src/engine/core-modules/auth/types/sign-in-up.type';
 import { DpaAgreementEntity } from 'src/engine/core-modules/dpa/entities/dpa-agreement.entity';
 import { AuthProviderEnum } from 'src/engine/core-modules/workspace/types/workspace.type';
 
@@ -115,6 +115,8 @@ const createSignInUpServiceForTests = () => {
     } as any,
     mockApplicationService as any,
     mockFileCorePictureService as any,
+    { delete: jest.fn() } as any,
+    { captureExceptions: jest.fn() } as any,
     {
       isValid: jest.fn().mockReturnValue(false),
     } as any,
@@ -122,9 +124,6 @@ const createSignInUpServiceForTests = () => {
       createContext: jest.fn().mockReturnValue({
         insertWorkspaceEvent: jest.fn(),
       }),
-    } as any,
-    {
-      creditWorkspaceBalance: jest.fn(),
     } as any,
     {
       isBillingEnabled: jest.fn(),
@@ -516,7 +515,7 @@ describe('SignInUpService onboarding steps', () => {
     ).toHaveBeenCalledWith(expect.objectContaining({ value: true }), undefined);
   });
 
-  it('flags the install-apps step for a user creating a new workspace', async () => {
+  it('keeps the install-apps step disabled for Regie workspace provisioning', async () => {
     const {
       service,
       mockOnboardingService,
@@ -541,9 +540,6 @@ describe('SignInUpService onboarding steps', () => {
 
     expect(
       mockOnboardingService.setOnboardingInstallAppsPending,
-    ).toHaveBeenCalledWith(
-      expect.objectContaining({ value: true }),
-      expect.anything(),
-    );
+    ).not.toHaveBeenCalled();
   });
 });

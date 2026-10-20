@@ -92,7 +92,7 @@ export type CurrencyFilter = {
   currencyCode?: SelectFilter;
 };
 
-export type URLFilter = {
+export type UrlFilter = {
   url?: StringFilter;
   label?: StringFilter;
 };
@@ -159,11 +159,13 @@ export type ArrayFilter = {
 
 export type RawJsonFilter = {
   like?: string;
+  ilike?: string;
   is?: IsFilter;
 };
 
 export type FilesFilter = {
   like?: string;
+  ilike?: string;
   is?: IsFilter;
 };
 
@@ -187,7 +189,7 @@ export type LeafFilter =
   | DateFilter
   | DateTimeFilter
   | CurrencyFilter
-  | URLFilter
+  | UrlFilter
   | FullNameFilter
   | BooleanFilter
   | AddressFilter

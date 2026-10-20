@@ -110,8 +110,6 @@ export const computeStandardPersonViewFields = (
       },
     }),
 
-    // personRecordPageFields view fields
-    // General group
     personRecordPageFieldsEmails: createStandardViewFieldFlatMetadata({
       ...args,
       objectName: 'person',
@@ -348,6 +346,43 @@ export const computeStandardPersonViewFields = (
         isVisible: false,
         size: 150,
         viewFieldGroupName: 'system',
+      },
+    }),
+
+    messageListRecordPageMembersName: createStandardViewFieldFlatMetadata({
+      ...args,
+      objectName: 'person',
+      context: {
+        viewName: 'messageListRecordPageMembers',
+        viewFieldName: 'name',
+        fieldName: 'name',
+        position: 0,
+        isVisible: true,
+        size: 210,
+      },
+    }),
+    messageListRecordPageMembersEmails: createStandardViewFieldFlatMetadata({
+      ...args,
+      objectName: 'person',
+      context: {
+        viewName: 'messageListRecordPageMembers',
+        viewFieldName: 'emails',
+        fieldName: 'emails',
+        position: 1,
+        isVisible: true,
+        size: 150,
+      },
+    }),
+    messageListRecordPageMembersCompany: createStandardViewFieldFlatMetadata({
+      ...args,
+      objectName: 'person',
+      context: {
+        viewName: 'messageListRecordPageMembers',
+        viewFieldName: 'company',
+        fieldName: 'company',
+        position: 2,
+        isVisible: true,
+        size: 150,
       },
     }),
   };

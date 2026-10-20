@@ -1,3 +1,4 @@
+import { ListItem } from 'twenty-ui/primitives/navigation';
 import { Key } from 'ts-key-enum';
 
 import { type SelectableItem } from '@/object-record/select/types/SelectableItem';
@@ -5,15 +6,12 @@ import { DropdownMenuSkeletonItem } from '@/ui/input/relation-picker/components/
 import { DropdownMenuItemsContainer } from '@/ui/layout/dropdown/components/DropdownMenuItemsContainer';
 import { useCloseDropdown } from '@/ui/layout/dropdown/hooks/useCloseDropdown';
 import { SelectableList } from '@/ui/layout/selectable-list/components/SelectableList';
-import { SelectableListItem } from '@/ui/layout/selectable-list/components/SelectableListItem';
+import { MultipleSelectDropdownItem } from '@/object-record/select/components/MultipleSelectDropdownItem';
 import { useSelectableList } from '@/ui/layout/selectable-list/hooks/useSelectableList';
 import { selectedItemIdComponentState } from '@/ui/layout/selectable-list/states/selectedItemIdComponentState';
 import { useHotkeysOnFocusedElement } from '@/ui/utilities/hotkey/hooks/useHotkeysOnFocusedElement';
 import { useAtomComponentStateValue } from '@/ui/utilities/state/jotai/hooks/useAtomComponentStateValue';
-import { getAbsoluteImageUrl } from '~/utils/image/getAbsoluteImageUrl';
 import { t } from '@lingui/core/macro';
-import { Avatar } from 'twenty-ui/data-display';
-import { MenuItem, MenuItemMultiSelectAvatar } from 'twenty-ui/navigation';
 
 export const MultipleSelectDropdown = ({
   selectableListId,
@@ -45,10 +43,9 @@ export const MultipleSelectDropdown = ({
     selectableListId,
   );
 
-  const handleItemSelectChange = (
-    itemToSelect: SelectableItem,
-    newSelectedValue: boolean,
-  ) => {
+  const handleItemSelectChange = (itemToSelect: SelectableItem) => {
+    const newSelectedValue = !itemToSelect.isSelected;
+    resetSelectedItem();
     onChange(
       {
         ...itemToSelect,
@@ -87,39 +84,16 @@ export const MultipleSelectDropdown = ({
       selectableItemIdArray={selectableItemIds}
       focusId={focusId}
     >
-      <DropdownMenuItemsContainer hasMaxHeight>
-        {itemsInDropdown?.map((item) => {
-          return (
-            <SelectableListItem
-              itemId={item.id}
-              onEnter={() => {
-                resetSelectedItem();
-                handleItemSelectChange(item, !item.isSelected);
-              }}
-            >
-              <MenuItemMultiSelectAvatar
-                key={item.id}
-                selected={item.isSelected}
-                isKeySelected={item.id === selectedItemId}
-                onSelectChange={(newCheckedValue) => {
-                  resetSelectedItem();
-                  handleItemSelectChange(item, newCheckedValue);
-                }}
-                text={item.name}
-                avatar={
-                  <Avatar
-                    avatarUrl={getAbsoluteImageUrl(item.avatarUrl)}
-                    placeholderColorSeed={item.id}
-                    placeholder={item.name}
-                    size="md"
-                    type={item.avatarType}
-                  />
-                }
-              />
-            </SelectableListItem>
-          );
-        })}
-        {showNoResult && <MenuItem text={t`No results`} />}
+      <DropdownMenuItemsContainer isMultiSelect hasMaxHeight>
+        {itemsInDropdown.map((item) => (
+          <MultipleSelectDropdownItem
+            key={item.id}
+            item={item}
+            focused={item.id === selectedItemId}
+            onSelect={handleItemSelectChange}
+          />
+        ))}
+        {showNoResult && <ListItem disabled>{t`No results`}</ListItem>}
         {loadingItems && <DropdownMenuSkeletonItem />}
       </DropdownMenuItemsContainer>
     </SelectableList>

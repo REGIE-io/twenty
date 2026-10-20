@@ -6,9 +6,9 @@ import { NodeEnvironment } from 'src/engine/core-modules/twenty-config/interface
 import testTokens from './test/integration/constants/test-tokens.json';
 
 if (process.env.NODE_ENV === 'test') {
-  dotenv.config({ path: '.env.test', override: true });
+  dotenv.config({ path: '.env.test' });
 } else {
-  dotenv.config({ path: '.env', override: true });
+  dotenv.config({ path: '.env' });
 }
 
 const isBillingEnabled = process.env.IS_BILLING_ENABLED === 'true';
@@ -17,8 +17,7 @@ const isClickhouseEnabled = process.env.CLICKHOUSE_URL !== undefined;
 const tsConfig = require('./tsconfig.json');
 
 const jestConfig: JestConfigWithTsJest = {
-  // For more information please have a look to official docs https://jestjs.io/docs/configuration/#prettierpath-string
-  // Prettier v3 should be supported in jest v30 https://github.com/jestjs/jest/releases/tag/v30.0.0-alpha.1
+  // Prettier v3 is only supported from jest v30 (https://github.com/jestjs/jest/releases/tag/v30.0.0-alpha.1)
   prettierPath: null,
   silent: false,
   errorOnDeprecated: true,
@@ -26,14 +25,12 @@ const jestConfig: JestConfigWithTsJest = {
   moduleFileExtensions: ['js', 'mjs', 'json', 'ts'],
   rootDir: '.',
   testEnvironment: 'node',
-  testEnvironmentOptions: {
-    customExportConditions: ['node', 'node-addons', 'module-sync'],
-  },
+  cacheDirectory:
+    '<rootDir>/../../.cache/jest/packages/twenty-server-integration',
   testPathIgnorePatterns: [
     ...(isBillingEnabled ? [] : ['<rootDir>/test/integration/billing']),
     ...(isClickhouseEnabled ? [] : ['<rootDir>/test/integration/audit']),
-    // Requires an app booted as a secure deployment; run through
-    // jest-integration-secure.config.ts (nx test:integration:secure).
+    // Needs a secure-deployment app; runs via jest-integration-secure.config.ts (nx test:integration:secure)
     '<rootDir>/test/integration/secure-deployment',
   ],
   testRegex: '\\.integration-spec\\.ts$',
@@ -45,12 +42,9 @@ const jestConfig: JestConfigWithTsJest = {
   ],
   testTimeout: 20000,
   maxWorkers: 1,
-  // jsdom 29 and msw ship ESM-only transitive deps (parse5, entities,
-  // tough-cookie, @exodus/bytes via html-encoding-sniffer, @csstools/@asamuzakjp
-  // css engine, @mswjs/interceptors and friends); let swc transform them
-  // (and .mjs below) so jest can require them.
+  // ESM-only deps (jsdom 29 and msw chains, ai, @ai-sdk/*, @workflow/serde) that swc must transform for jest
   transformIgnorePatterns: [
-    '/node_modules/(?!(jsdom|html-encoding-sniffer|whatwg-encoding|@exodus|parse5|entities|tough-cookie|@csstools|@asamuzakjp|@borewit|msw|@mswjs|until-async|@bundled-es-modules|@open-draft|strict-event-emitter|headers-polyfill|outvariant|is-node-process|path-to-regexp|statuses|cookie|digest-fetch|md5|email-reply-parser|file-type|@file-type|strtok3|token-types|uint8array-extras|@tokenizer)/)',
+    '/node_modules/(?!(.*/node_modules/)?(jsdom|html-encoding-sniffer|whatwg-encoding|@exodus|parse5|entities|tough-cookie|@csstools|@asamuzakjp|@borewit|file-type|@file-type|strtok3|token-types|uint8array-extras|@tokenizer|msw|@mswjs|until-async|@bundled-es-modules|@open-draft|strict-event-emitter|headers-polyfill|outvariant|is-node-process|path-to-regexp|statuses|cookie|digest-fetch|md5|email-reply-parser|ai|@ai-sdk|@workflow|htmlparser2|marked|domhandler|domutils|dom-serializer|domelementtype|@faker-js)/)',
   ],
   transform: {
     '^.+\\.(t|j|mj)s$': [
@@ -89,12 +83,11 @@ const jestConfig: JestConfigWithTsJest = {
       prefix: '<rootDir>/',
     }),
     '^test/(.*)$': '<rootDir>/test/$1',
+    '^file-type$': require.resolve('file-type'),
   },
   globals: {
     APP_PORT: 4000,
     NODE_ENV: NodeEnvironment.TEST,
-    // Test tokens are loaded from a shared JSON file to ensure consistency
-    // with CI workflows and other tools that need these tokens
     ...testTokens,
   },
 };

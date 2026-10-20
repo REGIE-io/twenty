@@ -4,6 +4,7 @@ import {
   TransformStream as NodeTransformStream,
   WritableStream as NodeWritableStream,
 } from 'node:stream/web';
+import { TextDecoder, TextEncoder } from 'node:util';
 
 import { i18n } from '@lingui/core';
 import { SOURCE_LOCALE } from 'twenty-shared/translations';
@@ -11,6 +12,11 @@ import { messages as enMessages } from '~/locales/generated/en';
 
 i18n.load({ [SOURCE_LOCALE]: enMessages });
 i18n.activate(SOURCE_LOCALE);
+
+// jsdom lacks TextEncoder/TextDecoder, which @ai-sdk/provider-utils builds at import.
+if (globalThis.TextDecoder === undefined) {
+  Object.assign(globalThis, { TextDecoder, TextEncoder });
+}
 
 const globalWithWebStreams = globalThis as Record<string, unknown>;
 
@@ -33,8 +39,7 @@ if (typeof window !== 'undefined') {
   });
 }
 
-// jsdom does not implement ResizeObserver; @dnd-kit/dom expects it at import
-// time.
+// jsdom lacks ResizeObserver, which @dnd-kit/dom expects at import time.
 class ResizeObserverMock {
   observe() {}
   unobserve() {}
@@ -61,13 +66,7 @@ declare global {
   }
 }
 
-/**
- * The structuredClone global function is not available in jsdom, it needs to be mocked for now.
- *
- * The most naive way to mock structuredClone is to use JSON.stringify and JSON.parse. This works
- * for arguments with simple types like primitives, arrays and objects, but doesn't work with functions,
- * Map, Set, etc.
- */
+// jsdom has no structuredClone; this JSON round-trip drops functions, Map, Set, etc.
 global.structuredClone = (val) => {
   return JSON.parse(JSON.stringify(val));
 };

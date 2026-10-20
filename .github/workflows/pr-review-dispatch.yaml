@@ -1,5 +1,5 @@
 name: PR Review Dispatch
-run-name: "PR Review Dispatch #${{ github.event.pull_request.number }}"
+run-name: 'PR Review Dispatch #${{ github.event.pull_request.number }}'
 
 on:
   pull_request_target:

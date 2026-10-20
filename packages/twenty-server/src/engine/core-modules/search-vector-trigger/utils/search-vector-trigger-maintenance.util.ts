@@ -113,11 +113,16 @@ export const buildSearchVectorTablePlans = ({
       continue;
     }
 
-    const tsVectorField = findTsVectorFlatFieldMetadataForObject({
+    const universalTsVectorField = findTsVectorFlatFieldMetadataForObject({
       fieldUniversalIdentifiers: flatObjectMetadata.fieldUniversalIdentifiers,
       flatFieldMetadataMaps,
     });
 
+    const tsVectorField = universalTsVectorField
+      ? flatFieldMetadataMaps.byUniversalIdentifier[
+          universalTsVectorField.universalIdentifier
+        ]
+      : undefined;
     if (!isDefined(tsVectorField)) {
       continue;
     }
@@ -501,11 +506,16 @@ export const findSearchVectorTriggerSource = ({
   updatedFlatFieldMetadata?: FlatFieldMetadata;
   deletedFieldMetadataId?: string;
 }): SearchVectorTriggerSource | undefined => {
-  const tsVectorFlatFieldMetadata = findTsVectorFlatFieldMetadataForObject({
+  const universalTsVectorField = findTsVectorFlatFieldMetadataForObject({
     fieldUniversalIdentifiers: flatObjectMetadata.fieldUniversalIdentifiers,
     flatFieldMetadataMaps,
   });
 
+  const tsVectorFlatFieldMetadata = universalTsVectorField
+    ? flatFieldMetadataMaps.byUniversalIdentifier[
+        universalTsVectorField.universalIdentifier
+      ]
+    : undefined;
   if (!isDefined(tsVectorFlatFieldMetadata)) {
     return undefined;
   }

@@ -4,17 +4,22 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { isNonEmptyString } from '@sniptt/guards';
 import { MessageChannelType } from 'twenty-shared/types';
 import { isDefined } from 'twenty-shared/utils';
-import { Repository } from 'typeorm';
+import { In, Repository } from 'typeorm';
 
 import { TwentyConfigService } from 'src/engine/core-modules/twenty-config/twenty-config.service';
 import { ConnectedAccountEntity } from 'src/engine/metadata-modules/connected-account/entities/connected-account.entity';
 import { MessageChannelEntity } from 'src/engine/metadata-modules/message-channel/entities/message-channel.entity';
-import { GlobalWorkspaceOrmManager } from 'src/engine/twenty-orm/global-workspace-datasource/global-workspace-orm.manager';
+import { WorkspaceOrmManager } from 'src/engine/twenty-orm/workspace-orm.manager';
 import { buildSystemAuthContext } from 'src/engine/twenty-orm/utils/build-system-auth-context.util';
 import { InboundEmailMessageSourceResolverService } from 'src/modules/messaging/message-import-manager/drivers/inbound-email/sources/inbound-email-message-source-resolver.service';
 import { type InboundEmailImportOutcome } from 'src/modules/messaging/message-import-manager/drivers/inbound-email/types/inbound-email-import-outcome.type';
 import { type InboundEmailMessageReference } from 'src/modules/messaging/message-import-manager/drivers/inbound-email/types/inbound-email-message-reference.type';
+import { extractReferencedMessageIds } from 'src/modules/messaging/message-import-manager/drivers/inbound-email/utils/extract-referenced-message-ids.util';
+import { type MessageWithParticipants } from 'src/modules/messaging/message-import-manager/types/message.type';
+import { type MessageChannelMessageAssociationWorkspaceEntity } from 'src/modules/messaging/common/standard-objects/message-channel-message-association.workspace-entity';
+import { type MessageWorkspaceEntity } from 'src/modules/messaging/common/standard-objects/message.workspace-entity';
 import { MessagingSaveMessagesAndEnqueueContactCreationService } from 'src/modules/messaging/message-import-manager/services/messaging-save-messages-and-enqueue-contact-creation.service';
+import { isExcludedGroupEmailMessage } from 'src/modules/messaging/message-import-manager/utils/is-excluded-group-email-message.util';
 
 type ImportInboundMessageParams = {
   messageReference: InboundEmailMessageReference;
@@ -28,7 +33,7 @@ export class InboundEmailImportService {
   constructor(
     private readonly twentyConfigService: TwentyConfigService,
     private readonly inboundEmailMessageSourceResolverService: InboundEmailMessageSourceResolverService,
-    private readonly globalWorkspaceOrmManager: GlobalWorkspaceOrmManager,
+    private readonly workspaceOrmManager: WorkspaceOrmManager,
     private readonly messagingSaveMessagesAndEnqueueContactCreationService: MessagingSaveMessagesAndEnqueueContactCreationService,
     @InjectRepository(MessageChannelEntity)
     private readonly messageChannelRepository: Repository<MessageChannelEntity>,
@@ -106,8 +111,28 @@ export class InboundEmailImportService {
       );
     }
 
-    await this.globalWorkspaceOrmManager.executeInWorkspaceContext(
+    if (
+      messageChannel.excludeGroupEmails &&
+      isExcludedGroupEmailMessage(message, [connectedAccount.handle])
+    ) {
+      await messageSource.cleanup(messageReference.reference);
+
+      return {
+        kind: 'excluded',
+        workspaceId,
+        messageChannelId: messageChannel.id,
+      };
+    }
+
+    await this.workspaceOrmManager.executeInWorkspaceContext(
       async () => {
+        const existingThreadExternalId =
+          await this.findExistingThreadExternalId(message, messageChannel.id);
+
+        if (isDefined(existingThreadExternalId)) {
+          message.messageThreadExternalId = existingThreadExternalId;
+        }
+
         await this.messagingSaveMessagesAndEnqueueContactCreationService.saveMessagesAndEnqueueContactCreation(
           [message],
           messageChannel,
@@ -126,6 +151,83 @@ export class InboundEmailImportService {
       workspaceId,
       messageChannelId: messageChannel.id,
     };
+  }
+
+  private async findExistingThreadExternalId(
+    message: MessageWithParticipants,
+    messageChannelId: string,
+  ): Promise<string | undefined> {
+    const referencedMessageIds = extractReferencedMessageIds(
+      message.messageHeaders,
+    );
+
+    if (referencedMessageIds.length === 0) {
+      return undefined;
+    }
+
+    const storedHeaderMessageIdsByReferencedMessageId = new Map(
+      referencedMessageIds.map((referencedMessageId) => {
+        const atIndex = referencedMessageId.indexOf('@');
+
+        return [
+          referencedMessageId,
+          atIndex > 1
+            ? [referencedMessageId, referencedMessageId.slice(1, atIndex)]
+            : [referencedMessageId],
+        ];
+      }),
+    );
+
+    const referencedMessages = await this.workspaceOrmManager
+      .getRepository<MessageWorkspaceEntity>('message', {
+        shouldBypassPermissionChecks: true,
+      })
+      .find({
+        where: {
+          headerMessageId: In(
+            [...storedHeaderMessageIdsByReferencedMessageId.values()].flat(),
+          ),
+        },
+        select: { id: true, headerMessageId: true },
+      });
+
+    if (referencedMessages.length === 0) {
+      return undefined;
+    }
+
+    const channelAssociations = await this.workspaceOrmManager
+      .getRepository<MessageChannelMessageAssociationWorkspaceEntity>(
+        'messageChannelMessageAssociation',
+        { shouldBypassPermissionChecks: true },
+      )
+      .find({
+        where: {
+          messageChannelId,
+          messageId: In(
+            referencedMessages.map((referencedMessage) => referencedMessage.id),
+          ),
+        },
+        select: { messageId: true, messageThreadExternalId: true },
+      });
+
+    return referencedMessageIds
+      .map((referencedMessageId) => {
+        const storedHeaderMessageIds =
+          storedHeaderMessageIdsByReferencedMessageId.get(
+            referencedMessageId,
+          ) ?? [];
+
+        const referencedMessage = referencedMessages.find(
+          (candidate) =>
+            isNonEmptyString(candidate.headerMessageId) &&
+            storedHeaderMessageIds.includes(candidate.headerMessageId),
+        );
+
+        return channelAssociations.find(
+          (association) => association.messageId === referencedMessage?.id,
+        )?.messageThreadExternalId;
+      })
+      .find(isNonEmptyString);
   }
 
   private matchInboundRecipient(

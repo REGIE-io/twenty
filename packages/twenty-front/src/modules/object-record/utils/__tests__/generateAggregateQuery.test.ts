@@ -1,6 +1,12 @@
-import { ObjectOpenRecordIn } from 'twenty-shared/types';
+import {
+  MetadataReadability,
+  ObjectOpenRecordIn,
+  ObjectSharingReach,
+  type RecordGqlFields,
+} from 'twenty-shared/types';
 import { type EnrichedObjectMetadataItem } from '@/object-metadata/types/EnrichedObjectMetadataItem';
 import { generateAggregateQuery } from '@/object-record/utils/generateAggregateQuery';
+import { MetadataWritability } from '~/generated-metadata/graphql';
 
 describe('generateAggregateQuery', () => {
   it('should generate correct aggregate query', () => {
@@ -26,13 +32,15 @@ describe('generateAggregateQuery', () => {
       isSystem: false,
       isUIEditable: true,
       isUICreatable: true,
+      writability: MetadataWritability.OPEN,
       openRecordIn: ObjectOpenRecordIn.USER_CHOICE,
+      sharingReach: ObjectSharingReach.WORKSPACE,
+      readability: MetadataReadability.OPEN,
     };
 
-    const mockRecordGqlFields = {
+    const mockRecordGqlFields: RecordGqlFields = {
       id: true,
       name: true,
-      address: false,
       createdAt: true,
     };
 
@@ -71,10 +79,13 @@ describe('generateAggregateQuery', () => {
       isSystem: false,
       isUIEditable: true,
       isUICreatable: true,
+      writability: MetadataWritability.OPEN,
       openRecordIn: ObjectOpenRecordIn.USER_CHOICE,
+      sharingReach: ObjectSharingReach.WORKSPACE,
+      readability: MetadataReadability.OPEN,
     };
 
-    const mockRecordGqlFields = {
+    const mockRecordGqlFields: RecordGqlFields = {
       id: true,
     };
 

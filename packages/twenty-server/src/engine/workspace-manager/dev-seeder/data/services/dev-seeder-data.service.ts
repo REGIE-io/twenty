@@ -6,15 +6,15 @@ import { join } from 'path';
 
 import { STANDARD_OBJECTS } from 'twenty-shared/metadata';
 import { FeatureFlagKey, FileFolder } from 'twenty-shared/types';
-import { DataSource } from 'typeorm';
+import { DataSource, type EntityManager } from 'typeorm';
 
 import { ApplicationService } from 'src/engine/core-modules/application/application.service';
 import { FileStorageService } from 'src/engine/core-modules/file-storage/services/file-storage.service';
 import { WorkspaceManyOrAllFlatEntityMapsCacheService } from 'src/engine/metadata-modules/flat-entity/services/workspace-many-or-all-flat-entity-maps-cache.service';
 import { FlatObjectMetadata } from 'src/engine/metadata-modules/flat-object-metadata/types/flat-object-metadata.type';
 import { ObjectMetadataService } from 'src/engine/metadata-modules/object-metadata/object-metadata.service';
-import { type WorkspaceEntityManager } from 'src/engine/twenty-orm/entity-manager/workspace-entity-manager';
 import { computeObjectTargetTable } from 'src/engine/utils/compute-object-target-table.util';
+import { seedMessageSuppressions } from 'src/engine/workspace-manager/dev-seeder/data/utils/seed-message-suppressions.util';
 import {
   ATTACHMENT_DATA_SEED_COLUMNS,
   ATTACHMENT_SAMPLE_FILES,
@@ -49,6 +49,24 @@ import {
   MESSAGE_CHANNEL_MESSAGE_ASSOCIATION_DATA_SEED_COLUMNS,
   MESSAGE_CHANNEL_MESSAGE_ASSOCIATION_DATA_SEEDS,
 } from 'src/engine/workspace-manager/dev-seeder/data/constants/message-channel-message-association-data-seeds.constant';
+import {
+  getMessageCampaignDataSeeds,
+  MESSAGE_CAMPAIGN_DATA_SEED_COLUMNS,
+} from 'src/engine/workspace-manager/dev-seeder/data/constants/message-campaign-data-seeds.constant';
+import {
+  MESSAGE_LIST_DATA_SEED_COLUMNS,
+  MESSAGE_LIST_DATA_SEEDS,
+} from 'src/engine/workspace-manager/dev-seeder/data/constants/message-list-data-seeds.constant';
+import {
+  MESSAGE_LIST_MEMBER_DATA_SEED_COLUMNS,
+  MESSAGE_LIST_MEMBER_DATA_SEEDS,
+} from 'src/engine/workspace-manager/dev-seeder/data/constants/message-list-member-data-seeds.constant';
+import {
+  CALENDAR_EVENT_TARGET_DATA_SEED_COLUMNS,
+  getCalendarEventTargetDataSeeds,
+  getMessageThreadTargetDataSeeds,
+  MESSAGE_THREAD_TARGET_DATA_SEED_COLUMNS,
+} from 'src/engine/workspace-manager/dev-seeder/data/constants/message-calendar-target-data-seeds.constant';
 import {
   MESSAGE_DATA_SEED_COLUMNS,
   MESSAGE_DATA_SEEDS,
@@ -123,12 +141,21 @@ const getRecordSeedsBatches = (
   attachmentSeeds: RecordSeedConfig['recordSeeds'],
   _featureFlags?: Record<FeatureFlagKey, boolean>,
 ): RecordSeedConfig[][] => {
-  // Batch 1: No dependencies
+  // Participants are random, so the derived target seeds must come from the same arrays
+  const messageParticipantSeeds = getMessageParticipantDataSeeds(workspaceId);
+  const calendarEventParticipantSeeds =
+    getCalendarEventParticipantDataSeeds(workspaceId);
+
   const batch1: RecordSeedConfig[] = [
     {
       tableName: 'workspaceMember',
       pgColumns: WORKSPACE_MEMBER_DATA_SEED_COLUMNS,
       recordSeeds: getWorkspaceMemberDataSeeds(workspaceId),
+    },
+    {
+      tableName: 'messageList',
+      pgColumns: MESSAGE_LIST_DATA_SEED_COLUMNS,
+      recordSeeds: MESSAGE_LIST_DATA_SEEDS,
     },
     {
       tableName: '_surveyResult',
@@ -142,7 +169,6 @@ const getRecordSeedsBatches = (
     },
   ];
 
-  // Batch 2: Depends on workspaceMember
   const batch2: RecordSeedConfig[] = [
     {
       tableName: 'company',
@@ -156,7 +182,6 @@ const getRecordSeedsBatches = (
     },
   ];
 
-  // Batch 3: Depends on company
   const batch3: RecordSeedConfig[] = [
     {
       tableName: 'person',
@@ -170,7 +195,6 @@ const getRecordSeedsBatches = (
     },
   ];
 
-  // Batch 4: Depends on person/company/messageChannel or independent
   const batch4: RecordSeedConfig[] = [
     {
       tableName: 'opportunity',
@@ -198,6 +222,16 @@ const getRecordSeedsBatches = (
       recordSeeds: MESSAGE_THREAD_DATA_SEEDS,
     },
     {
+      tableName: 'messageListMember',
+      pgColumns: MESSAGE_LIST_MEMBER_DATA_SEED_COLUMNS,
+      recordSeeds: MESSAGE_LIST_MEMBER_DATA_SEEDS,
+    },
+    {
+      tableName: 'messageCampaign',
+      pgColumns: MESSAGE_CAMPAIGN_DATA_SEED_COLUMNS,
+      recordSeeds: getMessageCampaignDataSeeds(workspaceId),
+    },
+    {
       tableName: '_employmentHistory',
       pgColumns: EMPLOYMENT_HISTORY_DATA_SEED_COLUMNS,
       recordSeeds: EMPLOYMENT_HISTORY_DATA_SEEDS,
@@ -209,7 +243,6 @@ const getRecordSeedsBatches = (
     },
   ];
 
-  // Batch 5: Depends on batch 4 entities
   const batch5: RecordSeedConfig[] = [
     {
       tableName: 'noteTarget',
@@ -229,7 +262,7 @@ const getRecordSeedsBatches = (
     {
       tableName: 'calendarEventParticipant',
       pgColumns: CALENDAR_EVENT_PARTICIPANT_DATA_SEED_COLUMNS,
-      recordSeeds: getCalendarEventParticipantDataSeeds(workspaceId),
+      recordSeeds: calendarEventParticipantSeeds,
     },
     {
       tableName: 'message',
@@ -238,7 +271,6 @@ const getRecordSeedsBatches = (
     },
   ];
 
-  // Batch 6: Depends on batch 5 entities
   const batch6: RecordSeedConfig[] = [
     {
       tableName: 'messageChannelMessageAssociation',
@@ -248,7 +280,19 @@ const getRecordSeedsBatches = (
     {
       tableName: 'messageParticipant',
       pgColumns: MESSAGE_PARTICIPANT_DATA_SEED_COLUMNS,
-      recordSeeds: getMessageParticipantDataSeeds(workspaceId),
+      recordSeeds: messageParticipantSeeds,
+    },
+    {
+      tableName: 'messageThreadTarget',
+      pgColumns: MESSAGE_THREAD_TARGET_DATA_SEED_COLUMNS,
+      recordSeeds: getMessageThreadTargetDataSeeds(messageParticipantSeeds),
+    },
+    {
+      tableName: 'calendarEventTarget',
+      pgColumns: CALENDAR_EVENT_TARGET_DATA_SEED_COLUMNS,
+      recordSeeds: getCalendarEventTargetDataSeeds(
+        calendarEventParticipantSeeds,
+      ),
     },
     {
       tableName: 'attachment',
@@ -299,7 +343,7 @@ export class DevSeederDataService {
       generateAttachmentSeedsForWorkspace(workspaceId);
 
     await this.coreDataSource.transaction(
-      async (entityManager: WorkspaceEntityManager) => {
+      async (entityManager: EntityManager) => {
         await this.seedRecordsInBatches({
           entityManager,
           schemaName,
@@ -308,6 +352,12 @@ export class DevSeederDataService {
           featureFlags,
           objectMetadataItems,
           light,
+        });
+
+        await seedMessageSuppressions({
+          entityManager,
+          schemaName,
+          workspaceId,
         });
 
         if (!light) {
@@ -327,7 +377,6 @@ export class DevSeederDataService {
         await prefillWorkflows(
           entityManager,
           workspaceId,
-          schemaName,
           flatObjectMetadataMaps,
           flatFieldMetadataMaps,
         );
@@ -360,7 +409,7 @@ export class DevSeederDataService {
     objectMetadataItems,
     light = false,
   }: {
-    entityManager: WorkspaceEntityManager;
+    entityManager: EntityManager;
     schemaName: string;
     workspaceId: string;
     attachmentSeeds: RecordSeedConfig['recordSeeds'];
@@ -374,8 +423,6 @@ export class DevSeederDataService {
       featureFlags,
     );
 
-    // Process batches sequentially (respecting dependencies)
-    // but entities within each batch in parallel
     for (const batch of batches) {
       await Promise.all(
         batch.map(async (recordSeedsConfig) => {
@@ -412,16 +459,14 @@ export class DevSeederDataService {
     pgColumns,
     recordSeeds,
   }: {
-    entityManager: WorkspaceEntityManager;
+    entityManager: EntityManager;
     schemaName: string;
     tableName: string;
     pgColumns: string[];
     recordSeeds: Record<string, unknown>[];
   }) {
     await entityManager
-      .createQueryBuilder(undefined, undefined, undefined, {
-        shouldBypassPermissionChecks: true,
-      })
+      .createQueryBuilder()
       .insert()
       .into(`${schemaName}.${tableName}`, pgColumns)
       .orIgnore()
@@ -431,7 +476,7 @@ export class DevSeederDataService {
 
   private async seedAttachmentFiles(
     workspaceId: string,
-    entityManager: WorkspaceEntityManager,
+    entityManager: EntityManager,
     fileSeedMetadata: AttachmentFileSeedMetadata[],
   ): Promise<void> {
     const IS_BUILT = __dirname.includes('/dist/');

@@ -2,9 +2,9 @@ import { type AllowedAddressSubField } from '@/types/AddressFieldsType';
 import { type FieldMetadataMultiItemSettings } from '@/types/FieldMetadataMultiItemSettings';
 import { type FieldMetadataType } from '@/types/FieldMetadataType';
 import { type IsExactly } from '@/types/IsExactly';
-import { type RelationOnDeleteAction } from '@/types/RelationOnDeleteAction.type';
+import { type RelationOnDeleteAction } from '@/types/RelationOnDeleteAction';
 import { type RelationType } from '@/types/RelationType';
-import { type SerializedRelation } from '@/types/SerializedRelation.type';
+import { type SerializedRelation } from '@/types/SerializedRelation';
 import { type AdditionalSearchSettings } from './AdditionalSearchMarker';
 
 export enum NumberDataType {
@@ -22,6 +22,10 @@ export enum DateDisplayFormat {
 export type FieldNumberVariant = 'number' | 'percentage';
 
 export type FieldCurrencyFormat = 'short' | 'full';
+
+export const FIELD_LINKS_VARIANTS = ['url', 'domain'] as const;
+
+export type FieldLinksVariant = (typeof FIELD_LINKS_VARIANTS)[number];
 
 type FieldMetadataNumberSettings = {
   dataType?: NumberDataType;
@@ -59,6 +63,10 @@ type FieldMetadataAddressSettings = {
   subFields?: AllowedAddressSubField[];
 };
 
+type FieldMetadataLinksSettings = FieldMetadataMultiItemSettings & {
+  type?: FieldLinksVariant;
+};
+
 type FieldMetadataFilesSettings = {
   maxNumberOfValues: number;
 };
@@ -82,7 +90,7 @@ export type FieldMetadataSettingsMapping = {
     | (FieldMetadataMultiItemSettings & AdditionalSearchSettings)
     | null;
   [FieldMetadataType.LINKS]:
-    | (FieldMetadataMultiItemSettings & AdditionalSearchSettings)
+    | (FieldMetadataLinksSettings & AdditionalSearchSettings)
     | null;
   // Select settings are otherwise empty, but the namespaced additional-search marker has to survive
   // metadata create/update serialization, so these two need a slot to live in.

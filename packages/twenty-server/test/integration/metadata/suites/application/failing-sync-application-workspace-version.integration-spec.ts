@@ -19,13 +19,15 @@ const injectWorkspaceCursor = async (
   name: string,
   status: 'completed' | 'failed',
 ): Promise<void> => {
-  // Inject as attempt 2 with a fresh createdAt (now): this stays unique against
-  // the seeded completed attempt-1 cursor (which may share this name) and
-  // outranks it, so getWorkspaceCompletedVersion reads this attempt.
+  // Earlier migration suites can leave several legitimate attempts behind.
+  // Append a new attempt without overwriting their history.
   await global.testDataSource.query(
     `INSERT INTO core."upgradeMigration"
        (name, status, attempt, "executedByVersion", "workspaceId", "isInitial")
-     VALUES ($1, $2, 2, $3, $4, false)`,
+     SELECT $1::varchar, $2::varchar, COALESCE(MAX(attempt), 0) + 1,
+            $3::varchar, $4::uuid, false
+     FROM core."upgradeMigration"
+     WHERE name = $1::varchar AND "workspaceId" = $4::uuid`,
     [name, status, INJECTED_CURSOR_MARKER, SEED_APPLE_WORKSPACE_ID],
   );
 };
@@ -53,6 +55,12 @@ const buildManifestWithRequiredServerVersionRange = ({
 
   return manifest;
 };
+
+const normalizeMessage = (appId: string) => (message: string) =>
+  scrubSemverVersions(message).replace(
+    new RegExp(appId, 'g'),
+    '<applicationUniversalIdentifier>',
+  );
 
 describe('Sync application is gated by the workspace completed upgrade version', () => {
   let currentVersionCommandName: string;
@@ -89,8 +97,9 @@ describe('Sync application is gated by the workspace completed upgrade version',
   });
 
   it('rejects sync when the workspace has not completed the required upgrade version', async () => {
+    const appId = uuidv4();
     const manifest = buildManifestWithRequiredServerVersionRange({
-      appId: uuidv4(),
+      appId,
       roleId: uuidv4(),
       requiredServerVersionRange: `>=${TWENTY_CURRENT_VERSION}`,
     });
@@ -106,13 +115,14 @@ describe('Sync application is gated by the workspace completed upgrade version',
 
     expectOneNotInternalServerErrorSnapshot({
       errors,
-      normalizeMessage: scrubSemverVersions,
+      normalizeMessage: normalizeMessage(appId),
     });
   });
 
   it('rejects sync when the workspace upgrade cursor cannot be interpreted', async () => {
+    const appId = uuidv4();
     const manifest = buildManifestWithRequiredServerVersionRange({
-      appId: uuidv4(),
+      appId,
       roleId: uuidv4(),
       requiredServerVersionRange: '>=1.0.0',
     });
@@ -131,7 +141,7 @@ describe('Sync application is gated by the workspace completed upgrade version',
 
     expectOneNotInternalServerErrorSnapshot({
       errors,
-      normalizeMessage: scrubSemverVersions,
+      normalizeMessage: normalizeMessage(appId),
     });
   });
 });

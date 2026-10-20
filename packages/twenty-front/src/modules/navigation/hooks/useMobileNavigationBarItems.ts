@@ -59,8 +59,7 @@ export const useMobileNavigationBarItems = (): {
     isNavigationDrawerExpandedState,
   );
 
-  // The expansion state is shared with the desktop drawer, so the guard keeps a
-  // tap outside settings from collapsing it there.
+  // Expansion state is shared with the desktop drawer, so a tap outside settings must not collapse it.
   const closeSettingsDrawer = () => {
     if (!isSettingsDrawer) {
       return;
@@ -80,7 +79,8 @@ export const useMobileNavigationBarItems = (): {
         onClick: () => {
           closeSidePanelMenu();
           closeSettingsDrawer();
-          navigate(AppPath.Home);
+          // Replace like desktop so going back doesn't land in the settings just left.
+          navigate(AppPath.Home, { replace: isSettingsDrawer });
         },
       },
       {

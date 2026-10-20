@@ -1,37 +1,47 @@
-import { type SelectQueryBuilder } from 'typeorm';
+import { type SelectQueryBuilder, type ObjectLiteral } from 'typeorm';
+import { type WorkspaceSelectQueryBuilder } from 'src/engine/twenty-orm/query-builder/workspace-select-query-builder';
 
-import { type PersonWorkspaceEntity } from 'src/modules/person/standard-objects/person.workspace-entity';
+type EmailPredicateQueryBuilder =
+  | Pick<WorkspaceSelectQueryBuilder, 'where' | 'andWhere' | 'withDeleted'>
+  | Pick<
+      SelectQueryBuilder<ObjectLiteral>,
+      'where' | 'andWhere' | 'withDeleted'
+    >;
 
-export interface AddPersonEmailFiltersToQueryBuilderOptions {
-  queryBuilder: SelectQueryBuilder<PersonWorkspaceEntity>;
+export interface AddPersonEmailFiltersToQueryBuilderOptions<
+  T extends EmailPredicateQueryBuilder,
+> {
+  queryBuilder: T;
   emails: string[];
   excludePersonIds?: string[];
 }
 
 // Stored emails are lowercase and trimmed, so raw columns can use the primary BTREE
 // and additional-emails GIN indexes. jsonb_typeof stops ?| matching an object's keys.
-export function addPersonEmailFiltersToQueryBuilder({
+export function addPersonEmailFiltersToQueryBuilder<
+  T extends EmailPredicateQueryBuilder,
+>({
   queryBuilder,
   emails,
   excludePersonIds = [],
-}: AddPersonEmailFiltersToQueryBuilderOptions): SelectQueryBuilder<PersonWorkspaceEntity> {
+}: AddPersonEmailFiltersToQueryBuilderOptions<T>): T {
   const normalizedEmails = [
     ...new Set(
       emails.map((email) => email.trim().toLowerCase()).filter(Boolean),
     ),
   ];
 
-  queryBuilder = queryBuilder.where(
+  queryBuilder.where(
     `("person"."emailsPrimaryEmail" = ANY(:emails) OR (jsonb_typeof("person"."emailsAdditionalEmails") = 'array' AND "person"."emailsAdditionalEmails" ?| :emails::text[]))`,
     { emails: normalizedEmails },
   );
 
   if (excludePersonIds.length > 0) {
-    queryBuilder = queryBuilder.andWhere(
-      '"person"."id" NOT IN (:...excludePersonIds)',
-      { excludePersonIds },
-    );
+    queryBuilder.andWhere('"person"."id" NOT IN (:...excludePersonIds)', {
+      excludePersonIds,
+    });
   }
 
-  return queryBuilder.withDeleted();
+  queryBuilder.withDeleted();
+  return queryBuilder;
 }

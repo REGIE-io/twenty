@@ -1,39 +1,17 @@
 import { z } from 'zod';
 
+import { agentRunSummarySchema } from '@/ai/schemas/agent-run-summary-schema';
+
 const stepLogEntrySchema = z.object({
   timestamp: z.string(),
   level: z.enum(['debug', 'info', 'warn', 'error']),
   message: z.string(),
 });
 
-const aiToolCallLogSchema = z.object({
-  toolName: z.string(),
-  toolCallId: z.string(),
-  providerExecuted: z.boolean().optional(),
-  input: z.unknown().optional(),
-  output: z.unknown().optional(),
-  errorMessage: z.string().optional(),
-  state: z.enum(['started', 'success', 'error', 'awaiting-approval']),
-});
-
-const aiAgentStepLogDetailsSchema = z.object({
+const aiAgentStepLogDetailsSchema = agentRunSummarySchema.extend({
   type: z.literal('AI_AGENT'),
-  modelId: z.string(),
-  usage: z.object({
-    inputTokens: z.number(),
-    outputTokens: z.number(),
-    reasoningTokens: z.number().optional(),
-    cacheReadTokens: z.number().optional(),
-    cacheCreationTokens: z.number().optional(),
-    totalTokens: z.number(),
-  }),
-  cost: z.object({
-    totalCostInDollars: z.number(),
-    creditsUsedMicro: z.number(),
-  }),
-  nativeWebSearchCallCount: z.number(),
-  toolCalls: z.array(aiToolCallLogSchema),
-  durationMs: z.number(),
+  // the conversation the agent ran in
+  threadId: z.string().optional(),
 });
 
 const codeStepLogDetailsSchema = z.object({
@@ -88,6 +66,7 @@ const emailStepLogDetailsSchema = z.object({
   bodyBytes: z.number().optional(),
   bodyTruncated: z.boolean().optional(),
   connectedAccountId: z.string().optional(),
+  fromHandle: z.string().optional(),
   attachmentCount: z.number().optional(),
   inReplyTo: z.string().optional(),
   error: z.string().optional(),

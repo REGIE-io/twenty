@@ -24,7 +24,7 @@ import { type RecordGqlNode } from '@/object-record/graphql/types/RecordGqlNode'
 import { getCreateManyRecordsMutationResponseField } from '@/object-record/utils/getCreateManyRecordsMutationResponseField';
 import { sanitizeRecordInput } from '@/object-record/utils/sanitizeRecordInput';
 import { useAtomStateValue } from '@/ui/utilities/state/jotai/hooks/useAtomStateValue';
-import { type RecordGqlOperationGqlRecordFields } from 'twenty-shared/types';
+import { type RecordGqlFields } from 'twenty-shared/types';
 import { isDefined } from 'twenty-shared/utils';
 
 type PartialObjectRecordWithId = Partial<ObjectRecord> & {
@@ -37,7 +37,7 @@ type PartialObjectRecordWithOptionalId = Partial<ObjectRecord> & {
 
 export type useCreateManyRecordsProps = {
   objectNameSingular: string;
-  recordGqlFields?: RecordGqlOperationGqlRecordFields;
+  recordGqlFields?: RecordGqlFields;
   skipPostOptimisticEffect?: boolean;
   shouldMatchRootQueryFilter?: boolean;
   shouldRefetchAggregateQueries?: boolean;
@@ -98,10 +98,10 @@ export const useCreateManyRecords = <
   }: createManyRecordsProps) => {
     const sanitizedCreateManyRecordsInput: PartialObjectRecordWithOptionalId[] =
       [];
-    const shouldPerformOptimisticEffect = upsert !== true;
+    const shouldPerformPreOptimisticEffect = upsert !== true;
     const recordOptimisticRecordsInput: PartialObjectRecordWithId[] = [];
     recordsToCreate.forEach((recordToCreate) => {
-      const idForCreation = shouldPerformOptimisticEffect
+      const idForCreation = shouldPerformPreOptimisticEffect
         ? (recordToCreate?.id ?? v4())
         : undefined;
       const sanitizedRecord = {
@@ -124,7 +124,7 @@ export const useCreateManyRecords = <
 
       sanitizedCreateManyRecordsInput.push(sanitizedRecord);
 
-      if (shouldPerformOptimisticEffect) {
+      if (shouldPerformPreOptimisticEffect) {
         const optimisticRecordInput = {
           ...computeOptimisticRecordFromInput({
             cache: apolloCoreClient.cache,
@@ -200,12 +200,7 @@ export const useCreateManyRecords = <
             mutationResponseField
           ];
 
-          if (
-            !isDefined(records?.length) ||
-            skipPostOptimisticEffect ||
-            !shouldPerformOptimisticEffect
-          )
-            return;
+          if (!isDefined(records?.length) || skipPostOptimisticEffect) return;
 
           triggerCreateRecordsOptimisticEffect({
             cache,
@@ -213,7 +208,7 @@ export const useCreateManyRecords = <
             recordsToCreate: records,
             objectMetadataItems,
             shouldMatchRootQueryFilter,
-            checkForRecordInCache: true,
+            checkForRecordInCache: shouldPerformPreOptimisticEffect,
             objectPermissionsByObjectMetadataId,
             upsertRecordsInStore,
           });

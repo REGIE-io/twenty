@@ -1,8 +1,6 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 
-import { FeatureFlagModule } from 'src/engine/core-modules/feature-flag/feature-flag.module';
-import { TwentyConfigModule } from 'src/engine/core-modules/twenty-config/twenty-config.module';
 import { UserWorkspaceEntity } from 'src/engine/core-modules/user-workspace/user-workspace.entity';
 import { WorkspaceEntity } from 'src/engine/core-modules/workspace/workspace.entity';
 import { ConnectedAccountEntity } from 'src/engine/metadata-modules/connected-account/entities/connected-account.entity';
@@ -15,8 +13,6 @@ import { WorkspaceDataSourceModule } from 'src/engine/workspace-datasource/works
 import { WorkspaceEventEmitterModule } from 'src/engine/workspace-event-emitter/workspace-event-emitter.module';
 import { ConnectedAccountModule } from 'src/modules/connected-account/connected-account.module';
 import { EmailAliasManagerModule } from 'src/modules/connected-account/email-alias-manager/email-alias-manager.module';
-import { OAuth2ClientManagerModule } from 'src/modules/connected-account/oauth2-client-manager/oauth2-client-manager.module';
-import { RefreshTokensManagerModule } from 'src/modules/connected-account/refresh-tokens-manager/connected-account-refresh-tokens-manager.module';
 import { MessagingCommonModule } from 'src/modules/messaging/common/messaging-common.module';
 import { MessagingMessageCleanerModule } from 'src/modules/messaging/message-cleaner/messaging-message-cleaner.module';
 import { MessagingFolderSyncManagerModule } from 'src/modules/messaging/message-folder-manager/messaging-folder-sync-manager.module';
@@ -34,7 +30,6 @@ import { MessagingIMAPDriverModule } from 'src/modules/messaging/message-import-
 import { MessagingInboundEmailDriverModule } from 'src/modules/messaging/message-import-manager/drivers/inbound-email/messaging-inbound-email-driver.module';
 import { InboundEmailImportService } from 'src/modules/messaging/message-import-manager/drivers/inbound-email/services/inbound-email-import.service';
 import { MessagingMicrosoftDriverModule } from 'src/modules/messaging/message-import-manager/drivers/microsoft/messaging-microsoft-driver.module';
-import { MessagingSmtpDriverModule } from 'src/modules/messaging/message-import-manager/drivers/smtp/messaging-smtp-driver.module';
 import { MessagingCleanCacheJob } from 'src/modules/messaging/message-import-manager/jobs/messaging-clean-cache';
 import { MessagingInboundEmailImportJob } from 'src/modules/messaging/message-import-manager/jobs/messaging-inbound-email-import.job';
 import { MessagingMessageListFetchJob } from 'src/modules/messaging/message-import-manager/jobs/messaging-message-list-fetch.job';
@@ -60,21 +55,16 @@ import { MessagingSaveMessagesAndEnqueueContactCreationService } from 'src/modul
 import { provideWorkspaceScopedRepository } from 'src/engine/twenty-orm/workspace-scoped-repository/provide-workspace-scoped-repository';
 import { MessageParticipantManagerModule } from 'src/modules/messaging/message-participant-manager/message-participant-manager.module';
 import { MessagingMonitoringModule } from 'src/modules/messaging/monitoring/messaging-monitoring.module';
+import { BlocklistRepository } from 'src/modules/blocklist/repositories/blocklist.repository';
 @Module({
   imports: [
-    RefreshTokensManagerModule,
-    WorkspaceDataSourceModule,
-    OAuth2ClientManagerModule,
     MessagingGmailDriverModule,
     MessagingMicrosoftDriverModule,
     MessagingIMAPDriverModule,
-    MessagingSmtpDriverModule,
     MessagingInboundEmailDriverModule,
     MessagingCommonModule,
-    TwentyConfigModule,
     TypeOrmModule.forFeature([
       WorkspaceEntity,
-      ObjectMetadataEntity,
       MessageChannelEntity,
       MessageFolderEntity,
       UserWorkspaceEntity,
@@ -82,7 +72,6 @@ import { MessagingMonitoringModule } from 'src/modules/messaging/monitoring/mess
       WebhookEntity,
     ]),
     EmailAliasManagerModule,
-    FeatureFlagModule,
     MessageParticipantManagerModule,
     MessagingFolderSyncManagerModule,
     MessagingMonitoringModule,
@@ -92,6 +81,7 @@ import { MessagingMonitoringModule } from 'src/modules/messaging/monitoring/mess
     SecureHttpClientModule,
   ],
   providers: [
+    BlocklistRepository,
     provideWorkspaceScopedRepository(MessageChannelEntity),
     MessagingMessageListFetchCronCommand,
     MessagingMessagesImportCronCommand,
@@ -125,6 +115,7 @@ import { MessagingMonitoringModule } from 'src/modules/messaging/monitoring/mess
     MessagingImportFolderMessagesService,
     MessagingDeleteGroupEmailMessagesService,
     InboundEmailImportService,
+    provideWorkspaceScopedRepository(MessageFolderEntity),
   ],
   exports: [
     MessagingMessageListFetchCronCommand,
@@ -132,9 +123,9 @@ import { MessagingMonitoringModule } from 'src/modules/messaging/monitoring/mess
     MessagingOngoingStaleCronCommand,
     MessagingRelaunchFailedMessageChannelsCronCommand,
     MessagingProcessGroupEmailActionsService,
-    InboundEmailImportService,
     MessagingSaveMessagesAndEnqueueContactCreationService,
     MessagingMessagesImportService,
+    MessagingMessageListFetchService,
   ],
 })
 export class MessagingImportManagerModule {}

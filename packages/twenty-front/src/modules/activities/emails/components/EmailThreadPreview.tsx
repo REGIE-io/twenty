@@ -4,13 +4,13 @@ import { ActivityRow } from '@/activities/components/ActivityRow';
 import { EmailThreadNotShared } from '@/activities/emails/components/EmailThreadNotShared';
 import { getEmailParticipantAvatarColorSeed } from '@/activities/emails/utils/getEmailParticipantAvatarColorSeed';
 import { useOpenRecordInSidePanel } from '@/side-panel/hooks/useOpenRecordInSidePanel';
-import { useContext } from 'react';
 
 import { t } from '@lingui/core/macro';
+import { isNonEmptyString } from '@sniptt/guards';
 import { CoreObjectNameSingular } from 'twenty-shared/types';
 import { isDefined } from 'twenty-shared/utils';
-import { Avatar, Tag } from 'twenty-ui/data-display';
-import { ThemeContext, themeCssVariables } from 'twenty-ui/theme-constants';
+import { Avatar, Tag } from 'twenty-ui/primitives/data-display';
+import { useTheme, themeCssVariables } from 'twenty-ui/theme';
 import {
   MessageChannelVisibility,
   type TimelineThread,
@@ -87,7 +87,7 @@ type LastAvatar = {
 };
 
 export const EmailThreadPreview = ({ thread }: EmailThreadPreviewProps) => {
-  const { theme } = useContext(ThemeContext);
+  const theme = useTheme();
   const { openRecordInSidePanel } = useOpenRecordInSidePanel();
 
   const visibility = thread.visibility;
@@ -138,39 +138,51 @@ export const EmailThreadPreview = ({ thread }: EmailThreadPreviewProps) => {
   };
 
   const isDisabled = visibility !== MessageChannelVisibility.SHARE_EVERYTHING;
+  const isSubjectVisible =
+    visibility === MessageChannelVisibility.SUBJECT ||
+    visibility === MessageChannelVisibility.SHARE_EVERYTHING;
+  const label =
+    isSubjectVisible && isNonEmptyString(thread.subject)
+      ? thread.subject
+      : t`Email thread`;
+
   return (
-    <ActivityRow onClick={handleThreadClick} disabled={isDisabled}>
+    <ActivityRow
+      onClick={handleThreadClick}
+      disabled={isDisabled}
+      label={label}
+    >
       <StyledHeading unread={!thread.read}>
         <StyledParticipantsContainer>
           <Avatar
-            avatarUrl={getAbsoluteImageUrl(thread?.firstParticipant?.avatarUrl)}
-            placeholder={thread.firstParticipant.displayName}
-            placeholderColorSeed={getEmailParticipantAvatarColorSeed(
+            src={getAbsoluteImageUrl(thread?.firstParticipant?.avatarUrl)}
+            name={thread.firstParticipant.displayName}
+            colorSeed={getEmailParticipantAvatarColorSeed(
               thread.firstParticipant,
             )}
-            type="rounded"
+            shape="circle"
           />
           {isDefined(thread?.lastTwoParticipants?.[0]) && (
             <StyledAvatarWrapper>
               <Avatar
-                avatarUrl={getAbsoluteImageUrl(
+                src={getAbsoluteImageUrl(
                   thread.lastTwoParticipants[0].avatarUrl,
                 )}
-                placeholder={thread.lastTwoParticipants[0].displayName}
-                placeholderColorSeed={getEmailParticipantAvatarColorSeed(
+                name={thread.lastTwoParticipants[0].displayName}
+                colorSeed={getEmailParticipantAvatarColorSeed(
                   thread.lastTwoParticipants[0],
                 )}
-                type="rounded"
+                shape="circle"
               />
             </StyledAvatarWrapper>
           )}
           {displayedName && (
             <StyledAvatarWrapper>
               <Avatar
-                avatarUrl={getAbsoluteImageUrl(avatarUrl)}
-                placeholder={displayedName}
-                placeholderColorSeed={placeholderColorSeed}
-                type="rounded"
+                src={getAbsoluteImageUrl(avatarUrl)}
+                name={displayedName}
+                colorSeed={placeholderColorSeed}
+                shape="circle"
                 color={isCountIcon ? theme.grayScale.gray11 : undefined}
                 backgroundColor={
                   isCountIcon ? theme.grayScale.gray2 : undefined
@@ -196,9 +208,7 @@ export const EmailThreadPreview = ({ thread }: EmailThreadPreviewProps) => {
         )}
         {visibility === MessageChannelVisibility.SHARE_EVERYTHING && (
           <>
-            {thread.lastMessageIsDraft && (
-              <Tag color="orange" text={t`Draft`} />
-            )}
+            {thread.lastMessageIsDraft && <Tag color="orange">{t`Draft`}</Tag>}
             <StyledSubject>{thread.subject}</StyledSubject>
             <StyledBody>{thread.lastMessageBody}</StyledBody>
           </>

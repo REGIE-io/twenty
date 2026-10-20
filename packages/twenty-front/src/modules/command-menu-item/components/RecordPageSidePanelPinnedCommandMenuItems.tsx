@@ -5,22 +5,36 @@ import { CommandMenuContextProvider } from '@/command-menu-item/contexts/Command
 import { PinnedCommandMenuItemButtons } from '@/command-menu-item/display/components/PinnedCommandMenuItemButtons';
 import { useSidePanelFooterPinnedItemsAvailableWidth } from '@/command-menu-item/hooks/useSidePanelFooterPinnedItemsAvailableWidth';
 import { contextStoreCurrentObjectMetadataItemIdComponentState } from '@/context-store/states/contextStoreCurrentObjectMetadataItemIdComponentState';
+import { sidePanelWidgetFooterCommandMenuItemsState } from '@/ui/layout/side-panel/states/sidePanelWidgetFooterCommandMenuItemsState';
 import { useAtomComponentStateValue } from '@/ui/utilities/state/jotai/hooks/useAtomComponentStateValue';
+import { useAtomStateValue } from '@/ui/utilities/state/jotai/hooks/useAtomStateValue';
 
 export const RecordPageSidePanelPinnedCommandMenuItems = () => {
   const contextStoreCurrentObjectMetadataItemId = useAtomComponentStateValue(
     contextStoreCurrentObjectMetadataItemIdComponentState,
   );
 
+  const sidePanelWidgetFooterCommandMenuItems = useAtomStateValue(
+    sidePanelWidgetFooterCommandMenuItemsState,
+  );
+
   const availableWidth = useSidePanelFooterPinnedItemsAvailableWidth();
 
-  if (!isDefined(contextStoreCurrentObjectMetadataItemId)) {
+  // Widget footer actions (e.g. the email composer) replace the record's own.
+  const hasPinnedWidgetCommandMenuItems =
+    sidePanelWidgetFooterCommandMenuItems.some(
+      (commandMenuItem) => commandMenuItem.isPinned !== false,
+    );
+
+  if (
+    !isDefined(contextStoreCurrentObjectMetadataItemId) ||
+    hasPinnedWidgetCommandMenuItems
+  ) {
     return null;
   }
 
   return (
     <CommandMenuContextProvider
-      isInSidePanel={true}
       displayType="button"
       containerType={CommandMenuItemContainerType.SidePanelFooter}
     >

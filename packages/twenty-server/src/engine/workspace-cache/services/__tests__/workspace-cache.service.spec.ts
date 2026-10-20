@@ -1,3 +1,4 @@
+import { type DataSource } from 'typeorm';
 import { type DiscoveryService, type Reflector } from '@nestjs/core';
 
 import { WorkspaceCacheProvider } from 'src/engine/workspace-cache/interfaces/workspace-cache-provider.service';
@@ -21,6 +22,8 @@ const asIndexMaps = (value: FakeIndexMaps) =>
 const createSharedRedis = () => {
   const store = new Map<string, unknown>();
   let heldDataRead: Promise<void> | undefined;
+  let capturedDataRead: Promise<void> = Promise.resolve();
+  let notifyDataReadCaptured = () => {};
 
   const storage = {
     get: async (key: string) => store.get(key),
@@ -30,10 +33,39 @@ const createSharedRedis = () => {
 
       if (hold && keys.some((key) => key.endsWith(':data'))) {
         heldDataRead = undefined;
+        notifyDataReadCaptured();
         await hold;
       }
 
       return values;
+    },
+    msetAndMdel: async ({
+      entries,
+      keysToDelete,
+    }: {
+      entries: Array<{ key: string; value: unknown }>;
+      keysToDelete: string[];
+    }) => {
+      entries.forEach(({ key, value }) => store.set(key, value));
+      keysToDelete.forEach((key) => store.delete(key));
+    },
+    runScript: async ({ keys, args }: { keys: string[]; args: string[] }) => {
+      const published: number[] = [];
+      for (let index = 0; index < keys.length; index += 2) {
+        const arg = 1 + (index / 2) * 3;
+        const current = store.has(keys[index])
+          ? JSON.stringify(store.get(keys[index]))
+          : '';
+        if (current !== args[arg]) {
+          published.push(0);
+          continue;
+        }
+        store.set(keys[index], JSON.parse(args[arg + 1]));
+        if (args[arg + 2] !== '')
+          store.set(keys[index + 1], JSON.parse(args[arg + 2]));
+        published.push(1);
+      }
+      return published;
     },
     mset: async (entries: Array<{ key: string; value: unknown }>) => {
       entries.forEach(({ key, value }) => store.set(key, value));
@@ -50,6 +82,9 @@ const createSharedRedis = () => {
 
   const holdNextDataRead = () => {
     let release = () => {};
+    capturedDataRead = new Promise<void>((resolve) => {
+      notifyDataReadCaptured = resolve;
+    });
 
     heldDataRead = new Promise<void>((resolve) => {
       release = resolve;
@@ -61,6 +96,7 @@ const createSharedRedis = () => {
   return {
     storage: storage as unknown as CacheStorageService,
     holdNextDataRead,
+    waitForHeldDataRead: () => capturedDataRead,
   };
 };
 
@@ -81,6 +117,7 @@ const startProcess = async (
   const provider = new FakeIndexMapsProvider(database);
   const service = new WorkspaceCacheService(
     storage,
+    {} as DataSource,
     {
       getProviders: () => [{ instance: provider }],
     } as unknown as DiscoveryService,
@@ -148,6 +185,7 @@ describe('WorkspaceCacheService across processes', () => {
 
     const release = redis.holdNextDataRead();
     const readStartedBeforeWrite = readIndexMaps(reader);
+    await redis.waitForHeldDataRead();
 
     database.indexMaps = { version: 'after-write' };
     await writer.invalidateAndRecompute(WORKSPACE_ID, ['flatIndexMaps']);

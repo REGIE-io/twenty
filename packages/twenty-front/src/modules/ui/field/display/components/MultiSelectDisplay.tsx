@@ -1,8 +1,8 @@
 import { type FieldMultiSelectValue } from '@/object-record/record-field/ui/types/FieldMetadata';
 import { isDefined } from 'twenty-shared/utils';
 import { styled } from '@linaria/react';
-import { Tag } from 'twenty-ui/data-display';
-import { type SelectOption } from 'twenty-ui/input';
+import { Tag } from 'twenty-ui/primitives/data-display';
+import { type SelectOption } from 'twenty-ui/primitives/input';
 
 const StyledContainer = styled.div`
   align-items: center;
@@ -17,12 +17,18 @@ const StyledContainer = styled.div`
   width: 100%;
 `;
 
+const StyledSelectedOptionTag = styled(Tag)`
+  min-width: fit-content;
+`;
+
 export const MultiSelectDisplay = ({
   values,
   options,
+  className,
 }: {
   values: FieldMultiSelectValue | undefined;
   options: SelectOption[];
+  className?: string;
 }) => {
   const selectedOptions = values
     ? options?.filter((option) => values.includes(option.value))
@@ -31,15 +37,18 @@ export const MultiSelectDisplay = ({
   if (!isDefined(selectedOptions)) return null;
 
   return (
-    <StyledContainer>
+    <StyledContainer className={className}>
       {selectedOptions.map((selectedOption, index) => (
-        <Tag
-          preventShrink
+        <StyledSelectedOptionTag
+          truncate={false}
           key={index}
           color={selectedOption.color ?? 'transparent'}
-          text={selectedOption.label}
-          Icon={selectedOption.Icon ?? undefined}
-        />
+          startIcon={
+            isDefined(selectedOption.Icon) ? <selectedOption.Icon /> : undefined
+          }
+        >
+          {selectedOption.label}
+        </StyledSelectedOptionTag>
       ))}
     </StyledContainer>
   );

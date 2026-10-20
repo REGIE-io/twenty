@@ -1,6 +1,7 @@
 import { Field, HideField, ObjectType } from '@nestjs/graphql';
 
 import {
+  IsArray,
   IsBoolean,
   IsDateString,
   IsNotEmpty,
@@ -12,6 +13,7 @@ import { GraphQLJSON } from 'graphql-type-json';
 
 import { UUIDScalarType } from 'src/engine/api/graphql/workspace-schema-builder/graphql-types/scalars';
 import { ApplicationTokenPairDTO } from 'src/engine/core-modules/application/application-oauth/dtos/application-token-pair.dto';
+import { FrontComponentWidgetAvailabilityDTO } from 'src/engine/metadata-modules/front-component/dtos/front-component-widget-availability.dto';
 
 @ObjectType('FrontComponent')
 export class FrontComponentDTO {
@@ -69,11 +71,18 @@ export class FrontComponentDTO {
   @Field()
   isHeadless: boolean;
 
+  @IsArray()
+  @Field(() => [FrontComponentWidgetAvailabilityDTO])
+  widgetAvailability: FrontComponentWidgetAvailabilityDTO[];
+
   @IsBoolean()
   @Field()
   usesSdkClient: boolean;
 
-  @Field(() => ApplicationTokenPairDTO, { nullable: true })
+  @Field(() => ApplicationTokenPairDTO, {
+    nullable: true,
+    deprecationReason: 'Use generateFrontComponentApplicationTokenPair',
+  })
   applicationTokenPair?: ApplicationTokenPairDTO;
 
   @Field(() => GraphQLJSON, { nullable: true })

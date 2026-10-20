@@ -3,6 +3,7 @@ import { Injectable } from '@nestjs/common';
 import {
   FieldActorSource,
   MessageChannelContactAutoCreationPolicy,
+  MessageChannelType,
   MessageParticipantRole,
 } from 'twenty-shared/types';
 import { isDefined } from 'twenty-shared/utils';
@@ -12,7 +13,7 @@ import { type MessageChannelEntity } from 'src/engine/metadata-modules/message-c
 import { InjectMessageQueue } from 'src/engine/core-modules/message-queue/decorators/message-queue.decorator';
 import { MessageQueue } from 'src/engine/core-modules/message-queue/message-queue.constants';
 import { MessageQueueService } from 'src/engine/core-modules/message-queue/services/message-queue.service';
-import { GlobalWorkspaceOrmManager } from 'src/engine/twenty-orm/global-workspace-datasource/global-workspace-orm.manager';
+import { WorkspaceOrmManager } from 'src/engine/twenty-orm/workspace-orm.manager';
 import { buildSystemAuthContext } from 'src/engine/twenty-orm/utils/build-system-auth-context.util';
 import { type ConnectedAccountEntity } from 'src/engine/metadata-modules/connected-account/entities/connected-account.entity';
 import {
@@ -30,7 +31,7 @@ import {
   type SyncedMessageForWebhook,
 } from 'src/modules/messaging/message-import-manager/services/messaging-reply-webhook-dispatch.service';
 import { type MessageChannelMessageAssociationFolderAssociation } from 'src/modules/messaging/message-import-manager/types/message-channel-message-association-folder-association.type';
-import { type MessageWithParticipants } from 'src/modules/messaging/message-import-manager/types/message';
+import { type MessageWithParticipants } from 'src/modules/messaging/message-import-manager/types/message.type';
 import { isGroupEmail } from 'src/modules/messaging/message-import-manager/utils/is-group-email';
 import { MessagingMessageParticipantService } from 'src/modules/messaging/message-participant-manager/services/messaging-message-participant.service';
 import { isWorkEmail } from 'src/utils/is-work-email';
@@ -43,7 +44,7 @@ export class MessagingSaveMessagesAndEnqueueContactCreationService {
     private readonly messageService: MessagingMessageService,
     private readonly messageParticipantService: MessagingMessageParticipantService,
     private readonly messageFolderAssociationService: MessagingMessageFolderAssociationService,
-    private readonly globalWorkspaceOrmManager: GlobalWorkspaceOrmManager,
+    private readonly workspaceOrmManager: WorkspaceOrmManager,
     private readonly replyWebhookDispatchService: MessagingReplyWebhookDispatchService,
   ) {}
 
@@ -63,9 +64,9 @@ export class MessagingSaveMessagesAndEnqueueContactCreationService {
     const authContext = buildSystemAuthContext(workspaceId);
 
     const savedMessagesResult =
-      await this.globalWorkspaceOrmManager.executeInWorkspaceContext(
+      await this.workspaceOrmManager.executeInWorkspaceContext(
         async () => {
-          return this.globalWorkspaceOrmManager.runInWorkspaceTransaction(
+          return this.workspaceOrmManager.runInWorkspaceTransaction(
             async (transactionScope) => {
               const {
                 createdMessages,
@@ -109,8 +110,7 @@ export class MessagingSaveMessagesAndEnqueueContactCreationService {
                         messageChannel.excludeGroupEmails &&
                         isGroupEmail(participant.handle);
 
-                      // Drafts are outgoing, so don't turn recipients of an
-                      // unsent email into CRM contacts.
+                      // Drafts are outgoing, so recipients of an unsent email don't become contacts
                       const shouldCreateContact =
                         !message.isDraft &&
                         !!participant.handle &&
@@ -132,11 +132,12 @@ export class MessagingSaveMessagesAndEnqueueContactCreationService {
                   : [];
               });
 
-              await this.messageParticipantService.saveMessageParticipants(
-                participantsWithMessageId,
-                workspaceId,
-                transactionScope,
-              );
+              const savedMessageParticipants =
+                await this.messageParticipantService.saveMessageParticipants(
+                  participantsWithMessageId,
+                  workspaceId,
+                  transactionScope,
+                );
 
               const folderAssociations: MessageChannelMessageAssociationFolderAssociation[] =
                 messagesToSave.flatMap((message) => {
@@ -171,6 +172,7 @@ export class MessagingSaveMessagesAndEnqueueContactCreationService {
 
               return {
                 participantsWithMessageId,
+                savedMessageParticipants,
                 createdMessages,
                 messageExternalIdsAndIdsMap,
                 messageExternalIdToMessageThreadIdMap,
@@ -256,6 +258,25 @@ export class MessagingSaveMessagesAndEnqueueContactCreationService {
     if (!isDefined(savedMessagesResult)) {
       return undefined;
     }
+
+    const messageIds = [
+      ...new Set(
+        savedMessagesResult.participantsWithMessageId.map(
+          ({ messageId }) => messageId,
+        ),
+      ),
+    ];
+
+    // Matching non-email handles as emails would null out caller-supplied identities, so those channels only reconcile targets
+    await this.messageParticipantService.matchMessageParticipants({
+      participants: savedMessagesResult.savedMessageParticipants,
+      messageIds,
+      workspaceId,
+      matchWith:
+        messageChannel.type === MessageChannelType.APP
+          ? 'targetsOnly'
+          : 'workspaceMemberAndPerson',
+    });
 
     return {
       messageExternalIdsAndIdsMap:

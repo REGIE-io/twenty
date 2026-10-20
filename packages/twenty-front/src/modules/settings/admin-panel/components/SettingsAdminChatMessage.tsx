@@ -1,7 +1,7 @@
 import { t } from '@lingui/core/macro';
 import { styled } from '@linaria/react';
 
-import { themeCssVariables } from 'twenty-ui/theme-constants';
+import { themeCssVariables } from 'twenty-ui/theme';
 
 import { SettingsAdminChatCollapsibleSection } from '@/settings/admin-panel/components/SettingsAdminChatCollapsibleSection';
 import { SettingsAdminChatMessagePartRenderer } from '@/settings/admin-panel/components/SettingsAdminChatMessagePartRenderer';
@@ -37,14 +37,15 @@ export const SettingsAdminChatMessage = ({
   message,
 }: SettingsAdminChatMessageProps) => {
   const isUser = message.role === AgentMessageRole.USER;
+  const isContext = message.role === AgentMessageRole.SYSTEM;
 
   const renderableParts = message.parts
     .filter(isRenderableAdminChatMessagePart)
     .sort((a, b) => a.orderIndex - b.orderIndex);
 
   const messageBody = (
-    <StyledMessageBubble isUser={isUser && !message.isHidden}>
-      {!message.isHidden && <StyledRoleLabel>{message.role}</StyledRoleLabel>}
+    <StyledMessageBubble isUser={isUser && !isContext}>
+      {!isContext && <StyledRoleLabel>{message.role}</StyledRoleLabel>}
       {renderableParts.map((part) => (
         <SettingsAdminChatMessagePartRenderer
           key={part.orderIndex}
@@ -58,9 +59,9 @@ export const SettingsAdminChatMessage = ({
     </StyledMessageBubble>
   );
 
-  if (message.isHidden) {
+  if (isContext) {
     return (
-      <SettingsAdminChatCollapsibleSection label={t`Kickoff prompt`}>
+      <SettingsAdminChatCollapsibleSection label={t`Context`}>
         {messageBody}
       </SettingsAdminChatCollapsibleSection>
     );

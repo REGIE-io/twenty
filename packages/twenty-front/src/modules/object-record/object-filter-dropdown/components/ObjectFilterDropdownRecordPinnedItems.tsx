@@ -1,15 +1,8 @@
+import { ListItemButton } from 'twenty-ui/components/navigation';
 import { type SelectableItem } from '@/object-record/select/types/SelectableItem';
-import { styled } from '@linaria/react';
-import { Avatar } from 'twenty-ui/data-display';
-import { MenuItemMultiSelectAvatar } from 'twenty-ui/navigation';
-import { themeCssVariables } from 'twenty-ui/theme-constants';
+import { DropdownMenuItemsContainer } from '@/ui/layout/dropdown/components/DropdownMenuItemsContainer';
+import { Avatar } from 'twenty-ui/primitives/data-display';
 import { getAbsoluteImageUrl } from '~/utils/image/getAbsoluteImageUrl';
-
-const StyledPinnedItemsContainer = styled.div`
-  display: flex;
-  flex-direction: column;
-  padding: ${themeCssVariables.spacing[1]};
-`;
 
 export const ObjectFilterDropdownRecordPinnedItems = (props: {
   selectableItems: SelectableItem[];
@@ -19,23 +12,25 @@ export const ObjectFilterDropdownRecordPinnedItems = (props: {
   ) => void;
 }) => {
   return (
-    <StyledPinnedItemsContainer>
+    <DropdownMenuItemsContainer isMultiSelect scrollable={false}>
       {props.selectableItems.map((selectableItem) => {
         return (
-          <MenuItemMultiSelectAvatar
+          <ListItemButton
             key={selectableItem.id}
+            role="option"
+            aria-selected={selectableItem.isSelected}
             selected={selectableItem.isSelected}
-            onSelectChange={(newCheckedValue) => {
-              props.onChange(selectableItem, newCheckedValue);
+            indicator="checkbox"
+            onClick={() => {
+              props.onChange(selectableItem, !selectableItem.isSelected);
             }}
-            text={selectableItem.name}
-            avatar={
+            startIcon={
               selectableItem.avatarUrl ? (
                 <Avatar
-                  avatarUrl={getAbsoluteImageUrl(selectableItem.avatarUrl)}
-                  placeholderColorSeed={selectableItem.id}
-                  placeholder={selectableItem.name}
-                  type={selectableItem.avatarType}
+                  src={getAbsoluteImageUrl(selectableItem.avatarUrl)}
+                  colorSeed={selectableItem.id}
+                  name={selectableItem.name}
+                  shape={selectableItem.avatarShape}
                   size="md"
                 />
               ) : (
@@ -44,9 +39,11 @@ export const ObjectFilterDropdownRecordPinnedItems = (props: {
                 )
               )
             }
-          />
+          >
+            {selectableItem.name}
+          </ListItemButton>
         );
       })}
-    </StyledPinnedItemsContainer>
+    </DropdownMenuItemsContainer>
   );
 };

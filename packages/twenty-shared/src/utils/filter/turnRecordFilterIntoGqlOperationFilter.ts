@@ -54,6 +54,7 @@ import {
   resolveRelativeDateFilterStringified,
   type RecordFilter,
 } from '@/utils';
+import { convertCurrencyAmountToCurrencyMicros } from '@/utils/currency/convertCurrencyAmountToCurrencyMicros';
 import { arrayOfStringsOrVariablesSchema } from '@/utils/filter/utils/validation-schemas/arrayOfStringsOrVariablesSchema';
 import {
   actorSourceFilterValueSchema,
@@ -64,6 +65,7 @@ import {
 } from '@/utils/filter/utils/validation-schemas/filterValueScalarSchemas';
 import { arrayOfUuidOrVariableSchema } from '@/utils/filter/utils/validation-schemas/arrayOfUuidsOrVariablesSchema';
 import { jsonRelationFilterValueSchema } from '@/utils/filter/utils/validation-schemas/jsonRelationFilterValueSchema';
+import { computeMorphRelationGqlFieldName } from '@/utils/fieldMetadata/compute-morph-relation-gql-field-name';
 import {
   computeMorphRelationGqlFieldJoinColumnName,
   computeRelationGqlFieldJoinColumnName,
@@ -90,6 +92,7 @@ const parseActorSourceFilterValue = (value: string): string[] => {
 type FieldSharedMorphRelation = {
   type: RelationType;
   targetObjectMetadata: {
+    id: string;
     nameSingular: string;
     namePlural: string;
   };
@@ -100,6 +103,7 @@ export type FieldShared = {
   name: string;
   type: FieldMetadataType;
   label: string;
+  relation?: { sourceObjectMetadata: { id: string } } | null;
   morphRelations?: FieldSharedMorphRelation[] | null;
 };
 
@@ -107,6 +111,42 @@ type TurnRecordFilterIntoRecordGqlOperationFilterParams = {
   filterValueDependencies: RecordFilterValueDependencies;
   recordFilter: Omit<RecordFilter, 'id'>;
   fieldMetadataItemById: Map<string, FieldShared>;
+};
+
+const getTraversalFieldName = ({
+  sourceFieldMetadataItem,
+  targetFieldMetadataItem,
+}: {
+  sourceFieldMetadataItem: FieldShared;
+  targetFieldMetadataItem: FieldShared;
+}): string => {
+  if (sourceFieldMetadataItem.type !== FieldMetadataType.MORPH_RELATION) {
+    return sourceFieldMetadataItem.name;
+  }
+
+  const traversedObjectMetadataId =
+    targetFieldMetadataItem.relation?.sourceObjectMetadata.id;
+
+  const matchingMorphRelation = sourceFieldMetadataItem.morphRelations?.find(
+    (morphRelation) =>
+      morphRelation.targetObjectMetadata.id === traversedObjectMetadataId,
+  );
+
+  if (!isDefined(matchingMorphRelation)) {
+    throw new CustomError(
+      `No morph relation on field ${sourceFieldMetadataItem.name} targets the traversed object ${traversedObjectMetadataId}`,
+      'UNRESOLVED_MORPH_RELATION_TRAVERSAL',
+    );
+  }
+
+  return computeMorphRelationGqlFieldName({
+    fieldName: sourceFieldMetadataItem.name,
+    relationType: matchingMorphRelation.type,
+    targetObjectMetadataNameSingular:
+      matchingMorphRelation.targetObjectMetadata.nameSingular,
+    targetObjectMetadataNamePlural:
+      matchingMorphRelation.targetObjectMetadata.namePlural,
+  });
 };
 
 export const turnRecordFilterIntoRecordGqlOperationFilter = ({
@@ -129,7 +169,8 @@ export const turnRecordFilterIntoRecordGqlOperationFilter = ({
   }
 
   if (
-    sourceFieldMetadataItem.type === FieldMetadataType.RELATION &&
+    (sourceFieldMetadataItem.type === FieldMetadataType.RELATION ||
+      sourceFieldMetadataItem.type === FieldMetadataType.MORPH_RELATION) &&
     isDefined(recordFilter.relationTargetFieldMetadataId)
   ) {
     const targetFieldMetadataItem = fieldMetadataItemById.get(
@@ -143,6 +184,10 @@ export const turnRecordFilterIntoRecordGqlOperationFilter = ({
     const isListOperand =
       recordFilter.operand === RecordFilterOperand.IS_IN_LIST ||
       recordFilter.operand === RecordFilterOperand.IS_NOT_IN_LIST;
+    const traversalFieldName = getTraversalFieldName({
+      sourceFieldMetadataItem,
+      targetFieldMetadataItem,
+    });
 
     const innerFilter = buildDirectFieldGqlOperationFilter({
       recordFilter: {
@@ -176,7 +221,7 @@ export const turnRecordFilterIntoRecordGqlOperationFilter = ({
     }
 
     return {
-      [sourceFieldMetadataItem.name]: innerFilter,
+      [traversalFieldName]: innerFilter,
     } as RecordGqlOperationFilter;
   }
 
@@ -317,16 +362,23 @@ const buildDirectFieldGqlOperationFilter = ({
         case RecordFilterOperand.CONTAINS:
           return {
             [fieldMetadataItem.name]: {
-              like: `%${recordFilter.value}%`,
+              ilike: `%${recordFilter.value}%`,
             } as RawJsonFilter,
           };
         case RecordFilterOperand.DOES_NOT_CONTAIN:
           return {
-            not: {
-              [fieldMetadataItem.name]: {
-                like: `%${recordFilter.value}%`,
-              } as RawJsonFilter,
-            },
+            or: [
+              {
+                not: {
+                  [fieldMetadataItem.name]: {
+                    ilike: `%${recordFilter.value}%`,
+                  } as RawJsonFilter,
+                },
+              },
+              {
+                [fieldMetadataItem.name]: { is: 'NULL' } as RawJsonFilter,
+              },
+            ],
           };
         default:
           throw new Error(
@@ -338,16 +390,23 @@ const buildDirectFieldGqlOperationFilter = ({
         case RecordFilterOperand.CONTAINS:
           return {
             [fieldMetadataItem.name]: {
-              like: `%${recordFilter.value}%`,
+              ilike: `%${recordFilter.value}%`,
             } as FilesFilter,
           };
         case RecordFilterOperand.DOES_NOT_CONTAIN:
           return {
-            not: {
-              [fieldMetadataItem.name]: {
-                like: `%${recordFilter.value}%`,
-              } as FilesFilter,
-            },
+            or: [
+              {
+                not: {
+                  [fieldMetadataItem.name]: {
+                    ilike: `%${recordFilter.value}%`,
+                  } as FilesFilter,
+                },
+              },
+              {
+                [fieldMetadataItem.name]: { is: 'NULL' } as FilesFilter,
+              },
+            ],
           };
         default:
           throw new Error(
@@ -682,11 +741,9 @@ const buildDirectFieldGqlOperationFilter = ({
           };
         case RecordFilterOperand.IS_NOT:
           return {
-            not: {
-              [fieldMetadataItem.name]: {
-                eq: parseNumericFilterValue(recordFilter.value),
-              } as FloatFilter,
-            },
+            [fieldMetadataItem.name]: {
+              neq: parseNumericFilterValue(recordFilter.value),
+            } as FloatFilter,
           };
         default:
           throw new Error(
@@ -806,7 +863,9 @@ const buildDirectFieldGqlOperationFilter = ({
             return {
               [fieldMetadataItem.name]: {
                 amountMicros: {
-                  gte: parseNumericFilterValue(recordFilter.value) * 1000000,
+                  gte: convertCurrencyAmountToCurrencyMicros(
+                    parseNumericFilterValue(recordFilter.value),
+                  ),
                 },
               } as CurrencyFilter,
             };
@@ -814,7 +873,9 @@ const buildDirectFieldGqlOperationFilter = ({
             return {
               [fieldMetadataItem.name]: {
                 amountMicros: {
-                  lte: parseNumericFilterValue(recordFilter.value) * 1000000,
+                  lte: convertCurrencyAmountToCurrencyMicros(
+                    parseNumericFilterValue(recordFilter.value),
+                  ),
                 },
               } as CurrencyFilter,
             };
@@ -822,19 +883,21 @@ const buildDirectFieldGqlOperationFilter = ({
             return {
               [fieldMetadataItem.name]: {
                 amountMicros: {
-                  eq: parseNumericFilterValue(recordFilter.value) * 1000000,
+                  eq: convertCurrencyAmountToCurrencyMicros(
+                    parseNumericFilterValue(recordFilter.value),
+                  ),
                 },
               } as CurrencyFilter,
             };
           case RecordFilterOperand.IS_NOT:
             return {
-              not: {
-                [fieldMetadataItem.name]: {
-                  amountMicros: {
-                    eq: parseNumericFilterValue(recordFilter.value) * 1000000,
-                  },
-                } as CurrencyFilter,
-              },
+              [fieldMetadataItem.name]: {
+                amountMicros: {
+                  neq: convertCurrencyAmountToCurrencyMicros(
+                    parseNumericFilterValue(recordFilter.value),
+                  ),
+                },
+              } as CurrencyFilter,
             };
           default:
             throw new Error(

@@ -13,10 +13,6 @@ export {
   phoneSearchCanonicalizationFixtures,
   malformedPhoneSearchInputs,
 } from './phone-search-canonicalization.fixtures';
-export type { EachTestingContext } from './types/EachTestingContext.type';
+export type { EachTestingContext } from './types/EachTestingContext';
 export type { SuccessfulAndFailingTestCases } from './types/SuccessfulAndFailingTestCases';
-export type {
-  Expect,
-  Equal,
-  HasAllProperties,
-} from './types/TestingGenerics.type';
+export type { Expect, Equal, HasAllProperties } from './types/TestingGenerics';

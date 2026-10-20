@@ -9,7 +9,7 @@ import {
 } from 'src/engine/metadata-modules/flat-entity/exceptions/flat-entity-maps.exception';
 import { type AllFlatEntityMaps } from 'src/engine/metadata-modules/flat-entity/types/all-flat-entity-maps.type';
 import { type MetadataManyToOneJoinColumn } from 'src/engine/metadata-modules/flat-entity/types/metadata-many-to-one-join-column.type';
-import { type MetadataToFlatEntityMapsKey } from 'src/engine/metadata-modules/flat-entity/types/metadata-to-flat-entity-maps-key';
+import { type MetadataToFlatEntityMapsKey } from 'src/engine/metadata-modules/flat-entity/types/metadata-to-flat-entity-maps-key.type';
 import { getMetadataFlatEntityMapsKey } from 'src/engine/metadata-modules/flat-entity/utils/get-metadata-flat-entity-maps-key.util';
 
 type ManyToOneConfig<T extends AllMetadataName> =
@@ -41,14 +41,16 @@ type ResolvedUniversalIdentifiers<
   T extends AllMetadataName,
   TProvidedKeys extends Extract<MetadataManyToOneJoinColumn<T>, string>,
 > = {
-  [K in keyof ManyToOneConfig<T> as ManyToOneConfig<T>[K] extends {
-    foreignKey: infer FK extends string;
-    universalForeignKey: infer UFK extends string;
-  }
-    ? FK extends TProvidedKeys
-      ? UFK
+  [
+    K in keyof ManyToOneConfig<T> as ManyToOneConfig<T>[K] extends {
+      foreignKey: infer FK extends string;
+      universalForeignKey: infer UFK extends string;
+    }
+      ? FK extends TProvidedKeys
+        ? UFK
+        : never
       : never
-    : never]: ManyToOneConfig<T>[K] extends { isNullable: true }
+  ]: ManyToOneConfig<T>[K] extends { isNullable: true }
     ? string | null
     : string;
 };

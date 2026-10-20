@@ -58,7 +58,7 @@ describe('ApiKeyService', () => {
   beforeEach(async () => {
     mockApiKeyRepository = {
       create: jest.fn(),
-      save: jest.fn(),
+      insertAndReturnOne: jest.fn(),
       find: jest.fn(),
       findOne: jest.fn(),
       update: jest.fn(),
@@ -70,7 +70,7 @@ describe('ApiKeyService', () => {
 
     mockroleTargetRepository = {
       delete: jest.fn(),
-      save: jest.fn(),
+      insertAndReturnOne: jest.fn(),
       findOne: jest.fn(),
     };
 
@@ -157,12 +157,12 @@ describe('ApiKeyService', () => {
         expiresAt: new Date('2025-12-31'),
       };
 
-      mockApiKeyRepository.save.mockResolvedValue(mockApiKey);
+      mockApiKeyRepository.insertAndReturnOne.mockResolvedValue(mockApiKey);
       mockRoleTargetService.create.mockResolvedValue(undefined);
 
       const result = await service.create(apiKeyData);
 
-      expect(mockApiKeyRepository.save).toHaveBeenCalledWith(
+      expect(mockApiKeyRepository.insertAndReturnOne).toHaveBeenCalledWith(
         mockWorkspaceId,
         expectedApiKeyFields,
       );
@@ -185,7 +185,7 @@ describe('ApiKeyService', () => {
         roleId: 'mock-role-id',
       };
 
-      mockApiKeyRepository.save.mockResolvedValue(mockApiKey);
+      mockApiKeyRepository.insertAndReturnOne.mockResolvedValue(mockApiKey);
       mockApiKeyRepository.delete = jest.fn().mockResolvedValue(undefined);
       mockRoleTargetService.create.mockRejectedValue(
         new Error('Role assignment failed'),
@@ -195,7 +195,7 @@ describe('ApiKeyService', () => {
         'Role assignment failed',
       );
 
-      expect(mockApiKeyRepository.save).toHaveBeenCalled();
+      expect(mockApiKeyRepository.insertAndReturnOne).toHaveBeenCalled();
       expect(mockRoleTargetService.create).toHaveBeenCalled();
       expect(mockApiKeyRepository.delete).toHaveBeenCalledWith(
         mockWorkspaceId,
@@ -211,11 +211,13 @@ describe('ApiKeyService', () => {
         roleId: 'mock-role-id',
       };
 
-      mockApiKeyRepository.save.mockRejectedValue(new Error('Save failed'));
+      mockApiKeyRepository.insertAndReturnOne.mockRejectedValue(
+        new Error('Save failed'),
+      );
 
       await expect(service.create(apiKeyData)).rejects.toThrow('Save failed');
 
-      expect(mockApiKeyRepository.save).toHaveBeenCalled();
+      expect(mockApiKeyRepository.insertAndReturnOne).toHaveBeenCalled();
       expect(mockRoleTargetService.create).not.toHaveBeenCalled();
     });
   });
@@ -228,7 +230,7 @@ describe('ApiKeyService', () => {
       };
 
       mockRoleRepository.findOne.mockResolvedValue(adminRole);
-      mockApiKeyRepository.save.mockResolvedValue(mockApiKey);
+      mockApiKeyRepository.insertAndReturnOne.mockResolvedValue(mockApiKey);
       mockApiKeyRepository.findOne.mockResolvedValue(mockApiKey);
       mockRoleTargetService.create.mockResolvedValue(undefined);
       mockJwtWrapperService.signAsyncOrThrow.mockResolvedValue('signed-token');
@@ -244,10 +246,13 @@ describe('ApiKeyService', () => {
           universalIdentifier: STANDARD_ROLE.admin.universalIdentifier,
         },
       });
-      expect(mockApiKeyRepository.save).toHaveBeenCalledWith(mockWorkspaceId, {
-        name: 'regie-crm-api',
-        expiresAt: new Date('2025-12-31'),
-      });
+      expect(mockApiKeyRepository.insertAndReturnOne).toHaveBeenCalledWith(
+        mockWorkspaceId,
+        {
+          name: 'regie-crm-api',
+          expiresAt: new Date('2025-12-31'),
+        },
+      );
       expect(mockRoleTargetService.create).toHaveBeenCalledWith({
         createRoleTargetInput: {
           roleId: adminRole.id,

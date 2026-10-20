@@ -27,6 +27,7 @@ jobs:
         packages/twenty-emails/**
         packages/twenty-shared/**
         .github/workflows/ci-breaking-changes.yaml
+        packages/twenty-utils/graphql-breaking-change-rules.cjs
 
   api-breaking-changes:
     needs: changed-files-check
@@ -248,6 +249,11 @@ jobs:
           # Move current branch files to temp directory
           mv current-* /tmp/current-branch-files/ 2>/dev/null || echo "No current-* files to preserve"
 
+          # Both servers must be introspected with the same query, and checking
+          # out main would otherwise swap in main's copy of it
+          cp packages/twenty-utils/graphql-introspection-query.graphql /tmp/graphql-introspection-query.graphql
+          cp packages/twenty-utils/graphql-breaking-change-rules.cjs /tmp/graphql-breaking-change-rules.cjs
+
           echo "Preserved current branch files for later restoration"
 
       - name: Stop current branch server
@@ -370,8 +376,8 @@ jobs:
           # Read admin token from shared test tokens file (single source of truth)
           ADMIN_TOKEN=$(jq -r '.APPLE_JANE_ADMIN_ACCESS_TOKEN' packages/twenty-server/test/integration/constants/test-tokens.json)
 
-          # Load introspection query from file
-          INTROSPECTION_QUERY=$(cat packages/twenty-utils/graphql-introspection-query.graphql)
+          # Load introspection query preserved from the current branch
+          INTROSPECTION_QUERY=$(cat /tmp/graphql-introspection-query.graphql)
 
           # Prepare the query payload
           QUERY_PAYLOAD=$(echo "$INTROSPECTION_QUERY" | tr '\n' ' ' | sed 's/"/\\"/g')
@@ -462,45 +468,57 @@ jobs:
         if: steps.validate-schemas.outputs.valid == 'true'
         run: |
           echo "=== INSTALLING GRAPHQL INSPECTOR CLI ==="
-          npm install -g @graphql-inspector/cli
+          npm install -g @graphql-inspector/cli@7.0.0
+
+          # Removing a field or enum value that was deprecated first is the
+          # intended path, so it is reported as dangerous instead of breaking
+          inspect_schema_diff() {
+            graphql-inspector diff "$1" "$2" \
+              --rule suppressRemovalOfDeprecatedField \
+              --rule /tmp/graphql-breaking-change-rules.cjs
+          }
 
           echo "=== GENERATING GRAPHQL DIFF REPORTS ==="
 
-          # Check if GraphQL schema has changes
-          echo "Checking GraphQL schema for changes..."
-          if graphql-inspector diff main-schema-introspection.json current-schema-introspection.json >/dev/null 2>&1; then
-            echo "✅ No changes in GraphQL schema"
+          echo "Checking GraphQL schema for breaking changes..."
+          if inspect_schema_diff main-schema-introspection.json current-schema-introspection.json > graphql-schema-diff.log 2>&1; then
+            echo "✅ No breaking changes in GraphQL schema"
+          elif ! grep -qE 'Detected [0-9]+ breaking change' graphql-schema-diff.log; then
+            cat graphql-schema-diff.log
+            echo "::error::graphql-inspector could not compare the GraphQL schema"
+            exit 1
           else
-            echo "⚠️ Changes detected in GraphQL schema, generating report..."
+            echo "⚠️ Breaking changes detected in GraphQL schema, generating report..."
             echo "core_breaking=true" >> $GITHUB_OUTPUT
-            echo "# GraphQL Schema Changes" > graphql-schema-diff.md
-            echo "" >> graphql-schema-diff.md
-            graphql-inspector diff main-schema-introspection.json current-schema-introspection.json >> graphql-schema-diff.md 2>&1 || {
-              echo "⚠️ **Breaking changes or errors detected in GraphQL schema**" >> graphql-schema-diff.md
-              echo "" >> graphql-schema-diff.md
-              echo "\`\`\`" >> graphql-schema-diff.md
-              graphql-inspector diff main-schema-introspection.json current-schema-introspection.json 2>&1 >> graphql-schema-diff.md || echo "Error generating diff" >> graphql-schema-diff.md
-              echo "\`\`\`" >> graphql-schema-diff.md
-            }
+            {
+              echo "# GraphQL Schema Changes"
+              echo ""
+              echo "\`\`\`"
+              cat graphql-schema-diff.log
+              echo "\`\`\`"
+            } > graphql-schema-diff.md
           fi
 
-          # Check if GraphQL metadata schema has changes
-          echo "Checking GraphQL metadata schema for changes..."
-          if graphql-inspector diff main-metadata-schema-introspection.json current-metadata-schema-introspection.json >/dev/null 2>&1; then
-            echo "✅ No changes in GraphQL metadata schema"
+          echo "Checking GraphQL metadata schema for breaking changes..."
+          if inspect_schema_diff main-metadata-schema-introspection.json current-metadata-schema-introspection.json > graphql-metadata-diff.log 2>&1; then
+            echo "✅ No breaking changes in GraphQL metadata schema"
+          elif ! grep -qE 'Detected [0-9]+ breaking change' graphql-metadata-diff.log; then
+            cat graphql-metadata-diff.log
+            echo "::error::graphql-inspector could not compare the GraphQL metadata schema"
+            exit 1
           else
-            echo "⚠️ Changes detected in GraphQL metadata schema, generating report..."
+            echo "⚠️ Breaking changes detected in GraphQL metadata schema, generating report..."
             echo "metadata_breaking=true" >> $GITHUB_OUTPUT
-            echo "# GraphQL Metadata Schema Changes" > graphql-metadata-diff.md
-            echo "" >> graphql-metadata-diff.md
-            graphql-inspector diff main-metadata-schema-introspection.json current-metadata-schema-introspection.json >> graphql-metadata-diff.md 2>&1 || {
-              echo "⚠️ **Breaking changes or errors detected in GraphQL metadata schema**" >> graphql-metadata-diff.md
-              echo "" >> graphql-metadata-diff.md
-              echo "\`\`\`" >> graphql-metadata-diff.md
-              graphql-inspector diff main-metadata-schema-introspection.json current-metadata-schema-introspection.json 2>&1 >> graphql-metadata-diff.md || echo "Error generating diff" >> graphql-metadata-diff.md
-              echo "\`\`\`" >> graphql-metadata-diff.md
-            }
+            {
+              echo "# GraphQL Metadata Schema Changes"
+              echo ""
+              echo "\`\`\`"
+              cat graphql-metadata-diff.log
+              echo "\`\`\`"
+            } > graphql-metadata-diff.md
           fi
+
+          cat graphql-schema-diff.log graphql-metadata-diff.log
 
           # Show summary
           echo "Generated diff files:"
@@ -544,10 +562,10 @@ jobs:
                   "## 🚨 Removed Endpoints (" + (.missingEndpoints | length | tostring) + ")\n" +
                   (.missingEndpoints | map("- **" + .method + " " + .pathUrl + "**: " + (.summary // "")) | join("\n"))
                 else "" end,
-                if (.changedOperations | length) > 0 then
-                  "\n## ⚠️ Changed Operations (" + (.changedOperations | length | tostring) + ")\n" +
-                  (.changedOperations | map("- **" + .method + " " + .pathUrl + "**: " + (.summary // "Modified operation")) | join("\n"))
-                else "" end,
+                ([(.changedOperations // [])[] | select(.incompatible)] | if length > 0 then
+                  "\n## ⚠️ Incompatible Operations (" + (length | tostring) + ")\n" +
+                  (map("- **" + .httpMethod + " " + .pathUrl + "**: " + (.summary // "Modified operation")) | join("\n"))
+                else "" end),
                 if (.newEndpoints | length) > 0 then
                   "\n## ✅ New Endpoints (" + (.newEndpoints | length | tostring) + ")\n" +
                   (.newEndpoints | map("- " + .method + " " + .pathUrl + ": " + (.summary // "")) | join("\n"))
@@ -615,10 +633,10 @@ jobs:
                   "## 🚨 Removed Endpoints (" + (.missingEndpoints | length | tostring) + ")\n" +
                   (.missingEndpoints | map("- **" + .method + " " + .pathUrl + "**: " + (.summary // "")) | join("\n"))
                 else "" end,
-                if (.changedOperations | length) > 0 then
-                  "\n## ⚠️ Changed Operations (" + (.changedOperations | length | tostring) + ")\n" +
-                  (.changedOperations | map("- **" + .method + " " + .pathUrl + "**: " + (.summary // "Modified operation")) | join("\n"))
-                else "" end,
+                ([(.changedOperations // [])[] | select(.incompatible)] | if length > 0 then
+                  "\n## ⚠️ Incompatible Operations (" + (length | tostring) + ")\n" +
+                  (map("- **" + .httpMethod + " " + .pathUrl + "**: " + (.summary // "Modified operation")) | join("\n"))
+                else "" end),
                 if (.newEndpoints | length) > 0 then
                   "\n## ✅ New Endpoints (" + (.newEndpoints | length | tostring) + ")\n" +
                   (.newEndpoints | map("- " + .method + " " + .pathUrl + ": " + (.summary // "")) | join("\n"))
@@ -649,6 +667,8 @@ jobs:
 
       - name: Fail on breaking changes
         if: steps.validate-schemas.outputs.valid == 'true'
+        env:
+          PR_TITLE: ${{ github.event.pull_request.title }}
         run: |
           breaking=false
 
@@ -682,9 +702,9 @@ jobs:
                   "  Removed endpoints:\n" +
                   (.missingEndpoints | map("    - " + (.method // "?") + " " + (.pathUrl // "?")) | join("\n"))
                 else "" end),
-                (if (.changedOperations | length) > 0 then
-                  "  Changed operations:\n" +
-                  (.changedOperations | map("    - " + (.method // "?") + " " + (.pathUrl // "?")) | join("\n"))
+                ([(.changedOperations // [])[] | select(.incompatible)] | if length > 0 then
+                  "  Incompatible operations:\n" +
+                  (map("    - " + (.httpMethod // "?") + " " + (.pathUrl // "?")) | join("\n"))
                 else "" end)
               ' rest-api-diff.json | sed '/^$/d'
               echo ""
@@ -701,9 +721,9 @@ jobs:
                   "  Removed endpoints:\n" +
                   (.missingEndpoints | map("    - " + (.method // "?") + " " + (.pathUrl // "?")) | join("\n"))
                 else "" end),
-                (if (.changedOperations | length) > 0 then
-                  "  Changed operations:\n" +
-                  (.changedOperations | map("    - " + (.method // "?") + " " + (.pathUrl // "?")) | join("\n"))
+                ([(.changedOperations // [])[] | select(.incompatible)] | if length > 0 then
+                  "  Incompatible operations:\n" +
+                  (map("    - " + (.httpMethod // "?") + " " + (.pathUrl // "?")) | join("\n"))
                 else "" end)
               ' rest-metadata-api-diff.json | sed '/^$/d'
               echo ""
@@ -712,8 +732,13 @@ jobs:
 
           if [ "$breaking" = "true" ]; then
             echo ""
+            if echo "$PR_TITLE" | grep -qiE '\[breaking[ _-]?change\]'; then
+              echo "::warning::Breaking API changes accepted: the PR title is tagged [BREAKING_CHANGE]."
+              exit 0
+            fi
             echo "This PR introduces breaking changes to the public API."
-            echo "If intentional, deprecate the old endpoint and introduce a new one."
+            echo "If intentional, deprecate the old endpoint and introduce a new one,"
+            echo "or tag the PR title with [BREAKING_CHANGE] to accept them."
             echo "See the breaking changes report artifact and PR comment for details."
             exit 1
           fi

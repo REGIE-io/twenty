@@ -1,18 +1,21 @@
 import { FormAdvancedTextFieldInput } from '@/advanced-text-editor/components/FormAdvancedTextFieldInput';
 import { type AdvancedTextEditorProfile } from '@/advanced-text-editor/types/AdvancedTextEditorProfile';
 import { buildFullRichTextWithVariableTagExtensions } from '@/advanced-text-editor/utils/buildFullRichTextExtensions';
+import { FullScreenModal } from '@/ui/layout/fullscreen/components/FullScreenModal';
+import { WorkflowVariablePicker } from '@/workflow/workflow-variables/components/WorkflowVariablePicker';
 import { type Meta, type StoryObj } from '@storybook/react-vite';
-import { graphql, HttpResponse } from 'msw';
-import { expect, fn, userEvent, within } from 'storybook/test';
+import { HttpResponse, graphql } from 'msw';
+import { expect, fn, userEvent, waitFor, within } from 'storybook/test';
 import { TIPTAP_DOCUMENT_SCHEMA_VERSION } from 'twenty-shared/utils';
-import { ComponentDecorator, RouterDecorator } from 'twenty-ui/testing';
+import { ComponentDecorator } from 'twenty-ui/testing';
 import { ObjectMetadataItemsDecorator } from '~/testing/decorators/ObjectMetadataItemsDecorator';
-import { SnackBarDecorator } from '~/testing/decorators/SnackBarDecorator';
+import { ToastDecorator } from '~/testing/decorators/ToastDecorator';
 import { WorkflowStepActionDrawerDecorator } from '~/testing/decorators/WorkflowStepActionDrawerDecorator';
 import { WorkflowStepDecorator } from '~/testing/decorators/WorkflowStepDecorator';
 import { WorkspaceDecorator } from '~/testing/decorators/WorkspaceDecorator';
 import { graphqlMocks } from '~/testing/graphqlMocks';
 import { getWorkflowNodeIdMock } from '~/testing/mock-data/workflow';
+import { MemoryRouterDecorator } from '~/testing/decorators/MemoryRouterDecorator';
 
 const STORY_FORM_EDITOR_PROFILE = {
   chrome: 'field',
@@ -113,8 +116,8 @@ const meta: Meta<typeof FormAdvancedTextFieldInput> = {
     WorkflowStepDecorator,
     ComponentDecorator,
     ObjectMetadataItemsDecorator,
-    SnackBarDecorator,
-    RouterDecorator,
+    ToastDecorator,
+    MemoryRouterDecorator,
     WorkspaceDecorator,
   ],
 };
@@ -243,6 +246,57 @@ export const WithoutVariablePicker: Story = {
       await canvas.findByText('Field without Variable Picker'),
     ).toBeVisible();
     expect(await canvas.findByRole('textbox')).toBeVisible();
+  },
+};
+
+export const WorkflowVariablesInFullScreen: Story = {
+  args: {
+    ...DEFAULT_PROPS,
+    VariablePicker: WorkflowVariablePicker,
+    enableFullScreen: false,
+  },
+  render: (args) => (
+    <FullScreenModal links={[{ children: 'Text Editor' }]} onClose={fn()}>
+      <FormAdvancedTextFieldInput {...args} />
+    </FullScreenModal>
+  ),
+  play: async ({ canvasElement, args }) => {
+    const canvas = within(canvasElement);
+    const body = within(canvasElement.ownerDocument.body);
+    const editor = await canvas.findByRole('textbox');
+
+    await userEvent.click(editor);
+    await userEvent.type(editor, 'Hello ');
+    await userEvent.click(
+      canvas.getByRole('button', { name: 'Insert variable' }),
+    );
+    const search = await body.findByRole('searchbox');
+    await userEvent.type(search, 'name');
+    await userEvent.keyboard('{Enter}');
+
+    await waitFor(() =>
+      expect(body.queryByRole('searchbox')).not.toBeInTheDocument(),
+    );
+    await waitFor(() => expect(editor).toHaveFocus());
+    await waitFor(() => expect(within(editor).getByText('name')).toBeVisible());
+    await userEvent.keyboard('!');
+
+    await waitFor(() =>
+      expect(args.onChange).toHaveBeenLastCalledWith(
+        expect.stringContaining('"text":"!"'),
+      ),
+    );
+    await userEvent.click(
+      canvas.getByRole('button', { name: 'Insert variable' }),
+    );
+    await body.findByRole('searchbox');
+    await userEvent.keyboard('{Escape}');
+    await waitFor(() =>
+      expect(
+        canvas.getByRole('button', { name: 'Insert variable' }),
+      ).toHaveFocus(),
+    );
+    await expect(editor).toBeVisible();
   },
 };
 

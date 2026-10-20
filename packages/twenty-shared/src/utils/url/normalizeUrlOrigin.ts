@@ -1,4 +1,4 @@
-import { getURLSafely } from '@/utils/getURLSafely';
+import { getUrlSafely } from '@/utils/getUrlSafely';
 import { isDefined } from '@/utils/validation';
 
 const SCHEME_PATTERN = /^\s*[a-z][a-z\d+.-]*:\/\//i;
@@ -16,7 +16,7 @@ export const normalizeUrlOrigin = (rawUrl: string) => {
     );
   }
 
-  const url = getURLSafely(rawUrl);
+  const url = getUrlSafely(rawUrl);
 
   if (!isDefined(url)) {
     return rawUrl;

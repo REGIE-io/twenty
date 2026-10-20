@@ -1,13 +1,11 @@
-import { useIsSettingsPage } from '@/navigation/hooks/useIsSettingsPage';
-import { useIsNavigationDrawerContentExpanded } from '@/navigation/hooks/useIsNavigationDrawerContentExpanded';
+import { useIsNavigationDrawerContentExpanded } from '@/ui/navigation/navigation-drawer/hooks/useIsNavigationDrawerContentExpanded';
 import { styled } from '@linaria/react';
 import {
   type AnimationControls,
   motion,
   type TargetAndTransition,
 } from 'framer-motion';
-import { useContext } from 'react';
-import { ThemeContext } from 'twenty-ui/theme-constants';
+import { useTheme } from 'twenty-ui/theme';
 const StyledAnimatedContainerBase = styled.span`
   display: block;
 `;
@@ -19,13 +17,8 @@ export const NavigationDrawerAnimatedCollapseWrapper = ({
 }: {
   children: React.ReactNode;
 }) => {
-  const { theme } = useContext(ThemeContext);
-  const isSettingsPage = useIsSettingsPage();
+  const theme = useTheme();
   const isNavigationDrawerExpanded = useIsNavigationDrawerContentExpanded();
-
-  if (isSettingsPage) {
-    return children;
-  }
 
   const animate: AnimationControls | TargetAndTransition =
     isNavigationDrawerExpanded
@@ -44,6 +37,7 @@ export const NavigationDrawerAnimatedCollapseWrapper = ({
 
   return (
     <StyledAnimatedContainer
+      inert={!isNavigationDrawerExpanded || undefined}
       initial={false}
       animate={animate}
       transition={{

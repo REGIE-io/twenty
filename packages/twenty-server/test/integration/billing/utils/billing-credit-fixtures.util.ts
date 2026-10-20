@@ -1,13 +1,16 @@
-import { type BillingCreditGrantType } from 'src/engine/core-modules/billing/enums/billing-credit-grant-type.enum';
-import { type BillingUsageCacheService } from 'src/engine/core-modules/billing/services/billing-usage-cache.service';
-
 import { getAppProviderByClassName } from 'test/integration/utils/get-app-provider-by-class-name.util';
+import { createClient, type RedisClientType } from 'redis';
+import { isDefined, isNonEmptyArray } from 'twenty-shared/utils';
 
-// The dev seeder gives every workspace a billingCustomer and an active
-// billingSubscription, but no subscription item, and no period. Rollover needs
-// the whole chain — subscription -> item -> product -> price with a
-// credit_amount — so these helpers finish the fixture and put the period where
-// the test wants it.
+import { type BillingCreditGrantType } from 'src/engine/core-modules/billing/enums/billing-credit-grant-type.enum';
+import { type SubscriptionStatus } from 'src/engine/core-modules/billing/enums/billing-subscription-status.enum';
+import { type UsageLimitQuotaService } from 'src/engine/core-modules/usage-limit/services/usage-limit-quota.service';
+import { UsageOperationType } from 'src/engine/core-modules/usage/enums/usage-operation-type.enum';
+import { UsageResourceType } from 'src/engine/core-modules/usage/enums/usage-resource-type.enum';
+import { UsageUnit } from 'src/engine/core-modules/usage/enums/usage-unit.enum';
+import { type WorkspaceCacheService } from 'src/engine/workspace-cache/services/workspace-cache.service';
+
+// The dev seeder creates no subscription item or period; rollover needs subscription -> item -> product -> price
 export const TEST_STRIPE_CUSTOMER_ID = 'cus_default0';
 export const TEST_STRIPE_SUBSCRIPTION_ID = 'sub_default0';
 
@@ -20,7 +23,7 @@ export type CreditGrantRow = {
   amountMicro: number;
   type: BillingCreditGrantType;
   effectiveAt: Date;
-  expiresAt: Date;
+  expiresAt: Date | null;
   revokedAt: Date | null;
   reason: string | null;
   idempotencyKey: string | null;
@@ -30,8 +33,7 @@ export type CreditGrantRow = {
 const query = async <T>(sql: string, params: unknown[] = []): Promise<T[]> =>
   global.testDataSource.query(sql, params);
 
-// The billing seeds insert with orIgnore, so the customer and subscription
-// land on exactly one workspace and which one is not worth hardcoding.
+// Billing seeds insert with orIgnore, so which workspace holds them is not worth hardcoding
 export const getSeededBillingWorkspaceId = async (): Promise<string> => {
   const [row] = await query<{ workspaceId: string }>(
     `SELECT "workspaceId" FROM core."billingSubscription" WHERE "stripeSubscriptionId" = $1`,
@@ -140,7 +142,7 @@ export const insertCreditGrant = async ({
   amountMicro: number;
   type: BillingCreditGrantType;
   effectiveAt: Date;
-  expiresAt: Date;
+  expiresAt: Date | null;
   idempotencyKey?: string | null;
 }): Promise<string> => {
   const [row] = await query<{ id: string }>(
@@ -166,15 +168,75 @@ export const listCreditGrants = async (
     [workspaceId],
   );
 
-export const getMirroredCreditBalance = async (
+let redisClient: RedisClientType | null = null;
+
+const getRedisClient = async (): Promise<RedisClientType> => {
+  if (!isDefined(redisClient)) {
+    redisClient = createClient({ url: process.env.REDIS_URL });
+    await redisClient.connect();
+  }
+
+  return redisClient;
+};
+
+export const quitBillingFixtureRedis = async (): Promise<void> => {
+  if (isDefined(redisClient)) {
+    await redisClient.quit();
+    redisClient = null;
+  }
+};
+
+const getUsageLimitQuotaService = () =>
+  getAppProviderByClassName<UsageLimitQuotaService>('UsageLimitQuotaService');
+
+export const refreshCurrentBillingSubscription = (
+  workspaceId: string,
+): Promise<void> =>
+  getAppProviderByClassName<WorkspaceCacheService>(
+    'WorkspaceCacheService',
+  ).invalidateAndRecompute(workspaceId, ['currentBillingSubscription']);
+
+export const debitInFlightCredits = async (
+  workspaceId: string,
+  creditsUsedMicro: number,
+): Promise<void> => {
+  await getUsageLimitQuotaService().debitAheadOfRecord({
+    workspaceId,
+    event: {
+      resourceType: UsageResourceType.AI,
+      operationType: UsageOperationType.AI_CHAT_TOKEN,
+      unit: UsageUnit.TOKEN,
+      quantity: 1,
+      creditsUsedMicro,
+      spenders: {},
+    },
+  });
+};
+
+export const readAllowanceConsumedMicro = async (
   workspaceId: string,
 ): Promise<number> => {
-  const [row] = await query<{ creditBalanceMicro: string }>(
-    `SELECT "creditBalanceMicro" FROM core."billingCustomer" WHERE "workspaceId" = $1`,
-    [workspaceId],
-  );
+  const allowanceUsage =
+    await getUsageLimitQuotaService().getAllowanceUsage(workspaceId);
 
-  return Number(row?.creditBalanceMicro ?? 0);
+  if (!isDefined(allowanceUsage?.consumedValue)) {
+    throw new Error(`No allowance consumption for workspace ${workspaceId}`);
+  }
+
+  return allowanceUsage.consumedValue;
+};
+
+export const readAllowanceLimitMicro = async (
+  workspaceId: string,
+): Promise<number> => {
+  const allowanceUsage =
+    await getUsageLimitQuotaService().getAllowanceUsage(workspaceId);
+
+  if (!isDefined(allowanceUsage)) {
+    throw new Error(`No allowance for workspace ${workspaceId}`);
+  }
+
+  return allowanceUsage.limitValue;
 };
 
 export const resetBillingCreditState = async (
@@ -184,20 +246,25 @@ export const resetBillingCreditState = async (
     `DELETE FROM core."billingCreditGrant" WHERE "workspaceId" = $1`,
     [workspaceId],
   );
-  await query(
-    `UPDATE core."billingCustomer" SET "creditBalanceMicro" = 0 WHERE "workspaceId" = $1`,
-    [workspaceId],
-  );
-  const cache = getBillingUsageCacheService();
 
-  await cache.flushAvailableCredits(workspaceId);
-  // Adjustment markers outlive a counter flush by design, so a transition in
-  // one test would otherwise make the next one read its first delivery as a
-  // replay that had already moved the counter.
-  await cache.flushCounterAdjustmentMarkers(workspaceId);
+  const redis = await getRedisClient();
+  const staleKeys = [
+    ...(await redis.keys(`*{${workspaceId}}:quota*`)),
+    ...(await redis.keys(`*currentBillingSubscription:${workspaceId}*`)),
+  ];
+
+  if (isNonEmptyArray(staleKeys)) {
+    await redis.del(staleKeys);
+  }
 };
 
-export const getBillingUsageCacheService = (): BillingUsageCacheService =>
-  getAppProviderByClassName<BillingUsageCacheService>(
-    'BillingUsageCacheService',
+// Cancelling stops getCurrentBillingSubscription returning it without deleting rows the suite shares
+export const setSubscriptionStatus = async (
+  workspaceId: string,
+  status: SubscriptionStatus,
+): Promise<void> => {
+  await query(
+    `UPDATE "core"."billingSubscription" SET status = $2 WHERE "workspaceId" = $1`,
+    [workspaceId, status],
   );
+};

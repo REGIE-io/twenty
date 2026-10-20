@@ -8,6 +8,7 @@ export const microsoftCalendarEventsHandlers = (
   events: Event[],
   deltaToken: string,
   calendarEventListRequests: URLSearchParams[],
+  removedEventIds: string[] = [],
 ): MswHandler[] => [
   http.get('*/me/calendarView/delta', ({ request }) => {
     const { searchParams } = new URL(request.url);
@@ -15,14 +16,20 @@ export const microsoftCalendarEventsHandlers = (
     calendarEventListRequests.push(searchParams);
 
     return HttpResponse.json({
-      value: events
-        .filter((event) =>
-          isEventInRequestedWindow(event, {
-            from: searchParams.get('startDateTime'),
-            to: searchParams.get('endDateTime'),
-          }),
-        )
-        .map((event) => ({ id: event.id })),
+      value: [
+        ...events
+          .filter((event) =>
+            isEventInRequestedWindow(event, {
+              from: searchParams.get('startDateTime'),
+              to: searchParams.get('endDateTime'),
+            }),
+          )
+          .map((event) => ({ id: event.id })),
+        ...removedEventIds.map((id) => ({
+          id,
+          '@removed': { reason: 'deleted' },
+        })),
+      ],
       '@odata.deltaLink': `https://graph.microsoft.com/v1.0/me/calendarView/delta?$deltatoken=${deltaToken}`,
     });
   }),

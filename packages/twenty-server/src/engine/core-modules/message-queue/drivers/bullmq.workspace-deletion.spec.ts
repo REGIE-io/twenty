@@ -22,10 +22,12 @@ describe('BullMQ workspace deletion guarantees', () => {
 
   const makeDriver = () => {
     const queue = {
-      add: jest.fn().mockResolvedValue(undefined),
+      add: jest.fn().mockResolvedValue({ id: 'queued-job-id' }),
       close: jest.fn(),
       count: jest.fn(),
       getJobs: jest.fn().mockResolvedValue([]),
+      removeGlobalConcurrency: jest.fn().mockResolvedValue(undefined),
+      setGlobalConcurrency: jest.fn().mockResolvedValue(undefined),
     };
     const worker = { on: jest.fn(), close: jest.fn() };
 
@@ -40,6 +42,7 @@ describe('BullMQ workspace deletion guarantees', () => {
         incrementCounterForEvent: jest.fn(),
       } as unknown as MetricsService,
       { get: jest.fn() } as unknown as TwentyConfigService,
+      { emit: jest.fn() } as never,
     );
 
     driver.register(queueName);

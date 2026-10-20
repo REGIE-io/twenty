@@ -1,4 +1,5 @@
 import { type RegieSource } from 'twenty-shared/constants';
+import { type TimelineActivityTypeSnapshot } from 'twenty-shared/timeline';
 
 import { BaseWorkspaceEntity } from 'src/engine/twenty-orm/base.workspace-entity';
 import { type CustomWorkspaceEntity } from 'src/engine/twenty-orm/custom.workspace-entity';
@@ -18,7 +19,8 @@ import { type WorkspaceMemberWorkspaceEntity } from 'src/modules/workspace-membe
 
 export class TimelineActivityWorkspaceEntity extends BaseWorkspaceEntity {
   happensAt: Date;
-  name: string | null;
+  timelineActivityTypeId: string | null;
+  timelineActivityTypeSnapshot: TimelineActivityTypeSnapshot | null;
   properties: JSON | null;
   // Which Regie write path produced this change, threaded from X-Regie-Source. Null for
   // edits made inside Twenty or any write that carried no source header.

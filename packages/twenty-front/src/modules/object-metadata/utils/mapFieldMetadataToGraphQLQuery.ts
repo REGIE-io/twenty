@@ -3,13 +3,13 @@ import { mapObjectMetadataToGraphQLQuery } from '@/object-metadata/utils/mapObje
 import { type FieldMetadataItem } from '@/object-metadata/types/FieldMetadataItem';
 import { type EnrichedObjectMetadataItem } from '@/object-metadata/types/EnrichedObjectMetadataItem';
 import { getObjectPermissionsForObject } from '@/object-metadata/utils/getObjectPermissionsForObject';
-import { type RecordGqlFields } from '@/object-record/graphql/record-gql-fields/types/RecordGqlFields';
-import { isNonCompositeField } from '@/object-record/object-filter-dropdown/utils/isNonCompositeField';
 import {
+  type RecordGqlFields,
   FieldMetadataType,
   type ObjectPermissions,
   RelationType,
 } from 'twenty-shared/types';
+import { isNonCompositeField } from '@/object-record/object-filter-dropdown/utils/isNonCompositeField';
 import {
   computeMorphRelationGqlFieldName,
   computeRelationGqlFieldJoinColumnName,
@@ -244,7 +244,10 @@ ${mapObjectMetadataToGraphQLQuery({
 {
   primaryLinkUrl
   primaryLinkLabel
-  secondaryLinks
+  secondaryLinks {
+    label
+    url
+  }
 }`;
   }
 
@@ -285,7 +288,10 @@ ${mapObjectMetadataToGraphQLQuery({
     source
     workspaceMemberId
     name
-    context
+    context {
+      provider
+      applicationId
+    }
 }`;
   }
 
@@ -303,7 +309,11 @@ ${mapObjectMetadataToGraphQLQuery({
       primaryPhoneNumber
       primaryPhoneCountryCode
       primaryPhoneCallingCode
-      additionalPhones
+      additionalPhones {
+        number
+        callingCode
+        countryCode
+      }
     }`;
   }
 

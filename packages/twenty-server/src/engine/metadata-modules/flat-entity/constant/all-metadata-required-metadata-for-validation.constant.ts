@@ -104,6 +104,7 @@ export const ALL_METADATA_REQUIRED_METADATA_FOR_VALIDATION = {
     pageLayoutTab: true,
     frontComponent: true,
     fieldMetadata: true,
+    commandMenuItem: true,
   },
   rowLevelPermissionPredicate: {
     fieldMetadata: true,
@@ -115,7 +116,9 @@ export const ALL_METADATA_REQUIRED_METADATA_FOR_VALIDATION = {
     role: true,
     objectMetadata: true,
   },
-  frontComponent: {},
+  frontComponent: {
+    objectMetadata: true,
+  },
   webhook: {},
   applicationVariable: {},
   connectionProvider: {},
@@ -123,4 +126,18 @@ export const ALL_METADATA_REQUIRED_METADATA_FOR_VALIDATION = {
     objectMetadata: true,
     fieldMetadata: true,
   },
+  timelineActivityType: {
+    objectMetadata: true,
+    fieldMetadata: true,
+    frontComponent: true,
+  },
+  settingsMenuItem: {
+    frontComponent: true,
+  },
+  validationRule: {
+    objectMetadata: true,
+    fieldMetadata: true,
+  },
+  workflow: {},
+  workflowVersion: {},
 } as const satisfies MetadataRequiredForValidation;

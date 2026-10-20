@@ -326,14 +326,6 @@ export class SchemaApplyService {
               flatEntityToDelete: [],
               flatEntityToUpdate: [],
             },
-            commandMenuItem: {
-              flatEntityToCreate: objectsToCreate.map(
-                ({ flatCommandMenuItemToCreate }) =>
-                  flatCommandMenuItemToCreate,
-              ),
-              flatEntityToDelete: [],
-              flatEntityToUpdate: [],
-            },
             navigationMenuItem: {
               flatEntityToCreate: objectsToCreate.map(
                 ({ flatNavigationMenuItemToCreate }) =>

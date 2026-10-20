@@ -4,7 +4,7 @@ import { createOneFieldMetadata } from 'test/integration/metadata/suites/field-m
 import { deleteOneFieldMetadata } from 'test/integration/metadata/suites/field-metadata/utils/delete-one-field-metadata.util';
 import { updateOneFieldMetadata } from 'test/integration/metadata/suites/field-metadata/utils/update-one-field-metadata.util';
 import { findManyObjectMetadata } from 'test/integration/metadata/suites/object-metadata/utils/find-many-object-metadata.util';
-import { makeRestAPIRequest } from 'test/integration/rest/utils/make-rest-api-request.util';
+import { makeRestApiRequest } from 'test/integration/rest/utils/make-rest-api-request.util';
 import { jestExpectToBeDefined } from 'test/utils/jest-expect-to-be-defined.util.test';
 import {
   type AdditionalSearchSettings,
@@ -128,7 +128,7 @@ describe('Field metadata batch-apply - search vector', () => {
 
     const baselineExpression = await readSearchVectorExpression();
 
-    const response = await makeRestAPIRequest({
+    const response = await makeRestApiRequest({
       method: 'post',
       path: '/metadata/fields/batch-apply',
       body: {
@@ -188,7 +188,7 @@ describe('Field metadata batch-apply - search vector', () => {
   it('rejects a batch that changes one field twice, and applies none of it', async () => {
     const expressionBefore = await readSearchVectorExpression();
 
-    const response = await makeRestAPIRequest({
+    const response = await makeRestApiRequest({
       method: 'post',
       path: '/metadata/fields/batch-apply',
       body: {

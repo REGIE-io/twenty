@@ -9,6 +9,7 @@ import { runWorkflowActionStep } from 'test/integration/graphql/suites/workflow/
 import { deleteConnectedAccount } from 'test/integration/metadata/suites/connected-account/utils/delete-connected-account.util';
 import { saveImapSmtpCaldavAccount } from 'test/integration/metadata/suites/connected-account/utils/save-imap-smtp-caldav-account.util';
 import { updateConfigVariable } from 'test/integration/twenty-config/utils/update-config-variable.util';
+import { buildEmailDocument } from 'test/integration/utils/build-email-document.util';
 import { findRecordNodesByFilter } from 'test/integration/utils/find-records-by-filter.util';
 import { getCoreRepository } from 'test/integration/utils/get-core-repository.util';
 import { runMessageChannelSync } from 'test/integration/utils/run-message-channel-sync.util';
@@ -27,7 +28,7 @@ describe('SEND_EMAIL workflow action on SMTP (integration)', () => {
 
   beforeAll(async () => {
     await updateConfigVariable({
-      input: { key: 'OUTBOUND_HTTP_SAFE_MODE_ENABLED', value: false },
+      input: { key: 'OUTBOUND_HTTP_ALLOWED_INTERNAL_HOSTS', value: ['*'] },
     });
 
     greenmail = await startGreenmailContainer({
@@ -70,7 +71,7 @@ describe('SEND_EMAIL workflow action on SMTP (integration)', () => {
 
   afterAll(async () => {
     await updateConfigVariable({
-      input: { key: 'OUTBOUND_HTTP_SAFE_MODE_ENABLED', value: true },
+      input: { key: 'OUTBOUND_HTTP_ALLOWED_INTERNAL_HOSTS', value: [] },
     }).catch(() => undefined);
 
     if (isNonEmptyString(connectedAccountId)) {
@@ -97,7 +98,7 @@ describe('SEND_EMAIL workflow action on SMTP (integration)', () => {
           bcc: '{{trigger.bcc}}',
         },
         subject: '{{trigger.subject}}',
-        body: '<p>SMTP workflow body</p>',
+        body: JSON.stringify(buildEmailDocument('SMTP workflow body')),
       },
       payload: { to: HANDLE, cc: HANDLE, bcc: HANDLE, subject },
     });
@@ -150,5 +151,37 @@ describe('SEND_EMAIL workflow action on SMTP (integration)', () => {
         expect.objectContaining({ handle: HANDLE, role: 'BCC' }),
       ]),
     );
+  }, 300000);
+
+  it('fails the step when the from handle is not a verified alias', async () => {
+    const subject = `IMAP/SMTP workflow rejected sender ${randomUUID()}`;
+
+    const workflowRun = await runWorkflowActionStep({
+      name: 'IMAP/SMTP rejected sender send email workflow',
+      stepType: 'SEND_EMAIL',
+      input: {
+        connectedAccountId,
+        fromHandle: 'not-my-alias@acme.test',
+        recipients: { to: HANDLE, cc: '', bcc: '' },
+        subject,
+        body: JSON.stringify(buildEmailDocument('SMTP workflow rejected body')),
+      },
+    });
+
+    expect(workflowRun).toMatchObject({
+      status: 'FAILED',
+      stepStatus: 'FAILED',
+      stepError: expect.stringContaining(
+        'is not the connected account handle nor one of its verified aliases',
+      ),
+    });
+    expect(
+      await findRecordNodesByFilter<{ id: string }>(
+        'message',
+        'messages',
+        'id',
+        { subject: { eq: subject } },
+      ),
+    ).toEqual([]);
   }, 300000);
 });

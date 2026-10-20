@@ -60,6 +60,23 @@ describe('Standard object metadata update should succeed', () => {
   let companyObjectMetadataId: string;
   let originalCompanyMetadata: ObjectMetadataDTO;
 
+  const restoreCompanyMetadata = () =>
+    updateOneObjectMetadata({
+      expectToFail: false,
+      input: {
+        idToUpdate: companyObjectMetadataId,
+        updatePayload: {
+          labelSingular: originalCompanyMetadata.labelSingular,
+          labelPlural: originalCompanyMetadata.labelPlural,
+          description: originalCompanyMetadata.description,
+          icon: originalCompanyMetadata.icon,
+          isActive: originalCompanyMetadata.isActive,
+          shortcut: originalCompanyMetadata.shortcut,
+          color: originalCompanyMetadata.color,
+        },
+      },
+    });
+
   beforeAll(async () => {
     const { objects } = await findManyObjectMetadata({
       expectToFail: false,
@@ -88,7 +105,7 @@ describe('Standard object metadata update should succeed', () => {
     originalCompanyMetadata = companyObject;
   });
 
-  afterEach(async () => {
+  beforeEach(async () => {
     await updateOneObjectMetadata({
       expectToFail: false,
       input: {
@@ -100,9 +117,14 @@ describe('Standard object metadata update should succeed', () => {
           icon: originalCompanyMetadata.icon,
           isActive: originalCompanyMetadata.isActive,
           shortcut: originalCompanyMetadata.shortcut,
+          color: '',
         },
       },
     });
+  });
+
+  afterEach(async () => {
+    await restoreCompanyMetadata();
   });
 
   it.each(eachTestingContextFilter(allTestsUseCases))(

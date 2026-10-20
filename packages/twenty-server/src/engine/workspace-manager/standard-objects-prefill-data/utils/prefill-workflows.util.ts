@@ -1,9 +1,10 @@
-import { FieldActorSource } from 'twenty-shared/types';
 import { isDefined } from 'twenty-shared/utils';
+import { IF_ELSE_BRANCH_POSITION_OFFSETS } from 'twenty-shared/workflow';
 import { type EntityManager } from 'typeorm';
 import { v5 } from 'uuid';
 
 import { DatabaseEventAction } from 'src/engine/api/graphql/graphql-query-runner/enums/database-event-action';
+import { WorkflowEntity } from 'src/engine/core-modules/workflow/entities/workflow.entity';
 import { type FlatEntityMaps } from 'src/engine/metadata-modules/flat-entity/types/flat-entity-maps.type';
 import { findFlatEntityByIdInFlatEntityMaps } from 'src/engine/metadata-modules/flat-entity/utils/find-flat-entity-by-id-in-flat-entity-maps.util';
 import { type FlatFieldMetadata } from 'src/engine/metadata-modules/flat-field-metadata/types/flat-field-metadata.type';
@@ -17,26 +18,6 @@ import { getCreateCompanyWhenAddingNewPersonCodeStepLogicFunctionIds } from 'src
 const WORKFLOW_PREFILL_ID_NAMESPACE = '8b213cac-a68b-4ffe-817a-3ec994e9932d';
 
 export const getWorkflowPrefillIds = (workspaceId: string) => ({
-  quickLeadWorkflowId: v5(
-    `quickLeadWorkflow:${workspaceId}`,
-    WORKFLOW_PREFILL_ID_NAMESPACE,
-  ),
-  quickLeadWorkflowVersionId: v5(
-    `quickLeadWorkflowVersion:${workspaceId}`,
-    WORKFLOW_PREFILL_ID_NAMESPACE,
-  ),
-  createCompanyWorkflowId: v5(
-    `createCompanyWorkflow:${workspaceId}`,
-    WORKFLOW_PREFILL_ID_NAMESPACE,
-  ),
-  createCompanyWorkflowVersionId: v5(
-    `createCompanyWorkflowVersion:${workspaceId}`,
-    WORKFLOW_PREFILL_ID_NAMESPACE,
-  ),
-  createCompanyAutomatedTriggerId: v5(
-    `createCompanyAutomatedTrigger:${workspaceId}`,
-    WORKFLOW_PREFILL_ID_NAMESPACE,
-  ),
   coreQuickLeadWorkflowId: v5(
     `coreQuickLeadWorkflow:${workspaceId}`,
     WORKFLOW_PREFILL_ID_NAMESPACE,
@@ -74,17 +55,11 @@ export const getWorkflowPrefillIds = (workspaceId: string) => ({
 export const prefillWorkflows = async (
   entityManager: EntityManager,
   workspaceId: string,
-  schemaName: string,
   flatObjectMetadataMaps: FlatEntityMaps<FlatObjectMetadata>,
   flatFieldMetadataMaps: FlatEntityMaps<FlatFieldMetadata>,
   applicationIdParam?: string,
 ) => {
   const {
-    quickLeadWorkflowId,
-    quickLeadWorkflowVersionId,
-    createCompanyWorkflowId,
-    createCompanyWorkflowVersionId,
-    createCompanyAutomatedTriggerId,
     coreQuickLeadWorkflowId,
     coreCreateCompanyWorkflowId,
     coreQuickLeadWorkflowVersionId,
@@ -177,68 +152,7 @@ export const prefillWorkflows = async (
   await entityManager
     .createQueryBuilder()
     .insert()
-    .into(`${schemaName}.workflow`, [
-      'id',
-      'name',
-      'lastPublishedVersionId',
-      'statuses',
-      'position',
-      'createdBySource',
-      'createdByWorkspaceMemberId',
-      'createdByName',
-      'createdByContext',
-      'updatedBySource',
-      'updatedByWorkspaceMemberId',
-      'updatedByName',
-      'coreWorkflowId',
-    ])
-    .orIgnore()
-    .values([
-      {
-        id: quickLeadWorkflowId,
-        name: 'Quick Lead',
-        lastPublishedVersionId: quickLeadWorkflowVersionId,
-        statuses: ['ACTIVE'],
-        position: 1,
-        createdBySource: FieldActorSource.SYSTEM,
-        createdByWorkspaceMemberId: null,
-        createdByName: 'System',
-        createdByContext: {},
-        updatedBySource: FieldActorSource.SYSTEM,
-        updatedByWorkspaceMemberId: null,
-        updatedByName: 'System',
-        coreWorkflowId: coreQuickLeadWorkflowId,
-      },
-      {
-        id: createCompanyWorkflowId,
-        name: 'Create company when adding a new person',
-        lastPublishedVersionId: createCompanyWorkflowVersionId,
-        statuses: ['ACTIVE'],
-        position: 2,
-        createdBySource: FieldActorSource.SYSTEM,
-        createdByWorkspaceMemberId: null,
-        createdByName: 'System',
-        createdByContext: {},
-        updatedBySource: FieldActorSource.SYSTEM,
-        updatedByWorkspaceMemberId: null,
-        updatedByName: 'System',
-        coreWorkflowId: coreCreateCompanyWorkflowId,
-      },
-    ])
-    .returning('*')
-    .execute();
-
-  await entityManager
-    .createQueryBuilder()
-    .insert()
-    .into('core.workflow', [
-      'id',
-      'workspaceId',
-      'universalIdentifier',
-      'applicationId',
-      'name',
-      'lastPublishedVersionId',
-    ])
+    .into(WorkflowEntity)
     .orIgnore()
     .values([
       {
@@ -247,7 +161,7 @@ export const prefillWorkflows = async (
         universalIdentifier: quickLeadWorkflowUniversalIdentifier,
         applicationId,
         name: 'Quick Lead',
-        lastPublishedVersionId: quickLeadWorkflowVersionId,
+        lastPublishedCoreWorkflowVersionId: coreQuickLeadWorkflowVersionId,
       },
       {
         id: coreCreateCompanyWorkflowId,
@@ -255,7 +169,7 @@ export const prefillWorkflows = async (
         universalIdentifier: createCompanyWorkflowUniversalIdentifier,
         applicationId,
         name: 'Create company when adding a new person',
-        lastPublishedVersionId: createCompanyWorkflowVersionId,
+        lastPublishedCoreWorkflowVersionId: coreCreateCompanyWorkflowVersionId,
       },
     ])
     .execute();
@@ -380,7 +294,7 @@ export const prefillWorkflows = async (
           },
         },
         errorHandlingOptions: {
-          retryOnFailure: { value: false },
+          retryOnFailure: { value: 0 },
           continueOnFailure: { value: false },
         },
       },
@@ -423,7 +337,7 @@ export const prefillWorkflows = async (
           }),
         },
         errorHandlingOptions: {
-          retryOnFailure: { value: false },
+          retryOnFailure: { value: 0 },
           continueOnFailure: { value: false },
         },
       },
@@ -447,6 +361,7 @@ export const prefillWorkflows = async (
               primaryEmail: '{{6e089bc9-aabd-435f-865f-f31c01c8f4a7.email}}',
               additionalEmails: [],
             },
+            jobTitle: '{{6e089bc9-aabd-435f-865f-f31c01c8f4a7.jobTitle}}',
             companyId: '{{0715b6cd-7cc1-4b98-971b-00f54dfe643b.id}}',
           },
         },
@@ -460,7 +375,7 @@ export const prefillWorkflows = async (
           }),
         },
         errorHandlingOptions: {
-          retryOnFailure: { value: false },
+          retryOnFailure: { value: 0 },
           continueOnFailure: { value: false },
         },
       },
@@ -476,7 +391,7 @@ export const prefillWorkflows = async (
       type: 'CODE',
       valid: false,
       position: {
-        x: 227.25,
+        x: 0,
         y: 130,
       },
       settings: {
@@ -496,7 +411,7 @@ export const prefillWorkflows = async (
         },
         errorHandlingOptions: {
           retryOnFailure: {
-            value: false,
+            value: 0,
           },
           continueOnFailure: {
             value: false,
@@ -512,7 +427,7 @@ export const prefillWorkflows = async (
       type: 'FILTER',
       valid: false,
       position: {
-        x: 249.25,
+        x: 0,
         y: 260,
       },
       settings: {
@@ -540,7 +455,7 @@ export const prefillWorkflows = async (
         outputSchema: {},
         errorHandlingOptions: {
           retryOnFailure: {
-            value: false,
+            value: 0,
           },
           continueOnFailure: {
             value: false,
@@ -556,7 +471,7 @@ export const prefillWorkflows = async (
       type: 'CODE',
       valid: false,
       position: {
-        x: 219.75,
+        x: 0,
         y: 390,
       },
       settings: {
@@ -584,7 +499,7 @@ export const prefillWorkflows = async (
         },
         errorHandlingOptions: {
           retryOnFailure: {
-            value: false,
+            value: 0,
           },
           continueOnFailure: {
             value: false,
@@ -600,7 +515,7 @@ export const prefillWorkflows = async (
       type: 'FIND_RECORDS',
       valid: false,
       position: {
-        x: 247.75,
+        x: 0,
         y: 520,
       },
       settings: {
@@ -632,7 +547,7 @@ export const prefillWorkflows = async (
         outputSchema: {},
         errorHandlingOptions: {
           retryOnFailure: {
-            value: false,
+            value: 0,
           },
           continueOnFailure: {
             value: false,
@@ -648,7 +563,7 @@ export const prefillWorkflows = async (
       type: 'CODE',
       valid: false,
       position: {
-        x: 247.75,
+        x: 0,
         y: 650,
       },
       settings: {
@@ -675,7 +590,7 @@ export const prefillWorkflows = async (
         },
         errorHandlingOptions: {
           retryOnFailure: {
-            value: false,
+            value: 0,
           },
           continueOnFailure: {
             value: false,
@@ -691,7 +606,7 @@ export const prefillWorkflows = async (
       type: 'IF_ELSE',
       valid: false,
       position: {
-        x: 216.25,
+        x: 0,
         y: 780,
       },
       settings: {
@@ -730,7 +645,7 @@ export const prefillWorkflows = async (
         outputSchema: {},
         errorHandlingOptions: {
           retryOnFailure: {
-            value: false,
+            value: 0,
           },
           continueOnFailure: {
             value: false,
@@ -745,7 +660,7 @@ export const prefillWorkflows = async (
       type: 'UPDATE_RECORD',
       valid: false,
       position: {
-        x: 0,
+        x: IF_ELSE_BRANCH_POSITION_OFFSETS.IF.x,
         y: 910,
       },
       settings: {
@@ -760,7 +675,7 @@ export const prefillWorkflows = async (
         outputSchema: {},
         errorHandlingOptions: {
           retryOnFailure: {
-            value: false,
+            value: 0,
           },
           continueOnFailure: {
             value: false,
@@ -775,7 +690,7 @@ export const prefillWorkflows = async (
       type: 'CREATE_RECORD',
       valid: false,
       position: {
-        x: 440,
+        x: IF_ELSE_BRANCH_POSITION_OFFSETS.ELSE.x,
         y: 910,
       },
       settings: {
@@ -793,7 +708,7 @@ export const prefillWorkflows = async (
         outputSchema: {},
         errorHandlingOptions: {
           retryOnFailure: {
-            value: false,
+            value: 0,
           },
           continueOnFailure: {
             value: false,
@@ -809,7 +724,7 @@ export const prefillWorkflows = async (
       type: 'UPDATE_RECORD',
       valid: false,
       position: {
-        x: 420.5,
+        x: IF_ELSE_BRANCH_POSITION_OFFSETS.ELSE.x,
         y: 1040,
       },
       settings: {
@@ -824,7 +739,7 @@ export const prefillWorkflows = async (
         outputSchema: {},
         errorHandlingOptions: {
           retryOnFailure: {
-            value: false,
+            value: 0,
           },
           continueOnFailure: {
             value: false,
@@ -838,45 +753,6 @@ export const prefillWorkflows = async (
   await entityManager
     .createQueryBuilder()
     .insert()
-    .into(`${schemaName}.workflowVersion`, [
-      'id',
-      'name',
-      'trigger',
-      'steps',
-      'status',
-      'position',
-      'workflowId',
-      'coreWorkflowVersionId',
-    ])
-    .orIgnore()
-    .values([
-      {
-        id: quickLeadWorkflowVersionId,
-        name: 'v1',
-        trigger: JSON.stringify(quickLeadTrigger),
-        steps: quickLeadSteps,
-        status: 'ACTIVE',
-        position: 1,
-        workflowId: quickLeadWorkflowId,
-        coreWorkflowVersionId: coreQuickLeadWorkflowVersionId,
-      },
-      {
-        id: createCompanyWorkflowVersionId,
-        name: 'v1',
-        trigger: JSON.stringify(createCompanyTrigger),
-        steps: createCompanySteps,
-        status: 'ACTIVE',
-        position: 2,
-        workflowId: createCompanyWorkflowId,
-        coreWorkflowVersionId: coreCreateCompanyWorkflowVersionId,
-      },
-    ])
-    .returning('*')
-    .execute();
-
-  await entityManager
-    .createQueryBuilder()
-    .insert()
     .into('core.workflowVersion', [
       'id',
       'workspaceId',
@@ -885,7 +761,7 @@ export const prefillWorkflows = async (
       'triggers',
       'steps',
       'status',
-      'workflowId',
+      'coreWorkflowId',
     ])
     .orIgnore()
     .values([
@@ -897,7 +773,7 @@ export const prefillWorkflows = async (
         triggers: [quickLeadTrigger],
         steps: JSON.parse(quickLeadSteps),
         status: 'ACTIVE',
-        workflowId: quickLeadWorkflowId,
+        coreWorkflowId: coreQuickLeadWorkflowId,
       },
       {
         id: coreCreateCompanyWorkflowVersionId,
@@ -907,31 +783,7 @@ export const prefillWorkflows = async (
         triggers: [createCompanyTrigger],
         steps: JSON.parse(createCompanySteps),
         status: 'ACTIVE',
-        workflowId: createCompanyWorkflowId,
-      },
-    ])
-    .execute();
-
-  await entityManager
-    .createQueryBuilder()
-    .insert()
-    .into(`${schemaName}.workflowAutomatedTrigger`, [
-      'id',
-      'workflowId',
-      'type',
-      'settings',
-    ])
-    .orIgnore()
-    .values([
-      {
-        id: createCompanyAutomatedTriggerId,
-        workflowId: createCompanyWorkflowId,
-        type: 'DATABASE_EVENT',
-        settings: {
-          eventName: 'person.upserted',
-          fields: ['emails'],
-          filter: personSyncSourceFilter,
-        },
+        coreWorkflowId: coreCreateCompanyWorkflowId,
       },
     ])
     .execute();

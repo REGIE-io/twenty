@@ -11,7 +11,7 @@ import {
   selectSearchVectorBackfillJobsToClaim,
   upsertSearchVectorBackfillJob,
 } from 'src/engine/core-modules/search-vector-trigger/utils/search-vector-backfill.util';
-import { type AllUniversalWorkspaceMigrationAction } from 'src/engine/workspace-manager/workspace-migration/workspace-migration-builder/types/workspace-migration-action-common';
+import { type AllUniversalWorkspaceMigrationAction } from 'src/engine/workspace-manager/workspace-migration/workspace-migration-builder/types/workspace-migration-action-common.type';
 
 const FIELD_ID = 'field-id';
 const OTHER_FIELD_ID = 'other-field-id';

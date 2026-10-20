@@ -16,7 +16,7 @@ import {
   type GraphQLResolveInfo,
 } from 'graphql';
 import { SOURCE_LOCALE } from 'twenty-shared/translations';
-import { isDefined } from 'twenty-shared/utils';
+import { isDefined, isNonEmptyArray } from 'twenty-shared/utils';
 
 import graphqlFields from 'graphql-fields';
 import { STANDARD_ERROR_MESSAGE } from 'src/engine/api/common/common-query-runners/errors/standard-error-message.constant';
@@ -68,15 +68,19 @@ import { UpdateManyResolverFactory } from 'src/engine/api/graphql/workspace-reso
 import { UpdateOneResolverFactory } from 'src/engine/api/graphql/workspace-resolver-builder/factories/update-one-resolver.factory';
 import { type WorkspaceResolverBuilderFactoryInterface } from 'src/engine/api/graphql/workspace-resolver-builder/interfaces/workspace-resolver-builder-factory.interface';
 import { type WorkspaceSchemaBuilderContext } from 'src/engine/api/graphql/workspace-schema-builder/interfaces/workspace-schema-builder-context.interface';
+import { ExceptionHandlerService } from 'src/engine/core-modules/exception-handler/exception-handler.service';
+import { getGraphqlOperationMetricKeyFromErrorCode } from 'src/engine/core-modules/graphql/utils/get-graphql-operation-metric-key-from-error-code.util';
 import { UserInputError } from 'src/engine/core-modules/graphql/utils/graphql-errors.util';
 import { I18nService } from 'src/engine/core-modules/i18n/i18n.service';
 import { MetricsService } from 'src/engine/core-modules/metrics/metrics.service';
+import { MetricsKeys } from 'src/engine/core-modules/metrics/types/metrics-keys.type';
 import { TwentyConfigService } from 'src/engine/core-modules/twenty-config/twenty-config.service';
 import { WorkspaceManyOrAllFlatEntityMapsCacheService } from 'src/engine/metadata-modules/flat-entity/services/workspace-many-or-all-flat-entity-maps-cache.service';
 import { buildObjectIdByNameMaps } from 'src/engine/metadata-modules/flat-object-metadata/utils/build-object-id-by-name-maps.util';
 import { WorkspaceCacheService } from 'src/engine/workspace-cache/services/workspace-cache.service';
+import { shouldCaptureException } from 'src/engine/utils/global-exception-handler.util';
 
-type DirectExecutionResult = {
+export type DirectExecutionResult = {
   data?: Record<string, unknown>;
   errors?: GraphQLFormattedError[];
 };
@@ -120,6 +124,7 @@ export class DirectExecutionService {
     private readonly restoreOneResolverFactory: RestoreOneResolverFactory,
     private readonly restoreManyResolverFactory: RestoreManyResolverFactory,
     private readonly mergeManyResolverFactory: MergeManyResolverFactory,
+    private readonly exceptionHandlerService: ExceptionHandlerService,
   ) {
     this.queryCostHistogram = this.metricsService
       .getMeter()
@@ -204,6 +209,24 @@ export class DirectExecutionService {
     );
   }
 
+  recordOperationMetrics(result: Pick<DirectExecutionResult, 'errors'>): void {
+    if (!isNonEmptyArray(result.errors)) {
+      void this.metricsService.incrementCounterForEvent({
+        key: MetricsKeys.GraphqlOperation200,
+      });
+
+      return;
+    }
+
+    for (const error of result.errors) {
+      void this.metricsService.incrementCounterForEvent({
+        key:
+          getGraphqlOperationMetricKeyFromErrorCode(error.extensions?.code) ??
+          MetricsKeys.GraphqlOperationUnknown,
+      });
+    }
+  }
+
   private async executeWorkspaceQuery(
     req: Request,
     document: DocumentNode,
@@ -229,12 +252,12 @@ export class DirectExecutionService {
       const {
         graphQLResolverNameMap,
         flatObjectMetadataMaps,
-        flatFieldMetadataMaps,
+        flatFieldMetadataMapsOrm: flatFieldMetadataMaps,
         flatIndexMaps,
       } = await this.workspaceCacheService.getOrRecompute(workspaceId, [
         'graphQLResolverNameMap',
         'flatObjectMetadataMaps',
-        'flatFieldMetadataMaps',
+        'flatFieldMetadataMapsOrm',
         'flatIndexMaps',
       ]);
 
@@ -421,6 +444,10 @@ export class DirectExecutionService {
       workspaceQueryRunnerGraphqlApiExceptionHandler(error);
     } catch (graphqlError) {
       if (graphqlError instanceof GraphQLError) {
+        if (shouldCaptureException(graphqlError)) {
+          this.exceptionHandlerService.captureExceptions([error]);
+        }
+
         const json = graphqlError.toJSON();
 
         if (json.extensions?.userFriendlyMessage) {
@@ -434,6 +461,10 @@ export class DirectExecutionService {
 
         return json;
       }
+    }
+
+    if (shouldCaptureException(error)) {
+      this.exceptionHandlerService.captureExceptions([error]);
     }
 
     return {

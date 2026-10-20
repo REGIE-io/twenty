@@ -27,13 +27,19 @@ export const EmailToolInputZodSchema = z.object({
   body: z
     .union([emailDocumentSchema, z.string()])
     .describe(
-      'The email body. Preferred: a structured email document ({type: "doc", content: [...]} with paragraph, heading, bulletList/orderedList, image, button, section, divider and html blocks), rendered to email-safe HTML server-side. An HTML string is also accepted. Campaign-style {{variables}} are not substituted in 1:1 emails.',
+      'TipTap JSON (editor.getJSON() format). Example: {"type":"doc","content":[{"type":"paragraph","content":[{"type":"text","text":"Hi Alice,"}]},{"type":"paragraph"},{"type":"bulletList","content":[{"type":"listItem","content":[{"type":"paragraph","content":[{"type":"text","text":"Point","marks":[{"type":"bold"}]}]}]}]},{"type":"paragraph","content":[{"type":"text","text":"Site","marks":[{"type":"link","attrs":{"href":"https://twenty.com"}}]}]}]}. Rules: doc.content holds only blocks: paragraph, heading (attrs.level 1, 2 or 3), bulletList, orderedList, image (attrs.src). Each listItem holds a paragraph. Text nodes go inside paragraph or heading and are never empty; a blank line is {"type":"paragraph"}, a line break is {"type":"hardBreak"}. Marks are objects: bold, italic, underline, strike, link (attrs.href). Not supported: blockquote, codeBlock, horizontalRule. Write real values: {{...}} placeholders are sent literally. A string is also accepted: HTML markup is sent as-is, anything else as plain text.',
     ),
   connectedAccountId: z
     .string()
     .refine((val) => isValidUuid(val))
     .describe(
-      'The UUID of the connected account to send the email from. Provide this only if you have it; otherwise, leave blank.',
+      'The UUID of the connected account to send the email from. When the user has not said which address to send from, call find_connected_accounts first: if it returns exactly one account use that id, and if it returns several ask the user which one before sending. Leave blank only when no account id could be determined.',
+    )
+    .optional(),
+  fromHandle: z
+    .string()
+    .describe(
+      'The address to send from. Must be the connected account handle or one of its verified aliases. Leave blank to send from the connected account handle.',
     )
     .optional(),
   files: z

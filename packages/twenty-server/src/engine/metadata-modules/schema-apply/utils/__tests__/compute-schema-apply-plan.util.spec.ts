@@ -3,9 +3,8 @@ import {
   RelationOnDeleteAction,
   RelationType,
   ViewType,
+  IndexType,
 } from 'twenty-shared/types';
-
-import { IndexType } from 'src/engine/metadata-modules/index-metadata/types/indexType.types';
 import { type ApplySchemaFieldInput } from 'src/engine/metadata-modules/schema-apply/dtos/apply-schema-field.input';
 import { type ApplySchemaObjectInput } from 'src/engine/metadata-modules/schema-apply/dtos/apply-schema-object.input';
 import {

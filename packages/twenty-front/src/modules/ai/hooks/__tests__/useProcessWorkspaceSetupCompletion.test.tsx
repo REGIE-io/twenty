@@ -1,11 +1,13 @@
+import { AiChatSurfaceContext } from '@/ai/contexts/AiChatSurfaceContext';
+import { AI_CHAT_SURFACE } from '@/ai/constants/AiChatSurface';
+import { shouldOpenAiChatAfterOnboardingState } from '@/onboarding/states/shouldOpenAiChatAfterOnboardingState';
 import { act, renderHook } from '@testing-library/react';
 import { Provider as JotaiProvider } from 'jotai';
 import { type ReactNode } from 'react';
 import { type ExtendedUIMessage } from 'twenty-shared/ai';
 
-import { AgentChatComponentInstanceContext } from '@/ai/contexts/AgentChatComponentInstanceContext';
 import { useProcessWorkspaceSetupCompletion } from '@/ai/hooks/useProcessWorkspaceSetupCompletion';
-import { processedToolExecutionPartIdsComponentState } from '@/ai/states/processedToolExecutionPartIdsComponentState';
+import { processedWorkspaceSetupCompletionIdsState } from '@/ai/states/processedWorkspaceSetupCompletionIdsState';
 import { shouldContinueAiChatInSidePanelState } from '@/ai/states/shouldContinueAiChatInSidePanelState';
 import {
   jotaiStore,
@@ -20,8 +22,9 @@ jest.mock('react-router-dom', () => ({
   useLocation: () => ({ state: null }),
 }));
 
+let defaultHomePagePath = '/objects/people';
 jest.mock('@/navigation/hooks/useDefaultHomePagePath', () => ({
-  useDefaultHomePagePath: () => ({ defaultHomePagePath: '/objects/people' }),
+  useDefaultHomePagePath: () => ({ defaultHomePagePath }),
 }));
 
 const closeSidePanelMenuMock = jest.fn();
@@ -36,15 +39,11 @@ jest.mock('@/ai/hooks/useIsWorkspaceSetupChat', () => ({
   useIsWorkspaceSetupChat: () => isWorkspaceSetupChat,
 }));
 
-const INSTANCE_ID = 'processWorkspaceSetupCompletionTest';
-
 const Wrapper = ({ children }: { children: ReactNode }) => (
   <JotaiProvider store={jotaiStore}>
-    <AgentChatComponentInstanceContext.Provider
-      value={{ instanceId: INSTANCE_ID }}
-    >
+    <AiChatSurfaceContext.Provider value={AI_CHAT_SURFACE.PAGE}>
       {children}
-    </AgentChatComponentInstanceContext.Provider>
+    </AiChatSurfaceContext.Provider>
   </JotaiProvider>
 );
 
@@ -64,11 +63,7 @@ const buildCompletionMessage = (toolCallId: string) =>
   ]);
 
 const getProcessedToolCallIds = () =>
-  jotaiStore.get(
-    processedToolExecutionPartIdsComponentState.atomFamily({
-      instanceId: INSTANCE_ID,
-    }),
-  );
+  jotaiStore.get(processedWorkspaceSetupCompletionIdsState.atom);
 
 describe('useProcessWorkspaceSetupCompletion', () => {
   beforeEach(() => {
@@ -76,9 +71,36 @@ describe('useProcessWorkspaceSetupCompletion', () => {
     sessionStorage.clear();
     resetJotaiStore();
     isWorkspaceSetupChat = true;
+    defaultHomePagePath = '/objects/people';
   });
 
-  it('should redirect to the companies view and move the chat to the side panel', () => {
+  it('keeps the current page and side panel open when setup finishes there', () => {
+    jotaiStore.set(shouldOpenAiChatAfterOnboardingState.atom, true);
+    const { result } = renderHook(() => useProcessWorkspaceSetupCompletion(), {
+      wrapper: ({ children }) => (
+        <Wrapper>
+          <AiChatSurfaceContext.Provider value={AI_CHAT_SURFACE.SIDE_PANEL}>
+            {children}
+          </AiChatSurfaceContext.Provider>
+        </Wrapper>
+      ),
+    });
+
+    act(() =>
+      result.current.processWorkspaceSetupCompletion(
+        buildCompletionMessage('side-panel-call'),
+      ),
+    );
+
+    expect(navigateMock).not.toHaveBeenCalled();
+    expect(closeSidePanelMenuMock).not.toHaveBeenCalled();
+    expect(jotaiStore.get(shouldOpenAiChatAfterOnboardingState.atom)).toBe(
+      false,
+    );
+    expect(getProcessedToolCallIds()).toEqual(['side-panel-call']);
+  });
+
+  it('should redirect to the available homepage and move the chat to the side panel', () => {
     jotaiStore.set(shouldContinueAiChatInSidePanelState.atom, true);
 
     const { result } = renderHook(() => useProcessWorkspaceSetupCompletion(), {
@@ -91,7 +113,7 @@ describe('useProcessWorkspaceSetupCompletion', () => {
       );
     });
 
-    expect(navigateMock).toHaveBeenCalledWith('/objects/companies');
+    expect(navigateMock).toHaveBeenCalledWith('/objects/people');
     expect(closeSidePanelMenuMock).not.toHaveBeenCalled();
     expect(jotaiStore.get(shouldContinueAiChatInSidePanelState.atom)).toBe(
       true,
@@ -112,6 +134,30 @@ describe('useProcessWorkspaceSetupCompletion', () => {
     });
 
     expect(navigateMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('returns to settings and ends setup when no readable object homepage exists', () => {
+    defaultHomePagePath = '/settings/profile';
+    jotaiStore.set(shouldOpenAiChatAfterOnboardingState.atom, true);
+    jotaiStore.set(shouldContinueAiChatInSidePanelState.atom, true);
+    const { result } = renderHook(() => useProcessWorkspaceSetupCompletion(), {
+      wrapper: Wrapper,
+    });
+
+    act(() =>
+      result.current.processWorkspaceSetupCompletion(
+        buildCompletionMessage('fallback-call'),
+      ),
+    );
+
+    expect(navigateMock).toHaveBeenCalledWith('/settings/profile');
+    expect(jotaiStore.get(shouldOpenAiChatAfterOnboardingState.atom)).toBe(
+      false,
+    );
+    expect(jotaiStore.get(shouldContinueAiChatInSidePanelState.atom)).toBe(
+      false,
+    );
+    expect(closeSidePanelMenuMock).toHaveBeenCalledTimes(1);
   });
 
   it('should not redirect when the chat already left the setup page', () => {

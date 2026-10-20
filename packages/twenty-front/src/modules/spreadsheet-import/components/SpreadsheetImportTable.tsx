@@ -1,29 +1,33 @@
 import { styled } from '@linaria/react';
-import { useContext } from 'react';
-import { DataGrid, type DataGridProps } from 'react-data-grid';
+import { type Key } from 'react';
+import { type SpreadsheetImportTableProps } from '@/spreadsheet-import/types/SpreadsheetImportTableProps';
+import { DataGrid } from 'react-data-grid';
 import 'react-data-grid/lib/styles.css';
 import { useSpreadsheetImportInternal } from '@/spreadsheet-import/hooks/useSpreadsheetImportInternal';
-import { ThemeContext, themeCssVariables } from 'twenty-ui/theme-constants';
+import { useThemeColorScheme, themeCssVariables } from 'twenty-ui/theme';
 
 const StyledDataGridContainer = styled.div<{ headerRowHeight?: number }>`
   --rdg-background-color: ${themeCssVariables.background.primary};
   --rdg-border-color: ${themeCssVariables.border.color.medium};
   --rdg-color: ${themeCssVariables.font.color.primary};
-  --rdg-error-cell-background-color: ${themeCssVariables.color.transparent
-    .red5};
+  --rdg-error-cell-background-color: ${
+    themeCssVariables.color.transparent.red5
+  };
   --rdg-font-size: ${themeCssVariables.font.size.sm};
   --rdg-frozen-cell-box-shadow: none;
   --rdg-header-background-color: ${themeCssVariables.background.primary};
   --rdg-info-cell-background-color: ${themeCssVariables.color.blue};
   --rdg-row-hover-background-color: ${themeCssVariables.background.secondary};
   --rdg-row-selected-background-color: ${themeCssVariables.background.primary};
-  --rdg-row-selected-hover-background-color: ${themeCssVariables.background
-    .secondary};
+  --rdg-row-selected-hover-background-color: ${
+    themeCssVariables.background.secondary
+  };
   --rdg-selection-color: ${themeCssVariables.color.blue};
   --rdg-summary-border-color: ${themeCssVariables.border.color.medium};
   --rdg-warning-cell-background-color: ${themeCssVariables.color.orange};
-  --row-selected-hover-background-color: ${themeCssVariables.background
-    .secondary};
+  --row-selected-hover-background-color: ${
+    themeCssVariables.background.secondary
+  };
   flex: 1;
   min-height: 0;
 
@@ -105,59 +109,41 @@ const StyledDataGridContainer = styled.div<{ headerRowHeight?: number }>`
   }
 `;
 
-type SpreadsheetImportTableProps<Data> = Pick<
-  DataGridProps<Data>,
-  | 'selectedRows'
-  | 'onSelectedRowsChange'
-  | 'columns'
-  | 'headerRowHeight'
-  | 'rowKeyGetter'
-  | 'rows'
-> &
-  Partial<
-    Pick<DataGridProps<Data>, 'onCellClick' | 'renderers' | 'onRowsChange'>
-  > & {
-    className?: string;
-    rowHeight?: number;
-    hiddenHeader?: boolean;
-  };
-
-export const SpreadsheetImportTable = <Data,>({
+export const SpreadsheetImportTable = <TData, TRowKey extends Key = Key>({
   className,
   columns,
-  renderers,
   headerRowHeight,
-  rowKeyGetter,
   rows,
+  rowKeyGetter,
+  renderers,
   onRowsChange,
   onCellClick,
-  onSelectedRowsChange,
+  onSelectedCellChange,
   selectedRows,
-}: SpreadsheetImportTableProps<Data>) => {
-  const { colorScheme } = useContext(ThemeContext);
-
+  onSelectedRowsChange,
+}: SpreadsheetImportTableProps<TData, TRowKey>) => {
+  const colorScheme = useThemeColorScheme();
   const { rtl } = useSpreadsheetImportInternal();
   const themeClassName = colorScheme === 'dark' ? 'rdg-dark' : 'rdg-light';
 
-  if (!rows?.length || !columns?.length) return null;
+  if (!rows.length || !columns.length) return null;
 
   return (
     <StyledDataGridContainer headerRowHeight={headerRowHeight ?? undefined}>
       <DataGrid
         direction={rtl ? 'rtl' : 'ltr'}
         rowHeight={40}
-        {...{
-          className: `${className || ''} ${themeClassName}`,
-          columns,
-          headerRowHeight,
-          rowKeyGetter,
-          onRowsChange,
-          rows,
-          renderers,
-          onCellClick,
-          onSelectedRowsChange,
-          selectedRows,
-        }}
+        className={`${className || ''} ${themeClassName}`}
+        headerRowHeight={headerRowHeight}
+        columns={columns}
+        rows={rows}
+        rowKeyGetter={rowKeyGetter}
+        renderers={renderers}
+        onRowsChange={onRowsChange}
+        onCellClick={onCellClick}
+        onSelectedCellChange={onSelectedCellChange}
+        selectedRows={selectedRows}
+        onSelectedRowsChange={onSelectedRowsChange}
       />
     </StyledDataGridContainer>
   );

@@ -1,12 +1,12 @@
 import { Module } from '@nestjs/common';
+
+import { ApplicationTranslationCatalogModule } from 'src/engine/metadata-modules/application-translation-catalog/application-translation-catalog.module';
 import { TypeOrmModule } from '@nestjs/typeorm';
 
-import { TypeORMModule } from 'src/database/typeorm/typeorm.module';
-import { ApplicationTranslationModule } from 'src/engine/core-modules/application/application-translation/application-translation.module';
 import { ApplicationModule } from 'src/engine/core-modules/application/application.module';
 import { TokenModule } from 'src/engine/core-modules/auth/token/token.module';
-import { FeatureFlagEntity } from 'src/engine/core-modules/feature-flag/feature-flag.entity';
 import { FeatureFlagModule } from 'src/engine/core-modules/feature-flag/feature-flag.module';
+import { DerivedFieldMetadataIdsModule } from 'src/engine/metadata-modules/derived-field-metadata-ids/derived-field-metadata-ids.module';
 import { FieldMetadataEntity } from 'src/engine/metadata-modules/field-metadata/field-metadata.entity';
 import { WorkspaceManyOrAllFlatEntityMapsCacheModule } from 'src/engine/metadata-modules/flat-entity/services/workspace-many-or-all-flat-entity-maps-cache.module';
 import { IndexMetadataModule } from 'src/engine/metadata-modules/index-metadata/index-metadata.module';
@@ -18,35 +18,26 @@ import { ObjectMetadataService } from 'src/engine/metadata-modules/object-metada
 import { ObjectRecordCountService } from 'src/engine/metadata-modules/object-metadata/object-record-count.service';
 import { ObjectMetadataToolsFactory } from 'src/engine/metadata-modules/object-metadata/tools/object-metadata-tools.factory';
 import { PermissionsModule } from 'src/engine/metadata-modules/permissions/permissions.module';
-import { ViewFieldModule } from 'src/engine/metadata-modules/view-field/view-field.module';
-import { ViewEntity } from 'src/engine/metadata-modules/view/entities/view.entity';
 import { ViewModule } from 'src/engine/metadata-modules/view/view.module';
 import { WorkspaceCacheStorageModule } from 'src/engine/workspace-cache-storage/workspace-cache-storage.module';
 import { WorkspaceCacheModule } from 'src/engine/workspace-cache/workspace-cache.module';
-import { WorkspaceDataSourceModule } from 'src/engine/workspace-datasource/workspace-datasource.module';
 import { WorkspaceMigrationModule } from 'src/engine/workspace-manager/workspace-migration/workspace-migration.module';
+import { provideWorkspaceScopedRepository } from 'src/engine/twenty-orm/workspace-scoped-repository/provide-workspace-scoped-repository';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([
-      ObjectMetadataEntity,
-      FieldMetadataEntity,
-      FeatureFlagEntity,
-      ViewEntity,
-    ]),
+    ApplicationTranslationCatalogModule,
+    TypeOrmModule.forFeature([ObjectMetadataEntity, FieldMetadataEntity]),
     TokenModule,
     WorkspaceCacheStorageModule,
     FeatureFlagModule,
     ApplicationModule,
-    ApplicationTranslationModule,
     WorkspaceManyOrAllFlatEntityMapsCacheModule,
-    TypeORMModule,
+    DerivedFieldMetadataIdsModule,
     IndexMetadataModule,
     PermissionsModule,
-    WorkspaceDataSourceModule,
     WorkspaceMigrationModule,
     ViewModule,
-    ViewFieldModule,
     WorkspaceCacheModule,
   ],
   controllers: [ObjectMetadataController],
@@ -56,6 +47,8 @@ import { WorkspaceMigrationModule } from 'src/engine/workspace-manager/workspace
     ObjectRecordCountService,
     MostlyEmptyFieldsService,
     ObjectMetadataToolsFactory,
+    provideWorkspaceScopedRepository(ObjectMetadataEntity),
+    provideWorkspaceScopedRepository(FieldMetadataEntity),
   ],
   exports: [ObjectMetadataService, ObjectMetadataToolsFactory],
 })

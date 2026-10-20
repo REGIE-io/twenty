@@ -158,7 +158,7 @@ const makeServiceHarness = () => {
     ),
   };
 
-  const globalWorkspaceOrmManager = {
+  const workspaceOrmManager = {
     executeInWorkspaceContext: jest.fn(
       async (callback: () => Promise<StoredWorkspaceMember>) =>
         await callback(),
@@ -170,11 +170,11 @@ const makeServiceHarness = () => {
     workspaceRepository as never,
     userRepository as never,
     userWorkspaceRepository as never,
-    globalWorkspaceOrmManager as never,
+    workspaceOrmManager as never,
   );
 
   return {
-    globalWorkspaceOrmManager,
+    workspaceOrmManager,
     service,
     stores: {
       users,

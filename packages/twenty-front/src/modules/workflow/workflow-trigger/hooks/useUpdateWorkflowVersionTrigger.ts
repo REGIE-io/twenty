@@ -1,67 +1,41 @@
+import { useWorkflowEditorMutationErrorHandler } from '@/workflow/hooks/useWorkflowEditorMutationErrorHandler';
+import { invalidateCoreWorkflowVersions } from '@/object-core/workflows/versions/utils/invalidateCoreWorkflowVersions';
 import { useApolloCoreClient } from '@/object-metadata/hooks/useApolloCoreClient';
-import { useObjectMetadataItem } from '@/object-metadata/hooks/useObjectMetadataItem';
-import { useObjectMetadataItems } from '@/object-metadata/hooks/useObjectMetadataItems';
-import { useGetRecordFromCache } from '@/object-record/cache/hooks/useGetRecordFromCache';
-import { updateRecordFromCache } from '@/object-record/cache/utils/updateRecordFromCache';
-import { useObjectPermissions } from '@/object-record/hooks/useObjectPermissions';
 import { useSetAtomComponentState } from '@/ui/utilities/state/jotai/hooks/useSetAtomComponentState';
-import { flowComponentState } from '@/workflow/states/flowComponentState';
-import { useSnackBar } from '@/ui/feedback/snack-bar-manager/hooks/useSnackBar';
-import { UPDATE_WORKFLOW_VERSION_TRIGGER } from '@/workflow/graphql/mutations/updateWorkflowVersionTrigger';
 import { useGetUpdatableWorkflowVersionOrThrow } from '@/workflow/hooks/useGetUpdatableWorkflowVersionOrThrow';
-import {
-  type WorkflowTrigger,
-  type WorkflowVersion,
-} from '@/workflow/types/Workflow';
+import { flowComponentState } from '@/workflow/states/flowComponentState';
+import { type WorkflowTrigger } from '@/workflow/types/Workflow';
 import { useStepsOutputSchema } from '@/workflow/workflow-variables/hooks/useStepsOutputSchema';
 import { useMutation } from '@apollo/client/react';
-import { CoreObjectNameSingular } from 'twenty-shared/types';
 import { isDefined } from 'twenty-shared/utils';
 import { TRIGGER_STEP_ID } from 'twenty-shared/workflow';
-import {
-  type UpdateWorkflowVersionTriggerMutation,
-  type UpdateWorkflowVersionTriggerMutationVariables,
-} from '~/generated/graphql';
+import { UpdateCoreWorkflowVersionTriggerDocument } from '~/generated/graphql';
 
 export const useUpdateWorkflowVersionTrigger = (instanceId?: string) => {
   const apolloCoreClient = useApolloCoreClient();
-  const { objectMetadataItems } = useObjectMetadataItems();
-  const { objectPermissionsByObjectMetadataId } = useObjectPermissions();
-  const { enqueueErrorSnackBar } = useSnackBar();
+  const handleCoreMutationError =
+    useWorkflowEditorMutationErrorHandler(instanceId);
+  const [mutateCore] = useMutation(UpdateCoreWorkflowVersionTriggerDocument, {
+    client: apolloCoreClient,
+    onError: handleCoreMutationError,
+  });
 
   const { getUpdatableWorkflowVersion } =
     useGetUpdatableWorkflowVersionOrThrow(instanceId);
 
   const { markStepForRecomputation } = useStepsOutputSchema();
 
-  const { objectMetadataItem } = useObjectMetadataItem({
-    objectNameSingular: CoreObjectNameSingular.WorkflowVersion,
-  });
-  const getRecordFromCache = useGetRecordFromCache({
-    objectNameSingular: CoreObjectNameSingular.WorkflowVersion,
-  });
-
   const setFlow = useSetAtomComponentState(flowComponentState, instanceId);
-
-  const [mutate] = useMutation<
-    UpdateWorkflowVersionTriggerMutation,
-    UpdateWorkflowVersionTriggerMutationVariables
-  >(UPDATE_WORKFLOW_VERSION_TRIGGER, {
-    client: apolloCoreClient,
-  });
 
   const updateTrigger = async (updatedTrigger: WorkflowTrigger) => {
     const workflowVersionId = await getUpdatableWorkflowVersion();
 
-    const { data } = await mutate({
+    const { data } = await mutateCore({
       variables: {
         input: {
-          workflowVersionId,
+          coreWorkflowVersionId: workflowVersionId,
           trigger: updatedTrigger,
         },
-      },
-      onError: (error) => {
-        enqueueErrorSnackBar({ apolloError: error });
       },
     });
 
@@ -82,24 +56,7 @@ export const useUpdateWorkflowVersionTrigger = (instanceId?: string) => {
       return { ...currentFlow, workflowVersionId, trigger: updatedTrigger };
     });
 
-    const cachedRecord = getRecordFromCache<WorkflowVersion>(workflowVersionId);
-    if (!isDefined(cachedRecord)) {
-      return;
-    }
-
-    updateRecordFromCache({
-      objectMetadataItems,
-      objectMetadataItem,
-      cache: apolloCoreClient.cache,
-      record: {
-        ...cachedRecord,
-        trigger: updatedTrigger,
-      },
-      recordGqlFields: {
-        trigger: true,
-      },
-      objectPermissionsByObjectMetadataId,
-    });
+    await invalidateCoreWorkflowVersions(apolloCoreClient);
   };
 
   return {

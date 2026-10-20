@@ -1,0 +1,291 @@
+import { type Meta, type StoryObj } from '@storybook/react-vite';
+import { TabButton } from '@ui/components/navigation/TabButton/TabButton';
+import {
+  IconCheckbox,
+  IconChevronDown,
+  IconMail,
+  IconSearch,
+  IconSettings,
+  IconUser,
+} from '@ui/icon';
+import { Avatar } from '@ui/primitives/data-display/Avatar/Avatar';
+import { Badge } from '@ui/primitives/data-display/Badge/Badge';
+import { Tabs } from '@ui/primitives/navigation/Tabs/Tabs';
+import {
+  A11Y_DEFER_COLOR_CONTRAST,
+  AVATAR_URL_MOCK,
+  CatalogDecorator,
+  ComponentDecorator,
+  type CatalogStory,
+} from '@ui/testing';
+import { type ReactNode } from 'react';
+
+import styles from './TabButton.stories.module.scss';
+
+const TabContainer = ({ children }: { children?: ReactNode }) => {
+  return <div className={styles.tabContainer}>{children}</div>;
+};
+
+const meta: Meta<typeof TabButton> = {
+  id: 'ui-components-tabbutton',
+  title: 'UI/Components/Navigation/TabButton',
+  component: TabButton,
+  decorators: [ComponentDecorator],
+  args: {
+    children: 'Tab Title',
+    active: false,
+    disabled: false,
+    size: 'sm',
+  },
+  argTypes: {
+    startIcon: { control: false },
+    endIcon: { control: false },
+    badge: { control: 'text' },
+    size: {
+      control: 'select',
+      options: ['sm', 'md'],
+    },
+  },
+};
+
+export default meta;
+type Story = StoryObj<typeof TabButton>;
+
+export const Default: Story = {
+  args: {
+    children: 'General',
+    startIcon: <IconSettings />,
+  },
+  render: (args) => (
+    <TabContainer>
+      <TabButton {...args} />
+    </TabContainer>
+  ),
+};
+
+export const Active: Story = {
+  args: {
+    children: 'Active Tab',
+    startIcon: <IconUser />,
+    active: true,
+  },
+  render: (args) => (
+    <TabContainer>
+      <TabButton {...args} />
+    </TabContainer>
+  ),
+};
+
+export const Disabled: Story = {
+  args: {
+    children: 'Disabled Tab',
+    startIcon: <IconCheckbox />,
+    disabled: true,
+  },
+  render: (args) => (
+    <TabContainer>
+      <TabButton {...args} />
+    </TabContainer>
+  ),
+};
+
+export const WithLogo: Story = {
+  args: {
+    children: 'Company',
+    startIcon: (
+      <Avatar src={AVATAR_URL_MOCK} size="md" name="Company" aria-hidden />
+    ),
+  },
+  render: (args) => (
+    <TabContainer>
+      <TabButton {...args} />
+    </TabContainer>
+  ),
+};
+
+export const WithBadge: Story = {
+  args: {
+    children: 'Messages',
+    startIcon: <IconMail />,
+    badge: <Badge>12</Badge>,
+  },
+  render: (args) => (
+    <TabContainer>
+      <TabButton {...args} />
+    </TabContainer>
+  ),
+};
+
+export const WithBothIcons: Story = {
+  args: {
+    children: 'Search',
+    startIcon: <IconSearch />,
+    endIcon: <IconChevronDown />,
+  },
+  render: (args) => (
+    <TabContainer>
+      <TabButton {...args} />
+    </TabContainer>
+  ),
+};
+
+export const AsLink: Story = {
+  args: {
+    children: 'Link Tab',
+    startIcon: <IconUser />,
+    href: '/profile',
+  },
+  render: (args) => (
+    <TabContainer>
+      <TabButton {...args} />
+    </TabContainer>
+  ),
+};
+
+export const SmallContent: Story = {
+  args: {
+    children: 'Small',
+    startIcon: <IconSettings />,
+    size: 'sm',
+  },
+  render: (args) => (
+    <TabContainer>
+      <TabButton {...args} />
+    </TabContainer>
+  ),
+};
+
+export const MediumContent: Story = {
+  args: {
+    children: 'Medium',
+    startIcon: <IconSettings />,
+    size: 'md',
+  },
+  render: (args) => (
+    <TabContainer>
+      <TabButton {...args} />
+    </TabContainer>
+  ),
+};
+
+export const Catalog: CatalogStory<Story, typeof TabButton> = {
+  args: {
+    children: 'Tab title',
+    startIcon: <IconCheckbox />,
+  },
+  argTypes: {
+    active: { control: false },
+    disabled: { control: false },
+    onClick: { control: false },
+    href: { control: false },
+  },
+  render: (args) => (
+    <TabContainer>
+      <TabButton {...args} />
+    </TabContainer>
+  ),
+  parameters: {
+    a11y: A11Y_DEFER_COLOR_CONTRAST,
+    pseudo: { hover: ['.hover'], active: ['.active'] },
+    catalog: {
+      dimensions: [
+        {
+          name: 'states',
+          values: ['default', 'hover', 'active'],
+          props: (state: string) =>
+            state === 'default' ? {} : { className: state },
+        },
+        {
+          name: 'State',
+          values: ['active', 'inactive', 'disabled'],
+          labels: (state: string) => state,
+          props: (state: string) => ({
+            active: state === 'active',
+            disabled: state === 'disabled',
+          }),
+        },
+        {
+          name: 'Content Size',
+          values: ['sm', 'md'],
+          labels: (size: string) => size,
+          props: (size: string) => ({ size: size as 'sm' | 'md' }),
+        },
+        {
+          name: 'Content',
+          values: ['icon', 'logo', 'badge'],
+          props: (content: string) => {
+            switch (content) {
+              case 'icon':
+                return { startIcon: <IconSettings /> };
+              case 'logo':
+                return {
+                  startIcon: (
+                    <Avatar
+                      src={AVATAR_URL_MOCK}
+                      size="md"
+                      name="Company"
+                      aria-hidden
+                    />
+                  ),
+                };
+              case 'badge':
+                return { startIcon: <IconMail />, badge: <Badge>5</Badge> };
+              default:
+                return {};
+            }
+          },
+        },
+      ],
+    },
+    layout: 'centered',
+    viewport: {
+      defaultViewport: 'responsive',
+    },
+  },
+  decorators: [CatalogDecorator],
+};
+
+export const MatchingTabContent: Story = {
+  args: {
+    children: 'Messages',
+    startIcon: <IconMail />,
+    badge: <Badge>12</Badge>,
+  },
+  render: (args) => (
+    <>
+      <TabContainer>
+        <TabButton {...args} active />
+      </TabContainer>
+      <Tabs.Root defaultValue="messages">
+        <Tabs.List aria-label="Content appearance">
+          <Tabs.Tab
+            value="messages"
+            startIcon={args.startIcon}
+            badge={args.badge}
+          >
+            {args.children}
+          </Tabs.Tab>
+          <Tabs.Indicator />
+        </Tabs.List>
+        <Tabs.Panel value="messages">Messages content</Tabs.Panel>
+      </Tabs.Root>
+    </>
+  ),
+};
+
+export const CurrentRoute: Story = {
+  args: {
+    children: 'Overview',
+    href: '#overview',
+    active: true,
+    'aria-current': 'page',
+  },
+  render: (args) => (
+    <nav aria-label="Workspace pages">
+      <TabContainer>
+        <TabButton {...args} />
+        <TabButton href="#settings">Settings</TabButton>
+      </TabContainer>
+    </nav>
+  ),
+};

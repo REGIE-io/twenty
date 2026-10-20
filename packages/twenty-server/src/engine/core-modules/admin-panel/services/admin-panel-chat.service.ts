@@ -1,3 +1,5 @@
+import { InjectAgentHistoryRepository } from 'src/engine/metadata-modules/ai/ai-history/repositories/inject-agent-history-repository.decorator';
+import { AgentHistoryRepository } from 'src/engine/metadata-modules/ai/ai-history/repositories/agent-history-repository';
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 
@@ -8,23 +10,19 @@ import { type AdminChatMessageDTO } from 'src/engine/core-modules/admin-panel/dt
 import { type AdminWorkspaceChatThreadDTO } from 'src/engine/core-modules/admin-panel/dtos/admin-workspace-chat-thread.dto';
 import { UserInputError } from 'src/engine/core-modules/graphql/utils/graphql-errors.util';
 import { WorkspaceEntity } from 'src/engine/core-modules/workspace/workspace.entity';
-import { AgentMessageEntity } from 'src/engine/metadata-modules/ai/ai-agent-execution/entities/agent-message.entity';
-import { AgentChatThreadEntity } from 'src/engine/metadata-modules/ai/ai-chat/entities/agent-chat-thread.entity';
-import { InjectWorkspaceScopedRepository } from 'src/engine/twenty-orm/workspace-scoped-repository/inject-workspace-scoped-repository.decorator';
-import { WorkspaceScopedRepository } from 'src/engine/twenty-orm/workspace-scoped-repository/workspace-scoped-repository';
+import { AgentMessageRole } from 'src/engine/metadata-modules/ai/ai-history/enums/agent-message-role.enum';
+import { AgentMessageWorkspaceEntity } from 'src/engine/metadata-modules/ai/ai-history/standard-objects/agent-message.workspace-entity';
+import { AgentChatThreadWorkspaceEntity } from 'src/engine/metadata-modules/ai/ai-history/standard-objects/agent-chat-thread.workspace-entity';
 
 @Injectable()
 export class AdminPanelChatService {
   constructor(
     @InjectRepository(WorkspaceEntity)
     private readonly workspaceRepository: Repository<WorkspaceEntity>,
-    // Thread lookup is by id alone; the admin does not know the workspaceId
-    // upfront. assertWorkspaceAllowsImpersonation gates every other read.
-    // eslint-disable-next-line twenty/prefer-workspace-scoped-repository
-    @InjectRepository(AgentChatThreadEntity)
-    private readonly agentChatThreadRepository: Repository<AgentChatThreadEntity>,
-    @InjectWorkspaceScopedRepository(AgentMessageEntity)
-    private readonly agentMessageRepository: WorkspaceScopedRepository<AgentMessageEntity>,
+    @InjectAgentHistoryRepository('agentChatThread')
+    private readonly agentChatThreadRepository: AgentHistoryRepository<AgentChatThreadWorkspaceEntity>,
+    @InjectAgentHistoryRepository('agentMessage')
+    private readonly agentMessageRepository: AgentHistoryRepository<AgentMessageWorkspaceEntity>,
   ) {}
 
   private async assertWorkspaceAllowsImpersonation(
@@ -49,8 +47,7 @@ export class AdminPanelChatService {
   ): Promise<AdminWorkspaceChatThreadDTO[]> {
     await this.assertWorkspaceAllowsImpersonation(workspaceId);
 
-    const threads = await this.agentChatThreadRepository.find({
-      where: { workspaceId },
+    const threads = await this.agentChatThreadRepository.find(workspaceId, {
       order: { updatedAt: 'DESC' },
       take: 100,
     });
@@ -67,8 +64,8 @@ export class AdminPanelChatService {
       totalOutputTokens: thread.totalOutputTokens,
       conversationSize: thread.conversationSize,
       messageCount: messageCountByThreadId.get(thread.id) ?? 0,
-      createdAt: thread.createdAt,
-      updatedAt: thread.updatedAt,
+      createdAt: new Date(thread.createdAt),
+      updatedAt: new Date(thread.updatedAt),
     }));
   }
 
@@ -83,25 +80,33 @@ export class AdminPanelChatService {
       return new Map();
     }
 
-    const rows = await this.agentMessageRepository
-      .createQueryBuilder('message')
-      .select('"message"."threadId"', 'threadId')
-      .addSelect('COUNT(*)::int', 'messageCount')
-      .where(
-        '"message"."workspaceId" = :workspaceId AND "message"."threadId" IN (:...threadIds) AND "message"."isHidden" = false',
-        { workspaceId, threadIds },
-      )
-      .groupBy('"message"."threadId"')
-      .getRawMany<{ threadId: string; messageCount: number }>();
+    const rows = await this.agentMessageRepository.query(
+      workspaceId,
+      ({ manager, table }) =>
+        manager.query<{ threadId: string; messageCount: number }[]>(
+          `SELECT "threadId", COUNT(*)::int AS "messageCount" FROM ${table('agentMessage')}
+       WHERE "threadId" = ANY($1::uuid[]) AND role <> 'system'
+       GROUP BY "threadId"`,
+          [threadIds],
+        ),
+    );
 
     return new Map(rows.map((row) => [row.threadId, row.messageCount]));
   }
 
-  async getChatThreadMessages(threadId: string): Promise<{
+  async getChatThreadMessages({
+    workspaceId,
+    threadId,
+  }: {
+    workspaceId: string;
+    threadId: string;
+  }): Promise<{
     thread: AdminWorkspaceChatThreadDTO;
     messages: AdminChatMessageDTO[];
   }> {
-    const thread = await this.agentChatThreadRepository.findOne({
+    await this.assertWorkspaceAllowsImpersonation(workspaceId);
+
+    const thread = await this.agentChatThreadRepository.findOne(workspaceId, {
       where: { id: threadId },
     });
 
@@ -109,16 +114,11 @@ export class AdminPanelChatService {
       throw new UserInputError('Thread not found');
     }
 
-    await this.assertWorkspaceAllowsImpersonation(thread.workspaceId);
-
-    const messages = await this.agentMessageRepository.find(
-      thread.workspaceId,
-      {
-        where: { threadId },
-        relations: { parts: true },
-        order: { createdAt: 'ASC' },
-      },
-    );
+    const messages = await this.agentMessageRepository.find(workspaceId, {
+      where: { threadId },
+      relations: { parts: true },
+      order: { createdAt: 'ASC' },
+    });
 
     return {
       thread: {
@@ -127,14 +127,15 @@ export class AdminPanelChatService {
         totalInputTokens: thread.totalInputTokens,
         totalOutputTokens: thread.totalOutputTokens,
         conversationSize: thread.conversationSize,
-        messageCount: messages.filter((message) => !message.isHidden).length,
-        createdAt: thread.createdAt,
-        updatedAt: thread.updatedAt,
+        messageCount: messages.filter(
+          (message) => message.role !== AgentMessageRole.SYSTEM,
+        ).length,
+        createdAt: new Date(thread.createdAt),
+        updatedAt: new Date(thread.updatedAt),
       },
       messages: messages.map((message) => ({
         id: message.id,
         role: message.role,
-        isHidden: message.isHidden,
         parts: (message.parts ?? [])
           .sort((a, b) => a.orderIndex - b.orderIndex)
           .map((part) => ({
@@ -149,7 +150,7 @@ export class AdminPanelChatService {
             state: part.state,
             errorMessage: part.errorMessage,
           })),
-        createdAt: message.createdAt,
+        createdAt: new Date(message.createdAt),
       })),
     };
   }

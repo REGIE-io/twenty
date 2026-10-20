@@ -1,3 +1,4 @@
+import { ApplicationStackIcon } from '@/applications/components/ApplicationStackIcon';
 import { useActiveFieldMetadataItems } from '@/object-metadata/hooks/useActiveFieldMetadataItems';
 import { useObjectOptionsForBoard } from '@/object-record/object-options-dropdown/hooks/useObjectOptionsForBoard';
 import { ObjectOptionsDropdownContext } from '@/object-record/object-options-dropdown/states/contexts/ObjectOptionsDropdownContext';
@@ -6,9 +7,11 @@ import { currentRecordFieldsComponentState } from '@/object-record/record-field/
 import { DropdownMenuItemsContainer } from '@/ui/layout/dropdown/components/DropdownMenuItemsContainer';
 import { useAtomComponentStateValue } from '@/ui/utilities/state/jotai/hooks/useAtomComponentStateValue';
 import { ViewType } from '@/views/types/ViewType';
+import { t } from '@lingui/core/macro';
 import { useContext } from 'react';
+import { LightIconButton } from 'twenty-ui/components/input';
 import { IconEye, useIcons } from 'twenty-ui/icon';
-import { MenuItem } from 'twenty-ui/navigation';
+import { ListItem } from 'twenty-ui/primitives/navigation';
 
 export const ViewFieldsHiddenDropdownSection = () => {
   const { viewType, objectMetadataItem, recordIndexId } = useContext(
@@ -56,21 +59,30 @@ export const ViewFieldsHiddenDropdownSection = () => {
         {availableFieldMetadataItemsToShow.length > 0 &&
           availableFieldMetadataItemsToShow.map((fieldMetadataItem) => {
             return (
-              <MenuItem
+              <ListItem
                 key={fieldMetadataItem.id}
-                LeftIcon={getIcon(fieldMetadataItem.icon)}
-                iconButtons={[
-                  {
-                    Icon: IconEye,
-                    onClick: () =>
+                startIcon={
+                  <ApplicationStackIcon
+                    Icon={getIcon(fieldMetadataItem.icon)}
+                    applicationId={fieldMetadataItem.applicationId}
+                  />
+                }
+                actions={
+                  <LightIconButton
+                    aria-label={t`Show field`}
+                    onClick={() =>
                       handleChangeFieldVisibility({
                         fieldMetadataId: fieldMetadataItem.id,
                         isVisible: true,
-                      }),
-                  },
-                ]}
-                text={fieldMetadataItem.label}
-              />
+                      })
+                    }
+                  >
+                    <IconEye />
+                  </LightIconButton>
+                }
+              >
+                {fieldMetadataItem.label}
+              </ListItem>
             );
           })}
       </DropdownMenuItemsContainer>

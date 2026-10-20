@@ -3,6 +3,9 @@ import type DataLoader from 'dataloader';
 import { type FieldMetadataConnectionLoaderPayload } from 'src/engine/dataloaders/factories/field-metadata-connection-loader.factory';
 import { type IndexMetadataConnectionLoaderPayload } from 'src/engine/dataloaders/factories/index-metadata-connection-loader.factory';
 import {
+  type AgentsByRoleIdLoaderPayload,
+  type ApiKeysByRoleIdLoaderPayload,
+  type ApplicationRegistrationInstallCountLoaderPayload,
   type ApplicationTranslationCatalogLoaderPayload,
   type FieldMetadataLoaderPayload,
   type IndexFieldMetadataLoaderPayload,
@@ -10,9 +13,10 @@ import {
   type SearchFieldMetadataLoaderPayload,
   type IsConfiguredLoaderPayload,
   type MorphRelationLoaderPayload,
-  type StandardApplicationIdLoaderPayload,
+  type ApplicationAuthorIdentifiersLoaderPayload,
   type ObjectMetadataLoaderPayload,
   type RelationLoaderPayload,
+  type RowLevelPermissionsByRoleIdLoaderPayload,
   type ViewFieldGroupsByViewIdLoaderPayload,
   type ViewFieldsByViewFieldGroupIdLoaderPayload,
   type ViewFieldsByViewIdLoaderPayload,
@@ -20,12 +24,20 @@ import {
   type ViewFiltersByViewIdLoaderPayload,
   type ViewGroupsByViewIdLoaderPayload,
   type ViewSortsByViewIdLoaderPayload,
+  type WorkspaceMembersByRoleIdLoaderPayload,
 } from 'src/engine/dataloaders/dataloader.service';
+import { type FlatWorkspaceMember } from 'src/engine/core-modules/user/types/flat-workspace-member.type';
+import { type AgentDTO } from 'src/engine/metadata-modules/ai/ai-agent/dtos/agent.dto';
+import { type ApplicationAuthorIdentifiers } from 'src/engine/metadata-modules/application-translation-catalog/types/application-author-identifiers.type';
 import { type FieldMetadataDTO } from 'src/engine/metadata-modules/field-metadata/dtos/field-metadata.dto';
 import { type RelationDTO } from 'src/engine/metadata-modules/field-metadata/dtos/relation.dto';
 import { type IndexFieldMetadataDTO } from 'src/engine/metadata-modules/index-metadata/dtos/index-field-metadata.dto';
 import { type IndexMetadataDTO } from 'src/engine/metadata-modules/index-metadata/dtos/index-metadata.dto';
 import { type ObjectMetadataDTO } from 'src/engine/metadata-modules/object-metadata/dtos/object-metadata.dto';
+import {
+  type ApiKeyForRoleDTO,
+  type RoleDTO,
+} from 'src/engine/metadata-modules/role/dtos/role.dto';
 import { type SearchFieldMetadataDTO } from 'src/engine/metadata-modules/search-field-metadata/dtos/search-field-metadata.dto';
 import { type CursorConnection } from 'src/engine/metadata-modules/pagination/dtos/cursor-connection-type.factory';
 import { type ViewFieldGroupDTO } from 'src/engine/metadata-modules/view-field-group/dtos/view-field-group.dto';
@@ -115,13 +127,40 @@ export interface IDataloaders {
 
   isConfiguredLoader: DataLoader<IsConfiguredLoaderPayload, boolean>;
 
-  standardApplicationIdLoader: DataLoader<
-    StandardApplicationIdLoaderPayload,
-    string
+  applicationRegistrationInstallCountLoader: DataLoader<
+    ApplicationRegistrationInstallCountLoaderPayload,
+    number
+  >;
+
+  applicationAuthorIdentifiersLoader: DataLoader<
+    ApplicationAuthorIdentifiersLoaderPayload,
+    ApplicationAuthorIdentifiers
   >;
 
   applicationTranslationCatalogLoader: DataLoader<
     ApplicationTranslationCatalogLoaderPayload,
     Record<string, string> | undefined
+  >;
+
+  workspaceMembersByRoleIdLoader: DataLoader<
+    WorkspaceMembersByRoleIdLoaderPayload,
+    FlatWorkspaceMember[]
+  >;
+
+  agentsByRoleIdLoader: DataLoader<AgentsByRoleIdLoaderPayload, AgentDTO[]>;
+
+  apiKeysByRoleIdLoader: DataLoader<
+    ApiKeysByRoleIdLoaderPayload,
+    ApiKeyForRoleDTO[]
+  >;
+
+  rowLevelPermissionsByRoleIdLoader: DataLoader<
+    RowLevelPermissionsByRoleIdLoaderPayload,
+    Required<
+      Pick<
+        RoleDTO,
+        'rowLevelPermissionPredicates' | 'rowLevelPermissionPredicateGroups'
+      >
+    >
   >;
 }

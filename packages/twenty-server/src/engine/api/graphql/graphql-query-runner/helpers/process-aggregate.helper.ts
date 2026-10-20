@@ -1,9 +1,9 @@
-import { AggregateOperations } from 'twenty-shared/types';
+import { AggregateOperations, FieldMetadataType } from 'twenty-shared/types';
 import { isDefined } from 'twenty-shared/utils';
 
 import { type AggregationField } from 'src/engine/api/graphql/workspace-schema-builder/utils/get-available-aggregations-from-object-fields.util';
 import { formatColumnNamesFromCompositeFieldAndSubfields } from 'src/engine/twenty-orm/utils/format-column-names-from-composite-field-and-subfield.util';
-import { type RecordQueryBuilder } from 'src/engine/api/graphql/graphql-query-runner/types/record-query-builder.type';
+import { type WorkspaceSelectQueryBuilder } from 'src/engine/twenty-orm/query-builder/workspace-select-query-builder';
 
 export class ProcessAggregateHelper {
   public static addSelectedAggregatedFieldsQueriesToQueryBuilder = ({
@@ -13,7 +13,7 @@ export class ProcessAggregateHelper {
   }: {
     selectedAggregatedFields: Record<string, AggregationField>;
     // oxlint-disable-next-line typescript/no-explicit-any
-    queryBuilder: RecordQueryBuilder;
+    queryBuilder: WorkspaceSelectQueryBuilder;
     objectMetadataNameSingular: string;
   }) => {
     queryBuilder.select([]);
@@ -90,7 +90,14 @@ export class ProcessAggregateHelper {
       case AggregateOperations.COUNT_FALSE:
         return `CASE WHEN COUNT(*) = 0 THEN NULL ELSE COUNT(CASE WHEN ${columnExpression}::boolean = FALSE THEN 1 ELSE NULL END) END`;
       default: {
-        return `${aggregatedField.aggregateOperation}("${objectMetadataNameSingular}"."${columnNameForNumericOperation}")`;
+        const numericColumn = `"${objectMetadataNameSingular}"."${columnNameForNumericOperation}"`;
+
+        const numericExpression =
+          aggregatedField.fromFieldType === FieldMetadataType.RATING
+            ? `CAST(SPLIT_PART(${numericColumn}::text, '_', 2) AS INTEGER)`
+            : numericColumn;
+
+        return `${aggregatedField.aggregateOperation}(${numericExpression})`;
       }
     }
   };

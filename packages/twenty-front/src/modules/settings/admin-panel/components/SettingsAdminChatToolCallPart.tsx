@@ -1,14 +1,14 @@
-import { t } from '@lingui/core/macro';
 import { styled } from '@linaria/react';
+import { t } from '@lingui/core/macro';
 import { useState } from 'react';
 
 import { isNonEmptyString } from '@sniptt/guards';
 import { isDefined } from 'twenty-shared/utils';
-import { Tag } from 'twenty-ui/data-display';
+import { JsonTree } from 'twenty-ui/components/data-display';
 import { IconChevronDown, IconChevronUp, IconTool } from 'twenty-ui/icon';
-import { JsonTree } from 'twenty-ui/json-visualizer';
-import { AnimatedExpandableContainer } from 'twenty-ui/layout';
-import { themeCssVariables } from 'twenty-ui/theme-constants';
+import { Tag } from 'twenty-ui/primitives/data-display';
+import { Collapsible } from 'twenty-ui/primitives/layout';
+import { themeCssVariables } from 'twenty-ui/theme';
 
 import { type AdminChatThreadMessagePart } from '@/settings/admin-panel/types/AdminChatThreadMessagePart';
 import { getAdminToolDisplayName } from '@/settings/admin-panel/utils/getAdminToolDisplayName';
@@ -126,7 +126,7 @@ export const SettingsAdminChatToolCallPart = ({
         <StyledToolLabel>
           <IconTool size={14} />
           {toolName}
-          {hasToolError && <Tag color="red" text={t`Failed`} />}
+          {hasToolError && <Tag color="red">{t`Failed`}</Tag>}
         </StyledToolLabel>
         <StyledRightContent>
           {isExpanded ? (
@@ -136,43 +136,45 @@ export const SettingsAdminChatToolCallPart = ({
           )}
         </StyledRightContent>
       </StyledToggleRow>
-      <AnimatedExpandableContainer isExpanded={isExpanded} mode="fit-content">
-        <StyledTabContainer>
-          <StyledTab
-            isActive={activeTab === 'output'}
-            onClick={() => setActiveTab('output')}
-          >
-            {t`Output`}
-          </StyledTab>
-          <StyledTab
-            isActive={activeTab === 'input'}
-            onClick={() => setActiveTab('input')}
-          >
-            {t`Input`}
-          </StyledTab>
-        </StyledTabContainer>
-        {isDefined(activeJsonValue) ? (
-          <StyledJsonTreeContainer>
-            <JsonTree
-              value={activeJsonValue}
-              shouldExpandNodeInitially={() => false}
-              emptyArrayLabel={t`Empty Array`}
-              emptyObjectLabel={t`Empty Object`}
-              emptyStringLabel={t`[empty string]`}
-              arrowButtonCollapsedLabel={t`Expand`}
-              arrowButtonExpandedLabel={t`Collapse`}
-              onNodeValueClick={copyToClipboard}
-            />
-          </StyledJsonTreeContainer>
-        ) : (
-          <StyledEmptyTabLabel>
-            {activeTab === 'output' ? t`No output` : t`No input`}
-          </StyledEmptyTabLabel>
-        )}
-        {isNonEmptyString(part.errorMessage) && (
-          <StyledErrorMessage>{part.errorMessage}</StyledErrorMessage>
-        )}
-      </AnimatedExpandableContainer>
+      <Collapsible.Root open={isExpanded}>
+        <Collapsible.Panel>
+          <StyledTabContainer>
+            <StyledTab
+              isActive={activeTab === 'output'}
+              onClick={() => setActiveTab('output')}
+            >
+              {t`Output`}
+            </StyledTab>
+            <StyledTab
+              isActive={activeTab === 'input'}
+              onClick={() => setActiveTab('input')}
+            >
+              {t`Input`}
+            </StyledTab>
+          </StyledTabContainer>
+          {isDefined(activeJsonValue) ? (
+            <StyledJsonTreeContainer>
+              <JsonTree
+                value={activeJsonValue}
+                shouldExpandNodeInitially={() => false}
+                emptyArrayLabel={t`Empty Array`}
+                emptyObjectLabel={t`Empty Object`}
+                emptyStringLabel={t`[empty string]`}
+                arrowButtonCollapsedLabel={t`Expand`}
+                arrowButtonExpandedLabel={t`Collapse`}
+                onNodeValueClick={copyToClipboard}
+              />
+            </StyledJsonTreeContainer>
+          ) : (
+            <StyledEmptyTabLabel>
+              {activeTab === 'output' ? t`No output` : t`No input`}
+            </StyledEmptyTabLabel>
+          )}
+          {isNonEmptyString(part.errorMessage) && (
+            <StyledErrorMessage>{part.errorMessage}</StyledErrorMessage>
+          )}
+        </Collapsible.Panel>
+      </Collapsible.Root>
     </StyledContainer>
   );
 };

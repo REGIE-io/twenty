@@ -1,23 +1,27 @@
+import { SelectOptionIcon } from '@/ui/input/components/SelectOptionIcon';
+import { Dropdown } from 'twenty-ui/components/navigation';
 import { type IconComponent } from 'twenty-ui/icon';
-import { MenuItem } from 'twenty-ui/navigation';
+
+type RecordGroupAggregateDropdownMenuItemProps = {
+  onClick: () => void;
+  text: string;
+  page?: string;
+  RightIcon?: IconComponent | null;
+};
 
 export const RecordGroupAggregateDropdownMenuItem = ({
-  onContentChange,
+  onClick,
   text,
-  hasSubMenu,
+  page,
   RightIcon,
-}: {
-  onContentChange: () => void;
-  hasSubMenu: boolean;
-  text: string;
-  RightIcon?: IconComponent | null;
-}) => {
+}: RecordGroupAggregateDropdownMenuItemProps) => {
   return (
-    <MenuItem
-      onClick={onContentChange}
-      text={text}
-      hasSubMenu={hasSubMenu}
-      RightIcon={RightIcon}
-    />
+    <Dropdown.ActionItem
+      onClick={onClick}
+      page={page}
+      endIcon={<SelectOptionIcon Icon={RightIcon} />}
+    >
+      {text}
+    </Dropdown.ActionItem>
   );
 };

@@ -1,14 +1,16 @@
-import { type FieldMetadataTypesToTestForFilterInputValidation } from 'test/integration/graphql/suites/inputs-validation/types/field-metadata-type-to-test';
+import { type FieldMetadataTypesToTestForFilterInputValidation } from 'test/integration/graphql/suites/inputs-validation/types/field-metadata-type-to-test.type';
 import { joinColumnNameForManyToOneMorphRelationField1 } from 'test/integration/graphql/suites/inputs-validation/utils/setup-test-objects-with-all-field-types.util';
 import { FieldMetadataType } from 'twenty-shared/types';
 
 import { type CompositeFieldMetadataType } from 'src/engine/metadata-modules/field-metadata/types/composite-field-metadata-type.type';
 
 export const failingFilterInputByFieldMetadataType: {
-  [K in Exclude<
-    FieldMetadataTypesToTestForFilterInputValidation,
-    CompositeFieldMetadataType
-  >]: {
+  [
+    K in Exclude<
+      FieldMetadataTypesToTestForFilterInputValidation,
+      CompositeFieldMetadataType
+    >
+  ]: {
     gqlFilterInput: any;
     restFilterInput: string;
   }[];
