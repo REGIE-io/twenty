@@ -6,9 +6,9 @@ import { NodeEnvironment } from 'src/engine/core-modules/twenty-config/interface
 import testTokens from './test/integration/constants/test-tokens.json';
 
 if (process.env.NODE_ENV === 'test') {
-  dotenv.config({ path: '.env.test', override: true });
+  dotenv.config({ path: '.env.test' });
 } else {
-  dotenv.config({ path: '.env', override: true });
+  dotenv.config({ path: '.env' });
 }
 
 const isBillingEnabled = process.env.IS_BILLING_ENABLED === 'true';
