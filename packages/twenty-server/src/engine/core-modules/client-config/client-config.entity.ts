@@ -365,6 +365,9 @@ export class ClientConfig {
   @Field(() => String)
   enterpriseInstanceType: string;
 
+  @Field(() => Number)
+  maxCustomIndexesPerObject: number;
+
   @Field(() => ClientConfigMaintenanceMode, { nullable: true })
   maintenance?: ClientConfigMaintenanceMode;
 }

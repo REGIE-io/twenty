@@ -8,6 +8,12 @@ on:
     branches: [stage]
   workflow_dispatch:
 
+# Main promotions can arrive while an earlier stage upgrade is still running.
+# Serialize the mutable image tag and singleton upgrade; never interrupt an upgrade.
+concurrency:
+  group: ${{ github.workflow }}
+  cancel-in-progress: false
+
 # OIDC: the job assumes the `twenty-publish` IAM role via a short-lived token — no stored keys.
 permissions:
   id-token: write
