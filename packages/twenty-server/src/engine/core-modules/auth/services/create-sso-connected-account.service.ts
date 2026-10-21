@@ -2,7 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 
 import { type ConnectedAccountProvider } from 'twenty-shared/types';
-import { Repository } from 'typeorm';
+import { IsNull, Repository } from 'typeorm';
 
 import { UserWorkspaceEntity } from 'src/engine/core-modules/user-workspace/user-workspace.entity';
 import { ConnectedAccountEntity } from 'src/engine/metadata-modules/connected-account/entities/connected-account.entity';
@@ -51,6 +51,7 @@ export class CreateSSOConnectedAccountService {
       provider,
       userWorkspaceId: userWorkspace.id,
       workspaceId,
+      name: IsNull(),
     });
 
     if (existing) {
