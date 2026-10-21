@@ -55,6 +55,7 @@ export class InternalConnectedAccountProvisioningController {
         messageVisibility: body.messageVisibility,
         withCalendarChannel: body.withCalendarChannel,
         withMessageChannel: body.withMessageChannel,
+        calendarOnly: body.calendarOnly,
       },
     );
   }

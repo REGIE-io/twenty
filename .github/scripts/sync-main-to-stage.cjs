@@ -1,7 +1,20 @@
 const PROMOTION_PREFIX = 'codex/promote-main-to-stage-';
 const DEPLOY_WORKFLOW = 'deploy-prod.yml';
 
-async function syncMainToStage({ github, context, core }) {
+function productionRunContext(context, value) {
+  const id = Number(value);
+  if (!Number.isSafeInteger(id) || id <= 0)
+    throw new Error('Invalid production run ID.');
+  // Actions context.repo is a prototype getter, so spreading context loses it.
+  return { repo: context.repo, payload: { workflow_run: { id } } };
+}
+
+async function syncMainToStage({
+  github,
+  pullRequestGithub = github,
+  context,
+  core,
+}) {
   const repo = context.repo;
   const fullName = `${repo.owner}/${repo.repo}`;
   const skip = (reason) => {
@@ -99,7 +112,7 @@ async function syncMainToStage({ github, context, core }) {
       item.head.ref === branch && item.head.repo?.full_name === fullName,
   );
   if (!pr) {
-    ({ data: pr } = await github.rest.pulls.create({
+    const request = {
       ...repo,
       base: 'stage',
       head: branch,
@@ -110,7 +123,18 @@ async function syncMainToStage({ github, context, core }) {
         'This branch is pinned to the deployed revision. Required stage CI and auto-merge remain enforced.',
         'After merge, the standard stage workflow runs the database upgrade and convergence check before rolling services.',
       ].join('\n'),
-    }));
+    };
+    try {
+      // A user-authored PR can auto-merge under the repository's extra-approval
+      // rule for bot-authored changes. Prefer the PAT when its scope permits it.
+      ({ data: pr } = await github.rest.pulls.create(request));
+    } catch (error) {
+      if (error.status !== 403 || pullRequestGithub === github) throw error;
+      ({ data: pr } = await pullRequestGithub.rest.pulls.create(request));
+      core.warning(
+        'The automation PAT needs Pull requests: write. This bot-authored fallback PR requires maintainer approval.',
+      );
+    }
   }
   if (pr.head.sha !== sha)
     throw new Error('Promotion pull request head does not match deployment.');
@@ -122,7 +146,7 @@ async function syncMainToStage({ github, context, core }) {
       older.head.ref.startsWith(PROMOTION_PREFIX) &&
       older.head.repo?.full_name === fullName
     ) {
-      await github.rest.pulls.update({
+      await pullRequestGithub.rest.pulls.update({
         ...repo,
         pull_number: older.number,
         state: 'closed',
@@ -199,4 +223,4 @@ async function syncMainToStage({ github, context, core }) {
   return { number: pr.number, sha };
 }
 
-module.exports = { syncMainToStage };
+module.exports = { syncMainToStage, productionRunContext };

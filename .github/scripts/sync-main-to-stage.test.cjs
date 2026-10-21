@@ -3,11 +3,33 @@ const { test } = require('node:test');
 const { mkdtempSync, writeFileSync, readFileSync, rmSync } = require('node:fs');
 const { join } = require('node:path');
 const { spawnSync } = require('node:child_process');
-const { syncMainToStage } = require('./sync-main-to-stage.cjs');
+const {
+  syncMainToStage,
+  productionRunContext,
+} = require('./sync-main-to-stage.cjs');
 
 const SHA = 'a'.repeat(40);
 const STAGE = 'b'.repeat(40);
 const PREFIX = 'codex/promote-main-to-stage-';
+
+test('replay preserves the Actions context repo getter and validates the run ID', () => {
+  const repo = { owner: 'REGIE-io', repo: 'twenty' };
+  const context = Object.create({
+    get repo() {
+      return repo;
+    },
+  });
+  assert.deepEqual(productionRunContext(context, '123'), {
+    repo,
+    payload: { workflow_run: { id: 123 } },
+  });
+  for (const value of ['', 'x', '-1', '1.5']) {
+    assert.throws(
+      () => productionRunContext(context, value),
+      /Invalid production run ID/,
+    );
+  }
+});
 
 function fixture(options = {}) {
   const calls = [];
@@ -81,7 +103,7 @@ function fixture(options = {}) {
     args: {
       github,
       context: { repo, payload: { workflow_run: run } },
-      core: { info() {} },
+      core: { info() {}, warning() {} },
     },
     calls,
     promotion,
@@ -285,6 +307,28 @@ test('merges an already-clean PR with an exact-head guard', async () => {
   const merge = calls.find((c) => c.name === 'mergePr');
   assert.equal(merge.args.sha, SHA);
   assert.equal(merge.args.merge_method, 'merge');
+});
+
+test('uses the repository token for PR writes and the PAT for CI and merge', async () => {
+  const { args, calls } = fixture();
+  args.pullRequestGithub = {
+    rest: {
+      pulls: {
+        create: args.github.rest.pulls.create,
+        update: args.github.rest.pulls.update,
+      },
+    },
+  };
+  args.github.rest.pulls.create = async () => {
+    throw Object.assign(new Error('PAT cannot create PRs'), { status: 403 });
+  };
+  args.github.rest.pulls.update = async () => {
+    throw new Error('PAT cannot update PRs');
+  };
+  await syncMainToStage(args);
+  assert.ok(calls.some((c) => c.name === 'createPr'));
+  assert.ok(calls.some((c) => c.name === 'label'));
+  assert.ok(calls.some((c) => c.name === 'autoMerge'));
 });
 
 // Execute the real workflow guard with isolated git/GitHub responses. No network,

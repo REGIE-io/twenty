@@ -3823,6 +3823,9 @@ export default {
             "enterpriseInstanceType": [
                 1
             ],
+            "maxCustomIndexesPerObject": [
+                15
+            ],
             "maintenance": [
                 197
             ],

@@ -62,4 +62,8 @@ export class AttachConnectedAccountDto {
   @IsOptional()
   @IsBoolean()
   withMessageChannel?: boolean;
+
+  @IsOptional()
+  @IsBoolean()
+  calendarOnly?: boolean;
 }

@@ -5,7 +5,10 @@ import { SupportDriver } from 'src/engine/core-modules/twenty-config/interfaces/
 import { ClientConfigService } from 'src/engine/core-modules/client-config/services/client-config.service';
 import { ModelFamily } from 'src/engine/metadata-modules/ai/ai-models/types/model-family.enum';
 import { type ModelId } from 'src/engine/metadata-modules/ai/ai-models/types/model-id.type';
-import { ENTERPRISE_INSTANCE_TYPE } from 'twenty-shared/constants';
+import {
+  ENTERPRISE_INSTANCE_TYPE,
+  MAX_CUSTOM_INDEXES_PER_OBJECT,
+} from 'twenty-shared/constants';
 
 import { ClientConfigController } from './client-config.controller';
 
@@ -114,6 +117,7 @@ describe('ClientConfigController', () => {
         isWorkspaceSchemaDDLLocked: false,
         isOnboardingAiChatEnabled: false,
         enterpriseInstanceType: ENTERPRISE_INSTANCE_TYPE.PRODUCTION,
+        maxCustomIndexesPerObject: MAX_CUSTOM_INDEXES_PER_OBJECT,
       };
 
       jest

@@ -1966,6 +1966,7 @@ type ClientConfig {
   isWorkspaceSchemaDDLLocked: Boolean!
   isOnboardingAiChatEnabled: Boolean!
   enterpriseInstanceType: String!
+  maxCustomIndexesPerObject: Float!
   maintenance: ClientConfigMaintenanceMode
 }
 
