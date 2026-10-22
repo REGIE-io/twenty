@@ -27,6 +27,7 @@ export type GoogleMock = {
   sentMessages: Array<{ raw: string; threadId?: string }>;
   draftMessages: Array<{ raw: string; threadId?: string }>;
   createdCalendarEvents: calendar_v3.Schema$Event[];
+  calendarEventListRequests: URLSearchParams[];
   actAsAccount: (handle: string) => void;
   serveMessageList: (messages: gmail_v1.Schema$Message[]) => void;
   serveHistory: (addedMessages: gmail_v1.Schema$Message[]) => void;
@@ -76,11 +77,16 @@ export const setupGoogleMock = ({
   const sentMessages: Array<{ raw: string; threadId?: string }> = [];
   const draftMessages: Array<{ raw: string; threadId?: string }> = [];
   const createdCalendarEvents: calendar_v3.Schema$Event[] = [];
+  const calendarEventListRequests: URLSearchParams[] = [];
 
   const httpMock = setupHttpMock(
     ...googleTokenHandlers(),
     ...googleIdentityHandlers(handle),
-    ...googleCalendarEventsHandlers([], 'mock-calendar-sync-token'),
+    ...googleCalendarEventsHandlers(
+      [],
+      'mock-calendar-sync-token',
+      calendarEventListRequests,
+    ),
     ...gmailMailboxHandlers(inbox, labelStore),
     http.post('*/gmail/v1/users/me/messages/send', async ({ request }) => {
       const body = (await request.json()) as { raw: string; threadId?: string };
@@ -143,6 +149,7 @@ export const setupGoogleMock = ({
     sentMessages,
     draftMessages,
     createdCalendarEvents,
+    calendarEventListRequests,
     actAsAccount: (accountHandle) =>
       httpMock.use(...googleIdentityHandlers(accountHandle)),
     serveMessageList: (messages) =>
@@ -152,7 +159,14 @@ export const setupGoogleMock = ({
     serveCalendarEvents: (
       events,
       { nextSyncToken = 'mock-calendar-sync-token' } = {},
-    ) => httpMock.use(...googleCalendarEventsHandlers(events, nextSyncToken)),
+    ) =>
+      httpMock.use(
+        ...googleCalendarEventsHandlers(
+          events,
+          nextSyncToken,
+          calendarEventListRequests,
+        ),
+      ),
     rateLimitMessageList: (retryAfterIso) =>
       httpMock.use(
         http.get('*/gmail/v1/users/me/messages', () =>
