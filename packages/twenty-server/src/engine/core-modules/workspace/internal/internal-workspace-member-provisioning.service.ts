@@ -10,7 +10,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { isEmail } from 'class-validator';
 import { type APP_LOCALES, SOURCE_LOCALE } from 'twenty-shared/translations';
 import { isDefined } from 'twenty-shared/utils';
-import { QueryFailedError, type Repository } from 'typeorm';
+import { Not, QueryFailedError, Raw, type Repository } from 'typeorm';
 
 import { POSTGRESQL_ERROR_CODES } from 'src/engine/api/graphql/workspace-query-runner/constants/postgres-error-codes.constants';
 import { type QueryFailedErrorWithCode } from 'src/engine/api/graphql/workspace-query-runner/utils/workspace-query-runner-graphql-api-exception-handler.util';
@@ -20,10 +20,15 @@ import { WorkspaceEntity } from 'src/engine/core-modules/workspace/workspace.ent
 import {
   type ProvisionWorkspaceMemberInput,
   type ProvisionWorkspaceMemberResult,
+  type UpdateWorkspaceMemberProfileInput,
+  type UpdateWorkspaceMemberProfileResult,
+  WORKSPACE_MEMBER_PROFILE_POLICIES,
 } from 'src/engine/core-modules/workspace/internal/types/internal-workspace-member-provisioning.type';
 import { GlobalWorkspaceOrmManager } from 'src/engine/twenty-orm/global-workspace-datasource/global-workspace-orm.manager';
 import { type WorkspaceRepository } from 'src/engine/twenty-orm/repository/workspace.repository';
 import { buildSystemAuthContext } from 'src/engine/twenty-orm/utils/build-system-auth-context.util';
+import { getWorkspaceSchemaName } from 'src/engine/workspace-datasource/utils/get-workspace-schema-name.util';
+import { escapeIdentifier } from 'src/engine/workspace-manager/workspace-migration/utils/remove-sql-injection.util';
 import { type WorkspaceMemberWorkspaceEntity } from 'src/modules/workspace-member/standard-objects/workspace-member.workspace-entity';
 
 @Injectable()
@@ -71,6 +76,121 @@ export class InternalWorkspaceMemberProvisioningService {
       appUserId: input.id,
       workspaceId: input.workspaceId,
     };
+  }
+
+  async updateWorkspaceMemberProfile(
+    input: UpdateWorkspaceMemberProfileInput,
+  ): Promise<UpdateWorkspaceMemberProfileResult> {
+    const email = this.normalizeEmail(input.email);
+
+    if (!WORKSPACE_MEMBER_PROFILE_POLICIES.includes(input.profilePolicy)) {
+      throw new BadRequestException('Invalid profile policy');
+    }
+
+    const workspace = await this.workspaceRepository.findOneBy({
+      id: input.workspaceId,
+    });
+
+    if (!isDefined(workspace)) {
+      throw new NotFoundException('Workspace not found');
+    }
+
+    return this.globalWorkspaceOrmManager.executeInWorkspaceContext(
+      () =>
+        this.globalWorkspaceOrmManager.runInWorkspaceTransaction(
+          async (transactionScope) => {
+            await transactionScope.executeRawQuery(
+              `SELECT set_config('lock_timeout', $1, true)`,
+              ['5s'],
+            );
+            // Email has no case-insensitive unique index. Protect the check from all member writers.
+            await transactionScope.executeRawQuery(
+              `LOCK TABLE ${escapeIdentifier(getWorkspaceSchemaName(input.workspaceId))}."workspaceMember" IN SHARE ROW EXCLUSIVE MODE`,
+            );
+
+            const workspaceMemberRepository =
+              transactionScope.getRepository<WorkspaceMemberWorkspaceEntity>(
+                'workspaceMember',
+                { shouldBypassPermissionChecks: true },
+              );
+            const member = await workspaceMemberRepository.findOne({
+              where: { id: input.workspaceMemberId },
+            });
+
+            if (!isDefined(member)) {
+              throw new NotFoundException('Workspace member not found');
+            }
+
+            const result = {
+              workspaceMemberId: member.id,
+              workspaceId: input.workspaceId,
+            };
+            const isFillMissing = input.profilePolicy === 'fill_missing';
+
+            // A Go member's email is an identity boundary, not provider profile data.
+            if (
+              isFillMissing &&
+              member.userEmail?.trim().toLowerCase() !== email
+            ) {
+              return result;
+            }
+
+            const conflictingMember = await workspaceMemberRepository.findOne({
+              where: {
+                id: Not(member.id),
+                userEmail: Raw((alias) => `LOWER(BTRIM(${alias})) = :email`, {
+                  email,
+                }),
+              },
+              withDeleted: true,
+            });
+
+            if (isDefined(conflictingMember)) {
+              throw new ConflictException(
+                'Workspace member email is linked to a different member',
+              );
+            }
+
+            const firstName = this.resolveProfileName(
+              member.name?.firstName,
+              input.firstName,
+              isFillMissing,
+            );
+            const lastName = this.resolveProfileName(
+              member.name?.lastName,
+              input.lastName,
+              isFillMissing,
+            );
+            const userEmail = isFillMissing ? member.userEmail : email;
+
+            if (
+              member.name?.firstName !== firstName ||
+              member.name?.lastName !== lastName ||
+              member.userEmail !== userEmail
+            ) {
+              await workspaceMemberRepository.update(
+                { id: member.id },
+                { name: { firstName, lastName }, userEmail },
+              );
+            }
+
+            return result;
+          },
+        ),
+      buildSystemAuthContext(input.workspaceId),
+    );
+  }
+
+  private resolveProfileName(
+    currentName: string | undefined,
+    incomingName: string,
+    isFillMissing: boolean,
+  ): string {
+    if (isFillMissing && currentName?.trim()) {
+      return currentName;
+    }
+
+    return incomingName.trim() || currentName || '';
   }
 
   private normalizeEmail(email: string): string {
