@@ -54,8 +54,10 @@ Unit tests cover both policies and existing POST behavior. The HTTP contract sui
 uses the real controller, service, validation, token guard, and CSRF middleware,
 with database/config boundaries replaced by fixtures. The PostgreSQL suite uses
 real transactions and locks for both ORM transaction branches; it does not boot
-the full Twenty metadata/event system. Server integration CI runs it against a
-separate disposable database. For a local run, explicitly set
+the full Twenty metadata/event system. The full application integration suite
+also verifies persisted profiles through real AppModule metadata/repositories on
+both ORM paths. Server integration CI runs both layers; the concurrency suite
+uses a separate disposable database. For a local concurrency run, explicitly set
 `TWENTY_MEMBER_PROFILE_TEST_DATABASE_URL` to a localhost database named
 `twenty_member_profile_test` or `twenty_member_profile_test_*`; no normal database
 environment variable is used as a fallback.
