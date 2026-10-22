@@ -3,9 +3,10 @@ import {
   ConflictException,
   NotFoundException,
 } from '@nestjs/common';
-import { QueryFailedError } from 'typeorm';
+import { FindOperator, QueryFailedError } from 'typeorm';
 
 import { InternalWorkspaceMemberProvisioningService } from 'src/engine/core-modules/workspace/internal/internal-workspace-member-provisioning.service';
+import { type UpdateWorkspaceMemberProfileInput } from 'src/engine/core-modules/workspace/internal/types/internal-workspace-member-provisioning.type';
 
 const WORKSPACE_ID = '20202020-0000-4000-8000-000000000001';
 
@@ -47,6 +48,7 @@ const makeServiceHarness = () => {
   let userSequence = 0;
   let userWorkspaceSequence = 0;
   let workspaceMemberSequence = 0;
+  let transactionComplete = Promise.resolve();
 
   const workspaceRepository = {
     findOneBy: jest.fn(async ({ id }: { id: string }) =>
@@ -111,7 +113,37 @@ const makeServiceHarness = () => {
 
   const workspaceMemberRepository = {
     findOne: jest.fn(
-      async ({ where }: { where: { userEmail?: string; userId?: string } }) => {
+      async ({
+        where,
+      }: {
+        where: {
+          id?: string | FindOperator<string>;
+          userEmail?: string | FindOperator<string>;
+          userId?: string;
+        };
+      }) => {
+        if (typeof where.id === 'string') {
+          return (
+            Array.from(workspaceMembers.values()).find(
+              (member) => member.id === where.id,
+            ) ?? null
+          );
+        }
+
+        if (where.userEmail instanceof FindOperator) {
+          const email = where.userEmail.objectLiteralParameters?.email;
+          const excludedId =
+            where.id instanceof FindOperator ? where.id.value : undefined;
+
+          return (
+            Array.from(workspaceMembers.values()).find(
+              (member) =>
+                member.id !== excludedId &&
+                member.userEmail.trim().toLowerCase() === email,
+            ) ?? null
+          );
+        }
+
         if (where.userEmail !== undefined) {
           return workspaceMembers.get(where.userEmail) ?? null;
         }
@@ -125,6 +157,26 @@ const makeServiceHarness = () => {
         }
 
         return null;
+      },
+    ),
+    update: jest.fn(
+      async (
+        { id }: { id: string },
+        update: Pick<StoredWorkspaceMember, 'userEmail' | 'name'>,
+      ) => {
+        const member = Array.from(workspaceMembers.values()).find(
+          (workspaceMember) => workspaceMember.id === id,
+        );
+
+        if (!member) {
+          return { affected: 0 };
+        }
+
+        workspaceMembers.delete(member.userEmail);
+        Object.assign(member, update);
+        workspaceMembers.set(member.userEmail, member);
+
+        return { affected: 1 };
       },
     ),
     insert: jest.fn(
@@ -158,12 +210,35 @@ const makeServiceHarness = () => {
     ),
   };
 
+  const transactionScope = {
+    executeRawQuery: jest.fn(async () => []),
+    getRepository: jest.fn(() => workspaceMemberRepository),
+  };
+
   const globalWorkspaceOrmManager = {
     executeInWorkspaceContext: jest.fn(
-      async (callback: () => Promise<StoredWorkspaceMember>) =>
-        await callback(),
+      async (callback: () => Promise<unknown>) => await callback(),
     ),
     getRepository: jest.fn(async () => workspaceMemberRepository),
+    runInWorkspaceTransaction: jest.fn(
+      async (
+        callback: (scope: typeof transactionScope) => Promise<unknown>,
+      ) => {
+        const pendingTransaction = transactionComplete;
+        let releaseTransaction: () => void = () => undefined;
+
+        transactionComplete = new Promise<void>((resolve) => {
+          releaseTransaction = resolve;
+        });
+        await pendingTransaction;
+
+        try {
+          return await callback(transactionScope);
+        } finally {
+          releaseTransaction();
+        }
+      },
+    ),
   };
 
   const service = new InternalWorkspaceMemberProvisioningService(
@@ -176,6 +251,7 @@ const makeServiceHarness = () => {
   return {
     globalWorkspaceOrmManager,
     service,
+    transactionScope,
     stores: {
       users,
       userWorkspaces,
@@ -380,5 +456,342 @@ describe('InternalWorkspaceMemberProvisioningService', () => {
         lastName: 'Lovelace',
       }),
     ).rejects.toThrow(ConflictException);
+  });
+});
+
+describe('InternalWorkspaceMemberProvisioningService profile updates', () => {
+  const input: UpdateWorkspaceMemberProfileInput = {
+    workspaceId: WORKSPACE_ID,
+    workspaceMemberId: 'workspace-member-existing',
+    email: 'ada@example.com',
+    firstName: 'Augusta',
+    lastName: 'King',
+    profilePolicy: 'provider',
+  };
+
+  const makeProfileHarness = () => {
+    const harness = makeServiceHarness();
+    const member: StoredWorkspaceMember = {
+      id: input.workspaceMemberId,
+      userId: 'original-core-user',
+      userEmail: input.email,
+      name: { firstName: 'Ada', lastName: 'Lovelace' },
+    };
+
+    harness.stores.workspaceMembers.set(member.userEmail, member);
+
+    return { ...harness, member };
+  };
+
+  it('updates the linked member by ID without changing its core user or identity', async () => {
+    const { service, stores, repositories, member, transactionScope } =
+      makeProfileHarness();
+
+    const result = await service.updateWorkspaceMemberProfile({
+      ...input,
+      email: '  AUGUSTA@Example.COM ',
+    });
+
+    expect(result).toEqual({
+      workspaceMemberId: input.workspaceMemberId,
+      workspaceId: WORKSPACE_ID,
+    });
+    expect(member).toEqual({
+      id: input.workspaceMemberId,
+      userId: 'original-core-user',
+      userEmail: 'augusta@example.com',
+      name: { firstName: 'Augusta', lastName: 'King' },
+    });
+    expect(stores.workspaceMembers.size).toBe(1);
+    expect(stores.users.size).toBe(0);
+    expect(stores.userWorkspaces.size).toBe(0);
+    expect(repositories.userRepository.findOne).not.toHaveBeenCalled();
+    expect(repositories.userRepository.save).not.toHaveBeenCalled();
+    expect(repositories.userWorkspaceRepository.save).not.toHaveBeenCalled();
+    expect(
+      repositories.workspaceMemberRepository.insert,
+    ).not.toHaveBeenCalled();
+    expect(transactionScope.getRepository).toHaveBeenCalledWith(
+      'workspaceMember',
+      { shouldBypassPermissionChecks: true },
+    );
+    expect(transactionScope.executeRawQuery).toHaveBeenCalledWith(
+      expect.stringMatching(
+        /^LOCK TABLE "workspace_[a-z0-9]+"\."workspaceMember" IN SHARE ROW EXCLUSIVE MODE$/,
+      ),
+    );
+  });
+
+  it('does not write again for a repeated provider request', async () => {
+    const { service, repositories } = makeProfileHarness();
+
+    const firstResult = await service.updateWorkspaceMemberProfile(input);
+    const secondResult = await service.updateWorkspaceMemberProfile(input);
+
+    expect(secondResult).toEqual(firstResult);
+    expect(repositories.workspaceMemberRepository.update).toHaveBeenCalledTimes(
+      1,
+    );
+  });
+
+  it('preserves names when the provider returns blank names', async () => {
+    const { service, member, repositories } = makeProfileHarness();
+
+    await service.updateWorkspaceMemberProfile({
+      ...input,
+      firstName: '   ',
+      lastName: '',
+    });
+
+    expect(member.name).toEqual({ firstName: 'Ada', lastName: 'Lovelace' });
+    expect(
+      repositories.workspaceMemberRepository.update,
+    ).not.toHaveBeenCalled();
+  });
+
+  it('trims nonempty provider names', async () => {
+    const { service, member } = makeProfileHarness();
+
+    await service.updateWorkspaceMemberProfile({
+      ...input,
+      firstName: '  Augusta ',
+      lastName: ' King  ',
+    });
+
+    expect(member.name).toEqual({ firstName: 'Augusta', lastName: 'King' });
+  });
+
+  it('fills only blank Go names and preserves the Go email', async () => {
+    const { service, member } = makeProfileHarness();
+
+    member.name = { firstName: '   ', lastName: 'Go surname' };
+    member.userEmail = 'ADA@Example.com';
+
+    await service.updateWorkspaceMemberProfile({
+      ...input,
+      profilePolicy: 'fill_missing',
+    });
+
+    expect(member.name).toEqual({
+      firstName: 'Augusta',
+      lastName: 'Go surname',
+    });
+    expect(member.userEmail).toBe('ADA@Example.com');
+  });
+
+  it('does not overwrite nonempty Go names', async () => {
+    const { service, member, repositories } = makeProfileHarness();
+
+    await service.updateWorkspaceMemberProfile({
+      ...input,
+      profilePolicy: 'fill_missing',
+    });
+
+    expect(member.name).toEqual({ firstName: 'Ada', lastName: 'Lovelace' });
+    expect(
+      repositories.workspaceMemberRepository.update,
+    ).not.toHaveBeenCalled();
+  });
+
+  it('leaves all profile fields unchanged when Go and provider emails differ', async () => {
+    const { service, member, repositories } = makeProfileHarness();
+
+    member.name = { firstName: '', lastName: '' };
+
+    const result = await service.updateWorkspaceMemberProfile({
+      ...input,
+      email: 'different@example.com',
+      profilePolicy: 'fill_missing',
+    });
+
+    expect(result.workspaceMemberId).toBe(member.id);
+    expect(member.userEmail).toBe('ada@example.com');
+    expect(member.name).toEqual({ firstName: '', lastName: '' });
+    expect(
+      repositories.workspaceMemberRepository.update,
+    ).not.toHaveBeenCalled();
+  });
+
+  it('leaves all profile fields unchanged when a Go member has no email', async () => {
+    const { service, member, repositories } = makeProfileHarness();
+
+    member.userEmail = '';
+    member.name = { firstName: '', lastName: '' };
+
+    await service.updateWorkspaceMemberProfile({
+      ...input,
+      profilePolicy: 'fill_missing',
+    });
+
+    expect(member.userEmail).toBe('');
+    expect(member.name).toEqual({ firstName: '', lastName: '' });
+    expect(
+      repositories.workspaceMemberRepository.update,
+    ).not.toHaveBeenCalled();
+  });
+
+  it.each(['other@example.com', 'OTHER@EXAMPLE.COM', ' other@example.com '])(
+    'rejects an email already held by another member: %s',
+    async (existingEmail) => {
+      const { service, stores, member, repositories } = makeProfileHarness();
+
+      stores.workspaceMembers.set(existingEmail, {
+        id: 'other-member',
+        userId: 'other-user',
+        userEmail: existingEmail,
+        name: { firstName: 'Other', lastName: 'Member' },
+      });
+
+      await expect(
+        service.updateWorkspaceMemberProfile({
+          ...input,
+          email: 'other@example.com',
+        }),
+      ).rejects.toThrow(ConflictException);
+      expect(member).toMatchObject({
+        userEmail: 'ada@example.com',
+        name: { firstName: 'Ada', lastName: 'Lovelace' },
+      });
+      expect(
+        repositories.workspaceMemberRepository.update,
+      ).not.toHaveBeenCalled();
+    },
+  );
+
+  it('returns not found without creating a missing member', async () => {
+    const { service, repositories, stores } = makeProfileHarness();
+
+    await expect(
+      service.updateWorkspaceMemberProfile({
+        ...input,
+        workspaceMemberId: 'unknown-member',
+      }),
+    ).rejects.toThrow(NotFoundException);
+    expect(stores.workspaceMembers.size).toBe(1);
+    expect(
+      repositories.workspaceMemberRepository.insert,
+    ).not.toHaveBeenCalled();
+    expect(
+      repositories.workspaceMemberRepository.update,
+    ).not.toHaveBeenCalled();
+  });
+
+  it('returns not found before entering another workspace context', async () => {
+    const { service, globalWorkspaceOrmManager } = makeProfileHarness();
+
+    await expect(
+      service.updateWorkspaceMemberProfile({
+        ...input,
+        workspaceId: '20202020-0000-4000-8000-000000000404',
+      }),
+    ).rejects.toThrow(NotFoundException);
+    expect(
+      globalWorkspaceOrmManager.executeInWorkspaceContext,
+    ).not.toHaveBeenCalled();
+  });
+
+  it('rejects invalid email before opening a workspace transaction', async () => {
+    const { service, globalWorkspaceOrmManager } = makeProfileHarness();
+
+    await expect(
+      service.updateWorkspaceMemberProfile({ ...input, email: 'not-an-email' }),
+    ).rejects.toThrow(BadRequestException);
+    expect(
+      globalWorkspaceOrmManager.runInWorkspaceTransaction,
+    ).not.toHaveBeenCalled();
+  });
+
+  it('retains a completed Go name fill when a second fill follows it', async () => {
+    const { service, member } = makeProfileHarness();
+
+    member.name = { firstName: '', lastName: '' };
+
+    await Promise.all([
+      service.updateWorkspaceMemberProfile({
+        ...input,
+        firstName: 'First',
+        lastName: 'Fill',
+        profilePolicy: 'fill_missing',
+      }),
+      service.updateWorkspaceMemberProfile({
+        ...input,
+        firstName: 'Second',
+        lastName: 'Fill',
+        profilePolicy: 'fill_missing',
+      }),
+    ]);
+
+    expect(member.name).toEqual({ firstName: 'First', lastName: 'Fill' });
+  });
+
+  it('allows only one member to claim the same email in competing updates', async () => {
+    const { service, stores } = makeProfileHarness();
+
+    stores.workspaceMembers.set('other@example.com', {
+      id: 'other-member',
+      userId: 'other-user',
+      userEmail: 'other@example.com',
+      name: { firstName: 'Other', lastName: 'Member' },
+    });
+
+    const results = await Promise.allSettled([
+      service.updateWorkspaceMemberProfile({
+        ...input,
+        email: 'shared@example.com',
+      }),
+      service.updateWorkspaceMemberProfile({
+        ...input,
+        workspaceMemberId: 'other-member',
+        email: 'SHARED@example.com',
+      }),
+    ]);
+
+    expect(results.map((result) => result.status).sort()).toEqual([
+      'fulfilled',
+      'rejected',
+    ]);
+    const failure = results.find((result) => result.status === 'rejected');
+
+    expect(failure?.status === 'rejected' && failure.reason).toBeInstanceOf(
+      ConflictException,
+    );
+    expect(
+      Array.from(stores.workspaceMembers.values()).filter(
+        (member) => member.userEmail === 'shared@example.com',
+      ),
+    ).toHaveLength(1);
+  });
+
+  it('propagates a lock failure without reading or changing a member', async () => {
+    const { service, repositories, transactionScope } = makeProfileHarness();
+    const failure = new Error('lock timeout');
+
+    transactionScope.executeRawQuery
+      .mockResolvedValueOnce([])
+      .mockRejectedValueOnce(failure);
+
+    await expect(service.updateWorkspaceMemberProfile(input)).rejects.toBe(
+      failure,
+    );
+    expect(
+      repositories.workspaceMemberRepository.findOne,
+    ).not.toHaveBeenCalled();
+    expect(
+      repositories.workspaceMemberRepository.update,
+    ).not.toHaveBeenCalled();
+  });
+
+  it('propagates a failed write for the directory worker to retry', async () => {
+    const { service, repositories, member } = makeProfileHarness();
+    const failure = new Error('database write failed');
+
+    repositories.workspaceMemberRepository.update.mockRejectedValueOnce(
+      failure,
+    );
+
+    await expect(service.updateWorkspaceMemberProfile(input)).rejects.toBe(
+      failure,
+    );
+    expect(member.name).toEqual({ firstName: 'Ada', lastName: 'Lovelace' });
   });
 });
