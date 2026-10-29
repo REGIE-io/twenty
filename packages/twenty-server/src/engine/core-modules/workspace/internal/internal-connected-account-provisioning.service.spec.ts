@@ -58,6 +58,7 @@ type StoredCalendarChannel = {
   syncStageStartedAt: Date | null;
   syncCursor: string;
   throttleFailureCount: number;
+  syncedAt: Date | null;
 };
 
 type StoredMessageChannel = {
@@ -416,6 +417,7 @@ const seedChannel = (
     syncStageStartedAt: null,
     syncCursor: 'cursor-from-last-sync',
     throttleFailureCount: 0,
+    syncedAt: null,
     ...overrides,
   };
 
@@ -910,12 +912,14 @@ describe('InternalConnectedAccountProvisioningService', () => {
   });
 
   describe('getCalendarChannelSyncStatus', () => {
-    it('reports the channel sync status', async () => {
+    it('reports the channel sync status and when it last synced', async () => {
       const { service, stores } = makeServiceHarness();
+      const syncedAt = new Date('2026-10-29T07:02:00.000Z');
 
       seedChannel(stores, {
         connectedAccountId: 'connected-account-1',
         syncStatus: CalendarChannelSyncStatus.ONGOING,
+        syncedAt,
       });
 
       const result = await service.getCalendarChannelSyncStatus({
@@ -923,7 +927,26 @@ describe('InternalConnectedAccountProvisioningService', () => {
         calendarChannelId: 'existing-calendar-channel',
       });
 
-      expect(result).toEqual({ syncStatus: CalendarChannelSyncStatus.ONGOING });
+      expect(result).toEqual({
+        syncStatus: CalendarChannelSyncStatus.ONGOING,
+        syncedAt,
+      });
+    });
+
+    it('reports a channel that has never synced', async () => {
+      const { service, stores } = makeServiceHarness();
+
+      seedChannel(stores, { connectedAccountId: 'connected-account-1' });
+
+      const result = await service.getCalendarChannelSyncStatus({
+        workspaceId: WORKSPACE_ID,
+        calendarChannelId: 'existing-calendar-channel',
+      });
+
+      expect(result).toEqual({
+        syncStatus: CalendarChannelSyncStatus.ACTIVE,
+        syncedAt: null,
+      });
     });
 
     it('rejects an unknown channel', async () => {
