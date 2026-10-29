@@ -42,4 +42,5 @@ export type DetachConnectedAccountResult = {
 
 export type CalendarChannelSyncStatusResult = {
   syncStatus: CalendarChannelSyncStatus;
+  syncedAt: Date | null;
 };
