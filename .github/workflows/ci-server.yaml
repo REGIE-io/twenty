@@ -337,6 +337,16 @@ jobs:
       - name: Server / Create Test DB
         run: |
           PGPASSWORD=postgres psql -h localhost -p 5432 -U postgres -d postgres -c 'CREATE DATABASE "test";'
+      - name: Server / Verify member profile transactions
+        if: matrix.shard == 1
+        env:
+          TWENTY_MEMBER_PROFILE_TEST_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/twenty_member_profile_test_ci
+        run: |
+          PGPASSWORD=postgres psql -h localhost -p 5432 -U postgres -d postgres -c 'CREATE DATABASE "twenty_member_profile_test_ci";'
+          node node_modules/jest/bin/jest.js --config=packages/twenty-server/jest.config.mjs --runInBand --runTestsByPath packages/twenty-server/src/engine/core-modules/workspace/internal/internal-workspace-member-profile.postgres.spec.ts
+      - name: Server / Drop member profile test DB
+        if: always() && matrix.shard == 1
+        run: PGPASSWORD=postgres dropdb -h localhost -p 5432 -U postgres --if-exists twenty_member_profile_test_ci
       - name: Run ClickHouse migrations
         run: npx nx clickhouse:migrate twenty-server
       - name: Run ClickHouse seeds

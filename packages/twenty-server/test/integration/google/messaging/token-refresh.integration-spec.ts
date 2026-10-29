@@ -1,4 +1,8 @@
-import { ConnectedAccountProvider } from 'twenty-shared/types';
+import {
+  ConnectedAccountProvider,
+  MessageChannelSyncStage,
+  MessageChannelSyncStatus,
+} from 'twenty-shared/types';
 
 import { ConnectedAccountEntity } from 'src/engine/metadata-modules/connected-account/entities/connected-account.entity';
 
@@ -6,7 +10,10 @@ import { gmailMessage } from 'test/integration/google/mocks/gmail-message.util';
 import { setupGoogleMock } from 'test/integration/google/mocks/setup-google-mock.util';
 import { connectMessagingAccount } from 'test/integration/utils/connect-messaging-account.util';
 import { getCoreRepository } from 'test/integration/utils/get-core-repository.util';
-import { queryConnectedAccount } from 'test/integration/utils/query-messaging.util';
+import {
+  queryConnectedAccount,
+  queryMessageChannel,
+} from 'test/integration/utils/query-messaging.util';
 import { runMessageChannelSync } from 'test/integration/utils/run-message-channel-sync.util';
 
 const HANDLE = 'messaging-token-refresh@apple.dev';
@@ -22,6 +29,8 @@ describe('Messaging token refresh (integration)', () => {
     channel = await connectMessagingAccount({
       provider: ConnectedAccountProvider.GOOGLE,
       handle: HANDLE,
+      // Prevent OAuth onboarding import from racing the manually scheduled sync.
+      skipChannelConfiguration: false,
     });
   }, 60000);
 
@@ -45,5 +54,9 @@ describe('Messaging token refresh (integration)', () => {
     expect(
       new Date(account.lastCredentialsRefreshedAt ?? 0).getTime(),
     ).toBeGreaterThan(EXPIRED_CREDENTIALS_AT.getTime());
+    expect(await queryMessageChannel(channel)).toMatchObject({
+      syncStatus: MessageChannelSyncStatus.ACTIVE,
+      syncStage: MessageChannelSyncStage.MESSAGE_LIST_FETCH_PENDING,
+    });
   }, 60000);
 });
