@@ -322,6 +322,7 @@ const makeServiceHarness = () => {
           syncStageStartedAt: null,
           syncCursor: '',
           throttleFailureCount: 0,
+          syncedAt: null,
         };
 
         calendarChannels.set(created.id, created);
