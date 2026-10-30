@@ -208,7 +208,9 @@ export class InternalConnectedAccountProvisioningService {
       );
     }
 
-    return { syncStatus: channel.syncStatus };
+    const { syncStatus, syncedAt } = channel;
+
+    return { syncStatus, syncedAt };
   }
 
   private async assertWorkspaceExists(workspaceId: string): Promise<void> {
