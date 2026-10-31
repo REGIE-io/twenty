@@ -30,6 +30,7 @@ export type MicrosoftMock = {
   patchedMessages: Array<Record<string, unknown>>;
   sentMessageIds: string[];
   createdCalendarEvents: Event[];
+  calendarEventListRequests: URLSearchParams[];
   serveCalendarEvents: (
     events: Event[],
     options?: { deltaToken?: string },
@@ -72,6 +73,7 @@ export const setupMicrosoftMock = ({
   const patchedMessages: Array<Record<string, unknown>> = [];
   const sentMessageIds: string[] = [];
   const createdCalendarEvents: Event[] = [];
+  const calendarEventListRequests: URLSearchParams[] = [];
 
   const httpMock = setupHttpMock(
     ...microsoftAuthHandlers(handle),
@@ -150,10 +152,18 @@ export const setupMicrosoftMock = ({
     patchedMessages,
     sentMessageIds,
     createdCalendarEvents,
+    calendarEventListRequests,
     serveCalendarEvents: (
       events,
       { deltaToken = 'mock-calendar-delta-token' } = {},
-    ) => httpMock.use(...microsoftCalendarEventsHandlers(events, deltaToken)),
+    ) =>
+      httpMock.use(
+        ...microsoftCalendarEventsHandlers(
+          events,
+          deltaToken,
+          calendarEventListRequests,
+        ),
+      ),
     failSubscriptionRenewal: () =>
       httpMock.use(
         ...microsoftWebhookSubscriptionHandlers(subscriptionStore, {

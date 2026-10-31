@@ -67,7 +67,7 @@ jobs:
           key: ${{ env.STORYBOOK_BUILD_CACHE_KEY_FOR_SAVE_ACTION }}
   front-sb-test:
     timeout-minutes: 30
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     needs: front-sb-build
     if: always() && needs.front-sb-build.result == 'success'
     strategy:
